@@ -12,7 +12,7 @@
   
   <ItemGroup>
     <ProjectReference Include="..\Jigen.SemanticTools\Jigen.SemanticTools.csproj" />
-    <ProjectReference Include="..\Jigen\Jigen.csproj" />
+    <ProjectReference Include="..\Jigen.Store\Jigen.Store.csproj" />
   </ItemGroup>
 
 </Project>

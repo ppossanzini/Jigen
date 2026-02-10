@@ -34,7 +34,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj" />
-    <ProjectReference Include="..\..\src\Jigen\Jigen\Jigen.csproj" />
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Store\Jigen.Store.csproj" />
   </ItemGroup>
 
 </Project>

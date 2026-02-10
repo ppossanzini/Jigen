@@ -63,29 +63,48 @@ public static class StoreWritingExtensions
   internal static async Task<(byte[] id, long position, long embeddingPosition, long size)>
     AppendContent(this Store store, byte[] id, string collection, byte[] content, float[] embeddings)
   {
-    var contentStream = store.ContentFileStream;
+    (long contentPosition, long embeddingPosition, int dimensions, long size) actualindex = default;
 
-    contentStream.Seek(0, SeekOrigin.End);
-    var currentPosition = contentStream.Position;
+    if (content.Length == 0) content = null;
+    if (embeddings.Length == 0) embeddings = null;
 
-    WriteInt32Le(contentStream, id.Length);
-    await contentStream.WriteAsync(id, 0, id.Length);
-    WriteInt32Le(contentStream, content.Length);
-    await contentStream.WriteAsync(content, 0, content.Length);
+    if (content == null || embeddings == null)
+    {
+      // Evaluate partial updates.
+      store.PositionIndex.TryGetValue(collection, out var positionIndex);
+      positionIndex?.TryGetValue(id, out actualindex);
+    }
 
-    store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
+    var contentPosition = actualindex.contentPosition;
+    if (content != null)
+    {
+      var contentStream = store.ContentFileStream;
 
-    var embeddingsStream = store.EmbeddingFileStream;
-    embeddingsStream.Seek(0, SeekOrigin.End);
-    var embeddingPosition = embeddingsStream.Position;
+      contentStream.Seek(0, SeekOrigin.End);
+      contentPosition = contentStream.Position;
 
-    WriteInt32Le(embeddingsStream, id.Length);
-    await embeddingsStream.WriteAsync(id, 0, id.Length);
-    WriteByteArray(embeddingsStream, embeddings);
+      WriteInt32Le(contentStream, id.Length);
+      await contentStream.WriteAsync(id, 0, id.Length);
+      WriteInt32Le(contentStream, content.Length);
+      await contentStream.WriteAsync(content, 0, content.Length);
+      store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
+    }
+    
+    var embeddingPosition = actualindex.embeddingPosition;
+    if (embeddings != null)
+    {
+      var embeddingsStream = store.EmbeddingFileStream;
+      embeddingsStream.Seek(0, SeekOrigin.End);
+      embeddingPosition = embeddingsStream.Position;
 
-    store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;
+      WriteInt32Le(embeddingsStream, id.Length);
+      await embeddingsStream.WriteAsync(id, 0, id.Length);
+      WriteByteArray(embeddingsStream, embeddings);
 
-    await store.AppendIndex((id, collection, currentPosition, embeddingPosition, embeddings.Length, content.Length));
-    return (id, currentPosition, embeddingPosition, content.Length);
+      store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;
+    }
+
+    await store.AppendIndex((id, collection, contentPosition, embeddingPosition, embeddings?.Length ?? actualindex.dimensions, content?.Length ?? actualindex.size));
+    return (id, contentPosition, embeddingPosition, content?.Length ?? actualindex.size);
   }
 }
