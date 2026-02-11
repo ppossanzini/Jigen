@@ -31,6 +31,7 @@ public class Store : IStore, IDisposable
   internal Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
 
   internal readonly Writer Writer;
+  public IServiceProvider ServiceProvider { get; init; }
 
   internal string ContentFullFileName
   {
@@ -48,8 +49,9 @@ public class Store : IStore, IDisposable
   }
 
 
-  public Store(StoreOptions options)
+  public Store(StoreOptions options, IServiceProvider serviceProvider)
   {
+    ServiceProvider = serviceProvider;
     this.Options = options;
     EnsureFileCreated();
 
@@ -62,12 +64,19 @@ public class Store : IStore, IDisposable
     Writer = new Writer(this);
   }
 
+  internal IDocumentSerializer<T> GetSerializer<T>()
+  {
+    var type = typeof(IDocumentSerializer<T>);
+    return ServiceProvider.GetService(type) as IDocumentSerializer<T>;
+  }
+
   internal void EnableWriting()
   {
     ContentFileStream = File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     EmbeddingFileStream = File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     IndexFileStream = File.Open(IndexFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
   }
+
 
   internal void EnableReading()
   {
@@ -84,6 +93,11 @@ public class Store : IStore, IDisposable
 
     oldcontent?.Dispose();
     oldembeddings?.Dispose();
+  }
+
+  public Task SaveIndexChanges()
+  {
+    return Task.CompletedTask;
   }
 
   public Task SaveChangesAsync(CancellationToken? cancellationToken = null)

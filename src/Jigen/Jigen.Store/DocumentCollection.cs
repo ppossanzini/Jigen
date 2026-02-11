@@ -4,27 +4,22 @@ using Jigen.Extensions;
 
 namespace Jigen;
 
-public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options = null) :
-  IDictionary<VectorKey, VectorEntry<T>>
+public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> options = null) :
+  IDictionary<VectorKey, T>
   where T : class, new()
 {
   private string CollectionName = options?.Name ?? nameof(T);
   private IDocumentSerializer<T> Serializer => store.GetSerializer<T>();
 
-  public IEnumerator<KeyValuePair<VectorKey, VectorEntry<T>>> GetEnumerator()
+  public IEnumerator<KeyValuePair<VectorKey, T>> GetEnumerator()
   {
     if (!store.PositionIndex.TryGetValue(CollectionName, out var value)) yield break;
 
     foreach (var k in value.Keys)
     {
       var content = store.ReadContent(CollectionName, k);
-      var embeddings = Array.Empty<float>(); //TODO: Aggiungere metodo per la lettura degli embeddings
       if (content != null) ;
-      yield return new KeyValuePair<VectorKey, VectorEntry<T>>(k,
-        new VectorEntry<T>()
-        {
-          Key = k, Content = Serializer.Deserialize(content), Embedding = embeddings
-        });
+      yield return new KeyValuePair<VectorKey, T>(k, Serializer.Deserialize(content));
     }
   }
 
@@ -33,14 +28,13 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     return GetEnumerator();
   }
 
-  public void Add(KeyValuePair<VectorKey, VectorEntry<T>> item)
+  public void Add(KeyValuePair<VectorKey, T> item)
   {
     store.IngestionQueue.Enqueue(new VectorEntry()
     {
       Id = item.Key.Key,
       CollectionName = CollectionName,
-      Content = Serializer.Serialize(item.Value.Content),
-      Embedding = item.Value.Embedding
+      Content = Serializer.Serialize(item.Value)
     });
   }
 
@@ -53,18 +47,18 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     }
   }
 
-  public bool Contains(KeyValuePair<VectorKey, VectorEntry<T>> item)
+  public bool Contains(KeyValuePair<VectorKey, T> item)
   {
     return store.PositionIndex.TryGetValue(CollectionName, out var index) &&
            index.ContainsKey(item.Key.Key);
   }
 
-  public void CopyTo(KeyValuePair<VectorKey, VectorEntry<T>>[] array, int arrayIndex)
+  public void CopyTo(KeyValuePair<VectorKey, T>[] array, int arrayIndex)
   {
     throw new NotImplementedException();
   }
 
-  public bool Remove(KeyValuePair<VectorKey, VectorEntry<T>> item)
+  public bool Remove(KeyValuePair<VectorKey, T> item)
   {
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
                  index.Remove(item.Key.Key);
@@ -76,14 +70,13 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   public int Count => store.PositionIndex.TryGetValue(CollectionName, out var index) ? index.Count : 0;
   public bool IsReadOnly { get; } = false;
 
-  public void Add(VectorKey key, VectorEntry<T> value)
+  public void Add(VectorKey key, T value)
   {
     store.IngestionQueue.Enqueue(new VectorEntry()
     {
       Id = key.Key,
       CollectionName = CollectionName,
-      Content = Serializer.Serialize(value.Content),
-      Embedding = value.Embedding
+      Content = Serializer.Serialize(value)
     });
   }
 
@@ -102,20 +95,14 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     return result;
   }
 
-  public bool TryGetValue(VectorKey key, out VectorEntry<T> value)
+  public bool TryGetValue(VectorKey key, out T value)
   {
     var result = store.ReadContent(CollectionName, key.Key);
-    value = result != null
-      ? new VectorEntry<T>()
-      {
-        Key = key.Key,
-        Content = Serializer.Deserialize(result)
-      }
-      : null;
+    value = result != null ? Serializer.Deserialize(result) : null;
     return result != null;
   }
 
-  public VectorEntry<T> this[VectorKey key]
+  public T this[VectorKey key]
   {
     get => this.TryGetValue(key, out var result) ? result : null;
     set => this.Add(key, value);
@@ -123,25 +110,17 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
   public ICollection<VectorKey> Keys => (store.PositionIndex.TryGetValue(CollectionName, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();
 
-  public ICollection<VectorEntry<T>> Values
+  public ICollection<T> Values
   {
     get
     {
       if (store.PositionIndex.TryGetValue(CollectionName, out var value))
       {
-        return value.Keys.Select(k => new
-        {
-          k,
-          content = store.ReadContent(CollectionName, k),
-          embeddings = Array.Empty<float>()
-        }).Select(k => new VectorEntry<T>()
-        {
-          Key = k.k,
-          Content = k.content is { Length: > 0 } ? Serializer.Deserialize(k.content) : null,
-          Embedding = k.embeddings
-        }).ToArray();
+        return value.Keys.Select(k => new { k, content = store.ReadContent(CollectionName, k) })
+          .Select(k => k.content is { Length: > 0 } ? Serializer.Deserialize(k.content) : null).ToArray();
       }
-      return Array.Empty<VectorEntry<T>>();
+
+      return Array.Empty<T>();
     }
   }
 }

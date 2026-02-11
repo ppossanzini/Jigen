@@ -1,8 +1,7 @@
 namespace Jigen;
 
-public class VectorCollectionOptions<T>
+public class DocumentCollectionOptions<T>
   where T : class, new()
 {
-  public int Dimensions = 1536;
   public string Name = nameof(T);
 }
