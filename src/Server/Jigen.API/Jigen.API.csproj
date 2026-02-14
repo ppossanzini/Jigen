@@ -1,21 +1,23 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
-
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App"/>
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.Composition" Version="10.0.2"/>
     <PackageReference Include="Hikyaku" Version="9.1.0"/>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Jigen.Core\Jigen.Core.csproj" />
+    <ProjectReference Include="..\..\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj"/>
+    <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>
+    <ProjectReference Include="..\Jigen.Core\Jigen.Core.csproj"/>
   </ItemGroup>
 
-  <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-
-  </PropertyGroup>
 
 </Project>

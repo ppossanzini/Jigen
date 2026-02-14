@@ -8,19 +8,16 @@
 
   <ItemGroup>
     <PackageReference Include="System.Composition" Version="10.0.2"/>
-    <PackageReference Include="MessagePack" Version="3.1.4" />
+    <PackageReference Include="MessagePack" Version="3.1.4"/>
+    <PackageReference Include="Hikyaku" Version="9.1.0"/>
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj"/>
     <ProjectReference Include="..\..\Jigen\Jigen.Store\Jigen.Store.csproj"/>
     <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>
     <ProjectReference Include="..\Jigen.Core\Jigen.Core.csproj"/>
   </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="Hikyaku">
-      <HintPath>..\..\..\..\..\..\.nuget\packages\hikyaku\9.1.0\lib\net9.0\Hikyaku.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+  
 
 </Project>

@@ -20,8 +20,7 @@ public class ReadWriteTest : IDisposable
     {
       DataBaseName = "readwritetest",
       DataBasePath = "/data/jigendb",
-      VectorSize = 1024, InitialVectorDBSize = 1, InitialContentDBSize = 1
-    });
+    }, null);
 
     _embeddingGenerator = new(
       "/data/onnx/multi-lingual/tokenizer.onnx",
@@ -73,7 +72,7 @@ public class ReadWriteTest : IDisposable
   {
     foreach (var s in sentences)
     {
-      _testOutputHelper.WriteLine(Encoding.UTF8.GetString(_store.ReadContent("vicini", s.id.ToByteArray())));
+      _testOutputHelper.WriteLine(Encoding.UTF8.GetString(_store.GetContent("vicini", s.id.ToByteArray())));
     }
 
     await _store.Close();

@@ -17,7 +17,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
 
     foreach (var k in value.Keys)
     {
-      var content = store.ReadContent(CollectionName, k);
+      var content = store.GetContent(CollectionName, k);
       if (content != null) ;
       yield return new KeyValuePair<VectorKey, T>(k, Serializer.Deserialize(content));
     }
@@ -63,7 +63,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
                  index.Remove(item.Key.Key);
 
-    if (result) store.SaveIndexChanges();
+    if (result) store.SaveIndexChanges().GetAwaiter().GetResult();
     return result;
   }
 
@@ -97,7 +97,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
 
   public bool TryGetValue(VectorKey key, out T value)
   {
-    var result = store.ReadContent(CollectionName, key.Key);
+    var result = store.GetContent(CollectionName, key.Key);
     value = result != null ? Serializer.Deserialize(result) : null;
     return result != null;
   }
@@ -116,7 +116,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
     {
       if (store.PositionIndex.TryGetValue(CollectionName, out var value))
       {
-        return value.Keys.Select(k => new { k, content = store.ReadContent(CollectionName, k) })
+        return value.Keys.Select(k => new { k, content = store.GetContent(CollectionName, k) })
           .Select(k => k.content is { Length: > 0 } ? Serializer.Deserialize(k.content) : null).ToArray();
       }
 

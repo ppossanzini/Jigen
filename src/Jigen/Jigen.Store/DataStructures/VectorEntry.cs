@@ -21,8 +21,40 @@ public class VectorEntry<T>
 
 public struct VectorKey
 {
+  
   public byte[] Key;
 
+  public static VectorKey From(ulong value)
+  {
+    return new VectorKey { Key = BitConverter.GetBytes(value) };
+  }
+
+  public static VectorKey From(uint value)
+  {
+    return new VectorKey { Key = BitConverter.GetBytes(value) };
+  }
+
+  public static VectorKey From(int value)
+  {
+    return new VectorKey { Key = BitConverter.GetBytes(value) };
+  }
+
+  public static VectorKey From(long value)
+  {
+    return new VectorKey { Key = BitConverter.GetBytes(value) };
+  }
+
+  public static VectorKey From(Guid value)
+  {
+    return new VectorKey { Key = value.ToByteArray() };
+  }
+
+  public static VectorKey From(string value)
+  {
+    return new VectorKey { Key = Encoding.UTF8.GetBytes(value) };
+  }
+
+  
   public static implicit operator VectorKey(ulong value)
   {
     return new VectorKey { Key = BitConverter.GetBytes(value) };

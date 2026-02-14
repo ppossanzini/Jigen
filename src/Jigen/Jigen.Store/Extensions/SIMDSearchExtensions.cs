@@ -72,7 +72,7 @@ public static class SimdSearchExtensions
     return topResults.OrderByDescending(r => r.Score).Take(top)
       .Select(r => (new VectorEntry
       {
-        Id = r.Id, Content = store.ReadContent(collection, r.Id)
+        Id = r.Id, Content = store.GetContent(collection, r.Id)
       }, r.Score))
       .ToList();
   }

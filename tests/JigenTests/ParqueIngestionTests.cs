@@ -20,7 +20,7 @@ public class ParqueIngestionTests : IDisposable
     {
       DataBaseName = "openai_llm",
       DataBasePath = "/data/jigendb"
-    });
+    }, null);
   }
 
   public void Dispose()

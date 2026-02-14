@@ -1,8 +1,13 @@
 namespace Jigen;
 
+public interface IDocumentSerializer
+{
+  byte[] Serialize(object document);
+  object Deserialize(byte[] data);
+}
 
-public interface IDocumentSerializer<T> 
+public interface IDocumentSerializer<T> : IDocumentSerializer
 {
   byte[] Serialize(T document);
-  T Deserialize(byte[] data);
+  new T Deserialize(byte[] data);
 }

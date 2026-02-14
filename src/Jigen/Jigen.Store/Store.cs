@@ -33,21 +33,36 @@ public class Store : IStore, IDisposable
   internal readonly Writer Writer;
   public IServiceProvider ServiceProvider { get; init; }
 
-  internal string ContentFullFileName
+  internal string ContentFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.ContentSuffix}.jigen");
+
+  internal string IndexFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.index.jigen");
+
+  internal string EmbeddingsFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.EmbeddingSuffix}.jigen");
+
+  public IEnumerable<string> GetFileNames()
   {
-    get { return Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{this.Options.ContentSuffix}.jigen"); }
+    yield return IndexFullFileName;
+    yield return ContentFullFileName;
+    yield return EmbeddingsFullFileName;
   }
 
-  internal string IndexFullFileName
+  public IEnumerable<string> GetCollections()
   {
-    get { return Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.index.jigen"); }
+    return PositionIndex.Keys;
   }
 
-  internal string EmbeddingsFullFileName
+  public CollectionInfo GetCollectionInfo(string name)
   {
-    get { return Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{this.Options.EmbeddingSuffix}.jigen"); }
+    if (!PositionIndex.ContainsKey(name)) throw new ArgumentException("Collection not found");
+    return new CollectionInfo()
+    {
+      Name = name,
+      Vectors = PositionIndex[name].Count,
+      Dimensions = PositionIndex[name].Values.FirstOrDefault().dimensions,
+      ContentSize = PositionIndex[name].Values.Sum(i => i.size),
+      VectorSize = PositionIndex[name].Values.Sum(i => i.embeddingsposition > 0 ? i.dimensions * sizeof(float) : 0)
+    };
   }
-
 
   public Store(StoreOptions options, IServiceProvider serviceProvider)
   {
@@ -64,10 +79,16 @@ public class Store : IStore, IDisposable
     Writer = new Writer(this);
   }
 
-  internal IDocumentSerializer<T> GetSerializer<T>()
+  public IDocumentSerializer<T> GetSerializer<T>()
   {
     var type = typeof(IDocumentSerializer<T>);
     return ServiceProvider.GetService(type) as IDocumentSerializer<T>;
+  }
+
+  public IDocumentSerializer GetSerializer(Type t)
+  {
+    var type = typeof(IDocumentSerializer<>).MakeGenericType(t);
+    return ServiceProvider.GetService(type) as IDocumentSerializer;
   }
 
   internal void EnableWriting()

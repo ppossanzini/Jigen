@@ -7,30 +7,20 @@ namespace Jigen.Handlers.Model;
 
 public class SystemDB : Store
 {
-  readonly MessagePackSerializerOptions _serializerOptions = MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance);
 
-  public VectorCollection<SystemInfo> System { get; set; }
+  public DocumentCollection<SystemInfo> System { get; set; }
 
-  public const string SYSTEM = "SYSTEM";
+  const string SYSTEM = "SYSTEM";
   public const string BASEINFO = "baseinfo";
 
-  public SystemDB(StoreOptions options) : base(options)
+  public SystemDB(StoreOptions options, IServiceProvider serviceProvider) : base(options, serviceProvider)
   {
-    System = new VectorCollection<SystemInfo>(this, new VectorCollectionOptions<SystemInfo>()
+    System = new DocumentCollection<SystemInfo>(this, new DocumentCollectionOptions<SystemInfo>()
     {
-      Name = SYSTEM, Dimensions = 0,
-      Serialize = i => MessagePackSerializer.Serialize(i, _serializerOptions),
-      Deserialize = b => MessagePackSerializer.Deserialize<SystemInfo>(b, _serializerOptions)
+      Name = SYSTEM
     });
-    
+
     if (!this.System.ContainsKey(BASEINFO))
-      this.System.Add(BASEINFO, new VectorEntry<SystemInfo>()
-      {
-        Key = BASEINFO,
-        Content = new SystemInfo()
-        {
-          Databases = []
-        }
-      });
+      this.System.Add(BASEINFO, new SystemInfo() { Databases = [] });
   }
 }

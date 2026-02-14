@@ -55,7 +55,7 @@ public static class StoreReadingExtensions
   }
 
 
-  public static byte[] ReadContent(this Store store, string collection, byte[] id)
+  public static byte[] GetContent(this Store store, string collection, byte[] id)
   {
     var accessor = store.ContentData.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
     if (!store.PositionIndex[collection].TryGetValue(id,

@@ -60,6 +60,20 @@ public static class StoreWritingExtensions
     return entry;
   }
 
+  public static Task<VectorEntry> SetContent(this Store store, VectorEntry entry)
+  {
+    return store.AppendContent(entry);
+  }
+
+  public static async Task<bool> DeleteContent(this Store store, string collection, byte[] key)
+  {
+    var result = store.PositionIndex.TryGetValue(collection, out var index) &&
+                 index.Remove(key);
+
+    if (result) await store.SaveIndexChanges();
+    return result;
+  }
+
   internal static async Task<(byte[] id, long position, long embeddingPosition, long size)>
     AppendContent(this Store store, byte[] id, string collection, byte[] content, float[] embeddings)
   {
@@ -89,7 +103,7 @@ public static class StoreWritingExtensions
       await contentStream.WriteAsync(content, 0, content.Length);
       store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
     }
-    
+
     var embeddingPosition = actualindex.embeddingPosition;
     if (embeddings != null)
     {

@@ -17,7 +17,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
     foreach (var k in value.Keys)
     {
-      var content = store.ReadContent(CollectionName, k);
+      var content = store.GetContent(CollectionName, k);
       var embeddings = Array.Empty<float>(); //TODO: Aggiungere metodo per la lettura degli embeddings
       if (content != null) ;
       yield return new KeyValuePair<VectorKey, VectorEntry<T>>(k,
@@ -69,7 +69,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
                  index.Remove(item.Key.Key);
 
-    if (result) store.SaveIndexChanges();
+    if (result) store.SaveIndexChanges().GetAwaiter().GetResult();
     return result;
   }
 
@@ -104,7 +104,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
   public bool TryGetValue(VectorKey key, out VectorEntry<T> value)
   {
-    var result = store.ReadContent(CollectionName, key.Key);
+    var result = store.GetContent(CollectionName, key.Key);
     value = result != null
       ? new VectorEntry<T>()
       {
@@ -132,7 +132,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
         return value.Keys.Select(k => new
         {
           k,
-          content = store.ReadContent(CollectionName, k),
+          content = store.GetContent(CollectionName, k),
           embeddings = Array.Empty<float>()
         }).Select(k => new VectorEntry<T>()
         {

@@ -32,7 +32,7 @@ namespace Jigen
         options.AddDefaultPolicy(opt =>
           opt.AllowAnyMethod().AllowAnyHeader().SetIsOriginAllowed(s => true).AllowCredentials());
       });
-
+      
       Loader.Current.ConfigureServices(services, configuration, environment);
 
       services.AddControllers().AddNewtonsoftJson(options => options.SerializerSettings.ConfigureDefaults());

@@ -2,5 +2,5 @@ namespace Jigen.Handlers.Model;
 
 public class SystemInfo
 {
-  public string[] Databases { get; set; }
+  public List<string> Databases { get; set; }
 }

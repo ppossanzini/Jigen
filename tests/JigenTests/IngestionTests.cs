@@ -20,7 +20,7 @@ public class IngestionTests
     {
       DataBaseName = "tests",
       DataBasePath = "/data/jigendb"
-    });
+    }, null);
   }
 
   [Theory]

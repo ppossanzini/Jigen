@@ -1,0 +1,52 @@
+syntax = "proto3";
+import "google/protobuf/empty.proto";
+package jigen;
+option csharp_namespace = "Jigen.Proto";
+
+service StoreCollectionService {
+  rpc ListCollections (google.protobuf.Empty) returns (HelloReply);
+  rpc GetJsonContent (GetContent) returns (HelloReply);
+  rpc GetRawContent (GetContent) returns (HelloReply);
+
+  rpc SetDocument (SetDocument) returns (Result);
+  rpc SetVector (SetVector) returns (Result);
+
+  rpc CalculateEmbeddings (EmbeddingRequest) returns (EmbeddingResponse);
+}
+
+message GetContent{
+  bytes key = 1;
+}
+
+message SetDocument {
+  string Database = 1;
+  string Collection = 2;
+  bytes Key = 3;
+  bytes Content = 4;
+  string Sentence = 5;
+}
+
+message SetVector {
+  string Database = 1;
+  string Collection = 2;
+  bytes Key = 3;
+  bytes Content = 4;
+  bytes Embeddings = 5;
+}
+
+message Result {
+  bool Success = 1;
+  string Message = 2;
+}
+
+message EmbeddingRequest {
+  string Message = 1;
+}
+
+message EmbeddingResponse {
+  bytes Embeddings = 1;
+}
+
+message ListCollectionResult{
+  
+}

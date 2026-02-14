@@ -10,4 +10,8 @@
     <PackageReference Include="Hikyaku.Contracts" Version="9.1.0"/>
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\Jigen\Jigen.Store\Jigen.Store.csproj" />
+  </ItemGroup>
+
 </Project>
