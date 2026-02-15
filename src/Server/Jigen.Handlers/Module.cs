@@ -21,8 +21,7 @@ public class Module : IModule
       {
         DataBasePath = settings.DataFolderPath,
         DataBaseName = "system"
-      }, serviceProvider
-    ));
+      }));
 
     services.AddSingleton<DatabasesManager>();
     services.AddTransient<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));

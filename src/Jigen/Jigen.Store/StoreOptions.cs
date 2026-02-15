@@ -6,4 +6,6 @@ public class StoreOptions
   public string DataBaseName { get; set; }
   public const string ContentSuffix = "content";
   public const string EmbeddingSuffix = "vectors";
+
+  
 }

@@ -9,7 +9,6 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   where T : class, new()
 {
   private string CollectionName = options?.Name ?? nameof(T);
-  private IDocumentSerializer<T> Serializer => store.GetSerializer<T>();
 
   public IEnumerator<KeyValuePair<VectorKey, VectorEntry<T>>> GetEnumerator()
   {
@@ -23,7 +22,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
       yield return new KeyValuePair<VectorKey, VectorEntry<T>>(k,
         new VectorEntry<T>()
         {
-          Key = k, Content = Serializer.Deserialize(content), Embedding = embeddings
+          Key = k, Content = options.DocumentSerializer.Deserialize<T>(content), Embedding = embeddings
         });
     }
   }
@@ -37,9 +36,9 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   {
     store.IngestionQueue.Enqueue(new VectorEntry()
     {
-      Id = item.Key.Key,
+      Id = item.Key.Value,
       CollectionName = CollectionName,
-      Content = Serializer.Serialize(item.Value.Content),
+      Content = options.DocumentSerializer.Serialize(item.Value.Content),
       Embedding = item.Value.Embedding
     });
   }
@@ -56,7 +55,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   public bool Contains(KeyValuePair<VectorKey, VectorEntry<T>> item)
   {
     return store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-           index.ContainsKey(item.Key.Key);
+           index.ContainsKey(item.Key.Value);
   }
 
   public void CopyTo(KeyValuePair<VectorKey, VectorEntry<T>>[] array, int arrayIndex)
@@ -67,7 +66,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   public bool Remove(KeyValuePair<VectorKey, VectorEntry<T>> item)
   {
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-                 index.Remove(item.Key.Key);
+                 index.Remove(item.Key.Value);
 
     if (result) store.SaveIndexChanges().GetAwaiter().GetResult();
     return result;
@@ -80,9 +79,9 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   {
     store.IngestionQueue.Enqueue(new VectorEntry()
     {
-      Id = key.Key,
+      Id = key.Value,
       CollectionName = CollectionName,
-      Content = Serializer.Serialize(value.Content),
+      Content = options.DocumentSerializer.Serialize(value.Content),
       Embedding = value.Embedding
     });
   }
@@ -90,13 +89,13 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   public bool ContainsKey(VectorKey key)
   {
     return store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-           index.ContainsKey(key.Key);
+           index.ContainsKey(key.Value);
   }
 
   public bool Remove(VectorKey key)
   {
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-                 index.Remove(key.Key);
+                 index.Remove(key.Value);
 
     if (result) store.SaveIndexChanges();
     return result;
@@ -104,12 +103,12 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
   public bool TryGetValue(VectorKey key, out VectorEntry<T> value)
   {
-    var result = store.GetContent(CollectionName, key.Key);
+    var result = store.GetContent(CollectionName, key.Value);
     value = result != null
       ? new VectorEntry<T>()
       {
-        Key = key.Key,
-        Content = Serializer.Deserialize(result)
+        Key = key.Value,
+        Content = options.DocumentSerializer.Deserialize<T>(result)
       }
       : null;
     return result != null;
@@ -137,7 +136,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
         }).Select(k => new VectorEntry<T>()
         {
           Key = k.k,
-          Content = k.content is { Length: > 0 } ? Serializer.Deserialize(k.content) : null,
+          Content = k.content is { Length: > 0 } ? options.DocumentSerializer.Deserialize<T>(k.content) : null,
           Embedding = k.embeddings
         }).ToArray();
       }

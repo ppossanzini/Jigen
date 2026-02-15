@@ -29,7 +29,7 @@ public class DatabaseCommandHandlers(
     manager.ActiveDatabases.Add(request.Name, new Store(new StoreOptions()
     {
       DataBasePath = settings.Value.DataFolderPath, DataBaseName = request.Name
-    }, provider));
+    }));
 
     // Save DbInfo in master DB.
     var info = master.System[SystemDB.BASEINFO];

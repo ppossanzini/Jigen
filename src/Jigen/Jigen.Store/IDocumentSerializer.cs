@@ -2,12 +2,9 @@ namespace Jigen;
 
 public interface IDocumentSerializer
 {
-  byte[] Serialize(object document);
-  object Deserialize(byte[] data);
-}
+  ReadOnlyMemory<byte> Serialize(object document);
+  object Deserialize(Type t, ReadOnlyMemory<byte> data);
 
-public interface IDocumentSerializer<T> : IDocumentSerializer
-{
-  byte[] Serialize(T document);
-  new T Deserialize(byte[] data);
+  ReadOnlyMemory<byte> Serialize<T>(T document);
+  T Deserialize<T>(ReadOnlyMemory<byte> data);
 }

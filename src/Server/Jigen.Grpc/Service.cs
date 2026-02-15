@@ -1,0 +1,67 @@
+using Google.Protobuf;
+using Google.Protobuf.Collections;
+using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
+using Hikyaku;
+using Jigen.Handlers.Model;
+using Jigen.Proto;
+using Jigen.SemanticTools;
+
+namespace Jigen.Grpc;
+
+public class Server(ILogger<Server> logger, IHikyaku mediator, IEmbeddingGenerator embeddingGenerator)
+  : Jigen.Proto.StoreCollectionService.StoreCollectionServiceBase
+{
+  public override Task<EmbeddingResponse> CalculateEmbeddings(EmbeddingRequest request, ServerCallContext context)
+  {
+    var result = embeddingGenerator.GenerateEmbedding(request.Message);
+    var response = new EmbeddingResponse();
+    response.Embeddings.AddRange(result);
+    return Task.FromResult(response);
+  }
+
+  public override async Task<RawContentResult> GetContent(GetContentRequest request, ServerCallContext context)
+  {
+    var result = await mediator.Send(new Core.Query.collections.GetRawContent()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Key = request.Key.ToByteArray()
+    });
+    return new RawContentResult() { Content = ByteString.CopyFrom(result) };
+  }
+
+  public override async Task<ListCollectionResult> ListCollections(ListCollectionRequest request, ServerCallContext context)
+  {
+    var result = await mediator.Send(new Core.Query.collections.ListCollections() { Database = request.Database });
+    return new ListCollectionResult() { Collections = { result } };
+  }
+
+  public override async Task<Result> SetDocument(Document request, ServerCallContext context)
+  {
+    await mediator.Send(new Core.Command.collections.SetDocument()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Key = request.Key.ToByteArray(),
+      Content = request.Content.ToByteArray(),
+      Sentence = request.Sentence
+    });
+
+    return new Result() { Success = true };
+  }
+
+  public override async Task<Result> SetVector(Vector request, ServerCallContext context)
+  {
+    await mediator.Send(new Core.Command.collections.SetVector()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Key = request.Key.ToByteArray(),
+      Content = request.Content.ToByteArray(),
+      Embeddings = request.Embeddings.ToArray()
+    });
+
+    return new Result() { Success = true };
+  }
+}

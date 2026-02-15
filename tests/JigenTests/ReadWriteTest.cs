@@ -20,7 +20,7 @@ public class ReadWriteTest : IDisposable
     {
       DataBaseName = "readwritetest",
       DataBasePath = "/data/jigendb",
-    }, null);
+    });
 
     _embeddingGenerator = new(
       "/data/onnx/multi-lingual/tokenizer.onnx",
@@ -60,7 +60,7 @@ public class ReadWriteTest : IDisposable
         Content = Encoding.UTF8.GetBytes(s.sentence), Embedding = _embeddingGenerator.GenerateEmbedding(s.sentence),
       });
 
-      _testOutputHelper.WriteLine($"{rr.Id} - {rr.Content} - {String.Concat(rr.Embedding.Take(10).Select(i => $"{i},"))}");
+      _testOutputHelper.WriteLine($"{rr.Id} - {rr.Content} - {String.Concat(rr.Embedding.Slice(0, 10).ToArray().Select(i => $"{i},"))}");
     }
 
     await _store.SaveChangesAsync();
@@ -94,7 +94,7 @@ public class ReadWriteTest : IDisposable
     _testOutputHelper.WriteLine($"Hai cercato: {search}");
     foreach (var r in results)
     {
-      _testOutputHelper.WriteLine($"{new Guid(r.entry.Id)} {Encoding.UTF8.GetString(r.entry.Content)} {r.score}");
+      _testOutputHelper.WriteLine($"{new Guid(r.entry.Id)} {r.entry.Content} {r.score}");
     }
 
     await _store.Close();

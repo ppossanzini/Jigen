@@ -11,6 +11,7 @@ namespace Jigen.Handlers.CQRS;
 public class CollectionCommandHandlers(
   DatabasesManager manager,
   ILogger<CollectionCommandHandlers> logger,
+  IDocumentSerializer serializer,
   Jigen.SemanticTools.IEmbeddingGenerator embeddingGenerator
 ) :
   IRequestHandler<Core.Command.collections.AppendDocument>,
@@ -25,7 +26,7 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var content = request.Content != null ? store.GetSerializer(request.Content.GetType()).Serialize(request.Content) : null;
+    var content = request.Content != null ? serializer.Serialize(request.Content) : null;
     float[] embeddings = request.Sentence != null ? embeddingGenerator.GenerateEmbedding(request.Sentence) : null;
 
     await store.AppendContent(
@@ -42,7 +43,7 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var content = request.Content != null ? store.GetSerializer(request.Content.GetType()).Serialize(request.Content) : null;
+    var content = request.Content != null ? serializer.Serialize(request.Content) : null;
     var embeddings = request.Sentence != null ? embeddingGenerator.GenerateEmbedding(request.Sentence) : null;
 
     await store.AppendContent(
@@ -59,7 +60,7 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var content = request.Content != null ? store.GetSerializer(request.Content.GetType()).Serialize(request.Content) : null;
+    var content = request.Content != null ? serializer.Serialize(request.Content) : null;
 
     await store.AppendContent(
       new VectorEntry()
@@ -82,7 +83,7 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var content = request.Content != null ? store.GetSerializer(request.Content.GetType()).Serialize(request.Content) : null;
+    var content = request.Content != null ? serializer.Serialize(request.Content) : null;
 
     await store.AppendContent(
       new VectorEntry()

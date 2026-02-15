@@ -31,7 +31,6 @@ public class Store : IStore, IDisposable
   internal Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
 
   internal readonly Writer Writer;
-  public IServiceProvider ServiceProvider { get; init; }
 
   internal string ContentFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.ContentSuffix}.jigen");
 
@@ -64,9 +63,9 @@ public class Store : IStore, IDisposable
     };
   }
 
-  public Store(StoreOptions options, IServiceProvider serviceProvider)
+  public Store(StoreOptions options)
   {
-    ServiceProvider = serviceProvider;
+    
     this.Options = options;
     EnsureFileCreated();
 
@@ -79,17 +78,17 @@ public class Store : IStore, IDisposable
     Writer = new Writer(this);
   }
 
-  public IDocumentSerializer<T> GetSerializer<T>()
-  {
-    var type = typeof(IDocumentSerializer<T>);
-    return ServiceProvider.GetService(type) as IDocumentSerializer<T>;
-  }
-
-  public IDocumentSerializer GetSerializer(Type t)
-  {
-    var type = typeof(IDocumentSerializer<>).MakeGenericType(t);
-    return ServiceProvider.GetService(type) as IDocumentSerializer;
-  }
+  // public IDocumentSerializer<T> GetSerializer<T>()
+  // {
+  //   var type = typeof(IDocumentSerializer<T>);
+  //   return ServiceProvider.GetService(type) as IDocumentSerializer<T>;
+  // }
+  //
+  // public IDocumentSerializer GetSerializer(Type t)
+  // {
+  //   var type = typeof(IDocumentSerializer<>).MakeGenericType(t);
+  //   return ServiceProvider.GetService(type) as IDocumentSerializer;
+  // }
 
   internal void EnableWriting()
   {

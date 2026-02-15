@@ -54,6 +54,12 @@ public static class StoreReadingExtensions
     }
   }
 
+  public static bool TryGetContent(this Store store, string collection, byte[] id, out byte[] content)
+  {
+    content = store.GetContent(collection, id);
+    return content is { Length: > 0 };
+  }
+
 
   public static byte[] GetContent(this Store store, string collection, byte[] id)
   {

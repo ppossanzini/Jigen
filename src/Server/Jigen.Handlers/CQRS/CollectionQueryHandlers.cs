@@ -10,6 +10,7 @@ namespace Jigen.Handlers.CQRS;
 
 public class CollectionQueryHandlers(
   DatabasesManager manager,
+  IDocumentSerializer serializer,
   ILogger<CollectionCommandHandlers> logger) :
   IRequestHandler<Core.Query.collections.ListCollections, IEnumerable<string>>,
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
@@ -44,10 +45,7 @@ public class CollectionQueryHandlers(
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var result = store.GetContent(request.Collection, request.Key);
-
-    var type = typeof(IDocumentSerializer<>).MakeGenericType(request.ResultType);
-    var serializer = store.GetSerializer(type);
-    return Task.FromResult(serializer.Deserialize(result));
+    return Task.FromResult(serializer.Deserialize(request.ResultType, result));
   }
 
   public Task<byte[]> Handle(GetRawContent request, CancellationToken cancellationToken)

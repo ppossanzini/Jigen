@@ -1,3 +1,4 @@
+using System.Text;
 using Jigen.Extensions;
 
 namespace Jigen;
@@ -13,7 +14,7 @@ public class Writer
   private readonly ManualResetEvent _writingCompleted = new(true);
   private readonly AutoResetEvent _flushWake = new(false);
 
-  private readonly object _ioLock = new();
+  private readonly Lock _ioLock = new();
   private readonly Store _store;
 
   public Task WaitForWritingCompleted => Task.Run(() => _writingCompleted.WaitOne());
@@ -74,7 +75,11 @@ public class Writer
         {
           while (_store.IngestionQueue.TryDequeue(out var entry))
           {
-            _store.AppendContent(entry.Id, entry.CollectionName, entry.Content, entry.Embedding).GetAwaiter().GetResult();
+            _store.AppendContent(
+              entry.Id,
+              entry.CollectionName,
+              entry.Content,
+              entry.Embedding).GetAwaiter().GetResult();
           }
         }
       }

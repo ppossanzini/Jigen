@@ -7,13 +7,12 @@ namespace Jigen.Handlers.Model;
 
 public class SystemDB : Store
 {
-
   public DocumentCollection<SystemInfo> System { get; set; }
 
   const string SYSTEM = "SYSTEM";
   public const string BASEINFO = "baseinfo";
 
-  public SystemDB(StoreOptions options, IServiceProvider serviceProvider) : base(options, serviceProvider)
+  public SystemDB(StoreOptions options) : base(options)
   {
     System = new DocumentCollection<SystemInfo>(this, new DocumentCollectionOptions<SystemInfo>()
     {

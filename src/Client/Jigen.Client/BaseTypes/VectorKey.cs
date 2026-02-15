@@ -1,23 +1,6 @@
-using System.Numerics;
 using System.Text;
 
-namespace Jigen.DataStructures;
-
-public class VectorEntry
-{
-  public byte[] Id { get; set; } = Guid.NewGuid().ToByteArray();
-  public string CollectionName { get; set; }
-  public ReadOnlyMemory<byte> Content { get; set; }
-  public ReadOnlyMemory<float> Embedding { get; set; }
-}
-
-public class VectorEntry<T>
-  where T : class, new()
-{
-  public VectorKey Key;
-  public T Content { get; set; }
-  public float[] Embedding { get; set; }
-}
+namespace Jigen.Client.BaseTypes;
 
 public struct VectorKey
 {
@@ -52,7 +35,6 @@ public struct VectorKey
   {
     return new VectorKey { Value = Encoding.UTF8.GetBytes(value) };
   }
-
 
   public static implicit operator VectorKey(ulong value)
   {

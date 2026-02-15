@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.IO.MemoryMappedFiles;
 using System.Numerics;
+using System.Text;
 using Jigen.DataStructures;
 
 // ReSharper disable SuggestVarOrType_Elsewhere
@@ -72,7 +73,8 @@ public static class SimdSearchExtensions
     return topResults.OrderByDescending(r => r.Score).Take(top)
       .Select(r => (new VectorEntry
       {
-        Id = r.Id, Content = store.GetContent(collection, r.Id)
+        Id = r.Id,
+        Content = store.GetContent(collection, r.Id)
       }, r.Score))
       .ToList();
   }

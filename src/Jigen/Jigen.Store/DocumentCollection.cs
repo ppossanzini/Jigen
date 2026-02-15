@@ -9,7 +9,6 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
   where T : class, new()
 {
   private string CollectionName = options?.Name ?? nameof(T);
-  private IDocumentSerializer<T> Serializer => store.GetSerializer<T>();
 
   public IEnumerator<KeyValuePair<VectorKey, T>> GetEnumerator()
   {
@@ -19,7 +18,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
     {
       var content = store.GetContent(CollectionName, k);
       if (content != null) ;
-      yield return new KeyValuePair<VectorKey, T>(k, Serializer.Deserialize(content));
+      yield return new KeyValuePair<VectorKey, T>(k, options.DocumentSerializer.Deserialize<T>(content));
     }
   }
 
@@ -32,9 +31,9 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
   {
     store.IngestionQueue.Enqueue(new VectorEntry()
     {
-      Id = item.Key.Key,
+      Id = item.Key.Value,
       CollectionName = CollectionName,
-      Content = Serializer.Serialize(item.Value)
+      Content = options.DocumentSerializer.Serialize(item.Value)
     });
   }
 
@@ -50,7 +49,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
   public bool Contains(KeyValuePair<VectorKey, T> item)
   {
     return store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-           index.ContainsKey(item.Key.Key);
+           index.ContainsKey(item.Key.Value);
   }
 
   public void CopyTo(KeyValuePair<VectorKey, T>[] array, int arrayIndex)
@@ -61,7 +60,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
   public bool Remove(KeyValuePair<VectorKey, T> item)
   {
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-                 index.Remove(item.Key.Key);
+                 index.Remove(item.Key.Value);
 
     if (result) store.SaveIndexChanges().GetAwaiter().GetResult();
     return result;
@@ -74,22 +73,22 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
   {
     store.IngestionQueue.Enqueue(new VectorEntry()
     {
-      Id = key.Key,
+      Id = key.Value,
       CollectionName = CollectionName,
-      Content = Serializer.Serialize(value)
+      Content = options.DocumentSerializer.Serialize(value)
     });
   }
 
   public bool ContainsKey(VectorKey key)
   {
     return store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-           index.ContainsKey(key.Key);
+           index.ContainsKey(key.Value);
   }
 
   public bool Remove(VectorKey key)
   {
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-                 index.Remove(key.Key);
+                 index.Remove(key.Value);
 
     if (result) store.SaveIndexChanges();
     return result;
@@ -97,8 +96,8 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
 
   public bool TryGetValue(VectorKey key, out T value)
   {
-    var result = store.GetContent(CollectionName, key.Key);
-    value = result != null ? Serializer.Deserialize(result) : null;
+    var result = store.GetContent(CollectionName, key.Value);
+    value = result != null ? options.DocumentSerializer.Deserialize<T>(result) : null;
     return result != null;
   }
 
@@ -117,7 +116,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
       if (store.PositionIndex.TryGetValue(CollectionName, out var value))
       {
         return value.Keys.Select(k => new { k, content = store.GetContent(CollectionName, k) })
-          .Select(k => k.content is { Length: > 0 } ? Serializer.Deserialize(k.content) : null).ToArray();
+          .Select(k => k.content is { Length: > 0 } ? options.DocumentSerializer.Deserialize<T>(k.content) : null).ToArray();
       }
 
       return Array.Empty<T>();

@@ -50,7 +50,7 @@ public class CollectionsController(IMediator mediator) : ControllerBase
     await mediator.Send(new Core.Command.collections.SetDocument()
     {
       Database = dbname, Collection = collection,
-      Key = keyVector.Key,
+      Key = keyVector.Value,
       Content = payload.Payload,
       Sentence = payload.Sentence
     });
@@ -77,7 +77,7 @@ public class CollectionsController(IMediator mediator) : ControllerBase
     {
       Database = dbname,
       Collection = collection,
-      Key = keyVector.Key,
+      Key = keyVector.Value,
     });
     return Ok();
   }
@@ -103,7 +103,7 @@ public class CollectionsController(IMediator mediator) : ControllerBase
     {
       Database = dbname,
       Collection = collection,
-      Key = keyVector.Key,
+      Key = keyVector.Value,
       ResultType = typeof(string)
     });
 
