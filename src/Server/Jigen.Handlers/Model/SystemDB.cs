@@ -21,5 +21,7 @@ public class SystemDB : Store
 
     if (!this.System.ContainsKey(BASEINFO))
       this.System.Add(BASEINFO, new SystemInfo() { Databases = [] });
+    
+    this.SaveChangesAsync().GetAwaiter().GetResult();
   }
 }
