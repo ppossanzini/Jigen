@@ -5,4 +5,6 @@ public class VectorCollectionOptions<T>
 {
   public int Dimensions = 1536;
   public string Name = nameof(T);
+
+  public IDocumentSerializer DocumentSerializer = MessagePackDocumentSerializer.Instance;
 }

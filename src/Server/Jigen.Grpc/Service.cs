@@ -1,9 +1,6 @@
 using Google.Protobuf;
-using Google.Protobuf.Collections;
-using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Hikyaku;
-using Jigen.Handlers.Model;
 using Jigen.Proto;
 using Jigen.SemanticTools;
 
@@ -20,7 +17,7 @@ public class Server(ILogger<Server> logger, IHikyaku mediator, IEmbeddingGenerat
     return Task.FromResult(response);
   }
 
-  public override async Task<RawContentResult> GetContent(GetContentRequest request, ServerCallContext context)
+  public override async Task<RawContentResult> GetContent(ItemKey request, ServerCallContext context)
   {
     var result = await mediator.Send(new Core.Query.collections.GetRawContent()
     {
@@ -31,7 +28,7 @@ public class Server(ILogger<Server> logger, IHikyaku mediator, IEmbeddingGenerat
     return new RawContentResult() { Content = ByteString.CopyFrom(result) };
   }
 
-  public override async Task<ListCollectionResult> ListCollections(ListCollectionRequest request, ServerCallContext context)
+  public override async Task<ListCollectionResult> ListCollections(CollectionKey request, ServerCallContext context)
   {
     var result = await mediator.Send(new Core.Query.collections.ListCollections() { Database = request.Database });
     return new ListCollectionResult() { Collections = { result } };
@@ -63,5 +60,31 @@ public class Server(ILogger<Server> logger, IHikyaku mediator, IEmbeddingGenerat
     });
 
     return new Result() { Success = true };
+  }
+
+  public override async Task<Result> Clear(CollectionKey request, ServerCallContext context)
+  {
+    await mediator.Send(new Jigen.Core.Command.collections.Clear()
+    {
+      Database = request.Database, Collection = request.Collection
+    });
+    return new Result() { Success = true };
+  }
+
+  public override async Task<CountResult> Count(CollectionKey request, ServerCallContext context)
+  {
+    return new CountResult()
+    {
+      Count = await mediator.Send(new Jigen.Core.Command.collections.Count() { Database = request.Database, Collection = request.Collection })
+    };
+  }
+
+  public override async Task<Result> Contains(ItemKey request, ServerCallContext context)
+  {
+    return
+      new Result()
+      {
+        Success = await mediator.Send(new Core.Command.collections.Contains() { Database = request.Database, Collection = request.Collection, Key = request.Key.ToByteArray() })
+      };
   }
 }

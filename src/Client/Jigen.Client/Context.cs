@@ -9,12 +9,15 @@ namespace Jigen.Client;
 public class Context
 {
   private readonly GrpcChannel _channel;
-  private StoreCollectionService.StoreCollectionServiceClient _client;
+
+  public StoreCollectionService.StoreCollectionServiceClient ServiceClient { get; }
+  public ConnectionOptions Options { get; }
 
   public Context(ConnectionOptions options)
   {
+    Options = options;
     _channel = GrpcChannel.ForAddress(options.ConnectionString, options.ChannelOptions);
-    _client = new StoreCollectionService.StoreCollectionServiceClient(_channel);
+    ServiceClient = new StoreCollectionService.StoreCollectionServiceClient(_channel);
 
     this.ContextBuilder();
   }
@@ -22,6 +25,5 @@ public class Context
   protected virtual void ContextBuilder()
   {
     // Class to autocreate Collections and inject dependency inside collections
-    
   }
 }

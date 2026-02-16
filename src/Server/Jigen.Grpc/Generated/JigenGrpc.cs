@@ -46,11 +46,11 @@ namespace Jigen.Proto {
     }
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Jigen.Proto.ListCollectionRequest> __Marshaller_jigen_ListCollectionRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ListCollectionRequest.Parser));
+    static readonly grpc::Marshaller<global::Jigen.Proto.CollectionKey> __Marshaller_jigen_CollectionKey = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionKey.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.ListCollectionResult> __Marshaller_jigen_ListCollectionResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ListCollectionResult.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Jigen.Proto.GetContentRequest> __Marshaller_jigen_GetContentRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.GetContentRequest.Parser));
+    static readonly grpc::Marshaller<global::Jigen.Proto.ItemKey> __Marshaller_jigen_ItemKey = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ItemKey.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.RawContentResult> __Marshaller_jigen_RawContentResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.RawContentResult.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
@@ -60,24 +60,28 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.Vector> __Marshaller_jigen_Vector = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.Vector.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.KeysResult> __Marshaller_jigen_KeysResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.KeysResult.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.CountResult> __Marshaller_jigen_CountResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CountResult.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingRequest> __Marshaller_jigen_EmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingResponse> __Marshaller_jigen_EmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingResponse.Parser));
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Method<global::Jigen.Proto.ListCollectionRequest, global::Jigen.Proto.ListCollectionResult> __Method_ListCollections = new grpc::Method<global::Jigen.Proto.ListCollectionRequest, global::Jigen.Proto.ListCollectionResult>(
+    static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.ListCollectionResult> __Method_ListCollections = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.ListCollectionResult>(
         grpc::MethodType.Unary,
         __ServiceName,
         "ListCollections",
-        __Marshaller_jigen_ListCollectionRequest,
+        __Marshaller_jigen_CollectionKey,
         __Marshaller_jigen_ListCollectionResult);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Method<global::Jigen.Proto.GetContentRequest, global::Jigen.Proto.RawContentResult> __Method_GetContent = new grpc::Method<global::Jigen.Proto.GetContentRequest, global::Jigen.Proto.RawContentResult>(
+    static readonly grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.RawContentResult> __Method_GetContent = new grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.RawContentResult>(
         grpc::MethodType.Unary,
         __ServiceName,
         "GetContent",
-        __Marshaller_jigen_GetContentRequest,
+        __Marshaller_jigen_ItemKey,
         __Marshaller_jigen_RawContentResult);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
@@ -95,6 +99,46 @@ namespace Jigen.Proto {
         "SetVector",
         __Marshaller_jigen_Vector,
         __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.Result> __Method_DeleteVector = new grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "DeleteVector",
+        __Marshaller_jigen_ItemKey,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.KeysResult> __Method_GetAllKeys = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.KeysResult>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetAllKeys",
+        __Marshaller_jigen_CollectionKey,
+        __Marshaller_jigen_KeysResult);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.Result> __Method_Contains = new grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "Contains",
+        __Marshaller_jigen_ItemKey,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.Result> __Method_Clear = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "Clear",
+        __Marshaller_jigen_CollectionKey,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CountResult> __Method_Count = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CountResult>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "Count",
+        __Marshaller_jigen_CollectionKey,
+        __Marshaller_jigen_CountResult);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.EmbeddingResponse> __Method_CalculateEmbeddings = new grpc::Method<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(
@@ -115,13 +159,13 @@ namespace Jigen.Proto {
     public abstract partial class StoreCollectionServiceBase
     {
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.ListCollectionResult> ListCollections(global::Jigen.Proto.ListCollectionRequest request, grpc::ServerCallContext context)
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.ListCollectionResult> ListCollections(global::Jigen.Proto.CollectionKey request, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.RawContentResult> GetContent(global::Jigen.Proto.GetContentRequest request, grpc::ServerCallContext context)
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.RawContentResult> GetContent(global::Jigen.Proto.ItemKey request, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
@@ -134,6 +178,36 @@ namespace Jigen.Proto {
 
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> SetVector(global::Jigen.Proto.Vector request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> DeleteVector(global::Jigen.Proto.ItemKey request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.KeysResult> GetAllKeys(global::Jigen.Proto.CollectionKey request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> Contains(global::Jigen.Proto.ItemKey request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> Clear(global::Jigen.Proto.CollectionKey request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.CountResult> Count(global::Jigen.Proto.CollectionKey request, grpc::ServerCallContext context)
       {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
@@ -156,6 +230,11 @@ namespace Jigen.Proto {
           .AddMethod(__Method_GetContent, serviceImpl.GetContent)
           .AddMethod(__Method_SetDocument, serviceImpl.SetDocument)
           .AddMethod(__Method_SetVector, serviceImpl.SetVector)
+          .AddMethod(__Method_DeleteVector, serviceImpl.DeleteVector)
+          .AddMethod(__Method_GetAllKeys, serviceImpl.GetAllKeys)
+          .AddMethod(__Method_Contains, serviceImpl.Contains)
+          .AddMethod(__Method_Clear, serviceImpl.Clear)
+          .AddMethod(__Method_Count, serviceImpl.Count)
           .AddMethod(__Method_CalculateEmbeddings, serviceImpl.CalculateEmbeddings).Build();
     }
 
@@ -166,10 +245,15 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     public static void BindService(grpc::ServiceBinderBase serviceBinder, StoreCollectionServiceBase serviceImpl)
     {
-      serviceBinder.AddMethod(__Method_ListCollections, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ListCollectionRequest, global::Jigen.Proto.ListCollectionResult>(serviceImpl.ListCollections));
-      serviceBinder.AddMethod(__Method_GetContent, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.GetContentRequest, global::Jigen.Proto.RawContentResult>(serviceImpl.GetContent));
+      serviceBinder.AddMethod(__Method_ListCollections, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.ListCollectionResult>(serviceImpl.ListCollections));
+      serviceBinder.AddMethod(__Method_GetContent, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ItemKey, global::Jigen.Proto.RawContentResult>(serviceImpl.GetContent));
       serviceBinder.AddMethod(__Method_SetDocument, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.Document, global::Jigen.Proto.Result>(serviceImpl.SetDocument));
       serviceBinder.AddMethod(__Method_SetVector, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.Vector, global::Jigen.Proto.Result>(serviceImpl.SetVector));
+      serviceBinder.AddMethod(__Method_DeleteVector, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ItemKey, global::Jigen.Proto.Result>(serviceImpl.DeleteVector));
+      serviceBinder.AddMethod(__Method_GetAllKeys, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.KeysResult>(serviceImpl.GetAllKeys));
+      serviceBinder.AddMethod(__Method_Contains, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ItemKey, global::Jigen.Proto.Result>(serviceImpl.Contains));
+      serviceBinder.AddMethod(__Method_Clear, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.Result>(serviceImpl.Clear));
+      serviceBinder.AddMethod(__Method_Count, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CountResult>(serviceImpl.Count));
       serviceBinder.AddMethod(__Method_CalculateEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.CalculateEmbeddings));
     }
 

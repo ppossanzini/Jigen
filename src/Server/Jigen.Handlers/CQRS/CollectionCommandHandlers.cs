@@ -19,7 +19,10 @@ public class CollectionCommandHandlers(
   IRequestHandler<Core.Command.collections.AppendVector>,
   IRequestHandler<Core.Command.collections.DeleteVector>,
   IRequestHandler<Core.Command.collections.SetVector>,
-  IRequestHandler<Core.Command.collections.SetRawVector>
+  IRequestHandler<Core.Command.collections.SetRawVector>,
+  IRequestHandler<Core.Command.collections.Clear>,
+  IRequestHandler<Core.Command.collections.Count, int>,
+  IRequestHandler<Core.Command.collections.Contains, bool>
 
 {
   public async Task Handle(AppendDocument request, CancellationToken cancellationToken)
@@ -107,5 +110,33 @@ public class CollectionCommandHandlers(
         Content = request.Content,
         Embedding = request.Embeddings
       });
+  }
+
+  public Task Handle(Clear request, CancellationToken cancellationToken)
+  {
+    if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
+
+    if (store.PositionIndex.TryGetValue(request.Collection, out var index))
+    {
+      index.Clear();
+      store.SaveIndexChanges();
+    }
+
+    return Task.CompletedTask;
+  }
+
+  public Task<int> Handle(Count request, CancellationToken cancellationToken)
+  {
+    if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
+    return Task.FromResult(
+      store.PositionIndex.TryGetValue(request.Collection, out var index) ? index.Count : 0);
+  }
+
+  public Task<bool> Handle(Contains request, CancellationToken cancellationToken)
+  {
+    if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
+    return Task.FromResult(
+      store.PositionIndex.TryGetValue(request.Collection, out var index) && index.ContainsKey(request.Key)
+    );
   }
 }

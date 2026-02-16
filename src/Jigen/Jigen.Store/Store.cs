@@ -28,7 +28,7 @@ public class Store : IStore, IDisposable
   internal readonly StoreOptions Options;
   internal readonly StoreHeader VectorStoreHeader = new();
 
-  internal Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
+  public Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
 
   internal readonly Writer Writer;
 

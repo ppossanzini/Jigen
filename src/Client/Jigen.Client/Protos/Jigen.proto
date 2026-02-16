@@ -4,24 +4,36 @@ package jigen;
 option csharp_namespace = "Jigen.Proto";
 
 service StoreCollectionService {
-  rpc ListCollections (ListCollectionRequest) returns (ListCollectionResult);
-  rpc GetContent (GetContentRequest) returns (RawContentResult);
+  rpc ListCollections (CollectionKey) returns (ListCollectionResult);
+  rpc GetContent (ItemKey) returns (RawContentResult);
   rpc SetDocument (Document) returns (Result);
   rpc SetVector (Vector) returns (Result);
+  rpc DeleteVector(ItemKey) returns(Result);
+  rpc GetAllKeys(CollectionKey) returns(KeysResult);
+  rpc Contains(ItemKey) returns(Result);
+  rpc Clear(CollectionKey) returns(Result);
+  rpc Count(CollectionKey) returns(CountResult);
 
   rpc CalculateEmbeddings (EmbeddingRequest) returns (EmbeddingResponse);
 }
 
-message ListCollectionRequest{
-  string Database = 1;
-  string Collection = 2;
-  bytes Key = 3;  
-}
-
-message GetContentRequest{
+message ItemKey{
   string Database = 1;
   string Collection = 2;
   bytes Key = 3;
+}
+
+message CollectionKey{
+  string Database = 1;
+  string Collection = 2;
+}
+
+message KeysResult{
+  repeated bytes Keys = 1;
+}
+
+message CountResult{
+  int32 Count = 1;
 }
 
 message Document {

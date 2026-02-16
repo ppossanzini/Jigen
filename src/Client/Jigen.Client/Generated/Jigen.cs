@@ -25,33 +25,40 @@ namespace Jigen.Proto {
       byte[] descriptorData = global::System.Convert.FromBase64String(
           string.Concat(
             "CgtKaWdlbi5wcm90bxIFamlnZW4aG2dvb2dsZS9wcm90b2J1Zi9lbXB0eS5w",
-            "cm90byJKChVMaXN0Q29sbGVjdGlvblJlcXVlc3QSEAoIRGF0YWJhc2UYASAB",
-            "KAkSEgoKQ29sbGVjdGlvbhgCIAEoCRILCgNLZXkYAyABKAwiRgoRR2V0Q29u",
-            "dGVudFJlcXVlc3QSEAoIRGF0YWJhc2UYASABKAkSEgoKQ29sbGVjdGlvbhgC",
-            "IAEoCRILCgNLZXkYAyABKAwiYAoIRG9jdW1lbnQSEAoIRGF0YWJhc2UYASAB",
-            "KAkSEgoKQ29sbGVjdGlvbhgCIAEoCRILCgNLZXkYAyABKAwSDwoHQ29udGVu",
-            "dBgEIAEoDBIQCghTZW50ZW5jZRgFIAEoCSJgCgZWZWN0b3ISEAoIRGF0YWJh",
-            "c2UYASABKAkSEgoKQ29sbGVjdGlvbhgCIAEoCRILCgNLZXkYAyABKAwSDwoH",
-            "Q29udGVudBgEIAEoDBISCgpFbWJlZGRpbmdzGAUgAygCIioKBlJlc3VsdBIP",
-            "CgdTdWNjZXNzGAEgASgIEg8KB01lc3NhZ2UYAiABKAkiIwoQRW1iZWRkaW5n",
-            "UmVxdWVzdBIPCgdNZXNzYWdlGAEgASgJIicKEUVtYmVkZGluZ1Jlc3BvbnNl",
-            "EhIKCkVtYmVkZGluZ3MYASADKAIiKwoUTGlzdENvbGxlY3Rpb25SZXN1bHQS",
-            "EwoLY29sbGVjdGlvbnMYASADKAkiIwoQUmF3Q29udGVudFJlc3VsdBIPCgdj",
-            "b250ZW50GAEgASgMIiQKEUpzb25Db250ZW50UmVzdWx0Eg8KB2NvbnRlbnQY",
-            "ASABKAkyywIKFlN0b3JlQ29sbGVjdGlvblNlcnZpY2USTAoPTGlzdENvbGxl",
-            "Y3Rpb25zEhwuamlnZW4uTGlzdENvbGxlY3Rpb25SZXF1ZXN0GhsuamlnZW4u",
-            "TGlzdENvbGxlY3Rpb25SZXN1bHQSPwoKR2V0Q29udGVudBIYLmppZ2VuLkdl",
-            "dENvbnRlbnRSZXF1ZXN0GhcuamlnZW4uUmF3Q29udGVudFJlc3VsdBItCgtT",
-            "ZXREb2N1bWVudBIPLmppZ2VuLkRvY3VtZW50Gg0uamlnZW4uUmVzdWx0EikK",
-            "CVNldFZlY3RvchINLmppZ2VuLlZlY3RvchoNLmppZ2VuLlJlc3VsdBJIChND",
-            "YWxjdWxhdGVFbWJlZGRpbmdzEhcuamlnZW4uRW1iZWRkaW5nUmVxdWVzdBoY",
-            "LmppZ2VuLkVtYmVkZGluZ1Jlc3BvbnNlQg6qAgtKaWdlbi5Qcm90b2IGcHJv",
-            "dG8z"));
+            "cm90byI8CgdJdGVtS2V5EhAKCERhdGFiYXNlGAEgASgJEhIKCkNvbGxlY3Rp",
+            "b24YAiABKAkSCwoDS2V5GAMgASgMIjUKDUNvbGxlY3Rpb25LZXkSEAoIRGF0",
+            "YWJhc2UYASABKAkSEgoKQ29sbGVjdGlvbhgCIAEoCSIaCgpLZXlzUmVzdWx0",
+            "EgwKBEtleXMYASADKAwiHAoLQ291bnRSZXN1bHQSDQoFQ291bnQYASABKAUi",
+            "YAoIRG9jdW1lbnQSEAoIRGF0YWJhc2UYASABKAkSEgoKQ29sbGVjdGlvbhgC",
+            "IAEoCRILCgNLZXkYAyABKAwSDwoHQ29udGVudBgEIAEoDBIQCghTZW50ZW5j",
+            "ZRgFIAEoCSJgCgZWZWN0b3ISEAoIRGF0YWJhc2UYASABKAkSEgoKQ29sbGVj",
+            "dGlvbhgCIAEoCRILCgNLZXkYAyABKAwSDwoHQ29udGVudBgEIAEoDBISCgpF",
+            "bWJlZGRpbmdzGAUgAygCIioKBlJlc3VsdBIPCgdTdWNjZXNzGAEgASgIEg8K",
+            "B01lc3NhZ2UYAiABKAkiIwoQRW1iZWRkaW5nUmVxdWVzdBIPCgdNZXNzYWdl",
+            "GAEgASgJIicKEUVtYmVkZGluZ1Jlc3BvbnNlEhIKCkVtYmVkZGluZ3MYASAD",
+            "KAIiKwoUTGlzdENvbGxlY3Rpb25SZXN1bHQSEwoLY29sbGVjdGlvbnMYASAD",
+            "KAkiIwoQUmF3Q29udGVudFJlc3VsdBIPCgdjb250ZW50GAEgASgMIiQKEUpz",
+            "b25Db250ZW50UmVzdWx0Eg8KB2NvbnRlbnQYASABKAkyqwQKFlN0b3JlQ29s",
+            "bGVjdGlvblNlcnZpY2USRAoPTGlzdENvbGxlY3Rpb25zEhQuamlnZW4uQ29s",
+            "bGVjdGlvbktleRobLmppZ2VuLkxpc3RDb2xsZWN0aW9uUmVzdWx0EjUKCkdl",
+            "dENvbnRlbnQSDi5qaWdlbi5JdGVtS2V5GhcuamlnZW4uUmF3Q29udGVudFJl",
+            "c3VsdBItCgtTZXREb2N1bWVudBIPLmppZ2VuLkRvY3VtZW50Gg0uamlnZW4u",
+            "UmVzdWx0EikKCVNldFZlY3RvchINLmppZ2VuLlZlY3RvchoNLmppZ2VuLlJl",
+            "c3VsdBItCgxEZWxldGVWZWN0b3ISDi5qaWdlbi5JdGVtS2V5Gg0uamlnZW4u",
+            "UmVzdWx0EjUKCkdldEFsbEtleXMSFC5qaWdlbi5Db2xsZWN0aW9uS2V5GhEu",
+            "amlnZW4uS2V5c1Jlc3VsdBIpCghDb250YWlucxIOLmppZ2VuLkl0ZW1LZXka",
+            "DS5qaWdlbi5SZXN1bHQSLAoFQ2xlYXISFC5qaWdlbi5Db2xsZWN0aW9uS2V5",
+            "Gg0uamlnZW4uUmVzdWx0EjEKBUNvdW50EhQuamlnZW4uQ29sbGVjdGlvbktl",
+            "eRoSLmppZ2VuLkNvdW50UmVzdWx0EkgKE0NhbGN1bGF0ZUVtYmVkZGluZ3MS",
+            "Fy5qaWdlbi5FbWJlZGRpbmdSZXF1ZXN0GhguamlnZW4uRW1iZWRkaW5nUmVz",
+            "cG9uc2VCDqoCC0ppZ2VuLlByb3RvYgZwcm90bzM="));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Google.Protobuf.WellKnownTypes.EmptyReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
-            new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.ListCollectionRequest), global::Jigen.Proto.ListCollectionRequest.Parser, new[]{ "Database", "Collection", "Key" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.GetContentRequest), global::Jigen.Proto.GetContentRequest.Parser, new[]{ "Database", "Collection", "Key" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.ItemKey), global::Jigen.Proto.ItemKey.Parser, new[]{ "Database", "Collection", "Key" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.CollectionKey), global::Jigen.Proto.CollectionKey.Parser, new[]{ "Database", "Collection" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.KeysResult), global::Jigen.Proto.KeysResult.Parser, new[]{ "Keys" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.CountResult), global::Jigen.Proto.CountResult.Parser, new[]{ "Count" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.Document), global::Jigen.Proto.Document.Parser, new[]{ "Database", "Collection", "Key", "Content", "Sentence" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.Vector), global::Jigen.Proto.Vector.Parser, new[]{ "Database", "Collection", "Key", "Content", "Embeddings" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.Result), global::Jigen.Proto.Result.Parser, new[]{ "Success", "Message" }, null, null, null, null),
@@ -67,16 +74,16 @@ namespace Jigen.Proto {
   }
   #region Messages
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class ListCollectionRequest : pb::IMessage<ListCollectionRequest>
+  public sealed partial class ItemKey : pb::IMessage<ItemKey>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
   {
-    private static readonly pb::MessageParser<ListCollectionRequest> _parser = new pb::MessageParser<ListCollectionRequest>(() => new ListCollectionRequest());
+    private static readonly pb::MessageParser<ItemKey> _parser = new pb::MessageParser<ItemKey>(() => new ItemKey());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<ListCollectionRequest> Parser { get { return _parser; } }
+    public static pb::MessageParser<ItemKey> Parser { get { return _parser; } }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -92,7 +99,7 @@ namespace Jigen.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ListCollectionRequest() {
+    public ItemKey() {
       OnConstruction();
     }
 
@@ -100,7 +107,7 @@ namespace Jigen.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ListCollectionRequest(ListCollectionRequest other) : this() {
+    public ItemKey(ItemKey other) : this() {
       database_ = other.database_;
       collection_ = other.collection_;
       key_ = other.key_;
@@ -109,8 +116,8 @@ namespace Jigen.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public ListCollectionRequest Clone() {
-      return new ListCollectionRequest(this);
+    public ItemKey Clone() {
+      return new ItemKey(this);
     }
 
     /// <summary>Field number for the "Database" field.</summary>
@@ -152,12 +159,12 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
-      return Equals(other as ListCollectionRequest);
+      return Equals(other as ItemKey);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(ListCollectionRequest other) {
+    public bool Equals(ItemKey other) {
       if (ReferenceEquals(other, null)) {
         return false;
       }
@@ -256,7 +263,7 @@ namespace Jigen.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(ListCollectionRequest other) {
+    public void MergeFrom(ItemKey other) {
       if (other == null) {
         return;
       }
@@ -339,16 +346,16 @@ namespace Jigen.Proto {
   }
 
   [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
-  public sealed partial class GetContentRequest : pb::IMessage<GetContentRequest>
+  public sealed partial class CollectionKey : pb::IMessage<CollectionKey>
   #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
       , pb::IBufferMessage
   #endif
   {
-    private static readonly pb::MessageParser<GetContentRequest> _parser = new pb::MessageParser<GetContentRequest>(() => new GetContentRequest());
+    private static readonly pb::MessageParser<CollectionKey> _parser = new pb::MessageParser<CollectionKey>(() => new CollectionKey());
     private pb::UnknownFieldSet _unknownFields;
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public static pb::MessageParser<GetContentRequest> Parser { get { return _parser; } }
+    public static pb::MessageParser<CollectionKey> Parser { get { return _parser; } }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
@@ -364,7 +371,7 @@ namespace Jigen.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public GetContentRequest() {
+    public CollectionKey() {
       OnConstruction();
     }
 
@@ -372,17 +379,16 @@ namespace Jigen.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public GetContentRequest(GetContentRequest other) : this() {
+    public CollectionKey(CollectionKey other) : this() {
       database_ = other.database_;
       collection_ = other.collection_;
-      key_ = other.key_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public GetContentRequest Clone() {
-      return new GetContentRequest(this);
+    public CollectionKey Clone() {
+      return new CollectionKey(this);
     }
 
     /// <summary>Field number for the "Database" field.</summary>
@@ -409,27 +415,15 @@ namespace Jigen.Proto {
       }
     }
 
-    /// <summary>Field number for the "Key" field.</summary>
-    public const int KeyFieldNumber = 3;
-    private pb::ByteString key_ = pb::ByteString.Empty;
-    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
-    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public pb::ByteString Key {
-      get { return key_; }
-      set {
-        key_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
-      }
-    }
-
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
-      return Equals(other as GetContentRequest);
+      return Equals(other as CollectionKey);
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public bool Equals(GetContentRequest other) {
+    public bool Equals(CollectionKey other) {
       if (ReferenceEquals(other, null)) {
         return false;
       }
@@ -438,7 +432,6 @@ namespace Jigen.Proto {
       }
       if (Database != other.Database) return false;
       if (Collection != other.Collection) return false;
-      if (Key != other.Key) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -448,7 +441,6 @@ namespace Jigen.Proto {
       int hash = 1;
       if (Database.Length != 0) hash ^= Database.GetHashCode();
       if (Collection.Length != 0) hash ^= Collection.GetHashCode();
-      if (Key.Length != 0) hash ^= Key.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -475,10 +467,6 @@ namespace Jigen.Proto {
         output.WriteRawTag(18);
         output.WriteString(Collection);
       }
-      if (Key.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteBytes(Key);
-      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -497,10 +485,6 @@ namespace Jigen.Proto {
         output.WriteRawTag(18);
         output.WriteString(Collection);
       }
-      if (Key.Length != 0) {
-        output.WriteRawTag(26);
-        output.WriteBytes(Key);
-      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -517,9 +501,6 @@ namespace Jigen.Proto {
       if (Collection.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Collection);
       }
-      if (Key.Length != 0) {
-        size += 1 + pb::CodedOutputStream.ComputeBytesSize(Key);
-      }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
       }
@@ -528,7 +509,7 @@ namespace Jigen.Proto {
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
-    public void MergeFrom(GetContentRequest other) {
+    public void MergeFrom(CollectionKey other) {
       if (other == null) {
         return;
       }
@@ -537,9 +518,6 @@ namespace Jigen.Proto {
       }
       if (other.Collection.Length != 0) {
         Collection = other.Collection;
-      }
-      if (other.Key.Length != 0) {
-        Key = other.Key;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -566,10 +544,6 @@ namespace Jigen.Proto {
           }
           case 18: {
             Collection = input.ReadString();
-            break;
-          }
-          case 26: {
-            Key = input.ReadBytes();
             break;
           }
         }
@@ -599,8 +573,389 @@ namespace Jigen.Proto {
             Collection = input.ReadString();
             break;
           }
-          case 26: {
-            Key = input.ReadBytes();
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class KeysResult : pb::IMessage<KeysResult>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<KeysResult> _parser = new pb::MessageParser<KeysResult>(() => new KeysResult());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<KeysResult> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[2]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public KeysResult() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public KeysResult(KeysResult other) : this() {
+      keys_ = other.keys_.Clone();
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public KeysResult Clone() {
+      return new KeysResult(this);
+    }
+
+    /// <summary>Field number for the "Keys" field.</summary>
+    public const int KeysFieldNumber = 1;
+    private static readonly pb::FieldCodec<pb::ByteString> _repeated_keys_codec
+        = pb::FieldCodec.ForBytes(10);
+    private readonly pbc::RepeatedField<pb::ByteString> keys_ = new pbc::RepeatedField<pb::ByteString>();
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public pbc::RepeatedField<pb::ByteString> Keys {
+      get { return keys_; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as KeysResult);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(KeysResult other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if(!keys_.Equals(other.keys_)) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      hash ^= keys_.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      keys_.WriteTo(output, _repeated_keys_codec);
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      keys_.WriteTo(ref output, _repeated_keys_codec);
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      size += keys_.CalculateSize(_repeated_keys_codec);
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(KeysResult other) {
+      if (other == null) {
+        return;
+      }
+      keys_.Add(other.keys_);
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 10: {
+            keys_.AddEntriesFrom(input, _repeated_keys_codec);
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 10: {
+            keys_.AddEntriesFrom(ref input, _repeated_keys_codec);
+            break;
+          }
+        }
+      }
+    }
+    #endif
+
+  }
+
+  [global::System.Diagnostics.DebuggerDisplayAttribute("{ToString(),nq}")]
+  public sealed partial class CountResult : pb::IMessage<CountResult>
+  #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      , pb::IBufferMessage
+  #endif
+  {
+    private static readonly pb::MessageParser<CountResult> _parser = new pb::MessageParser<CountResult>(() => new CountResult());
+    private pb::UnknownFieldSet _unknownFields;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pb::MessageParser<CountResult> Parser { get { return _parser; } }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public static pbr::MessageDescriptor Descriptor {
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[3]; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    pbr::MessageDescriptor pb::IMessage.Descriptor {
+      get { return Descriptor; }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public CountResult() {
+      OnConstruction();
+    }
+
+    partial void OnConstruction();
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public CountResult(CountResult other) : this() {
+      count_ = other.count_;
+      _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public CountResult Clone() {
+      return new CountResult(this);
+    }
+
+    /// <summary>Field number for the "Count" field.</summary>
+    public const int CountFieldNumber = 1;
+    private int count_;
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int Count {
+      get { return count_; }
+      set {
+        count_ = value;
+      }
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override bool Equals(object other) {
+      return Equals(other as CountResult);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public bool Equals(CountResult other) {
+      if (ReferenceEquals(other, null)) {
+        return false;
+      }
+      if (ReferenceEquals(other, this)) {
+        return true;
+      }
+      if (Count != other.Count) return false;
+      return Equals(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override int GetHashCode() {
+      int hash = 1;
+      if (Count != 0) hash ^= Count.GetHashCode();
+      if (_unknownFields != null) {
+        hash ^= _unknownFields.GetHashCode();
+      }
+      return hash;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public override string ToString() {
+      return pb::JsonFormatter.ToDiagnosticString(this);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void WriteTo(pb::CodedOutputStream output) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      output.WriteRawMessage(this);
+    #else
+      if (Count != 0) {
+        output.WriteRawTag(8);
+        output.WriteInt32(Count);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(output);
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalWriteTo(ref pb::WriteContext output) {
+      if (Count != 0) {
+        output.WriteRawTag(8);
+        output.WriteInt32(Count);
+      }
+      if (_unknownFields != null) {
+        _unknownFields.WriteTo(ref output);
+      }
+    }
+    #endif
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public int CalculateSize() {
+      int size = 0;
+      if (Count != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeInt32Size(Count);
+      }
+      if (_unknownFields != null) {
+        size += _unknownFields.CalculateSize();
+      }
+      return size;
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(CountResult other) {
+      if (other == null) {
+        return;
+      }
+      if (other.Count != 0) {
+        Count = other.Count;
+      }
+      _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
+    }
+
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public void MergeFrom(pb::CodedInputStream input) {
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+      input.ReadRawMessage(this);
+    #else
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, input);
+            break;
+          case 8: {
+            Count = input.ReadInt32();
+            break;
+          }
+        }
+      }
+    #endif
+    }
+
+    #if !GOOGLE_PROTOBUF_REFSTRUCT_COMPATIBILITY_MODE
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    void pb::IBufferMessage.InternalMergeFrom(ref pb::ParseContext input) {
+      uint tag;
+      while ((tag = input.ReadTag()) != 0) {
+      if ((tag & 7) == 4) {
+        // Abort on any end group tag.
+        return;
+      }
+      switch(tag) {
+          default:
+            _unknownFields = pb::UnknownFieldSet.MergeFieldFrom(_unknownFields, ref input);
+            break;
+          case 8: {
+            Count = input.ReadInt32();
             break;
           }
         }
@@ -625,7 +980,7 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[2]; }
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[4]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -971,7 +1326,7 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[3]; }
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[5]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1308,7 +1663,7 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[4]; }
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[6]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1543,7 +1898,7 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[5]; }
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[7]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1741,7 +2096,7 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[6]; }
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[8]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -1930,7 +2285,7 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[7]; }
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[9]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -2117,7 +2472,7 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[8]; }
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[10]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
@@ -2315,7 +2670,7 @@ namespace Jigen.Proto {
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public static pbr::MessageDescriptor Descriptor {
-      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[9]; }
+      get { return global::Jigen.Proto.JigenReflection.Descriptor.MessageTypes[11]; }
     }
 
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
