@@ -13,7 +13,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jigen.SemanticTools", "src\
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JigenTests", "tests\JigenTests\JigenTests.csproj", "{7ACCDB69-A3D3-4279-9559-6D492F0AFA82}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JigenStoreTests", "tests\JigenStoreTests\JigenStoreTests.csproj", "{7ACCDB69-A3D3-4279-9559-6D492F0AFA82}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Server", "Server", "{EB50253E-AD19-4931-9257-2A3BAC799CD9}"
 EndProject
@@ -41,6 +41,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		Dockerfile = Dockerfile
 		.dockerignore = .dockerignore
 	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JigenClientTests", "tests\JigenClientTests\JigenClientTests.csproj", "{734768F2-E78D-4003-BD9E-47039122E573}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -172,6 +174,18 @@ Global
 		{EC6D84A0-D938-48D4-83FE-95EBC16B58BC}.Release|x64.Build.0 = Release|Any CPU
 		{EC6D84A0-D938-48D4-83FE-95EBC16B58BC}.Release|x86.ActiveCfg = Release|Any CPU
 		{EC6D84A0-D938-48D4-83FE-95EBC16B58BC}.Release|x86.Build.0 = Release|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Debug|x64.Build.0 = Debug|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Debug|x86.Build.0 = Debug|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Release|Any CPU.Build.0 = Release|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Release|x64.ActiveCfg = Release|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Release|x64.Build.0 = Release|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Release|x86.ActiveCfg = Release|Any CPU
+		{734768F2-E78D-4003-BD9E-47039122E573}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -191,5 +205,6 @@ Global
 		{8FE508E4-9514-4AD1-9EF2-5386B0B4AF3D} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{4C5D43A3-4C7F-4B60-9034-42F7CFB93E78} = {535AE59E-D09E-4E27-BFA6-637B52C83D95}
 		{EC6D84A0-D938-48D4-83FE-95EBC16B58BC} = {8FE508E4-9514-4AD1-9EF2-5386B0B4AF3D}
+		{734768F2-E78D-4003-BD9E-47039122E573} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

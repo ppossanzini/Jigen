@@ -1,11 +1,11 @@
-using MediatR;
+using Hikyaku;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jigen.API;
 
 [ApiController]
 [Route("database")]
-public class DatabaseController(IMediator mediator) : ControllerBase
+public class DatabaseController(IHikyaku mediator) : ControllerBase
 {
   [HttpPost]
   public async Task<IActionResult> Create(string name)

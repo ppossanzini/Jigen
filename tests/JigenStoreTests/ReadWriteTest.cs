@@ -57,7 +57,8 @@ public class ReadWriteTest : IDisposable
       {
         Id = s.id.ToByteArray(),
         CollectionName = "vicini",
-        Content = Encoding.UTF8.GetBytes(s.sentence), Embedding = _embeddingGenerator.GenerateEmbedding(s.sentence),
+        Content = MessagePackDocumentSerializer.Instance.Serialize(s.sentence), 
+        Embedding = _embeddingGenerator.GenerateEmbedding(s.sentence),
       });
 
       _testOutputHelper.WriteLine($"{rr.Id} - {rr.Content} - {String.Concat(rr.Embedding.Slice(0, 10).ToArray().Select(i => $"{i},"))}");
@@ -86,6 +87,7 @@ public class ReadWriteTest : IDisposable
   [InlineData("La ricetta della pasta alla carbonara prevede guanciale e uova")]
   public async Task Search(string search)
   {
+    var serializer = MessagePackDocumentSerializer.Instance;
     var query = _embeddingGenerator.GenerateEmbedding(search);
     _testOutputHelper.WriteLine($"{String.Concat(query.Take(10).Select(i => $"{i},"))}");
 
@@ -94,7 +96,7 @@ public class ReadWriteTest : IDisposable
     _testOutputHelper.WriteLine($"Hai cercato: {search}");
     foreach (var r in results)
     {
-      _testOutputHelper.WriteLine($"{new Guid(r.entry.Id)} {r.entry.Content} {r.score}");
+      _testOutputHelper.WriteLine($"{new Guid(r.entry.Id)} {serializer.ToJson(r.entry.Content)} {r.score}");
     }
 
     await _store.Close();

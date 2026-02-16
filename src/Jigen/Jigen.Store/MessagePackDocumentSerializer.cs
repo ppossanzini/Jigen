@@ -6,7 +6,6 @@ namespace Jigen;
 
 public class MessagePackDocumentSerializer : IDocumentSerializer
 {
-
   private static readonly MessagePackDocumentSerializer _instance = new MessagePackDocumentSerializer();
   public static MessagePackDocumentSerializer Instance { get; } = _instance;
 
@@ -19,7 +18,7 @@ public class MessagePackDocumentSerializer : IDocumentSerializer
 
   public object Deserialize(Type t, ReadOnlyMemory<byte> data)
   {
-    return MessagePackSerializer.Deserialize(t,data, _serializerOptions);
+    return MessagePackSerializer.Deserialize(t, data, _serializerOptions);
   }
 
   public ReadOnlyMemory<byte> Serialize<T>(T document)
@@ -30,5 +29,10 @@ public class MessagePackDocumentSerializer : IDocumentSerializer
   public T Deserialize<T>(ReadOnlyMemory<byte> data)
   {
     return MessagePackSerializer.Deserialize<T>(data, _serializerOptions);
+  }
+
+  public string ToJson(ReadOnlyMemory<byte> data)
+  {
+    return MessagePackSerializer.ConvertToJson(data, _serializerOptions);
   }
 }

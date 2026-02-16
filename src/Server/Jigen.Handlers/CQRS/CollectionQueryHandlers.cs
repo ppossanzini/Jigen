@@ -15,7 +15,6 @@ public class CollectionQueryHandlers(
   IRequestHandler<Core.Query.collections.ListCollections, IEnumerable<string>>,
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
   IRequestHandler<Core.Query.collections.GetCollectionsInfo, IEnumerable<CollectionInfo>>,
-  IRequestHandler<Core.Query.collections.GetContent, object>,
   IRequestHandler<Core.Query.collections.GetRawContent, byte[]>,
   IRequestHandler<Core.Query.collections.GetAllKeys, IEnumerable<VectorKey>>
 
@@ -39,14 +38,6 @@ public class CollectionQueryHandlers(
     return Task.FromResult(
       store.GetCollections().Select(c => store.GetCollectionInfo(c)).AsEnumerable()
     );
-  }
-
-  public Task<object> Handle(GetContent request, CancellationToken cancellationToken)
-  {
-    if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
-
-    var result = store.GetContent(request.Collection, request.Key);
-    return Task.FromResult(serializer.Deserialize(request.ResultType, result));
   }
 
   public Task<byte[]> Handle(GetRawContent request, CancellationToken cancellationToken)

@@ -1,12 +1,12 @@
 using Jigen.DataStructures;
-using MediatR;
+using Hikyaku;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jigen.API;
 
 [ApiController]
 [Route("database/{dbname}/collections")]
-public class CollectionsController(IMediator mediator) : ControllerBase
+public class CollectionsController(IHikyaku mediator, IDocumentSerializer serializer) : ControllerBase
 {
   [HttpGet]
   public async Task<IActionResult> GetCollections(string dbname)
@@ -33,7 +33,7 @@ public class CollectionsController(IMediator mediator) : ControllerBase
   [Route("{collection}/documents/{key:guid}")]
   [Route("{collection}/documents/{key:long}")]
   [HttpPost, HttpPut, HttpPatch]
-  public async Task<IActionResult> SetDocument(string dbname, string collection, [FromQuery]object key, [FromBody] Dto.DocumentPayload payload)
+  public async Task<IActionResult> SetDocument(string dbname, string collection, [FromQuery] object key, [FromBody] Dto.DocumentPayload payload)
   {
     if (payload == null)
       return BadRequest("Payload cannot be null");
@@ -62,7 +62,7 @@ public class CollectionsController(IMediator mediator) : ControllerBase
   [Route("{collection}/documents/{key:guid}")]
   [Route("{collection}/documents/{key:long}")]
   [HttpDelete]
-  public async Task<IActionResult> DeleteDocument(string dbname, string collection, [FromQuery]object key)
+  public async Task<IActionResult> DeleteDocument(string dbname, string collection, [FromQuery] object key)
   {
     VectorKey keyVector = key switch
     {
@@ -88,7 +88,7 @@ public class CollectionsController(IMediator mediator) : ControllerBase
   [Route("{collection}/documents/{key:guid}")]
   [Route("{collection}/documents/{key:long}")]
   [HttpGet]
-  public async Task<IActionResult> GetDocument(string dbname, string collection, [FromQuery]object key)
+  public async Task<IActionResult> GetDocument(string dbname, string collection, [FromQuery] object key)
   {
     VectorKey keyVector = key switch
     {
@@ -99,14 +99,43 @@ public class CollectionsController(IMediator mediator) : ControllerBase
       _ => default
     };
 
-    var result = await mediator.Send(new Core.Query.collections.GetContent()
+    var result = await mediator.Send(new Core.Query.collections.GetRawContent()
+    {
+      Database = dbname,
+      Collection = collection,
+      Key = keyVector.Value
+    });
+
+    return Ok(result);
+  }
+
+  [Route("{collection}/documents/{key}/json")]
+  [Route("{collection}/documents/{key:int}/json")]
+  [Route("{collection}/documents/{key:guid}/json")]
+  [Route("{collection}/documents/{key:long}/json")]
+  [HttpGet]
+  public async Task<IActionResult> GetDocumentJson(string dbname, string collection, [FromQuery] object key)
+  {
+    VectorKey keyVector = key switch
+    {
+      long l => VectorKey.From(l),
+      Guid guid => VectorKey.From(guid),
+      int i => VectorKey.From(i),
+      string s => VectorKey.From(s),
+      _ => default
+    };
+
+    var result = await mediator.Send(new Core.Query.collections.GetRawContent()
     {
       Database = dbname,
       Collection = collection,
       Key = keyVector.Value,
-      ResultType = typeof(string)
     });
 
-    return Ok(result);
+    return Ok(new
+    {
+      key, collection,
+      content = serializer.ToJson(result)
+    });
   }
 }

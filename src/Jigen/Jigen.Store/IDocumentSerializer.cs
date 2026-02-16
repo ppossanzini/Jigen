@@ -7,4 +7,6 @@ public interface IDocumentSerializer
 
   ReadOnlyMemory<byte> Serialize<T>(T document);
   T Deserialize<T>(ReadOnlyMemory<byte> data);
+
+  string ToJson(ReadOnlyMemory<byte> data);
 }
