@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hikyaku" Version="9.1.0"/>
+    <PackageReference Include="Hikyaku" Version="9.1.2" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.9" />
     <PackageReference Include="MapZilla" Version="9.1.5" />
 

@@ -2,7 +2,6 @@ using Hikyaku;
 using Jigen.Core.Command.database;
 using Jigen.Extensions;
 using Jigen.Handlers.Model;
-using MediatR;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 

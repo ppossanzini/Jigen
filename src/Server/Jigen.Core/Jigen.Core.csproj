@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hikyaku.Contracts" Version="9.1.0"/>
+    <PackageReference Include="Hikyaku.Contracts" Version="9.1.2" />
   </ItemGroup>
 
   <ItemGroup>
