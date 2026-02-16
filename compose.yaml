@@ -1,0 +1,7 @@
+﻿services:
+  jigendb:
+    image: jigendb
+    build:
+      context: .
+      dockerfile: src/Server/Jigen/Dockerfile
+
