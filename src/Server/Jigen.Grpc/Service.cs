@@ -75,7 +75,10 @@ public class Server(ILogger<Server> logger, IHikyaku mediator, IEmbeddingGenerat
   {
     return new CountResult()
     {
-      Count = await mediator.Send(new Jigen.Core.Command.collections.Count() { Database = request.Database, Collection = request.Collection })
+      Count = await mediator.Send(new Jigen.Core.Command.collections.Count()
+      {
+        Database = request.Database, Collection = request.Collection
+      })
     };
   }
 
@@ -84,7 +87,33 @@ public class Server(ILogger<Server> logger, IHikyaku mediator, IEmbeddingGenerat
     return
       new Result()
       {
-        Success = await mediator.Send(new Core.Command.collections.Contains() { Database = request.Database, Collection = request.Collection, Key = request.Key.ToByteArray() })
+        Success = await mediator.Send(new Core.Command.collections.Contains()
+        {
+          Database = request.Database, Collection = request.Collection, Key = request.Key.ToByteArray()
+        })
       };
   }
+
+  public override async Task<KeysResult> GetAllKeys(CollectionKey request, ServerCallContext context)
+  {
+    var result = (await mediator.Send(new Core.Query.collections.GetAllKeys()
+    {
+      Database = request.Database, Collection = request.Collection
+    })).Select(i => ByteString.CopyFrom(i.Value));
+
+    return new KeysResult()
+    {
+      Keys = { result }
+    };
+  }
+
+  public override async Task<Result> DeleteVector(ItemKey request, ServerCallContext context)
+  {
+    await mediator.Send(new Core.Command.collections.DeleteVector()
+    {
+      Database = request.Database, Collection = request.Collection, Key = request.Key.ToByteArray()
+    });
+    return new Result() { Success = true };
+  }
+  
 }
