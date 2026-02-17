@@ -11,7 +11,6 @@ public class DatabaseCommandHandlers(
   DatabasesManager manager,
   SystemDB master,
   IOptions<JigenServerSettings> settings,
-  IServiceProvider provider,
   ILogger<DatabaseCommandHandlers> logger
 ) :
   Hikyaku.IRequestHandler<Core.Command.database.CreateDatabase>,
@@ -36,6 +35,7 @@ public class DatabaseCommandHandlers(
 
     master.System[SystemDB.BASEINFO] = info;
     await master.SaveChangesAsync();
+    master.RefreshReading();
 
     logger.LogInformation("Database " + request.Name + " created");
   }

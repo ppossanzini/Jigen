@@ -20,6 +20,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj" />
     <ProjectReference Include="..\Jigen.API\Jigen.API.csproj" />
+    <ProjectReference Include="..\Jigen.Grpc\Jigen.Grpc.csproj" />
     <ProjectReference Include="..\Jigen.Handlers\Jigen.Handlers.csproj" />
   </ItemGroup>
 

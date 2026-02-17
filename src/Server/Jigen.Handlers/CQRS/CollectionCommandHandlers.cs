@@ -10,7 +10,6 @@ namespace Jigen.Handlers.CQRS;
 
 public class CollectionCommandHandlers(
   DatabasesManager manager,
-  ILogger<CollectionCommandHandlers> logger,
   IDocumentSerializer serializer,
   Jigen.SemanticTools.IEmbeddingGenerator embeddingGenerator
 ) :

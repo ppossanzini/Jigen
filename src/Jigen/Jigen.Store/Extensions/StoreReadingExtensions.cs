@@ -63,19 +63,20 @@ public static class StoreReadingExtensions
 
   public static byte[] GetContent(this Store store, string collection, byte[] id)
   {
-    var accessor = store.ContentData.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
     if (!store.PositionIndex[collection].TryGetValue(id,
           out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
 
 
-    var idsize = accessor.ReadInt32(item.contentposition);
+    var totalsize = store.ContentFileStream.Length;
+    using var accessor = store.ContentData.CreateViewAccessor(item.contentposition, Math.Min(totalsize - item.contentposition, item.size * 2 + 200), MemoryMappedFileAccess.Read);
+    var idsize = accessor.ReadInt32(0);
     var contentId = new byte[idsize];
-    accessor.ReadArray<byte>(item.contentposition + sizeof(int), contentId, 0, idsize);
+    accessor.ReadArray<byte>(sizeof(int), contentId, 0, idsize);
 
     if (!ByteArrayEqualityComparer.Instance.Equals(contentId, id)) throw new InvalidConstraintException("Content ID mismatch");
 
     byte[] buffer = new byte[item.size];
-    accessor.ReadArray(item.contentposition + 2 * sizeof(int) + idsize, buffer, 0, (int)item.size);
+    accessor.ReadArray(2 * sizeof(int) + idsize, buffer, 0, (int)item.size);
     return buffer;
   }
 }

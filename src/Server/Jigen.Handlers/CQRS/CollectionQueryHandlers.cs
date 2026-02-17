@@ -10,7 +10,6 @@ namespace Jigen.Handlers.CQRS;
 
 public class CollectionQueryHandlers(
   DatabasesManager manager,
-  IDocumentSerializer serializer,
   ILogger<CollectionCommandHandlers> logger) :
   IRequestHandler<Core.Query.collections.ListCollections, IEnumerable<string>>,
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
@@ -21,18 +20,21 @@ public class CollectionQueryHandlers(
 {
   public Task<IEnumerable<string>> Handle(ListCollections request, CancellationToken cancellationToken)
   {
+    logger.LogDebug($"Executing ListCollection for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     return Task.FromResult(store.GetCollections().AsEnumerable());
   }
 
   public Task<CollectionInfo> Handle(GetCollectionInfo request, CancellationToken cancellationToken)
   {
+    logger.LogDebug($"Executing GetCollectionInfo for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     return Task.FromResult(store.GetCollectionInfo(request.Collection));
   }
 
   public Task<IEnumerable<CollectionInfo>> Handle(GetCollectionsInfo request, CancellationToken cancellationToken)
   {
+    logger.LogDebug($"Executing GetCollectionsInfo for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     return Task.FromResult(
@@ -42,6 +44,7 @@ public class CollectionQueryHandlers(
 
   public Task<byte[]> Handle(GetRawContent request, CancellationToken cancellationToken)
   {
+    logger.LogDebug($"Executing GetRawContent for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var result = store.GetContent(request.Collection, request.Key);
@@ -50,6 +53,7 @@ public class CollectionQueryHandlers(
 
   public Task<IEnumerable<VectorKey>> Handle(GetAllKeys request, CancellationToken cancellationToken)
   {
+    logger.LogDebug($"Executing GetAllKeys for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var result = (store.PositionIndex.TryGetValue(request.Collection, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();

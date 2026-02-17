@@ -17,8 +17,8 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
     foreach (var k in value.Keys)
     {
       var content = store.GetContent(CollectionName, k);
-      if (content != null) ;
-      yield return new KeyValuePair<VectorKey, T>(k, options.DocumentSerializer.Deserialize<T>(content));
+      if (content != null)
+        yield return new KeyValuePair<VectorKey, T>(k, options.DocumentSerializer.Deserialize<T>(content));
     }
   }
 
@@ -29,12 +29,12 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
 
   public void Add(KeyValuePair<VectorKey, T> item)
   {
-    store.IngestionQueue.Enqueue(new VectorEntry()
+    store.SetContent(new VectorEntry()
     {
       Id = item.Key.Value,
       CollectionName = CollectionName,
       Content = options.DocumentSerializer.Serialize(item.Value)
-    });
+    }).GetAwaiter().GetResult();
   }
 
   public void Clear()
@@ -71,12 +71,12 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
 
   public void Add(VectorKey key, T value)
   {
-    store.IngestionQueue.Enqueue(new VectorEntry()
+    store.SetContent(new VectorEntry()
     {
       Id = key.Value,
       CollectionName = CollectionName,
       Content = options.DocumentSerializer.Serialize(value)
-    });
+    }).GetAwaiter().GetResult();
   }
 
   public bool ContainsKey(VectorKey key)
@@ -90,7 +90,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
                  index.Remove(key.Value);
 
-    if (result) store.SaveIndexChanges();
+    if (result) store.SaveIndexChanges().GetAwaiter().GetResult();
     return result;
   }
 

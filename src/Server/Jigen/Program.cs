@@ -70,6 +70,8 @@ namespace Jigen
       Loader.Current.AddModules(app.Services);
 
       app.MapControllers();
+      foreach (var m in Loader.Current.Modules)
+        m.UseEndpoints(app);
       app.UseStaticFiles();
     }
   }

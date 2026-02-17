@@ -18,12 +18,12 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     {
       var content = store.GetContent(CollectionName, k);
       var embeddings = Array.Empty<float>(); //TODO: Aggiungere metodo per la lettura degli embeddings
-      if (content != null) ;
-      yield return new KeyValuePair<VectorKey, VectorEntry<T>>(k,
-        new VectorEntry<T>()
-        {
-          Key = k, Content = options.DocumentSerializer.Deserialize<T>(content), Embedding = embeddings
-        });
+      if (content != null)
+        yield return new KeyValuePair<VectorKey, VectorEntry<T>>(k,
+          new VectorEntry<T>()
+          {
+            Key = k, Content = options.DocumentSerializer.Deserialize<T>(content), Embedding = embeddings
+          });
     }
   }
 
@@ -34,13 +34,13 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
   public void Add(KeyValuePair<VectorKey, VectorEntry<T>> item)
   {
-    store.IngestionQueue.Enqueue(new VectorEntry()
+    store.AppendContent(new VectorEntry()
     {
       Id = item.Key.Value,
       CollectionName = CollectionName,
       Content = options.DocumentSerializer.Serialize(item.Value.Content),
       Embedding = item.Value.Embedding
-    });
+    }).GetAwaiter().GetResult();
   }
 
   public void Clear()
@@ -77,13 +77,13 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
   public void Add(VectorKey key, VectorEntry<T> value)
   {
-    store.IngestionQueue.Enqueue(new VectorEntry()
+    store.AppendContent(new VectorEntry()
     {
       Id = key.Value,
       CollectionName = CollectionName,
       Content = options.DocumentSerializer.Serialize(value.Content),
       Embedding = value.Embedding
-    });
+    }).GetAwaiter().GetResult();
   }
 
   public bool ContainsKey(VectorKey key)
@@ -140,6 +140,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
           Embedding = k.embeddings
         }).ToArray();
       }
+
       return Array.Empty<VectorEntry<T>>();
     }
   }

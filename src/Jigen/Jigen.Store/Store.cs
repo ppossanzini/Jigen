@@ -104,12 +104,13 @@ public class Store : IStore, IDisposable
     var oldembeddings = EmbeddingsData;
 
     if (this.ContentFileStream.Length > 0)
+      // ContentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
+      //   null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, true);
       ContentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
-        null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, true);
-
+        null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
     if (this.EmbeddingFileStream.Length > 0)
       EmbeddingsData = MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
-        null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, true);
+        null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
 
     oldcontent?.Dispose();
     oldembeddings?.Dispose();

@@ -6,7 +6,7 @@ using Jigen.SemanticTools;
 
 namespace Jigen.Grpc;
 
-public class Server(ILogger<Server> logger, IHikyaku mediator, IEmbeddingGenerator embeddingGenerator)
+public class Server(IHikyaku mediator, IEmbeddingGenerator embeddingGenerator)
   : Jigen.Proto.StoreCollectionService.StoreCollectionServiceBase
 {
   public override Task<EmbeddingResponse> CalculateEmbeddings(EmbeddingRequest request, ServerCallContext context)

@@ -1,4 +1,5 @@
 using System.Composition;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -15,6 +16,11 @@ public class Module : IModule
 
   public void OnStartup(IServiceProvider services)
   {
+  }
+
+  public void UseEndpoints(IEndpointRouteBuilder endpoints)
+  {
+    
   }
 
   public void PostStartup(IServiceProvider services)

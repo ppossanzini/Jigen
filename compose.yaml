@@ -1,7 +1,9 @@
 ﻿services:
   jigendb:
-    image: jigendb
-    build:
-      context: .
-      dockerfile: src/Server/Jigen/Dockerfile
-
+    build: .
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - /data:/data
+    
