@@ -17,6 +17,8 @@ public class Writer
   private readonly Lock _ioLock = new();
   private readonly Store _store;
 
+  private Queue<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)> TempIndex = new();
+
   public Task WaitForWritingCompleted => Task.Run(() => _writingCompleted.WaitOne());
 
   public Writer(Store store)
@@ -75,16 +77,30 @@ public class Writer
         {
           while (_store.IngestionQueue.TryDequeue(out var entry))
           {
-            _store.AppendContent(
+            var result = _store.AppendContent(
               entry.Id,
               entry.CollectionName,
               entry.Content,
               entry.Embedding).GetAwaiter().GetResult();
+
+            // Cannot immediatly update search index till the file are committed
+            TempIndex.Enqueue(result);
           }
+
+          ;
         }
       }
       finally
       {
+        _store.EmbeddingFileStream.FlushAsync().GetAwaiter().GetResult();
+        _store.ContentFileStream.FlushAsync().GetAwaiter().GetResult();
+
+        while (TempIndex.TryDequeue(out var indexData))
+          _store.AppendIndex(indexData);
+
+        _store.EnableReading();
+        _store.IndexFileStream.FlushAsync().GetAwaiter().GetResult();
+
         if (_store.IngestionQueue.IsEmpty)
           _writingCompleted.Set();
       }

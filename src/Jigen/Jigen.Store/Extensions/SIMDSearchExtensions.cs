@@ -17,8 +17,7 @@ public static class SimdSearchExtensions
     if (top <= 0) return [];
 
     var topResults = new ConcurrentBag<(byte[] Id, float Score)>();
-
-
+    
     using (var accessor = store.EmbeddingsData.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read))
     {
       try

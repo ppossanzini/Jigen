@@ -35,7 +35,7 @@ public class DatabaseCommandHandlers(
 
     master.System[SystemDB.BASEINFO] = info;
     await master.SaveChangesAsync();
-    master.RefreshReading();
+    // master.RefreshReading();
 
     logger.LogInformation("Database " + request.Name + " created");
   }

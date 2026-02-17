@@ -33,9 +33,7 @@ public class Store : IStore, IDisposable
   internal readonly Writer Writer;
 
   internal string ContentFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.ContentSuffix}.jigen");
-
   internal string IndexFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.index.jigen");
-
   internal string EmbeddingsFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.EmbeddingSuffix}.jigen");
 
   public IEnumerable<string> GetFileNames()
@@ -65,7 +63,6 @@ public class Store : IStore, IDisposable
 
   public Store(StoreOptions options)
   {
-    
     this.Options = options;
     EnsureFileCreated();
 
@@ -78,36 +75,22 @@ public class Store : IStore, IDisposable
     Writer = new Writer(this);
   }
 
-  // public IDocumentSerializer<T> GetSerializer<T>()
-  // {
-  //   var type = typeof(IDocumentSerializer<T>);
-  //   return ServiceProvider.GetService(type) as IDocumentSerializer<T>;
-  // }
-  //
-  // public IDocumentSerializer GetSerializer(Type t)
-  // {
-  //   var type = typeof(IDocumentSerializer<>).MakeGenericType(t);
-  //   return ServiceProvider.GetService(type) as IDocumentSerializer;
-  // }
-
   internal void EnableWriting()
   {
     ContentFileStream = File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     EmbeddingFileStream = File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     IndexFileStream = File.Open(IndexFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
   }
-
-
+  
   internal void EnableReading()
   {
     var oldcontent = ContentData;
     var oldembeddings = EmbeddingsData;
 
     if (this.ContentFileStream.Length > 0)
-      // ContentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
-      //   null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, true);
       ContentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
         null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
+
     if (this.EmbeddingFileStream.Length > 0)
       EmbeddingsData = MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
         null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
@@ -121,17 +104,9 @@ public class Store : IStore, IDisposable
     return Task.CompletedTask;
   }
 
-  public Task SaveChangesAsync(CancellationToken? cancellationToken = null)
+  public async Task SaveChangesAsync(CancellationToken? cancellationToken = null)
   {
-    return Writer.WaitForWritingCompleted;
-  }
-
-  public void RefreshReading()
-  {
-    this.EmbeddingFileStream.FlushAsync().GetAwaiter().GetResult();
-    this.ContentFileStream.FlushAsync().GetAwaiter().GetResult();
-
-    this.EnableReading();
+    await Writer.WaitForWritingCompleted;
   }
 
   public Task Close()

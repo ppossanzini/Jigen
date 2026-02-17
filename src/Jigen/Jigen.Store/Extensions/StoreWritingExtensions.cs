@@ -27,7 +27,7 @@ public static class StoreWritingExtensions
   }
 
 
-  private static async Task AppendIndex(
+  internal static void AppendIndex(
     this Store store,
     (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize) item)
   {
@@ -48,8 +48,7 @@ public static class StoreWritingExtensions
     WriteInt64Le(file, item.embeddingposition);
     WriteInt32Le(file, item.dimensions);
     WriteInt64Le(file, item.contentsize);
-
-    await Task.CompletedTask;
+    
   }
 
 
@@ -74,7 +73,7 @@ public static class StoreWritingExtensions
     return result;
   }
 
-  internal static async Task<(byte[] id, long position, long embeddingPosition, long size)>
+  internal static async Task<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)>
     AppendContent(this Store store, byte[] id, string collection, ReadOnlyMemory<byte>? content, ReadOnlyMemory<float>? embeddings)
   {
     (long contentPosition, long embeddingPosition, int dimensions, long size) actualindex = default;
@@ -117,8 +116,6 @@ public static class StoreWritingExtensions
 
       store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;
     }
-
-    await store.AppendIndex((id, collection, contentPosition, embeddingPosition, embeddings?.Length ?? actualindex.dimensions, content?.Length ?? actualindex.size));
-    return (id, contentPosition, embeddingPosition, content?.Length ?? actualindex.size);
+    return (id, collection, contentPosition, embeddingPosition, embeddings?.Length ?? actualindex.dimensions, content?.Length ?? actualindex.size);
   }
 }
