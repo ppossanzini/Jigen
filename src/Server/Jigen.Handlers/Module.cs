@@ -25,6 +25,7 @@ public class Module : IModule
       }));
 
     services.AddSingleton<DatabasesManager>();
+    services.AddSingleton<IDocumentSerializer>(serviceProvider => MessagePackDocumentSerializer.Instance);
     services.AddTransient<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
   }
 
@@ -34,7 +35,6 @@ public class Module : IModule
 
   public void UseEndpoints(IEndpointRouteBuilder endpoints)
   {
-    
   }
 
   public void PostStartup(IServiceProvider services)

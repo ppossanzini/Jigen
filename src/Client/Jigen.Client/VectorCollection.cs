@@ -10,11 +10,13 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   IDictionary<VectorKey, VectorEntry<T>>
   where T : class, new()
 {
+  private readonly VectorCollectionOptions<T> _options = options ?? new VectorCollectionOptions<T>();
+
   public IEnumerator<KeyValuePair<VectorKey, VectorEntry<T>>> GetEnumerator()
   {
     foreach (var k in Keys)
     {
-      if (TryGetValue(k, out var value))    
+      if (TryGetValue(k, out var value))
         yield return new KeyValuePair<VectorKey, VectorEntry<T>>(k, value);
     }
 
@@ -61,9 +63,9 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     var v = new Vector()
     {
       Database = store.Options.DatabaseName,
-      Collection = options.Name,
+      Collection = _options.Name,
       Key = ByteString.CopyFrom(key.Value),
-      Content = ByteString.CopyFrom(options.DocumentSerializer.Serialize(value.Content).Span),
+      Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(value.Content).Span),
     };
 
     v.Embeddings.AddRange(value.Embedding);
@@ -89,7 +91,7 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
       value = new VectorEntry<T>()
       {
         Key = key,
-        Content = options.DocumentSerializer.Deserialize<T>(result.Content.Memory)
+        Content = _options.DocumentSerializer.Deserialize<T>(result.Content.Memory)
       };
 
     return !result.Content.IsEmpty;
@@ -108,12 +110,12 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   private ItemKey ToItemKey(VectorKey key) => new()
   {
     Database = store.Options.DatabaseName,
-    Collection = options.Name,
+    Collection = _options.Name,
     Key = ByteString.CopyFrom(key.Value)
   };
 
   private CollectionKey CollectionKey => new()
   {
-    Database = store.Options.DatabaseName, Collection = options.Name
+    Database = store.Options.DatabaseName, Collection = _options.Name
   };
 }

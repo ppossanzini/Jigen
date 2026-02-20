@@ -1,3 +1,4 @@
+using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
 using Jigen.Proto;
 
@@ -17,8 +18,10 @@ public class Context
   {
     Options = options;
     _channel = GrpcChannel.ForAddress(options.ConnectionString, options.ChannelOptions);
+    // var invoker = _channel.Intercept(new Interceptors.GrpcClientExceptionInterceptor());
+    // ServiceClient = new StoreCollectionService.StoreCollectionServiceClient(invoker);
     ServiceClient = new StoreCollectionService.StoreCollectionServiceClient(_channel);
-
+    
     this.ContextBuilder();
   }
 

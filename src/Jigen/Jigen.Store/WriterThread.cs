@@ -95,10 +95,12 @@ public class Writer
         _store.EmbeddingFileStream.FlushAsync().GetAwaiter().GetResult();
         _store.ContentFileStream.FlushAsync().GetAwaiter().GetResult();
 
+        _store.EnableReading();
+        
         while (TempIndex.TryDequeue(out var indexData))
           _store.AppendIndex(indexData);
 
-        _store.EnableReading();
+        
         _store.IndexFileStream.FlushAsync().GetAwaiter().GetResult();
 
         if (_store.IngestionQueue.IsEmpty)

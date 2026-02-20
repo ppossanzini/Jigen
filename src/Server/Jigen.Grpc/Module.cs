@@ -13,8 +13,9 @@ public class Module : IModule
 
   public void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment hostingEnvironment)
   {
+    // services.AddGrpc(config => { config.Interceptors.Add<Interceptors.GrpcServerExceptionInterceptor>(); });
+
     services.AddGrpc();
-    //.AddServiceOptions<Server>(c => {});
 
     services.AddCors(o =>
       o.AddPolicy(JigenGrpcCorsDefaultPolicy, b => b

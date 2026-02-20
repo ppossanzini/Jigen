@@ -38,8 +38,8 @@ public class IngestionTests
       await _store.AppendContent(new VectorEntry()
       {
         CollectionName = "animals",
-        Content =
-          "Animalia is an illustrated children's book by Graeme Base. It was originally published in 1986, followed by a tenth anniversary edition in 1996, and a 25th anniversary edition in 2012. Over three million copies have been sold.   A special numbered and signed anniversary edition was also published in 1996, with an embossed gold jacket."u8
+        Content ="Animalia is an illustrated children's book by Graeme Base. It was originally published in 1986, followed by a tenth anniversary edition in 1996, and a 25th anniversary edition in 2012. Over three million copies have been sold.   A special numbered and signed anniversary edition was also published in 1996, with an embossed gold jacket."u8
+          
             .ToArray(),
         Embedding = new[]
           {
