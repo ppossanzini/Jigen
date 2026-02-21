@@ -5,23 +5,23 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-    
+    <ServerGarbageCollection>true</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hikyaku" Version="9.2.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.9" />
-    <PackageReference Include="MapZilla" Version="9.1.5" />
+    <PackageReference Include="Hikyaku" Version="9.2.1"/>
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.9"/>
+    <PackageReference Include="MapZilla" Version="9.1.5"/>
 
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
-    <PackageReference Include="Scalar.AspNetCore" Version="2.8.4" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9"/>
+    <PackageReference Include="Scalar.AspNetCore" Version="2.8.4"/>
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj" />
-    <ProjectReference Include="..\Jigen.API\Jigen.API.csproj" />
-    <ProjectReference Include="..\Jigen.Grpc\Jigen.Grpc.csproj" />
-    <ProjectReference Include="..\Jigen.Handlers\Jigen.Handlers.csproj" />
+    <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>
+    <ProjectReference Include="..\Jigen.API\Jigen.API.csproj"/>
+    <ProjectReference Include="..\Jigen.Grpc\Jigen.Grpc.csproj"/>
+    <ProjectReference Include="..\Jigen.Handlers\Jigen.Handlers.csproj"/>
   </ItemGroup>
 
   <ItemGroup>

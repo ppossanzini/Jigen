@@ -99,7 +99,10 @@ public static class StoreWritingExtensions
       WriteInt32Le(contentStream, id.Length);
       await contentStream.WriteAsync(id, 0, id.Length);
       WriteInt32Le(contentStream, content.Value.Length);
-      await contentStream.WriteAsync(content.Value.Span.ToArray(), 0, content.Value.Length);
+
+      // Scrive direttamente la ReadOnlyMemory<byte> senza ToArray()
+      await contentStream.WriteAsync(content.Value);
+
       store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
     }
 
@@ -112,7 +115,9 @@ public static class StoreWritingExtensions
 
       WriteInt32Le(embeddingsStream, id.Length);
       await embeddingsStream.WriteAsync(id, 0, id.Length);
-      WriteByteArray(embeddingsStream, embeddings.Value.ToArray());
+
+      // Evita embeddings.Value.ToArray(): scrive lo span come bytes
+      WriteByteArray(embeddingsStream, embeddings.Value.Span);
 
       store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;
     }

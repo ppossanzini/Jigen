@@ -1,4 +1,6 @@
 using System.Composition;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -31,9 +33,9 @@ public class Module : IModule
   public void UseEndpoints(IEndpointRouteBuilder endpoints)
   {
     endpoints
-      .MapGrpcService<Server>()
-      .EnableGrpcWeb()
-      .RequireCors(JigenGrpcCorsDefaultPolicy);
+      .MapGrpcService<Server>();
+    // .EnableGrpcWeb()
+    // .RequireCors(JigenGrpcCorsDefaultPolicy);
   }
 
   public void PostStartup(IServiceProvider services)

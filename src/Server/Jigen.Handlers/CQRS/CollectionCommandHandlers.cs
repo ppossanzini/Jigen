@@ -89,7 +89,7 @@ public class CollectionCommandHandlers(
 
     await store.AppendContent(
       new VectorEntry()
-      {
+      { 
         CollectionName = request.Collection,
         Id = request.Key,
         Content = content,
