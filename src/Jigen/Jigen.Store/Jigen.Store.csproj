@@ -15,6 +15,10 @@
     <PackageReference Include="System.IO.Hashing" Version="10.0.2" />
     <PackageReference Include="MessagePack" Version="3.1.4" />
   </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Jigen.Indexer\Jigen.Indexer.csproj" />
+  </ItemGroup>
   
 
 </Project>

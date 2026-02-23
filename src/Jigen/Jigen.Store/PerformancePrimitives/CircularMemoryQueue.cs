@@ -1,5 +1,6 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
+// ReSharper disable MemberCanBePrivate.Global
 
 namespace Jigen.PerformancePrimitives;
 
@@ -54,13 +55,9 @@ public class CircularMemoryQueue<T>
 
   public int Length => _capacity;
 
-  public long Count
-  {
-    get => Volatile.Read(ref _tail) - Volatile.Read(ref _head);
-  }
+  public long Count => Volatile.Read(ref _tail) - Volatile.Read(ref _head);
 
   public bool IsEmpty => Count == 0;
-
 
   public async Task EnqueueAsync(T item, CancellationToken cancellationToken = default)
   {
