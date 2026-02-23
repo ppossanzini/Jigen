@@ -99,11 +99,10 @@ public class CircularMemoryQueue<T>
 
     try
     {
-      var position = (int)(_head & _capacityMask);
+      var position = (int)((Interlocked.Increment(ref _head) - 1) & _capacityMask);
       var result = _buffer.Span[position];
       _buffer.Span[position] = default!;
-
-      Interlocked.Increment(ref _head);
+      
       return result;
     }
     finally
@@ -120,10 +119,9 @@ public class CircularMemoryQueue<T>
 
     try
     {
-      var position = (int)(_head & _capacityMask);
+      var position = (int)((Interlocked.Increment(ref _head) - 1) & _capacityMask);
       result = _buffer.Span[position];
       _buffer.Span[position] = default!;
-      Interlocked.Increment(ref _head);
       return true;
     }
     finally
@@ -134,7 +132,7 @@ public class CircularMemoryQueue<T>
 
   public T Peek()
   {
-    var position = (int)(_head & _capacityMask);
+    var position = (int)(Interlocked.Read(ref _head)  & _capacityMask);
     return _buffer.Span[position];
   }
 }
