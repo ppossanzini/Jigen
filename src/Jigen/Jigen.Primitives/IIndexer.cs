@@ -4,7 +4,7 @@ namespace Jigen;
 
 public interface IIndexer
 {
-  void CreateEmptyIndex(string collection);
+  void OpenOrCreateIndex(string collection);
 
   void AddToIndex(VectorEntry entry);
   void UpdateIndex(VectorEntry entry);

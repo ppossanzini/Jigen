@@ -7,26 +7,6 @@ namespace Jigen.Extensions;
 
 public static class StoreWritingExtensions
 {
-  private static void WriteInt32Le(FileStream stream, int value)
-  {
-    Span<byte> buf = stackalloc byte[sizeof(int)];
-    BinaryPrimitives.WriteInt32LittleEndian(buf, value);
-    stream.Write(buf);
-  }
-
-  private static void WriteInt64Le(FileStream stream, long value)
-  {
-    Span<byte> buf = stackalloc byte[sizeof(long)];
-    BinaryPrimitives.WriteInt64LittleEndian(buf, value);
-    stream.Write(buf);
-  }
-
-  private static void WriteByteArray(FileStream stream, ReadOnlySpan<float> embeddings)
-  {
-    stream.Write(MemoryMarshal.AsBytes(embeddings));
-  }
-
-
   internal static void AppendIndex(
     this Store store,
     (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize) item)
@@ -39,16 +19,15 @@ public static class StoreWritingExtensions
     var file = store.IndexFileStream;
 
     file.Seek(0, SeekOrigin.End);
-    WriteInt32Le(file, item.id.Length);
+    file.WriteInt32Le(item.id.Length);
     file.Write(item.id, 0, item.id.Length);
     var nameAsBytes = Encoding.UTF8.GetBytes(item.collectioname);
-    WriteInt32Le(file, nameAsBytes.Length);
+    file.WriteInt32Le(nameAsBytes.Length);
     file.Write(nameAsBytes, 0, nameAsBytes.Length);
-    WriteInt64Le(file, item.contentposition);
-    WriteInt64Le(file, item.embeddingposition);
-    WriteInt32Le(file, item.dimensions);
-    WriteInt64Le(file, item.contentsize);
-    
+    file.WriteInt64Le(item.contentposition);
+    file.WriteInt64Le(item.embeddingposition);
+    file.WriteInt32Le(item.dimensions);
+    file.WriteInt64Le(item.contentsize);
   }
 
 
@@ -96,9 +75,9 @@ public static class StoreWritingExtensions
       contentStream.Seek(0, SeekOrigin.End);
       contentPosition = contentStream.Position;
 
-      WriteInt32Le(contentStream, id.Length);
+      contentStream.WriteInt32Le(id.Length);
       await contentStream.WriteAsync(id, 0, id.Length);
-      WriteInt32Le(contentStream, content.Value.Length);
+      contentStream.WriteInt32Le(content.Value.Length);
 
       // Scrive direttamente la ReadOnlyMemory<byte> senza ToArray()
       await contentStream.WriteAsync(content.Value);
@@ -113,14 +92,15 @@ public static class StoreWritingExtensions
       embeddingsStream.Seek(0, SeekOrigin.End);
       embeddingPosition = embeddingsStream.Position;
 
-      WriteInt32Le(embeddingsStream, id.Length);
+      embeddingsStream.WriteInt32Le(id.Length);
       await embeddingsStream.WriteAsync(id, 0, id.Length);
 
       // Evita embeddings.Value.ToArray(): scrive lo span come bytes
-      WriteByteArray(embeddingsStream, embeddings.Value.Span);
+      embeddingsStream.WriteByteArray(embeddings.Value.Span);
 
       store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;
     }
+
     return (id, collection, contentPosition, embeddingPosition, embeddings?.Length ?? actualindex.dimensions, content?.Length ?? actualindex.size);
   }
 }

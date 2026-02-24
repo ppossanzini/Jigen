@@ -17,7 +17,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Jigen.Abstractions\Jigen.Abstractions.csproj" />
+    <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj" />
   </ItemGroup>
   
 

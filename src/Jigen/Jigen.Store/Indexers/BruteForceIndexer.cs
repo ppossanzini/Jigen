@@ -7,7 +7,7 @@ namespace Jigen.Indexers;
 
 public class BruteForceIndexer : IIndexer
 {
-  public void CreateEmptyIndex(string collection)
+  public void OpenOrCreateIndex(string collection)
   {
   }
 

@@ -49,7 +49,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JigenClientTest", "tests\Ji
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jigen.Indexer.HNSW", "src\Jigen\Jigen.Indexer.HNSW\Jigen.Indexer.HNSW.csproj", "{9B068457-F0E7-4063-B98D-DAA57BDA62AC}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jigen.Abstractions", "src\Jigen\Jigen.Abstractions\Jigen.Abstractions.csproj", "{3F39A27B-D671-4914-848B-97B3EF33C468}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jigen.Primitives", "src\Jigen\Jigen.Primitives\Jigen.Primitives.csproj", "{3F39A27B-D671-4914-848B-97B3EF33C468}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jigen.Indexer.KMeans", "src\Jigen\Jigen.Indexer.KMeans\Jigen.Indexer.KMeans.csproj", "{6D2868F7-B14D-4B23-B830-7E2791A61506}"
 EndProject
