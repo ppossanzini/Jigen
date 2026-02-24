@@ -52,12 +52,13 @@ public class ReadWriteTest : IDisposable
   public async Task Write()
   {
     foreach (var s in sentences)
+    // var s = sentences.First();
     {
       var rr = await _store.AppendContent(new VectorEntry()
       {
         Id = s.id.ToByteArray(),
         CollectionName = "vicini",
-        Content = MessagePackDocumentSerializer.Instance.Serialize(s.sentence), 
+        Content = MessagePackDocumentSerializer.Instance.Serialize(s.sentence),
         Embedding = _embeddingGenerator.GenerateEmbedding(s.sentence),
       });
 

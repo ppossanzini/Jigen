@@ -17,8 +17,8 @@ public partial class Store : IStore, IDisposable
   internal readonly CircularMemoryQueue<VectorEntry> IngestionQueue = new(CircularWritingBufferSize);
 
   // MemoryMappedFiles only for reading
-  public MemoryMappedFile ContentData;
-  public MemoryMappedFile EmbeddingsData;
+  private MemoryMappedFile _contentData;
+  private MemoryMappedFile _embeddingsData;
 
   // FileStream only for writings. 
   internal FileStream ContentFileStream;
@@ -84,15 +84,15 @@ public partial class Store : IStore, IDisposable
 
   internal void EnableReading()
   {
-    var oldcontent = ContentData;
-    var oldembeddings = EmbeddingsData;
+    var oldcontent = _contentData;
+    var oldembeddings = _embeddingsData;
 
     if (this.ContentFileStream.Length > 0)
-      ContentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
+      _contentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
         null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
 
     if (this.EmbeddingFileStream.Length > 0)
-      EmbeddingsData = MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
+      _embeddingsData = MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
         null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
 
     oldcontent?.Dispose();
@@ -111,12 +111,12 @@ public partial class Store : IStore, IDisposable
 
   public MemoryMappedViewAccessor GetContentAccessor(long offset, long size)
   {
-    return ContentData.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+    return _contentData.CreateViewAccessor(offset, size, MemoryMappedFileAccess.Read);
   }
 
   public MemoryMappedViewAccessor GetEmbeddingAccessor(long offset, long size)
   {
-    return EmbeddingsData.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+    return _embeddingsData.CreateViewAccessor(offset, size, MemoryMappedFileAccess.Read);
   }
 
   public bool GetCollectionIndexOf(string collection, out Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)> index)
@@ -128,8 +128,8 @@ public partial class Store : IStore, IDisposable
 
   public Task Close()
   {
-    if (!ContentData.SafeMemoryMappedFileHandle.IsClosed) ContentData.SafeMemoryMappedFileHandle.Close();
-    if (!EmbeddingsData.SafeMemoryMappedFileHandle.IsClosed) EmbeddingsData.SafeMemoryMappedFileHandle.Close();
+    if (!_contentData.SafeMemoryMappedFileHandle.IsClosed) _contentData.SafeMemoryMappedFileHandle.Close();
+    if (!_embeddingsData.SafeMemoryMappedFileHandle.IsClosed) _embeddingsData.SafeMemoryMappedFileHandle.Close();
 
     Writer.Stop();
 
