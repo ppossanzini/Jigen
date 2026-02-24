@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Numerics;
+using System.Numerics.Tensors;
 using Jigen.DataStructures;
 
 namespace Jigen.Indexers;
@@ -55,11 +56,11 @@ public class BruteForceIndexer : IIndexer
 
             float* vectorBase = (float*)(currentPtr + sizeof(int) + idsize);
 
-            fixed (float* pQuery = queryVector)
-            {
-              float similarity = DotProductSimdUnsafe(pQuery, vectorBase, i.dimensions);
-              topResults.Add((id, similarity));
-            }
+            ReadOnlySpan<float> query = queryVector;
+            ReadOnlySpan<float> candidate = new ReadOnlySpan<float>(vectorBase, i.dimensions);
+
+            float similarity = TensorPrimitives.Dot(query, candidate);
+            topResults.Add((id, similarity));
           }
           catch (Exception ex)
           {
@@ -82,28 +83,5 @@ public class BruteForceIndexer : IIndexer
         Content = store.GetContent(collection, r.Id)
       }, r.Score))
       .ToList();
-  }
-
-  private static unsafe float DotProductSimdUnsafe(float* leftPtr, float* rightPtr, int length)
-  {
-    int simdWidth = Vector<float>.Count;
-    Vector<float> sumVector = Vector<float>.Zero;
-    int i = 0;
-
-    for (; i <= length - simdWidth; i += simdWidth)
-    {
-      // Caricamento diretto da puntatore a registro SIMD
-      var v1 = *(Vector<float>*)(leftPtr + i);
-      var v2 = *(Vector<float>*)(rightPtr + i);
-      sumVector += v1 * v2;
-    }
-
-    // Somma orizzontale dei componenti del vettore
-    float result = Vector.Sum(sumVector);
-
-    // Gestione dei rimanenti elementi (tail cleanup)
-    for (; i < length; i++) result += leftPtr[i] * rightPtr[i];
-
-    return result;
   }
 }
