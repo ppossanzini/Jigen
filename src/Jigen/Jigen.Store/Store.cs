@@ -11,14 +11,14 @@ using Jigen.PerformancePrimitives;
 
 namespace Jigen;
 
-public class Store : IStore, IDisposable
+public partial class Store : IStore, IDisposable
 {
   private const int CircularWritingBufferSize = 1_000_000;
   internal readonly CircularMemoryQueue<VectorEntry> IngestionQueue = new(CircularWritingBufferSize);
 
   // MemoryMappedFiles only for reading
-  internal MemoryMappedFile ContentData;
-  internal MemoryMappedFile EmbeddingsData;
+  public MemoryMappedFile ContentData;
+  public MemoryMappedFile EmbeddingsData;
 
   // FileStream only for writings. 
   internal FileStream ContentFileStream;
@@ -28,7 +28,7 @@ public class Store : IStore, IDisposable
   internal readonly StoreOptions Options;
   internal readonly StoreHeader VectorStoreHeader = new();
 
-  public Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
+  internal Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
 
   internal readonly Writer Writer;
 
@@ -81,7 +81,7 @@ public class Store : IStore, IDisposable
     EmbeddingFileStream = File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     IndexFileStream = File.Open(IndexFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
   }
-  
+
   internal void EnableReading()
   {
     var oldcontent = ContentData;
@@ -108,6 +108,23 @@ public class Store : IStore, IDisposable
   {
     await Writer.WaitForWritingCompleted;
   }
+
+  public MemoryMappedViewAccessor GetContentAccessor(long offset, long size)
+  {
+    return ContentData.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+  }
+
+  public MemoryMappedViewAccessor GetEmbeddingAccessor(long offset, long size)
+  {
+    return EmbeddingsData.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read);
+  }
+
+  public bool GetCollectionIndexOf(string collection, out Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)> index)
+  {
+    return PositionIndex.TryGetValue(collection, out index);
+  }
+
+  public long ContentSize => ContentFileStream.Length;
 
   public Task Close()
   {

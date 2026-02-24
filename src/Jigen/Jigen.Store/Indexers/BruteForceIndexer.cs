@@ -1,32 +1,38 @@
 using System.Collections.Concurrent;
-using System.IO.MemoryMappedFiles;
 using System.Numerics;
-using System.Text;
 using Jigen.DataStructures;
 
-// ReSharper disable SuggestVarOrType_Elsewhere
-// ReSharper disable SuggestVarOrType_BuiltInTypes
+namespace Jigen.Indexers;
 
-namespace Jigen.Extensions;
-
-public static class SimdSearchExtensions
+public class BruteForceIndexer : IIndexer
 {
-  public static unsafe List<(VectorEntry entry, float score)> Search(this Store store, string collection, float[] queryVector, int top)
+  public void CreateEmptyIndex(string collection)
   {
-    if (queryVector is null) throw new ArgumentNullException(nameof(queryVector));
-    if (top <= 0) return [];
+  }
 
+  public void AddToIndex(VectorEntry entry)
+  {
+  }
+
+  public void UpdateIndex(VectorEntry entry)
+  {
+  }
+
+  public void RemoveFromIndex(VectorEntry entry)
+  {
+  }
+
+  public unsafe List<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top)
+  {
     var topResults = new ConcurrentBag<(byte[] Id, float Score)>();
-    
-    using (var accessor = store.EmbeddingsData.CreateViewAccessor(0, 0, MemoryMappedFileAccess.Read))
+    if (!store.GetCollectionIndexOf(collection, out var index)) return [];
+
+    using (var accessor = store.GetEmbeddingAccessor(0, 0))
     {
       try
       {
         byte* pointer = null;
         accessor.SafeMemoryMappedViewHandle.AcquirePointer(ref pointer);
-
-
-        if (store.PositionIndex.TryGetValue(collection, out var index) == false) return [];
 
         Parallel.ForEach(index.Values, i =>
         {

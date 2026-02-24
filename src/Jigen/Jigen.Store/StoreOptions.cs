@@ -1,3 +1,5 @@
+using Jigen.Indexers;
+
 namespace Jigen;
 
 public class StoreOptions
@@ -7,5 +9,5 @@ public class StoreOptions
   public const string ContentSuffix = "content";
   public const string EmbeddingSuffix = "vectors";
 
-  
+  public IIndexer Indexer = new BruteForceIndexer();
 }
