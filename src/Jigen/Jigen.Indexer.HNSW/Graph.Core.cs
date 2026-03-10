@@ -3,7 +3,6 @@
 // Licensed under the MIT License.
 // </copyright>
 
-
 // <copyright>
 // Changes Copyright Paolo Possanzini
 // Licensed under Apache 2.0
@@ -24,7 +23,7 @@ namespace Jigen.Indexer
 
       private long DistanceCalculationsCount;
 
-      internal List<Node> Nodes { get; private set; }
+      internal List<Node> Nodes { get; private set; } //TODO List<Node> deve diventare una lista con accesso al disco. 
 
       internal List<TItem> Items { get; private set; }
 

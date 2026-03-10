@@ -67,7 +67,7 @@ namespace Jigen.Indexer
           var toAdd = new HashSet<int>();
           foreach (var candidateId in candidatesHeap.Buffer)
           {
-            var candidateNeighborsIDs = GraphCore.Nodes[candidateId].EnumerateLayer(layer);
+            var candidateNeighborsIDs = GraphCore.Nodes[candidateId].EnumerateLayer(layer, GraphCore.Parameters.M);
             foreach (var candidateNeighbourId in candidateNeighborsIDs)
             {
               if (!visited.Contains(candidateNeighbourId))

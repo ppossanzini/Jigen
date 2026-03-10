@@ -248,7 +248,7 @@ namespace Jigen.Indexer
             }
         }
     }
-    [MessagePackObject(keyAsPropertyName:true)]
+    
     public class SmallWorldParameters
     {
         public SmallWorldParameters()
