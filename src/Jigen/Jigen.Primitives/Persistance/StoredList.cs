@@ -39,18 +39,18 @@ public class StoredList<T> : IList<T> where T : IStorableItem
 
 
   private StoredListHeader _header = new StoredListHeader();
-  private string _filename;
+  private StoreListOptions _options;
   private FileStream _data;
   private FileStream _dataindex;
 
 // Index of items position on disk
   private readonly Dictionary<int, long> _itemsIndex = new();
 
-  public StoredList(string filename)
+  public StoredList(StoreListOptions options)
   {
-    this._filename = filename;
-    _data = new FileStream(filename, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
-    _dataindex = new FileStream($"{filename}.index", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
+    _options = options;
+    _data = new FileStream(options.FilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
+    _dataindex = new FileStream($"{options.FilePath}.index", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
 
     InitializeStore();
     ReadIndex();
