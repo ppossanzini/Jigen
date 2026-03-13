@@ -1,7 +1,8 @@
 namespace Jigen.Persistance;
 
-public interface IStorableItem
+public interface IStorableItem<T>
 {
+  ReadOnlySpan<byte> StoredKey { get; set; }
   ReadOnlySpan<byte> Serialize();
-  static abstract T Deserialize<T>(ReadOnlySpan<byte> data);
+  static abstract T Deserialize(ReadOnlySpan<byte> data);
 }
