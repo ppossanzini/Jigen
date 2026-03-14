@@ -59,7 +59,7 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
     for (var i = 0; i < _header.Count; i++)
     {
       RandomAccess.Read(_dataindex.SafeFileHandle!, buffer, i * ItemIndex.ItemIndexSize);
-      this._itemsIndex.Add(new ItemIndex() { Data = buffer.ToArray() });
+      this._itemsIndex.Add(MemoryMarshal.Cast<byte, ItemIndex>(buffer)[0]); ;
     }
   }
 
@@ -94,11 +94,11 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
     var buffer = item.Serialize();
 
     var position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
-    RandomAccess.Write(_data!.SafeFileHandle!, buffer, position);
+    RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
     _itemsIndexLock.EnterWriteLock();
     try
     {
-      _itemsIndex.Add(new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer) });
+      _itemsIndex.Add(new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer.Span) });
       Interlocked.Increment(ref _header.Count);
     }
     finally
@@ -129,7 +129,7 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
 
   public bool Contains(T item)
   {
-    var hash = XxHash64.HashToUInt64(item.Serialize());
+    var hash = XxHash64.HashToUInt64(item.Serialize().Span);
     _itemsIndexLock.EnterReadLock();
     try
     {
@@ -150,7 +150,7 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
   public bool Remove(T item)
   {
     if (item is null) return false;
-    var hash = XxHash64.HashToUInt64(item.Serialize());
+    var hash = XxHash64.HashToUInt64(item.Serialize().Span);
 
     _itemsIndexLock.EnterWriteLock();
     try
@@ -176,7 +176,7 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
   public int IndexOf(T item)
   {
     if (item is null) return -1;
-    var hash = XxHash64.HashToUInt64(item.Serialize());
+    var hash = XxHash64.HashToUInt64(item.Serialize().Span);
     _itemsIndexLock.EnterReadLock();
     try
     {
@@ -194,12 +194,12 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
     if (index < 0 || index > _itemsIndex.Count) throw new ArgumentOutOfRangeException(nameof(index));
     var buffer = item.Serialize();
     var position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
-    RandomAccess.Write(_data!.SafeFileHandle!, buffer, position);
+    RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
 
     _itemsIndexLock.EnterWriteLock();
     try
     {
-      _itemsIndex.Insert(index, new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer) });
+      _itemsIndex.Insert(index, new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer.Span) });
       Interlocked.Increment(ref _header.Count);
     }
     finally
@@ -248,12 +248,12 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
       var buffer = value.Serialize();
 
       var position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
-      RandomAccess.Write(_data!.SafeFileHandle!, buffer, position);
+      RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
 
       _itemsIndexLock.EnterWriteLock();
       try
       {
-        _itemsIndex[index] = new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer) };
+        _itemsIndex[index] = new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer.Span) };
       }
       finally
       {

@@ -2,8 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace Jigen.Persistance;
 
-public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
-{
+
   [StructLayout(LayoutKind.Explicit)]
   public struct StoredListHeader
   {
@@ -12,21 +11,18 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
     [FieldOffset(4)] public int TombStonedCount;
 
     [FieldOffset(8)] public long NextItemPosition;
-
-
-    // No need of initialization, this array overlaps struct memory to allow fast serialization
-    [FieldOffset(0)] public byte[] HeaderData;
+    
+    public byte[] HeaderData => MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref this, 1)).ToArray();
     public const int HeaderSize = 16;
   }
 
   [StructLayout(LayoutKind.Explicit)]
-  private struct ItemIndex
+  public struct ItemIndex
   {
     [FieldOffset(0)] public long Position;
     [FieldOffset(8)] public int Length;
     [FieldOffset(12)] public ulong Hash;
-    [FieldOffset(0)] public byte[] Data;
+    public byte[] Data => MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref this, 1)).ToArray();
 
     public const int ItemIndexSize = 20;
   }
-}

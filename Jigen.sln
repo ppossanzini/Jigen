@@ -53,6 +53,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jigen.Primitives", "src\Jig
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jigen.Indexer.KMeans", "src\Jigen\Jigen.Indexer.KMeans\Jigen.Indexer.KMeans.csproj", "{6D2868F7-B14D-4B23-B830-7E2791A61506}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PrimitiveTests", "tests\PrimitiveTests\PrimitiveTests.csproj", "{3ED35068-DB40-4F30-BA8E-4684485E4256}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -231,6 +233,18 @@ Global
 		{6D2868F7-B14D-4B23-B830-7E2791A61506}.Release|x64.Build.0 = Release|Any CPU
 		{6D2868F7-B14D-4B23-B830-7E2791A61506}.Release|x86.ActiveCfg = Release|Any CPU
 		{6D2868F7-B14D-4B23-B830-7E2791A61506}.Release|x86.Build.0 = Release|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Debug|x64.Build.0 = Debug|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Debug|x86.Build.0 = Debug|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Release|x64.ActiveCfg = Release|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Release|x64.Build.0 = Release|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Release|x86.ActiveCfg = Release|Any CPU
+		{3ED35068-DB40-4F30-BA8E-4684485E4256}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -254,5 +268,6 @@ Global
 		{9B068457-F0E7-4063-B98D-DAA57BDA62AC} = {A16138DA-C58A-F009-9F35-31E067F6AABD}
 		{3F39A27B-D671-4914-848B-97B3EF33C468} = {A16138DA-C58A-F009-9F35-31E067F6AABD}
 		{6D2868F7-B14D-4B23-B830-7E2791A61506} = {A16138DA-C58A-F009-9F35-31E067F6AABD}
+		{3ED35068-DB40-4F30-BA8E-4684485E4256} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal
