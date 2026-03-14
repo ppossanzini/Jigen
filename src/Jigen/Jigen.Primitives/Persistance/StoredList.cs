@@ -44,21 +44,23 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
     {
       _header.Count = 0;
       _header.TombStonedCount = 0;
-      _header.NextItemPosition = StoredListHeader.HeaderSize;
+      _header.NextItemPosition = Marshal.SizeOf<StoredListHeader>();
       RandomAccess.Write(_data.SafeFileHandle!, _header.HeaderData.AsSpan(), 0);
     }
     else
     {
-      RandomAccess.Read(_data.SafeFileHandle!, _header.HeaderData.AsSpan(), 0);
+      Span<byte> buffer = new byte[Marshal.SizeOf<StoredListHeader>()];
+      RandomAccess.Read(_data.SafeFileHandle!, buffer, 0);
+      _header= MemoryMarshal.Cast<byte, StoredListHeader>(buffer)[0];
     }
   }
 
   private void ReadIndex()
   {
-    Span<byte> buffer = stackalloc byte[ItemIndex.ItemIndexSize];
+    Span<byte> buffer = new byte[Marshal.SizeOf<ItemIndex>()];
     for (var i = 0; i < _header.Count; i++)
     {
-      RandomAccess.Read(_dataindex.SafeFileHandle!, buffer, i * ItemIndex.ItemIndexSize);
+      RandomAccess.Read(_dataindex.SafeFileHandle!, buffer, i * Marshal.SizeOf<ItemIndex>());
       this._itemsIndex.Add(MemoryMarshal.Cast<byte, ItemIndex>(buffer)[0]); ;
     }
   }
@@ -67,7 +69,7 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
   private void WriteIndexAt(int position)
   {
     var itemIndex = _itemsIndex.ElementAt(position);
-    RandomAccess.Write(_dataindex.SafeFileHandle!, itemIndex.Data.AsSpan(), position * ItemIndex.ItemIndexSize);
+    RandomAccess.Write(_dataindex.SafeFileHandle!, itemIndex.Data.AsSpan(), position * Marshal.SizeOf<ItemIndex>());
   }
 
   private void WriteIndex()

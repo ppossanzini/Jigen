@@ -35,5 +35,8 @@ public class TestStoredList
         list.Add(new TestItem(){ Id = 2, Name = "test2"});
         
         list.Flush();
+
+        Assert.Equal("test",list[0].Name);
+        Assert.Equal("test2",list[1].Name);
     }
 }
