@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Jigen.Indexer</RootNamespace>
   </PropertyGroup>
+  
 
   <ItemGroup>
     <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj"/>

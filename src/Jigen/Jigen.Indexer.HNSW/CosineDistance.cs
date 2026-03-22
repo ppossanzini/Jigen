@@ -1,15 +1,9 @@
-﻿// <copyright file="CosineDistance.cs" company="Microsoft">
+﻿﻿// <copyright file="CosineDistance.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
 
-// <copyright>
-// Changes Copyright Paolo Possanzini
-// Licensed under Apache 2.0
-// </copyright>
-
 using System.Numerics;
-using System.Runtime.CompilerServices;
 
 namespace Jigen.Indexer
 {
@@ -35,9 +29,9 @@ namespace Jigen.Indexer
         /// <param name="u">Left vector.</param>
         /// <param name="v">Right vector.</param>
         /// <returns>Cosine distance between u and v.</returns>
-        public static float NonOptimized(float[] u, float[] v)
+        public static float NonOptimized(IReadOnlyList<float> u, IReadOnlyList<float> v)
         {
-            if (u.Length != v.Length)
+            if (u.Count != v.Count)
             {
                 throw new ArgumentException("Vectors have non-matching dimensions");
             }
@@ -45,7 +39,7 @@ namespace Jigen.Indexer
             float dot = 0.0f;
             float nru = 0.0f;
             float nrv = 0.0f;
-            for (int i = 0; i < u.Length; ++i)
+            for (int i = 0; i < u.Count; ++i)
             {
                 dot += u[i] * v[i];
                 nru += u[i] * u[i];
@@ -62,15 +56,15 @@ namespace Jigen.Indexer
         /// <param name="u">Left vector.</param>
         /// <param name="v">Right vector.</param>
         /// <returns>Cosine distance between u and v.</returns>
-        public static float ForUnits(float[] u, float[] v)
+        public static float ForUnits(IReadOnlyList<float> u, IReadOnlyList<float> v)
         {
-            if (u.Length!= v.Length)
+            if (u.Count != v.Count)
             {
                 throw new ArgumentException("Vectors have non-matching dimensions");
             }
 
             float dot = 0;
-            for (int i = 0; i < u.Length; ++i)
+            for (int i = 0; i < u.Count; ++i)
             {
                 dot += u[i] * v[i];
             }
@@ -118,15 +112,8 @@ namespace Jigen.Indexer
             }
 
             norm = Vector2.SquareRoot(norm);
-            float n = (norm.X * norm.Y);
-
-            if (n == 0)
-            {
-                return 1f;
-            }
-
-            var similarity = dot / n;
-            return 1f - similarity;
+            var similarity = dot / (norm.X * norm.Y);
+            return 1 - similarity;
         }
 
         /// <summary>
@@ -137,57 +124,33 @@ namespace Jigen.Indexer
         /// <returns>Cosine distance between u and v.</returns>
         public static float SIMDForUnits(float[] u, float[] v)
         {
-            return 1f - DotProduct(ref u, ref v);
-        }
-
-        private static readonly int _vs1 = Vector<float>.Count;
-        private static readonly int _vs2 = 2 * Vector<float>.Count;
-        private static readonly int _vs3 = 3 * Vector<float>.Count;
-        private static readonly int _vs4 = 4 * Vector<float>.Count;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static float DotProduct(ref float[] lhs, ref float[] rhs)
-        {
-            float result = 0f;
-
-            var count = lhs.Length;
-            var offset = 0;
-
-            while (count >= _vs4)
+            if (!Vector.IsHardwareAccelerated)
             {
-                result += Vector.Dot(new Vector<float>(lhs, offset), new Vector<float>(rhs, offset));
-                result += Vector.Dot(new Vector<float>(lhs, offset + _vs1), new Vector<float>(rhs, offset + _vs1));
-                result += Vector.Dot(new Vector<float>(lhs, offset + _vs2), new Vector<float>(rhs, offset + _vs2));
-                result += Vector.Dot(new Vector<float>(lhs, offset + _vs3), new Vector<float>(rhs, offset + _vs3));
-                if (count == _vs4) return result;
-                count -= _vs4;
-                offset += _vs4;
+                throw new NotSupportedException($"SIMD version of {nameof(CosineDistance)} is not supported");
             }
 
-            if (count >= _vs2)
+            if (u.Length != v.Length)
             {
-                result += Vector.Dot(new Vector<float>(lhs, offset), new Vector<float>(rhs, offset));
-                result += Vector.Dot(new Vector<float>(lhs, offset + _vs1), new Vector<float>(rhs, offset + _vs1));
-                if (count == _vs2) return result;
-                count -= _vs2;
-                offset += _vs2;
+                throw new ArgumentException("Vectors have non-matching dimensions");
             }
-            if (count >= _vs1)
+
+            float dot = 0;
+            int step = Vector<float>.Count;
+
+            int i, to = u.Length - step;
+            for (i = 0; i <= to; i += step)
             {
-                result += Vector.Dot(new Vector<float>(lhs, offset), new Vector<float>(rhs, offset));
-                if (count == _vs1) return result;
-                count -= _vs1;
-                offset += _vs1;
+                var ui = new Vector<float>(u, i);
+                var vi = new Vector<float>(v, i);
+                dot += Vector.Dot(ui, vi);
             }
-            if (count > 0)
+
+            for (; i < u.Length; ++i)
             {
-                while (count > 0)
-                {
-                    result += lhs[offset] * rhs[offset];
-                    offset++; count--;
-                }
+                dot += u[i] * v[i];
             }
-            return result;
+
+            return 1 - dot;
         }
     }
 }

@@ -1,57 +1,80 @@
-﻿// <copyright file="BinaryHeap.cs" company="Microsoft">
+﻿﻿// <copyright file="BinaryHeap.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
 
-// <copyright>
-// Changes Copyright Paolo Possanzini
-// Licensed under Apache 2.0
-// </copyright>
-
-using System.Diagnostics.CodeAnalysis;
-using System.Runtime.InteropServices;
-
 namespace Jigen.Indexer
 {
     /// <summary>
-    /// Binary heap wrapper around the <see cref="IList{T}"/> It's a max-heap implementation i.e. the maximum element is always on top. But the order of elements can be customized by providing <see cref="IComparer{T}"/> instance.
+    /// Binary heap wrapper around the <see cref="IList{T}"/>
+    /// It's a max-heap implementation i.e. the maximum element is always on top.
+    /// But the order of elements can be customized by providing <see cref="IComparer{T}"/> instance.
     /// </summary>
     /// <typeparam name="T">The type of the items in the source list.</typeparam>
-    [SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types", Justification = "By design")]
-    internal struct BinaryHeap
+    public class BinaryHeap<T>
     {
-        internal IComparer<int> Comparer;
-        internal List<int> Buffer;
-        internal bool Any => Buffer.Count > 0;
-        internal BinaryHeap(List<int> buffer) : this(buffer, Comparer<int>.Default) { }
-        internal BinaryHeap(List<int> buffer, IComparer<int> comparer)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BinaryHeap{T}"/> class.
+        /// </summary>
+        /// <param name="buffer">The buffer to store heap items.</param>
+        public BinaryHeap(IList<T> buffer)
+            : this(buffer, Comparer<T>.Default)
         {
-            Buffer = buffer ?? throw new ArgumentNullException(nameof(buffer));
-            Comparer = comparer;
-            for (int i = 1; i < Buffer.Count; ++i) { SiftUp(i); }
         }
 
-        internal void Push(int item)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="BinaryHeap{T}"/> class.
+        /// </summary>
+        /// <param name="buffer">The buffer to store heap items.</param>
+        /// <param name="comparer">The comparer which defines order of items.</param>
+        public BinaryHeap(IList<T> buffer, IComparer<T> comparer)
         {
-            Buffer.Add(item);
-            SiftUp(Buffer.Count - 1);
-        }
-
-        internal int Pop()
-        {
-            var bufferSpan = CollectionsMarshal.AsSpan(Buffer);
-
-            if (bufferSpan.Length > 0)
+            if (buffer == null)
             {
-                var result = bufferSpan[0];
+                throw new ArgumentNullException(nameof(buffer));
+            }
 
-                //This is safe to modify as we don't change the inner collection size
-                bufferSpan[0] = bufferSpan[Buffer.Count - 1];
+            this.Buffer = buffer;
+            this.Comparer = comparer;
+            for (int i = 1; i < this.Buffer.Count; ++i)
+            {
+                this.SiftUp(i);
+            }
+        }
 
-                //Now we change the collection, so bufferSpan can be invalid
-                Buffer.RemoveAt(Buffer.Count - 1);
+        /// <summary>
+        /// Gets the heap comparer.
+        /// </summary>
+        public IComparer<T> Comparer { get; private set; }
 
-                SiftDown(0);
+        /// <summary>
+        /// Gets the buffer of the heap.
+        /// </summary>
+        public IList<T> Buffer { get; private set; }
+
+        /// <summary>
+        /// Pushes item to the heap.
+        /// </summary>
+        /// <param name="item">The item to push.</param>
+        public void Push(T item)
+        {
+            this.Buffer.Add(item);
+            this.SiftUp(this.Buffer.Count - 1);
+        }
+
+        /// <summary>
+        /// Pops the item from the heap.
+        /// </summary>
+        /// <returns>The popped item.</returns>
+        public T Pop()
+        {
+            if (this.Buffer.Any())
+            {
+                var result = this.Buffer.First();
+
+                this.Buffer[0] = this.Buffer.Last();
+                this.Buffer.RemoveAt(this.Buffer.Count - 1);
+                this.SiftDown(0);
 
                 return result;
             }
@@ -60,58 +83,62 @@ namespace Jigen.Indexer
         }
 
         /// <summary>
-        /// Restores the heap property starting from i'th position down to the bottom given that the downstream items fulfill the rule.
+        /// Restores the heap property starting from i'th position down to the bottom
+        /// given that the downstream items fulfill the rule.
         /// </summary>
         /// <param name="i">The position of item where heap property is violated.</param>
         private void SiftDown(int i)
         {
-            var bufferSpan = CollectionsMarshal.AsSpan(Buffer);
-            while (i < bufferSpan.Length)
+            while (i < this.Buffer.Count)
             {
-                int l = (i << 1) + 1;
+                int l = (2 * i) + 1;
                 int r = l + 1;
-                if (l >= bufferSpan.Length)
+                if (l >= this.Buffer.Count)
                 {
                     break;
                 }
 
-                int m = r < bufferSpan.Length && Comparer.Compare(bufferSpan[l], bufferSpan[r]) < 0 ? r : l;
-                if (Comparer.Compare(bufferSpan[m], bufferSpan[i]) <= 0)
+                int m = r < this.Buffer.Count && this.Comparer.Compare(this.Buffer[l], this.Buffer[r]) < 0 ? r : l;
+                if (this.Comparer.Compare(this.Buffer[m], this.Buffer[i]) <= 0)
                 {
                     break;
                 }
 
-                Swap(bufferSpan, i, m);
+                this.Swap(i, m);
                 i = m;
             }
         }
 
         /// <summary>
-        /// Restores the heap property starting from i'th position up to the head given that the upstream items fulfill the rule.
+        /// Restores the heap property starting from i'th position up to the head
+        /// given that the upstream items fulfill the rule.
         /// </summary>
         /// <param name="i">The position of item where heap property is violated.</param>
         private void SiftUp(int i)
         {
-            var bufferSpan = CollectionsMarshal.AsSpan(Buffer);
-
             while (i > 0)
             {
-                int p = (i - 1) >> 1;
-                if (Comparer.Compare(bufferSpan[i], bufferSpan[p]) <= 0)
+                int p = (i - 1) / 2;
+                if (this.Comparer.Compare(this.Buffer[i], this.Buffer[p]) <= 0)
                 {
                     break;
                 }
 
-                Swap(bufferSpan, i, p);
+                this.Swap(i, p);
                 i = p;
             }
         }
 
-        private static void Swap(Span<int> buffer, int i, int j)
+        /// <summary>
+        /// Swaps items with the specified indicies.
+        /// </summary>
+        /// <param name="i">The first index.</param>
+        /// <param name="j">The second index.</param>
+        private void Swap(int i, int j)
         {
-            var temp = buffer[i];
-            buffer[i] = buffer[j];
-            buffer[j] = temp;
+            var temp = this.Buffer[i];
+            this.Buffer[i] = this.Buffer[j];
+            this.Buffer[j] = temp;
         }
     }
 }
