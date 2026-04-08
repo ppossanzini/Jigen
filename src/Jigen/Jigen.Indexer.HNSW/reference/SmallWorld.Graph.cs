@@ -8,24 +8,44 @@
 // Licensed under Apache 2.0
 // </copyright>
 
+using System.Runtime.CompilerServices;
 using System.Text;
+using Jigen.DataStructures;
+using Jigen.Persistance;
 
 namespace Jigen.Indexer
 {
   public partial class SmallWorld<TItem, TDistance>
   {
-
     internal class Graph
     {
       private Node _entryPoint;
+      private readonly StoredList<Node> _storedList;
+      
+
+      /// <summary>
+      /// Gets parameters of the algorithm.
+      /// </summary>
+      public SmallWorldParameters SmallWorldParameters { get; private set; }
+
+      /// <summary>
+      /// Gets the node factory associated with the graph.
+      /// The node construction arguments are:
+      /// 1st: int -> the id of the new node;
+      /// 2nd: TItem -> the item to attach to the node;
+      /// 3rd: int -> the level of the node.
+      /// </summary>
+      public Func<TItem, int, Node> CreateNewNode { get; private set; }
 
       /// <summary>
       /// Initializes a new instance of the <see cref="Graph"/> class.
       /// </summary>
       /// <param name="distance">The distance funtion to use in the small world.</param>
       /// <param name="smallWorldParameters">The parameters of the algorithm.</param>
-      public Graph(Func<TItem, TItem, TDistance> distance, SmallWorldParameters smallWorldParameters)
+      public Graph(Func<TItem, TItem, TDistance> distance, StoredList<Node> storedList, SmallWorldParameters smallWorldParameters)
       {
+        this._storedList = storedList;
+
         this.SmallWorldParameters = smallWorldParameters;
         switch (this.SmallWorldParameters.NeighbourHeuristic)
         {
@@ -40,20 +60,13 @@ namespace Jigen.Indexer
         }
       }
 
-      /// <summary>
-      /// Gets parameters of the algorithm.
-      /// </summary>
-      public SmallWorldParameters SmallWorldParameters { get; private set; }
 
-      /// <summary>
-      /// Gets the node factory associated with the graph.
-      /// The node construction arguments are:
-      /// 1st: int -> the id of the new node;
-      /// 2nd: TItem -> the item to attach to the node;
-      /// 3rd: int -> the level of the node.
-      /// </summary>
-      public Func<int, TItem, int, Node> CreateNewNode { get; private set; }
-
+      public void Add(TItem item)
+      {
+        var newnode = CreateNewNode()
+        
+      }
+      
       /// <summary>
       /// Creates graph from the given items.
       /// Contains implementation of INSERT(hnsw, q, M, Mmax, efConstruction, mL) algorithm.
@@ -61,14 +74,14 @@ namespace Jigen.Indexer
       /// </summary>
       /// <param name="items">The items to insert.</param>
       /// <param name="generator">The random number generator to use in <see cref="RandomLevel"/>.</param>
-      public void Create(IList<TItem> items, Random generator)
+      public void Create(IList<TItem> items)
       {
         if (!items?.Any() ?? false)
         {
           return;
         }
 
-        int id = 0;
+        // int id = 0;
         var entryPoint = this.CreateNewNode(id, items[id], RandomLevel(generator, this.SmallWorldParameters.LevelLambda));
 
         for (id = 1; id < items.Count; ++id)
@@ -215,7 +228,7 @@ namespace Jigen.Indexer
         var expansionHeap = new BinaryHeap<Node>(new List<Node>() { entryPoint }, fartherIsLess);
 
         // run bfs
-        var visited = new HashSet<int>() { entryPoint.Id };
+        var visited = new HashSet<VectorKey>() { entryPoint.Id };
         while (expansionHeap.Buffer.Any())
         {
           // get next candidate to check and expand
@@ -260,8 +273,9 @@ namespace Jigen.Indexer
       /// <param name="generator">The random numbers generator.</param>
       /// <param name="lambda">Poisson lambda.</param>
       /// <returns>The level value.</returns>
-      private static int RandomLevel(Random generator, double lambda)
+      private static int RandomLevel( double lambda)
       {
+        
         var r = -Math.Log(generator.NextDouble()) * lambda;
         return (int)r;
       }

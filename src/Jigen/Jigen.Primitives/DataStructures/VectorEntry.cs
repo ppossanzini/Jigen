@@ -19,9 +19,9 @@ public class VectorEntry<T>
   public float[] Embedding { get; set; }
 }
 
-public struct VectorKey
+public record struct VectorKey
 {
-  public byte[] Value;
+  public byte[] Value { get; init; }
 
   public static VectorKey From(ulong value)
   {

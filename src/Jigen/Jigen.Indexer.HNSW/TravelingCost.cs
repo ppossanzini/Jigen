@@ -18,55 +18,35 @@ namespace Jigen.Indexer
   /// </summary>
   /// <typeparam name="TItem">Type of the points.</typeparam>
   /// <typeparam name="TDistance">Type of the diatnce.</typeparam>
-  public class TravelingCosts<TItem, TDistance> : IComparer<TItem>
+  public class TravelingCosts(IndexNode destination, SmallWorldOptions options) : IComparer<IndexNode>
   {
     /// <summary>
     /// Default distance comaprer.
     /// </summary>
-    private static readonly Comparer<TDistance> DistanceComparer = Comparer<TDistance>.Default;
+    private static readonly Comparer<float> DistanceComparer = Comparer<float>.Default;
 
-    /// <summary>
-    /// The distance funciton.
-    /// </summary>
-    private readonly Func<TItem, TItem, TDistance> distance;
-
-    /// <summary>
-    /// The destination point.
-    /// </summary>
-    private readonly TItem destination;
 
     /// <summary>
     /// Cached values.
     /// </summary>
-    private readonly ConcurrentDictionary<TItem, TDistance> cache;
+    private readonly ConcurrentDictionary<IndexNode, float> _cache = new ();
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="TravelingCosts{TItem, TDistance}"/> class.
-    /// </summary>
-    /// <param name="distance">The distance function.</param>
-    /// <param name="destination">The destination point.</param>
-    public TravelingCosts(Func<TItem, TItem, TDistance> distance, TItem destination)
-    {
-      this.distance = distance;
-      this.destination = destination;
-
-      this.cache = new ConcurrentDictionary<TItem, TDistance>();
-    }
 
     /// <summary>
     /// Calculates distance from the departure to the destination.
     /// </summary>
     /// <param name="departure">The point of departure.</param>
+    /// <param name="distance">The distance function</param>
+    /// <param name="usecache">Use cached values</param>
     /// <returns>The distance from the departure to the destination.</returns>
-    public TDistance From(TItem departure)
+    public float From(IndexNode departure, bool usecache = true)
     {
-      TDistance result;
-      if (!this.cache.TryGetValue(departure, out result))
-      {
-        result = this.distance(departure, this.destination);
-        this.cache.TryAdd(departure, result);
-      }
+      float result;
+      if (usecache && this._cache.TryGetValue(departure, out result))
+        return result;
 
+      result = options.DefaultDistanceFunction(departure, destination);
+      this._cache.TryAdd(departure, result);
       return result;
     }
 
@@ -80,7 +60,7 @@ namespace Jigen.Indexer
     /// 0 if x and y are equally far from the destination;
     /// 1 if x is farther from the destination than y.
     /// </returns>
-    public int Compare(TItem x, TItem y)
+    public int Compare(IndexNode x, IndexNode y)
     {
       var fromX = this.From(x);
       var fromY = this.From(y);
