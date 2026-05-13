@@ -13,18 +13,20 @@ namespace Jigen.Persistance;
 /// Performances are impacted by disk I/O operations and by serialization and deserialization methods implemented in IStorableItem.
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
+public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<T, TOptions>
 {
   private StoredListHeader _header = new StoredListHeader();
   private StoreListOptions _options;
+  private readonly TOptions _itemOptions;
   private FileStream _data;
   private FileStream _dataindex;
   private readonly List<ItemIndex> _itemsIndex = new();
   private readonly ReaderWriterLockSlim _itemsIndexLock = new();
 
-  public StoredList(StoreListOptions options)
+  public StoredList(StoreListOptions options, TOptions itemOptions)
   {
     _options = options;
+    _itemOptions = itemOptions;
     _data = new FileStream(options.FilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
     _dataindex = new FileStream($"{options.FilePath}.index", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
 
@@ -236,7 +238,7 @@ public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
         var ii = _itemsIndex[index];
         var buffer = new byte[ii.Length];
         RandomAccess.Read(_data!.SafeFileHandle!, buffer, ii.Position);
-        return T.Deserialize(buffer);
+        return T.Deserialize(buffer, _itemOptions);
       }
       finally
       {

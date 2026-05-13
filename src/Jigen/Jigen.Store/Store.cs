@@ -25,7 +25,7 @@ public partial class Store : IStore, IDisposable
   internal FileStream EmbeddingFileStream;
   internal FileStream IndexFileStream;
 
-  internal readonly StoreOptions Options;
+  public readonly StoreOptions Options;
   internal readonly StoreHeader VectorStoreHeader = new();
 
   internal Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
@@ -126,12 +126,15 @@ public partial class Store : IStore, IDisposable
 
   public long ContentSize => ContentFileStream.Length;
 
-  public Task Close()
+  public async Task Close()
   {
     if (!_contentData.SafeMemoryMappedFileHandle.IsClosed) _contentData.SafeMemoryMappedFileHandle.Close();
     if (!_embeddingsData.SafeMemoryMappedFileHandle.IsClosed) _embeddingsData.SafeMemoryMappedFileHandle.Close();
 
     Writer.Stop();
+
+    if (Options.Indexer is not null)
+      await Options.Indexer.FlushAsync();
 
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
@@ -140,8 +143,6 @@ public partial class Store : IStore, IDisposable
     this.ContentFileStream.Close();
     this.EmbeddingFileStream.Close();
     this.IndexFileStream.Close();
-
-    return Task.CompletedTask;
   }
 
   #region Private methods

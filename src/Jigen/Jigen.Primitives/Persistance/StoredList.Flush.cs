@@ -1,6 +1,6 @@
 namespace Jigen.Persistance;
 
-public partial class StoredList<T> : IList<T> where T : IStorableItem<T>
+public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<T, TOptions>
 {
   private readonly PeriodicTimer _flushTimer;
   private readonly CancellationTokenSource _cts = new();

@@ -4,9 +4,19 @@ namespace Jigen.Indexer;
 
 public class SmallWorldOptions( int M = 10)
 {
+  public SmallWorldOptions(int m, int efConstruction, int efSearch, string storagePath) : this()
+  {
+    M = m;
+    EfConstruction = efConstruction;
+    EfSearch = efSearch;
+    StoragePath = storagePath;
+  }
+
   public Random generator { get; set; } = new Random();
 
   public Func<IndexNode, IndexNode, float> DefaultDistanceFunction { get; internal set; }
+
+  public string StoragePath { get; set; } = Path.Combine(Path.GetTempPath(), "jigen-hnsw");
 
   /// <summary>
   /// Gets or sets the parameter which defines the maximum number of neighbors in the zero and above-zero layers.
@@ -32,6 +42,20 @@ public class SmallWorldOptions( int M = 10)
   /// See 'efConstruction' parameter in the article.
   /// </summary>
   public int ConstructionPruning { get; set; } = 200;
+
+  public int EfConstruction
+  {
+    get => ConstructionPruning;
+    set => ConstructionPruning = value;
+  }
+
+  public int SearchPruning { get; set; } = 64;
+
+  public int EfSearch
+  {
+    get => SearchPruning;
+    set => SearchPruning = value;
+  }
 
   /// <summary>
   /// Gets or sets a value indicating whether to expand candidates if <see cref="NeighbourSelectionHeuristic.SelectHeuristic"/> is used.

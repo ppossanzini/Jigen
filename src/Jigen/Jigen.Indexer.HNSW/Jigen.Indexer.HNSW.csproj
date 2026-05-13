@@ -6,6 +6,9 @@
     <RootNamespace>Jigen.Indexer</RootNamespace>
   </PropertyGroup>
   
+  <ItemGroup>
+    <Compile Remove="reference/**/*.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj"/>

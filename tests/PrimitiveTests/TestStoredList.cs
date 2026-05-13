@@ -3,7 +3,11 @@ using Jigen.Persistance;
 
 namespace PrimitiveTests;
 
-public class TestItem : IStorableItem<TestItem>
+public class TestItemOptions
+{
+}
+
+public class TestItem : IStorableItem<TestItem, TestItemOptions>
 {
     public int Id { get; set; }
     public string Name { get; set; }
@@ -14,7 +18,7 @@ public class TestItem : IStorableItem<TestItem>
      return MessagePackDocumentSerializer.Instance.Serialize(this);
     }
 
-    public static TestItem Deserialize(ReadOnlyMemory<byte> data)
+    public static TestItem Deserialize(ReadOnlyMemory<byte> data, TestItemOptions options)
     {
         return MessagePackDocumentSerializer.Instance.Deserialize<TestItem>(data);
     }
@@ -25,10 +29,10 @@ public class TestStoredList
     [Fact]
     public void CreateList()
     {
-        var list = new StoredList<TestItem>(new StoreListOptions()
+        var list = new StoredList<TestItem, TestItemOptions>(new StoreListOptions()
         {
             FilePath = "/data/test.list",
-        });
+        }, new TestItemOptions());
         
         
         list.Add(new TestItem(){ Id = 1, Name = "test"});

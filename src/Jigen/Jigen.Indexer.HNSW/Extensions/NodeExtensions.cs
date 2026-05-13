@@ -12,7 +12,7 @@ public static class NodeExtensions
     return level == 0 ? 2 * m : m;
   }
 
-  public static void AddNewNode(this StoredList<IndexNode> nodes, IndexNode node)
+  public static void AddNewNode(this StoredList<IndexNode, SmallWorldOptions> nodes, IndexNode node)
   {
     lock (nodes)
     {
@@ -31,10 +31,13 @@ public static class NodeExtensions
   public static IndexNode ToNode(this VectorEntry item, SmallWorldOptions options)
   {
     var maxLevel = GetMaxLevel(options);
+    var vector = item.Embedding.ToArray();
+    NormalizeInPlace(vector);
+
     var node = new IndexNode(options)
     {
       Connections = new List<IList<int>>(maxLevel + 1),
-      MaxLevel = maxLevel, Id = item.Id
+      MaxLevel = maxLevel, Id = item.Id, Vector = vector
     };
 
     for (int level = 0; level <= maxLevel; ++level)
@@ -43,19 +46,36 @@ public static class NodeExtensions
     return node;
   }
 
+  private static void NormalizeInPlace(float[] vector)
+  {
+    if (vector.Length == 0) return;
 
-  public static void AddConnection(this IndexNode item, IndexNode newNeighbour, int level, SmallWorld smallworld)
+    float norm = 0;
+    for (int i = 0; i < vector.Length; i++)
+      norm += vector[i] * vector[i];
+
+    if (norm <= 0) return;
+
+    var inv = 1f / MathF.Sqrt(norm);
+    for (int i = 0; i < vector.Length; i++)
+      vector[i] *= inv;
+  }
+
+
+  public static void AddConnection(this IndexNode item, IndexNode newNeighbour, int level, SmallWorldIndexer smallworld, string collection)
   {
     var levelNeighbours = item.Connections[level];
     levelNeighbours.Add(newNeighbour.PositionId);
     if (levelNeighbours.Count > GetM(smallworld.Options.M, level))
     {
-      item.Connections[level] = smallworld.SelectBestForConnecting(item, item.GetConnections(level, smallworld).ToList(), smallworld).Select(i => i.PositionId)
+      item.Connections[level] = smallworld.SelectBestForConnecting(
+          item, item.GetConnections(level, smallworld, collection).ToList(),
+          smallworld, collection).Select(i => i.PositionId)
         .ToList();
     }
   }
 
-  public static IList<IndexNode> SelectBestForConnectingAlg3(this IndexNode item, IList<IndexNode> candidates, SmallWorld smallworld)
+  public static IList<IndexNode> SelectBestForConnectingAlg3(this IndexNode item, IList<IndexNode> candidates, SmallWorldIndexer smallworld, string collection)
   {
     /*
      * q ← this
@@ -75,7 +95,7 @@ public static class NodeExtensions
   }
 
 
-  public static IList<IndexNode> SelectBestForConnectingAlg4(this IndexNode item, IList<IndexNode> candidates,  SmallWorld smallworld)
+  public static IList<IndexNode> SelectBestForConnectingAlg4(this IndexNode item, IList<IndexNode> candidates,  SmallWorldIndexer smallworld, string collection)
   {
     /*
      * q ← this
@@ -111,12 +131,12 @@ public static class NodeExtensions
     // expand candidates option is enabled
     if (smallworld.Options.ExpandBestSelection)
     {
-      var candidatesIds = new HashSet<VectorKey>(candidates.Select(c => c.Id));
-      foreach (var neighbour in item.GetConnections(item.MaxLevel, smallworld))
+      var candidatesIds = new HashSet<int>(candidates.Select(c => c.PositionId));
+      foreach (var neighbour in item.GetConnections(item.MaxLevel, smallworld, collection))
       {
-        if (candidatesIds.Contains(neighbour.Id)) continue;
+        if (candidatesIds.Contains(neighbour.PositionId)) continue;
         candidatesHeap.Push(neighbour);
-        candidatesIds.Add(neighbour.Id);
+        candidatesIds.Add(neighbour.PositionId);
       }
     }
 
@@ -148,10 +168,15 @@ public static class NodeExtensions
   }
 
 
-  public static IEnumerable<IndexNode> GetConnections(this IndexNode node, int level, SmallWorld smallworld)
+  public static IEnumerable<IndexNode> GetConnections(this IndexNode node, int level, SmallWorldIndexer smallworld, string collection)
   {
+    var graph = smallworld.GetGraphForCollection(collection);
+
     if (level >= node.Connections.Count) yield break;
     foreach (var idx in node.Connections[level])
-      yield return smallworld.Nodes[idx];
+    {
+      if (smallworld.IsDeleted(collection, idx)) continue;
+      yield return graph.nodes[idx];
+    }
   }
 }

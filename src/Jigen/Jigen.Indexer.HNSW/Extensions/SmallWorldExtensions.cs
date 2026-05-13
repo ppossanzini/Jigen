@@ -13,7 +13,7 @@ public static  class SmallWorldExtensions
   /// <param name="k">The number of the nearest neighbours to get from the layer.</param>
   /// <param name="level">Level of the layer.</param>
   /// <returns>The list of the nearest neighbours at the level.</returns>
-  public static IList<IndexNode> KNearestAtLevel(this SmallWorld smallworld, IndexNode entryPoint, IndexNode destination, int k, int level)
+  public static IList<IndexNode> KNearestAtLevel(this SmallWorldIndexer smallworld, string collection, IndexNode entryPoint, IndexNode destination, int k, int level)
   {
     /*
      * v ← ep // set of visited elements
@@ -45,7 +45,7 @@ public static  class SmallWorldExtensions
     var expansionHeap = new BinaryHeap<IndexNode>(new List<IndexNode>() { entryPoint }, fartherIsLess);
 
     // run bfs
-    var visited = new HashSet<VectorKey>() { entryPoint.Id };
+    var visited = new HashSet<int>() { entryPoint.PositionId };
     while (expansionHeap.Buffer.Any())
     {
       // get next candidate to check and expand
@@ -58,9 +58,9 @@ public static  class SmallWorldExtensions
       }
 
       // expand candidate
-      foreach (var neighbour in toExpand.GetConnections(level, smallworld))
+      foreach (var neighbour in toExpand.GetConnections(level, smallworld, collection))
       {
-        if (!visited.Contains(neighbour.Id))
+        if (!visited.Contains(neighbour.PositionId))
         {
           // enque perspective neighbours to expansion list
           farthestResult = resultHeap.Buffer.First();
@@ -76,7 +76,7 @@ public static  class SmallWorldExtensions
           }
 
           // update visited list
-          visited.Add(neighbour.Id);
+          visited.Add(neighbour.PositionId);
         }
       }
     }

@@ -46,7 +46,7 @@ public static class Tools
   /// <param name="entryPoint">The entry point.</param>
   /// <param name="level">The level of the graph where to run BFS.</param>
   /// <param name="visitAction">The action to perform on each node.</param>
-  internal static void BFS(IndexNode entryPoint, int level, Action<IndexNode> visitAction, SmallWorld smallworld)
+  internal static void BFS(IndexNode entryPoint, int level, Action<IndexNode> visitAction, SmallWorldIndexer smallworld, string collection)
   {
     var visitedIds = new HashSet<int>();
     var expansionQueue = new Queue<IndexNode>(new[] { entryPoint });
@@ -58,7 +58,7 @@ public static class Tools
       {
         visitAction(currentNode);
         visitedIds.Add(currentNode.PositionId);
-        foreach (var neighbour in currentNode.GetConnections(level, smallworld))
+        foreach (var neighbour in currentNode.GetConnections(level, smallworld, collection))
         {
           expansionQueue.Enqueue(neighbour);
         }

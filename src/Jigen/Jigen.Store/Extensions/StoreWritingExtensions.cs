@@ -48,7 +48,11 @@ public static class StoreWritingExtensions
     var result = store.PositionIndex.TryGetValue(collection, out var index) &&
                  index.Remove(key);
 
-    if (result) await store.SaveIndexChanges();
+    if (result)
+    {
+      store.Options.Indexer.RemoveFromIndex(collection, key);
+      await store.SaveIndexChanges();
+    }
     return result;
   }
 
@@ -78,8 +82,7 @@ public static class StoreWritingExtensions
       contentStream.WriteInt32Le(id.Length);
       await contentStream.WriteAsync(id, 0, id.Length);
       contentStream.WriteInt32Le(content.Value.Length);
-
-      // Scrive direttamente la ReadOnlyMemory<byte> senza ToArray()
+      
       await contentStream.WriteAsync(content.Value);
 
       store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
@@ -97,7 +100,7 @@ public static class StoreWritingExtensions
 
       // Evita embeddings.Value.ToArray(): scrive lo span come bytes
       embeddingsStream.WriteByteArray(embeddings.Value.Span);
-
+      
       store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;
     }
 

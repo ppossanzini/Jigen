@@ -7,19 +7,11 @@ namespace Jigen.Indexers;
 
 public class BruteForceIndexer : IIndexer
 {
-  public void OpenOrCreateIndex(string collection)
-  {
-  }
-
   public void AddToIndex(VectorEntry entry)
   {
   }
 
-  public void UpdateIndex(VectorEntry entry)
-  {
-  }
-
-  public void RemoveFromIndex(VectorEntry entry)
+  public void RemoveFromIndex(string collection, byte[] key)
   {
   }
 

@@ -1,4 +1,4 @@
-﻿﻿// <copyright file="CosineDistance.cs" company="Microsoft">
+﻿// <copyright file="CosineDistance.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
