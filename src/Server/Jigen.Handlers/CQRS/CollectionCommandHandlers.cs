@@ -115,7 +115,7 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    if (store.PositionIndex.TryGetValue(request.Collection, out var index))
+    if (store.GetCollectionIndexOf(request.Collection, out var index))
     {
       index.Clear();
       store.SaveIndexChanges();
@@ -128,14 +128,14 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     return Task.FromResult(
-      store.PositionIndex.TryGetValue(request.Collection, out var index) ? index.Count : 0);
+      store.GetCollectionIndexOf(request.Collection, out var index) ? index.Count : 0);
   }
 
   public Task<bool> Handle(Contains request, CancellationToken cancellationToken)
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     return Task.FromResult(
-      store.PositionIndex.TryGetValue(request.Collection, out var index) && index.ContainsKey(request.Key)
+      store.GetCollectionIndexOf(request.Collection, out var index) && index.ContainsKey(request.Key)
     );
   }
 }

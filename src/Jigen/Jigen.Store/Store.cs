@@ -11,24 +11,24 @@ using Jigen.PerformancePrimitives;
 
 namespace Jigen;
 
-public class Store : IStore, IDisposable
+public partial class Store : IStore, IDisposable
 {
   private const int CircularWritingBufferSize = 1_000_000;
   internal readonly CircularMemoryQueue<VectorEntry> IngestionQueue = new(CircularWritingBufferSize);
 
   // MemoryMappedFiles only for reading
-  internal MemoryMappedFile ContentData;
-  internal MemoryMappedFile EmbeddingsData;
+  private MemoryMappedFile _contentData;
+  private MemoryMappedFile _embeddingsData;
 
   // FileStream only for writings. 
   internal FileStream ContentFileStream;
   internal FileStream EmbeddingFileStream;
   internal FileStream IndexFileStream;
 
-  internal readonly StoreOptions Options;
+  public readonly StoreOptions Options;
   internal readonly StoreHeader VectorStoreHeader = new();
 
-  public Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
+  internal Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
 
   internal readonly Writer Writer;
 
@@ -81,18 +81,18 @@ public class Store : IStore, IDisposable
     EmbeddingFileStream = File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     IndexFileStream = File.Open(IndexFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
   }
-  
+
   internal void EnableReading()
   {
-    var oldcontent = ContentData;
-    var oldembeddings = EmbeddingsData;
+    var oldcontent = _contentData;
+    var oldembeddings = _embeddingsData;
 
     if (this.ContentFileStream.Length > 0)
-      ContentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
+      _contentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
         null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
 
     if (this.EmbeddingFileStream.Length > 0)
-      EmbeddingsData = MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
+      _embeddingsData = MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
         null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
 
     oldcontent?.Dispose();
@@ -109,12 +109,32 @@ public class Store : IStore, IDisposable
     await Writer.WaitForWritingCompleted;
   }
 
-  public Task Close()
+  public MemoryMappedViewAccessor GetContentAccessor(long offset, long size)
   {
-    if (!ContentData.SafeMemoryMappedFileHandle.IsClosed) ContentData.SafeMemoryMappedFileHandle.Close();
-    if (!EmbeddingsData.SafeMemoryMappedFileHandle.IsClosed) EmbeddingsData.SafeMemoryMappedFileHandle.Close();
+    return _contentData.CreateViewAccessor(offset, size, MemoryMappedFileAccess.Read);
+  }
+
+  public MemoryMappedViewAccessor GetEmbeddingAccessor(long offset, long size)
+  {
+    return _embeddingsData.CreateViewAccessor(offset, size, MemoryMappedFileAccess.Read);
+  }
+
+  public bool GetCollectionIndexOf(string collection, out Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)> index)
+  {
+    return PositionIndex.TryGetValue(collection, out index);
+  }
+
+  public long ContentSize => ContentFileStream.Length;
+
+  public async Task Close()
+  {
+    if (!_contentData.SafeMemoryMappedFileHandle.IsClosed) _contentData.SafeMemoryMappedFileHandle.Close();
+    if (!_embeddingsData.SafeMemoryMappedFileHandle.IsClosed) _embeddingsData.SafeMemoryMappedFileHandle.Close();
 
     Writer.Stop();
+
+    if (Options.Indexer is not null)
+      await Options.Indexer.FlushAsync();
 
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
@@ -123,8 +143,6 @@ public class Store : IStore, IDisposable
     this.ContentFileStream.Close();
     this.EmbeddingFileStream.Close();
     this.IndexFileStream.Close();
-
-    return Task.CompletedTask;
   }
 
   #region Private methods

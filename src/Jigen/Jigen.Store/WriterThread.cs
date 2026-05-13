@@ -1,4 +1,5 @@
 using System.Text;
+using Jigen.DataStructures;
 using Jigen.Extensions;
 
 namespace Jigen;
@@ -85,6 +86,11 @@ public class Writer
 
             // Cannot immediatly update search index till the file are committed
             TempIndex.Enqueue(result);
+
+            _store.Options.Indexer?.AddToIndex(new VectorEntry()
+            {
+              Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
+            });
           }
 
           ;
@@ -96,10 +102,9 @@ public class Writer
         _store.ContentFileStream.FlushAsync().GetAwaiter().GetResult();
 
         _store.EnableReading();
-        
+
         while (TempIndex.TryDequeue(out var indexData))
           _store.AppendIndex(indexData);
-
         
         _store.IndexFileStream.FlushAsync().GetAwaiter().GetResult();
 

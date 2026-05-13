@@ -2,6 +2,7 @@ using System.Text;
 using Jigen;
 using Jigen.DataStructures;
 using Jigen.Extensions;
+using Jigen.Indexer;
 using Xunit.Abstractions;
 using ZstdSharp.Unsafe;
 
@@ -20,6 +21,8 @@ public class ReadWriteTest : IDisposable
     {
       DataBaseName = "readwritetest",
       DataBasePath = "/data/jigendb",
+      Indexer = new SmallWorldIndexer(
+        new (m : 16, efConstruction : 200, efSearch : 50, storagePath : "/data/jigendb/hnsw"))
     });
 
     _embeddingGenerator = new(
@@ -52,30 +55,21 @@ public class ReadWriteTest : IDisposable
   public async Task Write()
   {
     foreach (var s in sentences)
+      // var s = sentences.First();
     {
       var rr = await _store.AppendContent(new VectorEntry()
       {
         Id = s.id.ToByteArray(),
         CollectionName = "vicini",
-        Content = MessagePackDocumentSerializer.Instance.Serialize(s.sentence), 
+        Content = MessagePackDocumentSerializer.Instance.Serialize(s.sentence),
         Embedding = _embeddingGenerator.GenerateEmbedding(s.sentence),
       });
 
       _testOutputHelper.WriteLine($"{rr.Id} - {rr.Content} - {String.Concat(rr.Embedding.Slice(0, 10).ToArray().Select(i => $"{i},"))}");
     }
 
+
     await _store.SaveChangesAsync();
-    await _store.Close();
-  }
-
-  [Fact]
-  public async Task Read()
-  {
-    foreach (var s in sentences)
-    {
-      _testOutputHelper.WriteLine(Encoding.UTF8.GetString(_store.GetContent("vicini", s.id.ToByteArray())));
-    }
-
     await _store.Close();
   }
 

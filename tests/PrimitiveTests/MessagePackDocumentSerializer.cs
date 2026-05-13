@@ -4,7 +4,7 @@ using MessagePack.Resolvers;
 
 namespace Jigen;
 
-public class MessagePackDocumentSerializer : IDocumentSerializer
+public class MessagePackDocumentSerializer 
 {
   public static MessagePackDocumentSerializer Instance { get; } = new();
 

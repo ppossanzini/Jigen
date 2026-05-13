@@ -7,28 +7,28 @@ using System.Security.Cryptography;
 using System.Text;
 using Jigen.DataStructures;
 
-namespace Jigen.Extensions;
+namespace Jigen;
 
-public static class StoreReadingExtensions
+public partial class Store
 {
-  internal static void ReadHeader(this Store store)
+  private void ReadHeader()
   {
     {
-      var stream = store.EmbeddingFileStream;
+      var stream = this.EmbeddingFileStream;
       stream.Seek(0, SeekOrigin.End);
-      store.VectorStoreHeader.EmbeddingCurrentPosition = stream.Position;
+      VectorStoreHeader.EmbeddingCurrentPosition = stream.Position;
     }
 
     {
-      var stream = store.ContentFileStream;
+      var stream = this.ContentFileStream;
       stream.Seek(0, SeekOrigin.End);
-      store.VectorStoreHeader.ContentCurrentPosition = stream.Position;
+      this.VectorStoreHeader.ContentCurrentPosition = stream.Position;
     }
   }
 
-  internal static void LoadIndex(this Store store)
+  private void LoadIndex()
   {
-    var stream = store.IndexFileStream;
+    var stream = this.IndexFileStream;
     if (stream.Length == 0) return;
 
     const int EntrySize = sizeof(long) * 4;
@@ -48,27 +48,26 @@ public static class StoreReadingExtensions
       var dimensions = reader.ReadInt32();
       var size = reader.ReadInt64();
 
-      if (!store.PositionIndex.ContainsKey(collectionName))
-        store.PositionIndex.Add(collectionName, new Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance));
-      store.PositionIndex[collectionName][id] = (contentPosition, embeddingsPosition, dimensions, size);
+      if (!this.PositionIndex.ContainsKey(collectionName))
+        this.PositionIndex.Add(collectionName, new Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance));
+      this.PositionIndex[collectionName][id] = (contentPosition, embeddingsPosition, dimensions, size);
     }
   }
 
-  public static bool TryGetContent(this Store store, string collection, byte[] id, out byte[] content)
+  public bool TryGetContent(string collection, byte[] id, out byte[] content)
   {
-    content = store.GetContent(collection, id);
+    content = this.GetContent(collection, id);
     return content is { Length: > 0 };
   }
 
 
-  public static byte[] GetContent(this Store store, string collection, byte[] id)
+  public byte[] GetContent(string collection, byte[] id)
   {
-    if (!store.PositionIndex[collection].TryGetValue(id,
+    if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
           out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
 
-
-    var totalsize = store.ContentFileStream.Length;
-    using var accessor = store.ContentData.CreateViewAccessor(item.contentposition, Math.Min(totalsize - item.contentposition, item.size * 2 + 200), MemoryMappedFileAccess.Read);
+    var totalsize = this.ContentSize;
+    using var accessor = this.GetContentAccessor(item.contentposition, Math.Min(totalsize - item.contentposition, item.size * 2 + 200));
     var idsize = accessor.ReadInt32(0);
     var contentId = new byte[idsize];
     accessor.ReadArray<byte>(sizeof(int), contentId, 0, idsize);

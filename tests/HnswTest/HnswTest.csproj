@@ -3,7 +3,7 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    
+    <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
@@ -19,7 +19,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Client\Jigen.Client\Jigen.Client.csproj" />
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Indexer.HNSW\Jigen.Indexer.HNSW.csproj" />
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Store\Jigen.Store.csproj" />
   </ItemGroup>
 
 </Project>

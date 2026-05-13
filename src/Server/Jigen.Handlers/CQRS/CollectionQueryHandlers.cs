@@ -56,7 +56,7 @@ public class CollectionQueryHandlers(
     logger.LogDebug($"Executing GetAllKeys for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var result = (store.PositionIndex.TryGetValue(request.Collection, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();
+    var result = (store.GetCollectionIndexOf(request.Collection, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();
     return Task.FromResult(result.AsEnumerable());
   }
 }
