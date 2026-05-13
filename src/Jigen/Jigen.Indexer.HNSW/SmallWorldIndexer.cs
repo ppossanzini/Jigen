@@ -159,8 +159,7 @@ public class SmallWorldIndexer : IIndexer
       return [];
 
     List<IndexNode> neighbours;
-    Dictionary<string, int> activeNodes;
-    HashSet<int> deletedNodes;
+    var destination = CreateQueryNode(queryVector);
 
     lock (_sync)
     {
@@ -168,33 +167,31 @@ public class SmallWorldIndexer : IIndexer
       if (graph.entrypoint == null)
         return [];
 
-      var destination = CreateQueryNode(queryVector);
       var searchTop = Math.Max(top, Options.SearchPruning);
       neighbours = this.KNearest(collection, destination, searchTop).ToList();
-
-      activeNodes = new Dictionary<string, int>(_activeNodeByKeyByCollection[collection], StringComparer.Ordinal);
-      deletedNodes = new HashSet<int>(_deletedNodeByCollection[collection]);
     }
 
     var resultsByKey = new Dictionary<string, (VectorEntry entry, float score)>(StringComparer.Ordinal);
-    var destinationForScore = CreateQueryNode(queryVector);
 
     foreach (var node in neighbours)
     {
-      if (deletedNodes.Contains(node.PositionId)) continue;
-
       var nodeKey = ToStableKey(node.Id.Value);
-      if (!activeNodes.TryGetValue(nodeKey, out var activePosition) || activePosition != node.PositionId)
-        continue;
 
-      var content = store.GetContent(collection, node.Id.Value);
-      if (content is null)
-        continue;
+      lock (_sync)
+      {
+        if (_deletedNodeByCollection[collection].Contains(node.PositionId)) continue;
+        if (!_activeNodeByKeyByCollection[collection].TryGetValue(nodeKey, out var activePosition) || activePosition != node.PositionId)
+          continue;
+      }
 
-      var score = 1f - destinationForScore.TravelingCosts.From(node, usecache: false);
+      var score = 1f - destination.TravelingCosts.From(node, usecache: false);
 
       if (!resultsByKey.TryGetValue(nodeKey, out var existing) || score > existing.score)
       {
+        var content = store.GetContent(collection, node.Id.Value);
+        if (content is null)
+          continue;
+
         resultsByKey[nodeKey] =
           (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
       }
@@ -276,7 +273,7 @@ public class SmallWorldIndexer : IIndexer
     if (left.Vector is null || right.Vector is null || left.Vector.Length == 0 || right.Vector.Length == 0)
       return float.MaxValue;
 
-    return CosineDistance.ForUnits(left.Vector, right.Vector);
+    return CosineDistance.SIMDForUnits(left.Vector, right.Vector);
   }
 
   private static string ToStableKey(byte[] key)
