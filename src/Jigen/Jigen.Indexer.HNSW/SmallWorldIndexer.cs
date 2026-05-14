@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Jigen.DataStructures;
 using Jigen.Indexer.Extensions;
 using Jigen.Persistance;
@@ -11,8 +12,8 @@ public class SmallWorldIndexer : IIndexer
   internal SmallWorldOptions Options { get; init; }
   private readonly object _sync = new();
   private readonly Dictionary<string, (IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes)> _collectionGraphs = new();
-  private readonly Dictionary<string, Dictionary<string, int>> _activeNodeByKeyByCollection = new(StringComparer.Ordinal);
-  private readonly Dictionary<string, HashSet<int>> _deletedNodeByCollection = new(StringComparer.Ordinal);
+  // private readonly Dictionary<string, Dictionary<string, int>> _activeNodeByKeyByCollection = new(StringComparer.Ordinal);
+  // private readonly Dictionary<string, HashSet<int>> _deletedNodeByCollection = new(StringComparer.Ordinal);
 
   internal readonly SelectForConnectingDelegate SelectBestForConnecting = null;
 
@@ -36,7 +37,7 @@ public class SmallWorldIndexer : IIndexer
     {
       if (_collectionGraphs.TryGetValue(collection, out var item)) return item;
 
-      Directory.CreateDirectory(Options.StoragePath);
+      if(!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
       var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
 
       var nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
@@ -46,27 +47,17 @@ public class SmallWorldIndexer : IIndexer
       }, Options);
 
       IndexNode entrypoint = null;
-      var activeNodes = new Dictionary<string, int>(StringComparer.Ordinal);
-      var deletedNodes = new HashSet<int>();
 
       for (var i = 0; i < nodes.Count; i++)
       {
         var node = nodes[i];
         var nodeKey = ToStableKey(node.Id.Value);
-
-        if (activeNodes.TryGetValue(nodeKey, out var previousPosition))
-          deletedNodes.Add(previousPosition);
-
-        activeNodes[nodeKey] = node.PositionId;
-
+        
         if (entrypoint == null || node.MaxLevel > entrypoint.MaxLevel)
           entrypoint = node;
       }
 
       item = (entrypoint, nodes);
-      _collectionGraphs[collection] = item;
-      _activeNodeByKeyByCollection[collection] = activeNodes;
-      _deletedNodeByCollection[collection] = deletedNodes;
 
       return item;
     }
@@ -82,21 +73,17 @@ public class SmallWorldIndexer : IIndexer
       var collection = entry.CollectionName;
       var graph = GetGraphForCollection(collection);
       var newNode = entry.ToNode(Options);
-
-      var activeNodes = _activeNodeByKeyByCollection[collection];
-      var deletedNodes = _deletedNodeByCollection[collection];
-
-      var newNodeKey = ToStableKey(entry.Id);
-      if (activeNodes.TryGetValue(newNodeKey, out var previousNodePosition))
-        deletedNodes.Add(previousNodePosition);
-
+      
+      // IMPORTANT: entrypoing is the first node. So if the graph is empty, we need to add the new node as entrypoint and return before trying to connect it to itself.
+      if(graph.nodes.Count == 0) 
+        graph.nodes.AddNewNode(VectorEntry.Empty.ToNode(Options));
+      
       graph.nodes.AddNewNode(newNode);
-      activeNodes[newNodeKey] = newNode.PositionId;
 
       if (graph.entrypoint == null)
       {
-        graph.entrypoint = newNode;
-        _collectionGraphs[collection] = graph;
+        graph.entrypoint = newNode; 
+        graph.nodes[0] = newNode; // entrypoint is always the node in position 0 ; 
         return;
       }
 
