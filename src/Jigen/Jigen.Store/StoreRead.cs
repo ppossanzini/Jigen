@@ -48,9 +48,12 @@ public partial class Store
       var dimensions = reader.ReadInt32();
       var size = reader.ReadInt64();
 
-      if (!this.PositionIndex.ContainsKey(collectionName))
-        this.PositionIndex.Add(collectionName, new Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance));
-      this.PositionIndex[collectionName][id] = (contentPosition, embeddingsPosition, dimensions, size);
+      if (!PositionIndex.TryGetValue(collectionName, out var index))
+      {
+        index = new Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance);
+        PositionIndex.Add(collectionName, index);
+      }
+      index[id] = (contentPosition, embeddingsPosition, dimensions, size);
     }
   }
 
