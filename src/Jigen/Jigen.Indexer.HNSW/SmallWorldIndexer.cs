@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Jigen.DataStructures;
 using Jigen.Indexer.Extensions;
 using Jigen.Persistance;
@@ -10,11 +9,11 @@ internal delegate IList<IndexNode> SelectForConnectingDelegate(IndexNode item, I
 public class SmallWorldIndexer : IIndexer
 {
   internal SmallWorldOptions Options { get; init; }
+
   private readonly ReaderWriterLockSlim _sync = new(LockRecursionPolicy.SupportsRecursion);
-  private readonly Dictionary<string, ReaderWriterLockSlim> _collectionLocks = new(StringComparer.Ordinal);
+
+  // private readonly Dictionary<string, ReaderWriterLockSlim> _collectionLocks = new(StringComparer.Ordinal);
   private readonly Dictionary<string, (IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes)> _collectionGraphs = new();
-  // private readonly Dictionary<string, Dictionary<string, int>> _activeNodeByKeyByCollection = new(StringComparer.Ordinal);
-  // private readonly Dictionary<string, HashSet<int>> _deletedNodeByCollection = new(StringComparer.Ordinal);
 
   internal readonly SelectForConnectingDelegate SelectBestForConnecting = null;
 
@@ -39,27 +38,26 @@ public class SmallWorldIndexer : IIndexer
     {
       if (_collectionGraphs.TryGetValue(collection, out var item)) return item;
 
-      if(!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
-      var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
-
-      var nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
+      _sync.EnterWriteLock();
+      try
       {
-        if(!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
+        if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
         var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
 
-      IndexNode entrypoint = null;
+        var nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
+        {
+          FilePath = filePath,
+          FlushInterval = TimeSpan.FromMinutes(1)
+        }, Options);
 
-      for (var i = 0; i < nodes.Count; i++)
-      {
-        var node = nodes[i];
-        var nodeKey = ToStableKey(node.Id.Value);
-        
-        if (entrypoint == null || node.MaxLevel > entrypoint.MaxLevel)
-          entrypoint = node;
-      }
+        if (!nodes.Any())
+        {
+          var entrypoint = VectorEntry.Empty.ToNode(Options);
+          nodes.Add(entrypoint); // position 0 is reserved for entrypoint nodes
+        }
 
-      item = (entrypoint, nodes);
-
+        item = (nodes[nodes[0].PositionId], nodes);
+        _collectionGraphs[collection] = item;
         return item;
       }
       finally
@@ -73,6 +71,12 @@ public class SmallWorldIndexer : IIndexer
     }
   }
 
+  private void AssignEntryPoint((IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes) entry, IndexNode newNode)
+  {
+    entry.entrypoint = newNode;
+    entry.nodes[0] = newNode;
+  }
+
   public void AddToIndex(VectorEntry entry)
   {
     if (entry is null || entry.Id is null || string.IsNullOrWhiteSpace(entry.CollectionName) || entry.Embedding.IsEmpty)
@@ -81,32 +85,13 @@ public class SmallWorldIndexer : IIndexer
     var collection = entry.CollectionName;
     var graph = GetGraphForCollection(collection);
     var newNode = entry.ToNode(Options);
-    var newNodeKey = ToStableKey(entry.Id);
 
-    var @lock = _collectionLocks[collection];
-    @lock.EnterWriteLock();
-    try
-    {
-      var collection = entry.CollectionName;
-      var graph = GetGraphForCollection(collection);
-      var newNode = entry.ToNode(Options);
-      
-      // IMPORTANT: entrypoing is the first node. So if the graph is empty, we need to add the new node as entrypoint and return before trying to connect it to itself.
-      if(graph.nodes.Count == 0) 
-        graph.nodes.AddNewNode(VectorEntry.Empty.ToNode(Options));
-      
-      graph.nodes.AddNewNode(newNode);
+    graph.nodes.AddNewNode(newNode);
 
-      if (graph.entrypoint == null)
-      {
-        graph.entrypoint = newNode; 
-        graph.nodes[0] = newNode; // entrypoint is always the node in position 0 ; 
-        return;
-      }
-    }
-    finally
+    if (graph.entrypoint == null)
     {
-      @lock.ExitWriteLock();
+      AssignEntryPoint(graph, newNode);
+      return;
     }
 
     var bestPeer = graph.entrypoint;
@@ -135,43 +120,15 @@ public class SmallWorldIndexer : IIndexer
 
     // zoom out to the highest level
     if (newNode.MaxLevel > graph.entrypoint.MaxLevel)
-    {
-      _sync.EnterWriteLock();
-      try
-      {
-        graph.entrypoint = newNode;
-        _collectionGraphs[collection] = graph;
-      }
-      finally
-      {
-        _sync.ExitWriteLock();
-      }
-    }
+      AssignEntryPoint(graph, newNode);
   }
 
   public void RemoveFromIndex(string collection, byte[] key)
   {
-    if (string.IsNullOrWhiteSpace(collection) || key is null) return;
-
-    _ = GetGraphForCollection(collection);
-
-    var nodeKey = ToStableKey(key);
-
-    _sync.EnterWriteLock();
-    try
+    if (string.IsNullOrWhiteSpace(collection) || key is null)
     {
-      var activeNodes = _activeNodeByKeyByCollection[collection];
-      var deletedNodes = _deletedNodeByCollection[collection];
-
-      if (activeNodes.TryGetValue(nodeKey, out var activePosition))
-      {
-        deletedNodes.Add(activePosition);
-        activeNodes.Remove(nodeKey);
-      }
-    }
-    finally
-    {
-      _sync.ExitWriteLock();
+      var graph = GetGraphForCollection(collection);
+      graph.nodes.Where(i => i.Id.Value.SequenceEqual(key)).ToList().ForEach(i => i.IsDeleted = true);
     }
   }
 
@@ -194,35 +151,15 @@ public class SmallWorldIndexer : IIndexer
 
     foreach (var node in neighbours)
     {
-      var nodeKey = ToStableKey(node.Id.Value);
-
-      bool isActive = false;
-      _sync.EnterReadLock();
-      try
-      {
-        if (!_deletedNodeByCollection[collection].Contains(node.PositionId))
-        {
-          if (_activeNodeByKeyByCollection[collection].TryGetValue(nodeKey, out var activePosition) && activePosition == node.PositionId)
-            isActive = true;
-        }
-      }
-      finally
-      {
-        _sync.ExitReadLock();
-      }
-
-      if (!isActive) continue;
-
+      var nodeKey = Convert.ToBase64String(node.Id.Value);
       var score = 1f - destination.TravelingCosts.From(node, usecache: false);
 
       if (!resultsByKey.TryGetValue(nodeKey, out var existing) || score > existing.score)
       {
         var content = store.GetContent(collection, node.Id.Value);
-        if (content is null)
-          continue;
+        if (content is null) continue;
 
-        resultsByKey[nodeKey] =
-          (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
+        resultsByKey[nodeKey] = (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
       }
     }
 
@@ -274,18 +211,8 @@ public class SmallWorldIndexer : IIndexer
 
   internal bool IsDeleted(string collection, int positionId)
   {
-    _sync.EnterReadLock();
-    try
-    {
-      if (!_deletedNodeByCollection.TryGetValue(collection, out var deletedNodes))
-        return false;
-
-      return deletedNodes.Contains(positionId);
-    }
-    finally
-    {
-      _sync.ExitReadLock();
-    }
+    var coll = GetGraphForCollection(collection);
+    return coll.nodes[positionId].IsDeleted;
   }
 
   public Task FlushAsync()
@@ -313,11 +240,6 @@ public class SmallWorldIndexer : IIndexer
       return float.MaxValue;
 
     return CosineDistance.SIMDForUnits(left.Vector, right.Vector);
-  }
-
-  private static string ToStableKey(byte[] key)
-  {
-    return Convert.ToBase64String(key);
   }
 
   private static string SanitizeCollectionName(string collection)

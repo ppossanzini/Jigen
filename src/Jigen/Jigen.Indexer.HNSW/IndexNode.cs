@@ -13,6 +13,7 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
 
   public int PositionId { get; set; }
   public VectorKey Id { get; set; }
+  public bool IsDeleted { get; set; } = false;
   public int MaxLevel { get; set; }
   public float[] Vector { get; set; } = Array.Empty<float>();
 
@@ -35,6 +36,8 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
 
     writer.WriteByte(SerializationVersion);
     writer.WriteVarUInt((uint)PositionId);
+
+    writer.WriteByte((byte)(IsDeleted ? 1 : 0));
 
     writer.WriteVarUInt((uint)Id.Value.Length);
     writer.WriteBytes(Id.Value);
@@ -83,6 +86,8 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
       throw new InvalidDataException($"Unsupported IndexNode serialization version: {version}");
 
     var positionId = checked((int)span.ReadVarUInt(ref offset));
+    
+    var isDeleted = span.ReadByte(ref offset) == 1;
 
     var idLength = checked((int)span.ReadVarUInt(ref offset));
     if (idLength < 0 || offset + idLength > span.Length)
@@ -135,6 +140,7 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
     var node = new IndexNode(options)
     {
       PositionId = positionId,
+      IsDeleted = isDeleted,
       Id = idBuffer,
       Vector = vector,
       MaxLevel = maxLevel,
@@ -143,6 +149,4 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
 
     return node;
   }
-
-
 }
