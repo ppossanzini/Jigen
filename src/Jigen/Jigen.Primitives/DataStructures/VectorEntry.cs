@@ -9,6 +9,14 @@ public class VectorEntry
   public string CollectionName { get; set; }
   public ReadOnlyMemory<byte> Content { get; set; }
   public ReadOnlyMemory<float> Embedding { get; set; }
+
+  public static VectorEntry Empty => new VectorEntry(){
+    Id = Guid.NewGuid().ToByteArray(),
+    CollectionName = string.Empty,
+    Content = ReadOnlyMemory<byte>.Empty,
+    Embedding = ReadOnlyMemory<float>.Empty
+  };  
+  
 }
 
 public class VectorEntry<T>

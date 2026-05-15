@@ -9,10 +9,11 @@ internal delegate IList<IndexNode> SelectForConnectingDelegate(IndexNode item, I
 public class SmallWorldIndexer : IIndexer
 {
   internal SmallWorldOptions Options { get; init; }
-  private readonly object _sync = new();
+
+  private readonly ReaderWriterLockSlim _sync = new(LockRecursionPolicy.SupportsRecursion);
+
+  // private readonly Dictionary<string, ReaderWriterLockSlim> _collectionLocks = new(StringComparer.Ordinal);
   private readonly Dictionary<string, (IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes)> _collectionGraphs = new();
-  private readonly Dictionary<string, Dictionary<string, int>> _activeNodeByKeyByCollection = new(StringComparer.Ordinal);
-  private readonly Dictionary<string, HashSet<int>> _deletedNodeByCollection = new(StringComparer.Ordinal);
 
   internal readonly SelectForConnectingDelegate SelectBestForConnecting = null;
 
@@ -32,44 +33,48 @@ public class SmallWorldIndexer : IIndexer
 
   internal (IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes) GetGraphForCollection(string collection)
   {
-    lock (_sync)
+    _sync.EnterUpgradeableReadLock();
+    try
     {
       if (_collectionGraphs.TryGetValue(collection, out var item)) return item;
 
-      Directory.CreateDirectory(Options.StoragePath);
-      var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
-
-      var nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
+      _sync.EnterWriteLock();
+      try
       {
-        FilePath = filePath,
-        FlushInterval = TimeSpan.FromMinutes(1)
-      }, Options);
+        if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
+        var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
 
-      IndexNode entrypoint = null;
-      var activeNodes = new Dictionary<string, int>(StringComparer.Ordinal);
-      var deletedNodes = new HashSet<int>();
+        var nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
+        {
+          FilePath = filePath,
+          FlushInterval = TimeSpan.FromMinutes(1)
+        }, Options);
 
-      for (var i = 0; i < nodes.Count; i++)
-      {
-        var node = nodes[i];
-        var nodeKey = ToStableKey(node.Id.Value);
+        if (!nodes.Any())
+        {
+          var entrypoint = VectorEntry.Empty.ToNode(Options);
+          nodes.Add(entrypoint); // position 0 is reserved for entrypoint nodes
+        }
 
-        if (activeNodes.TryGetValue(nodeKey, out var previousPosition))
-          deletedNodes.Add(previousPosition);
-
-        activeNodes[nodeKey] = node.PositionId;
-
-        if (entrypoint == null || node.MaxLevel > entrypoint.MaxLevel)
-          entrypoint = node;
+        item = (nodes[nodes[0].PositionId], nodes);
+        _collectionGraphs[collection] = item;
+        return item;
       }
-
-      item = (entrypoint, nodes);
-      _collectionGraphs[collection] = item;
-      _activeNodeByKeyByCollection[collection] = activeNodes;
-      _deletedNodeByCollection[collection] = deletedNodes;
-
-      return item;
+      finally
+      {
+        _sync.ExitWriteLock();
+      }
     }
+    finally
+    {
+      _sync.ExitUpgradeableReadLock();
+    }
+  }
+
+  private void AssignEntryPoint((IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes) entry, IndexNode newNode)
+  {
+    entry.entrypoint = newNode;
+    entry.nodes[0] = newNode;
   }
 
   public void AddToIndex(VectorEntry entry)
@@ -77,79 +82,53 @@ public class SmallWorldIndexer : IIndexer
     if (entry is null || entry.Id is null || string.IsNullOrWhiteSpace(entry.CollectionName) || entry.Embedding.IsEmpty)
       return;
 
-    lock (_sync)
+    var collection = entry.CollectionName;
+    var graph = GetGraphForCollection(collection);
+    var newNode = entry.ToNode(Options);
+
+    graph.nodes.AddNewNode(newNode);
+
+    if (graph.entrypoint == null)
     {
-      var collection = entry.CollectionName;
-      var graph = GetGraphForCollection(collection);
-      var newNode = entry.ToNode(Options);
+      AssignEntryPoint(graph, newNode);
+      return;
+    }
 
-      var activeNodes = _activeNodeByKeyByCollection[collection];
-      var deletedNodes = _deletedNodeByCollection[collection];
+    var bestPeer = graph.entrypoint;
+    for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
+      bestPeer = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level).Single();
 
-      var newNodeKey = ToStableKey(entry.Id);
-      if (activeNodes.TryGetValue(newNodeKey, out var previousNodePosition))
-        deletedNodes.Add(previousNodePosition);
+    for (var level = Math.Min(newNode.MaxLevel, graph.entrypoint.MaxLevel); level >= 0; --level)
+    {
+      var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
+      var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, this, collection);
 
-      graph.nodes.AddNewNode(newNode);
-      activeNodes[newNodeKey] = newNode.PositionId;
-
-      if (graph.entrypoint == null)
+      foreach (var newNeighbour in bestNeighbours)
       {
-        graph.entrypoint = newNode;
-        _collectionGraphs[collection] = graph;
-        return;
-      }
+        newNode.AddConnection(newNeighbour, level, this, collection);
+        newNeighbour.AddConnection(newNode, level, this, collection);
+        graph.nodes[newNeighbour.PositionId] = newNeighbour;
 
-      var bestPeer = graph.entrypoint;
-      for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
-        bestPeer = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level).Single();
-
-      for (var level = Math.Min(newNode.MaxLevel, graph.entrypoint.MaxLevel); level >= 0; --level)
-      {
-        var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
-        var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, this, collection);
-
-        foreach (var newNeighbour in bestNeighbours)
-        {
-          newNode.AddConnection(newNeighbour, level, this, collection);
-          newNeighbour.AddConnection(newNode, level, this, collection);
-          graph.nodes[newNeighbour.PositionId] = newNeighbour;
-
-          // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
-          if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
-            bestPeer = newNeighbour;
-        }
-      }
-
-      // Persist the newly constructed adjacency lists for the inserted node.
-      graph.nodes[newNode.PositionId] = newNode;
-
-      // zoom out to the highest level
-      if (newNode.MaxLevel > graph.entrypoint.MaxLevel)
-      {
-        graph.entrypoint = newNode;
-        _collectionGraphs[collection] = graph;
+        // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
+        if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
+          bestPeer = newNeighbour;
       }
     }
+
+    // Persist the newly constructed adjacency lists for the inserted node.
+    graph.nodes[newNode.PositionId] = newNode;
+
+    // zoom out to the highest level
+    if (newNode.MaxLevel > graph.entrypoint.MaxLevel)
+      AssignEntryPoint(graph, newNode);
   }
 
   public void RemoveFromIndex(string collection, byte[] key)
   {
-    if (string.IsNullOrWhiteSpace(collection) || key is null) return;
-
-    lock (_sync)
+    if (string.IsNullOrWhiteSpace(collection) || key is null)
     {
-      _ = GetGraphForCollection(collection);
-
-      var nodeKey = ToStableKey(key);
-      var activeNodes = _activeNodeByKeyByCollection[collection];
-      var deletedNodes = _deletedNodeByCollection[collection];
-
-      if (activeNodes.TryGetValue(nodeKey, out var activePosition))
-      {
-        deletedNodes.Add(activePosition);
-        activeNodes.Remove(nodeKey);
-      }
+      var graph = GetGraphForCollection(collection);
+      graph.nodes.Where(i => i.Id.Value.SequenceEqual(key)).ToList().ForEach(i => i.IsDeleted = true);
     }
   }
 
@@ -159,44 +138,28 @@ public class SmallWorldIndexer : IIndexer
       return [];
 
     List<IndexNode> neighbours;
-    Dictionary<string, int> activeNodes;
-    HashSet<int> deletedNodes;
+    var destination = CreateQueryNode(queryVector);
 
-    lock (_sync)
-    {
-      var graph = GetGraphForCollection(collection);
-      if (graph.entrypoint == null)
-        return [];
+    var graph = GetGraphForCollection(collection);
+    if (graph.entrypoint == null)
+      return [];
 
-      var destination = CreateQueryNode(queryVector);
-      var searchTop = Math.Max(top, Options.SearchPruning);
-      neighbours = this.KNearest(collection, destination, searchTop).ToList();
-
-      activeNodes = new Dictionary<string, int>(_activeNodeByKeyByCollection[collection], StringComparer.Ordinal);
-      deletedNodes = new HashSet<int>(_deletedNodeByCollection[collection]);
-    }
+    var searchTop = Math.Max(top, Options.SearchPruning);
+    neighbours = this.KNearest(collection, destination, searchTop).ToList();
 
     var resultsByKey = new Dictionary<string, (VectorEntry entry, float score)>(StringComparer.Ordinal);
-    var destinationForScore = CreateQueryNode(queryVector);
 
     foreach (var node in neighbours)
     {
-      if (deletedNodes.Contains(node.PositionId)) continue;
-
-      var nodeKey = ToStableKey(node.Id.Value);
-      if (!activeNodes.TryGetValue(nodeKey, out var activePosition) || activePosition != node.PositionId)
-        continue;
-
-      var content = store.GetContent(collection, node.Id.Value);
-      if (content is null)
-        continue;
-
-      var score = 1f - destinationForScore.TravelingCosts.From(node, usecache: false);
+      var nodeKey = Convert.ToBase64String(node.Id.Value);
+      var score = 1f - destination.TravelingCosts.From(node, usecache: false);
 
       if (!resultsByKey.TryGetValue(nodeKey, out var existing) || score > existing.score)
       {
-        resultsByKey[nodeKey] =
-          (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
+        var content = store.GetContent(collection, node.Id.Value);
+        if (content is null) continue;
+
+        resultsByKey[nodeKey] = (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
       }
     }
 
@@ -248,21 +211,21 @@ public class SmallWorldIndexer : IIndexer
 
   internal bool IsDeleted(string collection, int positionId)
   {
-    lock (_sync)
-    {
-      if (!_deletedNodeByCollection.TryGetValue(collection, out var deletedNodes))
-        return false;
-
-      return deletedNodes.Contains(positionId);
-    }
+    var coll = GetGraphForCollection(collection);
+    return coll.nodes[positionId].IsDeleted;
   }
 
   public Task FlushAsync()
   {
     List<StoredList<IndexNode, SmallWorldOptions>> toFlush;
-    lock (_sync)
+    _sync.EnterReadLock();
+    try
     {
       toFlush = _collectionGraphs.Values.Select(g => g.nodes).ToList();
+    }
+    finally
+    {
+      _sync.ExitReadLock();
     }
 
     foreach (var nodes in toFlush)
@@ -276,12 +239,7 @@ public class SmallWorldIndexer : IIndexer
     if (left.Vector is null || right.Vector is null || left.Vector.Length == 0 || right.Vector.Length == 0)
       return float.MaxValue;
 
-    return CosineDistance.ForUnits(left.Vector, right.Vector);
-  }
-
-  private static string ToStableKey(byte[] key)
-  {
-    return Convert.ToBase64String(key);
+    return CosineDistance.SIMDForUnits(left.Vector, right.Vector);
   }
 
   private static string SanitizeCollectionName(string collection)

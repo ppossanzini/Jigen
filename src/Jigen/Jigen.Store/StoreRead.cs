@@ -66,16 +66,17 @@ public partial class Store
     if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
           out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
 
-    var totalsize = this.ContentSize;
-    using var accessor = this.GetContentAccessor(item.contentposition, Math.Min(totalsize - item.contentposition, item.size * 2 + 200));
-    var idsize = accessor.ReadInt32(0);
-    var contentId = new byte[idsize];
-    accessor.ReadArray<byte>(sizeof(int), contentId, 0, idsize);
+    Span<byte> idSizeBuffer = stackalloc byte[sizeof(int)];
+    RandomAccess.Read(this.ContentFileStream.SafeFileHandle, idSizeBuffer, item.contentposition);
+    var idsize = BitConverter.ToInt32(idSizeBuffer);
 
-    if (!ByteArrayEqualityComparer.Instance.Equals(contentId, id)) throw new InvalidConstraintException("Content ID mismatch");
+    Span<byte> contentId = idsize <= 256 ? stackalloc byte[idsize] : new byte[idsize];
+    RandomAccess.Read(this.ContentFileStream.SafeFileHandle, contentId, item.contentposition + sizeof(int));
+
+    if (!contentId.SequenceEqual(id)) throw new InvalidConstraintException("Content ID mismatch");
 
     byte[] buffer = new byte[item.size];
-    accessor.ReadArray(2 * sizeof(int) + idsize, buffer, 0, (int)item.size);
+    RandomAccess.Read(this.ContentFileStream.SafeFileHandle, buffer, item.contentposition + 2 * sizeof(int) + idsize);
     return buffer;
   }
 }
