@@ -252,14 +252,15 @@ public class SmallWorldIndexer : IIndexer
 
   private IndexNode CreateQueryNode(float[] queryVector)
   {
-    var vector = queryVector.ToArray();
+    var vector = GC.AllocateUninitializedArray<float>(queryVector.Length);
+    queryVector.CopyTo(vector, 0);
     NormalizeInPlace(vector);
 
     return new IndexNode(Options)
     {
-      Id = Guid.NewGuid().ToByteArray(),
+      Id = new VectorKey { Value = Array.Empty<byte>() },
       MaxLevel = 0,
-      Connections = new List<IList<int>> { new List<int>() },
+      Connections = Array.Empty<IList<int>>(),
       Vector = vector
     };
   }

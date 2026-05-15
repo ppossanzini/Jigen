@@ -37,12 +37,12 @@ public static class NodeExtensions
 
     var node = new IndexNode(options)
     {
-      Connections = new List<IList<int>>(maxLevel + 1),
+      Connections = new IList<int>[maxLevel + 1],
       MaxLevel = maxLevel, Id = item.Id, Vector = vector
     };
 
     for (int level = 0; level <= maxLevel; ++level)
-      node.Connections.Add(new List<int>(GetM(options.M, level)));
+      node.Connections[level] = new List<int>(GetM(options.M, level));
 
     return node;
   }
@@ -61,6 +61,12 @@ public static class NodeExtensions
   public static void AddConnection(this IndexNode item, IndexNode newNeighbour, int level, SmallWorldIndexer smallworld, string collection)
   {
     var levelNeighbours = item.Connections[level];
+    if (levelNeighbours is int[] or null)
+    {
+      levelNeighbours = levelNeighbours == null ? new List<int>() : new List<int>(levelNeighbours);
+      item.Connections[level] = levelNeighbours;
+    }
+
     levelNeighbours.Add(newNeighbour.PositionId);
     if (levelNeighbours.Count > GetM(smallworld.Options.M, level))
     {
