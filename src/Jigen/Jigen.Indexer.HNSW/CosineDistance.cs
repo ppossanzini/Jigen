@@ -4,6 +4,7 @@
 // </copyright>
 
 using System.Numerics;
+using System.Numerics.Tensors;
 
 namespace Jigen.Indexer
 {
@@ -78,42 +79,14 @@ namespace Jigen.Indexer
         /// <param name="u">Left vector.</param>
         /// <param name="v">Right vector.</param>
         /// <returns>Cosine distance between u and v.</returns>
-        public static float SIMD(float[] u, float[] v)
+        public static float SIMD(ReadOnlySpan<float> u, ReadOnlySpan<float> v)
         {
-            if (!Vector.IsHardwareAccelerated)
-            {
-                throw new NotSupportedException($"SIMD version of {nameof(CosineDistance)} is not supported");
-            }
-
             if (u.Length != v.Length)
             {
                 throw new ArgumentException("Vectors have non-matching dimensions");
             }
 
-            float dot = 0;
-            var norm = default(Vector2);
-            int step = Vector<float>.Count;
-
-            int i, to = u.Length - step;
-            for (i = 0; i <= to; i += step)
-            {
-                var ui = new Vector<float>(u, i);
-                var vi = new Vector<float>(v, i);
-                dot += Vector.Dot(ui, vi);
-                norm.X += Vector.Dot(ui, ui);
-                norm.Y += Vector.Dot(vi, vi);
-            }
-
-            for (; i < u.Length; ++i)
-            {
-                dot += u[i] * v[i];
-                norm.X += u[i] * u[i];
-                norm.Y += v[i] * v[i];
-            }
-
-            norm = Vector2.SquareRoot(norm);
-            var similarity = dot / (norm.X * norm.Y);
-            return 1 - similarity;
+            return 1 - TensorPrimitives.CosineSimilarity(u, v);
         }
 
         /// <summary>
@@ -122,35 +95,14 @@ namespace Jigen.Indexer
         /// <param name="u">Left vector.</param>
         /// <param name="v">Right vector.</param>
         /// <returns>Cosine distance between u and v.</returns>
-        public static float SIMDForUnits(float[] u, float[] v)
+        public static float SIMDForUnits(ReadOnlySpan<float> u, ReadOnlySpan<float> v)
         {
-            if (!Vector.IsHardwareAccelerated)
-            {
-                throw new NotSupportedException($"SIMD version of {nameof(CosineDistance)} is not supported");
-            }
-
             if (u.Length != v.Length)
             {
                 throw new ArgumentException("Vectors have non-matching dimensions");
             }
 
-            float dot = 0;
-            int step = Vector<float>.Count;
-
-            int i, to = u.Length - step;
-            for (i = 0; i <= to; i += step)
-            {
-                var ui = new Vector<float>(u, i);
-                var vi = new Vector<float>(v, i);
-                dot += Vector.Dot(ui, vi);
-            }
-
-            for (; i < u.Length; ++i)
-            {
-                dot += u[i] * v[i];
-            }
-
-            return 1 - dot;
+            return 1 - TensorPrimitives.Dot(u, v);
         }
     }
 }

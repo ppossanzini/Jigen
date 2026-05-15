@@ -17,8 +17,7 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
   public int MaxLevel { get; set; }
   public float[] Vector { get; set; } = Array.Empty<float>();
 
-
-  public List<IList<int>> Connections { get; init; } = new();
+  public IList<IList<int>> Connections { get; set; } = Array.Empty<IList<int>>();
   public TravelingCosts TravelingCosts { get; private set; }
 
   public IndexNode(SmallWorldOptions options)
@@ -114,24 +113,24 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
     if (levelsCount < 0)
       throw new InvalidDataException("Invalid levels count in serialized IndexNode payload.");
 
-    var connections = new List<IList<int>>(levelsCount);
+    var connections = new IList<int>[levelsCount];
     for (int level = 0; level < levelsCount; level++)
     {
       var connCount = checked((int)span.ReadVarUInt(ref offset));
       if (connCount < 0)
         throw new InvalidDataException("Invalid connection count in serialized IndexNode payload.");
 
-      var levelConnections = new List<int>(connCount);
+      var levelConnections = new int[connCount];
       uint previous = 0;
       for (int i = 0; i < connCount; i++)
       {
         var delta = span.ReadVarUInt(ref offset);
         uint current = i == 0 ? delta : checked(previous + delta);
-        levelConnections.Add(checked((int)current));
+        levelConnections[i] = checked((int)current);
         previous = current;
       }
 
-      connections.Add(levelConnections);
+      connections[level] = levelConnections;
     }
 
     if (offset != span.Length)

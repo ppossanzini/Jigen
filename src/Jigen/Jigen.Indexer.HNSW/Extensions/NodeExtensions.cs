@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Numerics.Tensors;
 using Jigen.DataStructures;
 using Jigen.Persistance;
 
@@ -36,35 +37,36 @@ public static class NodeExtensions
 
     var node = new IndexNode(options)
     {
-      Connections = new List<IList<int>>(maxLevel + 1),
+      Connections = new IList<int>[maxLevel + 1],
       MaxLevel = maxLevel, Id = item.Id, Vector = vector
     };
 
     for (int level = 0; level <= maxLevel; ++level)
-      node.Connections.Add(new List<int>(GetM(options.M, level)));
+      node.Connections[level] = new List<int>(GetM(options.M, level));
 
     return node;
   }
 
-  private static void NormalizeInPlace(float[] vector)
+  private static void NormalizeInPlace(Span<float> vector)
   {
     if (vector.Length == 0) return;
 
-    float norm = 0;
-    for (int i = 0; i < vector.Length; i++)
-      norm += vector[i] * vector[i];
-
+    var norm = TensorPrimitives.Norm(vector);
     if (norm <= 0) return;
-
-    var inv = 1f / MathF.Sqrt(norm);
-    for (int i = 0; i < vector.Length; i++)
-      vector[i] *= inv;
+    
+    TensorPrimitives.Divide(vector, norm, vector);
   }
 
 
   public static void AddConnection(this IndexNode item, IndexNode newNeighbour, int level, SmallWorldIndexer smallworld, string collection)
   {
     var levelNeighbours = item.Connections[level];
+    if (levelNeighbours is int[] or null)
+    {
+      levelNeighbours = levelNeighbours == null ? new List<int>() : new List<int>(levelNeighbours);
+      item.Connections[level] = levelNeighbours;
+    }
+
     levelNeighbours.Add(newNeighbour.PositionId);
     if (levelNeighbours.Count > GetM(smallworld.Options.M, level))
     {

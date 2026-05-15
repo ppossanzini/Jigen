@@ -1,6 +1,7 @@
 using Jigen.DataStructures;
 using Jigen.Indexer.Extensions;
 using Jigen.Persistance;
+using System.Numerics.Tensors;
 
 namespace Jigen.Indexer;
 
@@ -251,30 +252,26 @@ public class SmallWorldIndexer : IIndexer
 
   private IndexNode CreateQueryNode(float[] queryVector)
   {
-    var vector = queryVector.ToArray();
+    var vector = GC.AllocateUninitializedArray<float>(queryVector.Length);
+    queryVector.CopyTo(vector, 0);
     NormalizeInPlace(vector);
 
     return new IndexNode(Options)
     {
-      Id = Guid.NewGuid().ToByteArray(),
+      Id = new VectorKey { Value = Array.Empty<byte>() },
       MaxLevel = 0,
-      Connections = new List<IList<int>> { new List<int>() },
+      Connections = Array.Empty<IList<int>>(),
       Vector = vector
     };
   }
 
-  private static void NormalizeInPlace(float[] vector)
+  private static void NormalizeInPlace(Span<float> vector)
   {
     if (vector.Length == 0) return;
 
-    float norm = 0;
-    for (int i = 0; i < vector.Length; i++)
-      norm += vector[i] * vector[i];
-
+    var norm = TensorPrimitives.Norm(vector);
     if (norm <= 0) return;
-
-    var inv = 1f / MathF.Sqrt(norm);
-    for (int i = 0; i < vector.Length; i++)
-      vector[i] *= inv;
+    
+    TensorPrimitives.Divide(vector, norm, vector);
   }
 }

@@ -29,24 +29,25 @@ namespace Jigen.Indexer
     /// <summary>
     /// Cached values.
     /// </summary>
-    private readonly ConcurrentDictionary<IndexNode, float> _cache = new ();
+    private readonly ConcurrentDictionary<int, float> _cache = new();
 
 
     /// <summary>
     /// Calculates distance from the departure to the destination.
     /// </summary>
     /// <param name="departure">The point of departure.</param>
-    /// <param name="distance">The distance function</param>
     /// <param name="usecache">Use cached values</param>
     /// <returns>The distance from the departure to the destination.</returns>
     public float From(IndexNode departure, bool usecache = true)
     {
-      float result;
-      if (usecache && this._cache.TryGetValue(departure, out result))
+      if (usecache && this._cache.TryGetValue(departure.PositionId, out var result))
         return result;
 
       result = options.DefaultDistanceFunction(departure, destination);
-      this._cache.TryAdd(departure, result);
+      
+      if (usecache)
+        this._cache[departure.PositionId] = result;
+        
       return result;
     }
 
