@@ -5,17 +5,14 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Jigen.Indexer</RootNamespace>
   </PropertyGroup>
-  
-  <ItemGroup>
-    <Compile Remove="reference/**/*.cs" />
-  </ItemGroup>
+
 
   <ItemGroup>
-    <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj" />
-  </ItemGroup>
+    <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj"/>
 
+  </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="System.Numerics.Tensors" Version="10.0.8" />
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.8"/>
   </ItemGroup>
 
 

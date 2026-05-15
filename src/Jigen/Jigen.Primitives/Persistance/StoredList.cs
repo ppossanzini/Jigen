@@ -53,7 +53,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     {
       Span<byte> buffer = new byte[Marshal.SizeOf<StoredListHeader>()];
       RandomAccess.Read(_data.SafeFileHandle!, buffer, 0);
-      _header= MemoryMarshal.Cast<byte, StoredListHeader>(buffer)[0];
+      _header = MemoryMarshal.Cast<byte, StoredListHeader>(buffer)[0];
     }
   }
 
@@ -63,7 +63,8 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     for (var i = 0; i < _header.Count; i++)
     {
       RandomAccess.Read(_dataindex.SafeFileHandle!, buffer, i * Marshal.SizeOf<ItemIndex>());
-      this._itemsIndex.Add(MemoryMarshal.Cast<byte, ItemIndex>(buffer)[0]); ;
+      this._itemsIndex.Add(MemoryMarshal.Cast<byte, ItemIndex>(buffer)[0]);
+      ;
     }
   }
 
@@ -84,7 +85,12 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
   public IEnumerator<T> GetEnumerator()
   {
-    throw new NotImplementedException();
+    foreach (var item in _itemsIndex)
+    {
+      var buffer = new byte[item.Length];
+      RandomAccess.Read(_data!.SafeFileHandle!, buffer, item.Position);
+      yield return T.Deserialize(buffer, _itemOptions);
+    }
   }
 
   IEnumerator IEnumerable.GetEnumerator()
@@ -148,7 +154,24 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
   public void CopyTo(T[] array, int arrayIndex)
   {
-    throw new NotImplementedException();
+    if (array is null) throw new ArgumentNullException(nameof(array));
+    if (arrayIndex < 0) throw new ArgumentOutOfRangeException(nameof(arrayIndex), "arrayIndex must be >= 0");
+    if (arrayIndex + Count > array.Length)
+      throw new ArgumentException(
+        "The number of elements in the source ICollection is greater than the available space from arrayIndex to the end of the destination array.");
+
+    _itemsIndexLock.EnterReadLock();
+    try
+    {
+      for (int i = 0; i < _itemsIndex.Count; i++)
+      {
+        array[arrayIndex + i] = this[i];
+      }
+    }
+    finally
+    {
+      _itemsIndexLock.ExitReadLock();
+    }
   }
 
   public bool Remove(T item)
