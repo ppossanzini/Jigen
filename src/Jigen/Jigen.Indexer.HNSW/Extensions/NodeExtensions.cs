@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Numerics.Tensors;
 using Jigen.DataStructures;
 using Jigen.Persistance;
 
@@ -46,19 +47,14 @@ public static class NodeExtensions
     return node;
   }
 
-  private static void NormalizeInPlace(float[] vector)
+  private static void NormalizeInPlace(Span<float> vector)
   {
     if (vector.Length == 0) return;
 
-    float norm = 0;
-    for (int i = 0; i < vector.Length; i++)
-      norm += vector[i] * vector[i];
-
+    var norm = TensorPrimitives.Norm(vector);
     if (norm <= 0) return;
-
-    var inv = 1f / MathF.Sqrt(norm);
-    for (int i = 0; i < vector.Length; i++)
-      vector[i] *= inv;
+    
+    TensorPrimitives.Divide(vector, norm, vector);
   }
 
 

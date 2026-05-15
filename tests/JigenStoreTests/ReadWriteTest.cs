@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using Jigen;
 using Jigen.DataStructures;
@@ -85,14 +86,19 @@ public class ReadWriteTest : IDisposable
     var query = _embeddingGenerator.GenerateEmbedding(search);
     _testOutputHelper.WriteLine($"{String.Concat(query.Take(10).Select(i => $"{i},"))}");
 
+    var sw = new Stopwatch();
+    sw.Start();
     var results = _store.Search("vicini", query, 5);
+    sw.Stop();
 
-    _testOutputHelper.WriteLine($"Hai cercato: {search}");
+    _testOutputHelper.WriteLine($"Hai cercato: {search} ");
     foreach (var r in results)
     {
       _testOutputHelper.WriteLine($"{new Guid(r.entry.Id)} {serializer.ToJson(r.entry.Content)} {r.score}");
     }
 
+    _testOutputHelper.WriteLine($"Tempo di ricerca: {sw.ElapsedMilliseconds} ms");
+    
     await _store.Close();
   }
 }
