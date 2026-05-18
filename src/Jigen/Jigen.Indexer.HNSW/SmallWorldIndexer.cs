@@ -1,7 +1,11 @@
+using System.Text.Json;
 using Jigen.DataStructures;
+using Jigen.Filtering;
 using Jigen.Indexer.Extensions;
 using Jigen.Persistance;
 using System.Numerics.Tensors;
+using MessagePack;
+using MessagePack.Resolvers;
 
 namespace Jigen.Indexer;
 
@@ -133,20 +137,18 @@ public class SmallWorldIndexer : IIndexer
     }
   }
 
-  public List<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top)
+  public IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top, IFilterExpression contentFilter = null)
   {
     if (store is null || string.IsNullOrWhiteSpace(collection) || queryVector is null || queryVector.Length == 0 || top <= 0)
       return [];
-
-    List<IndexNode> neighbours;
-    var destination = CreateQueryNode(queryVector);
-
+    
     var graph = GetGraphForCollection(collection);
     if (graph.entrypoint == null)
       return [];
-
+    
+    var destination = CreateQueryNode(queryVector);
     var searchTop = Math.Max(top, Options.SearchPruning);
-    neighbours = this.KNearest(collection, destination, searchTop).ToList();
+    var neighbours = this.KNearest(collection, destination, searchTop);
 
     var resultsByKey = new Dictionary<string, (VectorEntry entry, float score)>(StringComparer.Ordinal);
 
@@ -159,6 +161,7 @@ public class SmallWorldIndexer : IIndexer
       {
         var content = store.GetContent(collection, node.Id.Value);
         if (content is null) continue;
+        if (contentFilter != null && !MatchesFilter(content, contentFilter)) continue;
 
         resultsByKey[nodeKey] = (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
       }
@@ -166,8 +169,52 @@ public class SmallWorldIndexer : IIndexer
 
     return resultsByKey.Values
       .OrderByDescending(r => r.score)
-      .Take(top)
-      .ToList();
+      .Take(top);
+  }
+
+  public IEnumerable<VectorEntry> Search(IStore store, string collection, IFilterExpression contentFilter = null)
+  {
+    if (store is null || string.IsNullOrWhiteSpace(collection))
+      yield break;
+
+    if (!store.GetCollectionIndexOf(collection, out var index))
+      yield break;
+
+    var results = new List<VectorEntry>();
+
+    foreach (var key in index.Keys)
+    {
+      var content = store.GetContent(collection, key);
+      if (content is null)
+        continue;
+
+      if (contentFilter != null && !MatchesFilter(content, contentFilter))
+        continue;
+
+      yield return new VectorEntry()
+      {
+        Id = key,
+        CollectionName = collection,
+        Content = content
+      };
+    }
+    
+  }
+
+  private static bool MatchesFilter(ReadOnlyMemory<byte> serializedContent, IFilterExpression filter)
+  {
+    if (filter == null) return true;
+
+    try
+    {
+      var json = MessagePackSerializer.ConvertToJson(serializedContent, MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance));
+      using var doc = JsonDocument.Parse(json);
+      return filter.Matches(doc.RootElement);
+    }
+    catch
+    {
+      return false;
+    }
   }
 
   /// <summary>

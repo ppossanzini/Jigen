@@ -5,5 +5,5 @@ public class DocumentCollectionOptions<T>
 {
   public string Name = nameof(T);
 
-  public IDocumentSerializer DocumentSerializer { get; set; } = MessagePackDocumentSerializer.Instance;
+  public IDocumentSerializer DocumentSerializer { get; set; } = MessagePackSerializedDocumentFilter.Instance;
 }
