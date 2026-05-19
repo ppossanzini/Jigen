@@ -21,7 +21,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   private FileStream _data;
   private FileStream _dataindex;
   private readonly List<ItemIndex> _itemsIndex = new();
-  private readonly ReaderWriterLockSlim _itemsIndexLock = new();
+  private readonly ReaderWriterLockSlim _itemsIndexLock = new(LockRecursionPolicy.SupportsRecursion);
 
   public StoredList(StoreListOptions options, TOptions itemOptions)
   {
@@ -283,6 +283,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       if (buffer.Length > ii.MaxLength)
       {
         position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
+        Interlocked.Increment( ref _header.TombStonedCount);
       }
 
       RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
