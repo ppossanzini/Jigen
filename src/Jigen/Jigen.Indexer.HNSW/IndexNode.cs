@@ -34,19 +34,19 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
     var writer = new ArrayBufferWriter<byte>();
 
     writer.WriteByte(SerializationVersion);
-    writer.WriteVarUInt((uint)PositionId);
+    writer.WriteLEInt(PositionId);
 
     writer.WriteByte((byte)(IsDeleted ? 1 : 0));
 
-    writer.WriteVarUInt((uint)Id.Value.Length);
+    writer.WriteLEInt(Id.Value.Length);
     writer.WriteBytes(Id.Value);
 
-    writer.WriteVarUInt((uint)Vector.Length);
+    writer.WriteLEInt(Vector.Length);
     if (Vector.Length > 0)
       writer.WriteBytes(MemoryMarshal.AsBytes<float>(Vector.AsSpan()));
 
-    writer.WriteVarUInt((uint)MaxLevel);
-    writer.WriteVarUInt((uint)Connections.Count);
+    writer.WriteLEInt(MaxLevel);
+    writer.WriteLEInt(Connections.Count);
 
     for (int level = 0; level < Connections.Count; level++)
     {
@@ -60,16 +60,10 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
       }
 
       Array.Sort(ordered);
-      writer.WriteVarUInt((uint)ordered.Length);
+      writer.WriteLEInt(ordered.Length);
 
-      uint previous = 0;
-      for (int i = 0; i < ordered.Length; i++)
-      {
-        uint current = (uint)ordered[i];
-        uint delta = i == 0 ? current : current - previous;
-        writer.WriteVarUInt(delta);
-        previous = current;
-      }
+      foreach (var current in ordered)
+        writer.WriteLEInt(current);
     }
 
     return writer.WrittenMemory;
@@ -84,18 +78,18 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
     if (version != SerializationVersion)
       throw new InvalidDataException($"Unsupported IndexNode serialization version: {version}");
 
-    var positionId = checked((int)span.ReadVarUInt(ref offset));
-    
+    var positionId = span.ReadLEInt32(ref offset);
+
     var isDeleted = span.ReadByte(ref offset) == 1;
 
-    var idLength = checked((int)span.ReadVarUInt(ref offset));
+    var idLength = span.ReadLEInt32(ref offset);
     if (idLength < 0 || offset + idLength > span.Length)
       throw new InvalidDataException("Invalid Id length in serialized IndexNode payload.");
 
     var idBuffer = span.Slice(offset, idLength).ToArray();
     offset += idLength;
 
-    var vectorLength = checked((int)span.ReadVarUInt(ref offset));
+    var vectorLength = span.ReadLEInt32(ref offset);
     if (vectorLength < 0)
       throw new InvalidDataException("Invalid vector length in serialized IndexNode payload.");
 
@@ -108,26 +102,23 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
       : MemoryMarshal.Cast<byte, float>(span.Slice(offset, vectorBytesLength)).ToArray();
     offset += vectorBytesLength;
 
-    var maxLevel = checked((int)span.ReadVarUInt(ref offset));
-    var levelsCount = checked((int)span.ReadVarUInt(ref offset));
+    var maxLevel = span.ReadLEInt32(ref offset);
+    var levelsCount = span.ReadLEInt32(ref offset);
     if (levelsCount < 0)
       throw new InvalidDataException("Invalid levels count in serialized IndexNode payload.");
 
     var connections = new IList<int>[levelsCount];
     for (int level = 0; level < levelsCount; level++)
     {
-      var connCount = checked((int)span.ReadVarUInt(ref offset));
+      var connCount = span.ReadLEInt32(ref offset);
       if (connCount < 0)
         throw new InvalidDataException("Invalid connection count in serialized IndexNode payload.");
 
       var levelConnections = new int[connCount];
-      uint previous = 0;
       for (int i = 0; i < connCount; i++)
       {
-        var delta = span.ReadVarUInt(ref offset);
-        uint current = i == 0 ? delta : checked(previous + delta);
-        levelConnections[i] = checked((int)current);
-        previous = current;
+        var val = span.ReadLEInt32(ref offset);
+        levelConnections[i] = val;
       }
 
       connections[level] = levelConnections;

@@ -18,6 +18,7 @@ public struct ItemIndex
 {
   public long Position;
   public int Length;
+  public int MaxLength;
   public ulong Hash;
   public byte[] Data => MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref this, 1)).ToArray();
 }

@@ -43,4 +43,38 @@ public class TestStoredList
         Assert.Equal("test",list[0].Name);
         Assert.Equal("test2",list[1].Name);
     }
+    
+    
+    [Fact]
+    public void SizeTest()
+    {
+        var list = new StoredList<TestItem, TestItemOptions>(new StoreListOptions()
+        {
+            FilePath = "/data/testsize.list",
+        }, new TestItemOptions());
+
+
+        var item1 = new TestItem() { Id = 1, Name = "test" };
+        var item2 = new TestItem() { Id = 1, Name = "test" }; 
+        
+        list.Add(item1);
+        list.Add(item2);
+        
+        list.Flush();
+
+        
+        var size = new FileInfo("/data/testsize.list").Length;
+
+        for (var i = 0; i < 100; i++)
+        {
+            item2.Id = i;
+            list[1] = item2;
+        }
+        
+        list.Flush();
+        
+        var size2 = new FileInfo("/data/testsize.list").Length;
+
+        Assert.Equal(size, size2);
+    }
 }
