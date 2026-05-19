@@ -13,9 +13,9 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
 
   public int PositionId { get; set; }
   public VectorKey Id { get; set; }
-  public bool IsDeleted { get; set; } = false;
+  public bool IsDeleted { get; set; }
   public int MaxLevel { get; set; }
-  public float[] Vector { get; set; } = Array.Empty<float>();
+  public float[] Vector { get; set; } = [];
 
   public IList<IList<int>> Connections { get; set; } = Array.Empty<IList<int>>();
   public TravelingCosts TravelingCosts { get; private set; }
