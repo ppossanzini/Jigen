@@ -94,13 +94,9 @@ public class TestStoredList(ITestOutputHelper testOutputHelper)
       FilePath = filePath,
     }, new TestItemOptions());
 
-    testOutputHelper.WriteLine("Testintg Shrink 1");
-
     list.Add(new TestItem() { Id = 1, Name = "first" });
     list.Add(new TestItem() { Id = 2, Name = "second" });
     list.Flush();
-
-    testOutputHelper.WriteLine("Testintg Shrink 2");
 
     var baseSize = new FileInfo(filePath).Length;
 
@@ -113,22 +109,16 @@ public class TestStoredList(ITestOutputHelper testOutputHelper)
       };
     }
 
-    testOutputHelper.WriteLine("Testintg Shrink 3");
-
     list.Flush();
     var bloatedSize = new FileInfo(filePath).Length;
 
-    testOutputHelper.WriteLine("Testintg Shrink 4");
     Assert.True(bloatedSize >= baseSize);
 
     var expectedFirst = list[0].Name;
     var expectedSecond = list[1].Name;
 
-    testOutputHelper.WriteLine("Testintg Shrink 5");
     list.ShrinkDB();
     list.Flush();
-    testOutputHelper.WriteLine("Testintg Shrink 6");
-
 
     var shrunkSize = new FileInfo(filePath).Length;
 
