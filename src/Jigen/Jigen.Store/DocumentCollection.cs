@@ -1,6 +1,8 @@
 using System.Collections;
+using System.Linq.Expressions;
 using Jigen.DataStructures;
 using Jigen.Extensions;
+using Jigen.Filtering;
 
 namespace Jigen;
 
@@ -10,16 +12,19 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
 {
   private string CollectionName = options?.Name ?? nameof(T);
 
+  private IEnumerable<KeyValuePair<VectorKey, T>> EnumerateDocuments(IFilterExpression filter = null)
+  {
+    var filtered = store.Search(CollectionName, filter);
+    foreach (var entry in filtered)
+    {
+      var document = options.DocumentSerializer.Deserialize<T>(entry.Content);
+      yield return new KeyValuePair<VectorKey, T>(entry.Id, document);
+    }
+  }
+
   public IEnumerator<KeyValuePair<VectorKey, T>> GetEnumerator()
   {
-    if (!store.PositionIndex.TryGetValue(CollectionName, out var value)) yield break;
-
-    foreach (var k in value.Keys)
-    {
-      var content = store.GetContent(CollectionName, k);
-      if (content != null)
-        yield return new KeyValuePair<VectorKey, T>(k, options.DocumentSerializer.Deserialize<T>(content));
-    }
+    return EnumerateDocuments().GetEnumerator();
   }
 
   IEnumerator IEnumerable.GetEnumerator()
@@ -85,6 +90,29 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
            index.ContainsKey(key.Value);
   }
 
+  /// <summary>
+  /// Searches documents using an Expression predicate.
+  /// The expression is translated to a serialized filter and applied at the index level.
+  /// </summary>
+  public List<KeyValuePair<VectorKey, T>> Search(Expression<Func<T, bool>> predicate = null)
+  {
+    if (predicate == null)
+      return EnumerateDocuments().ToList();
+
+    var filter = ExpressionTranslator.Translate(predicate);
+    return Search(filter);
+  }
+
+  /// <summary>
+  /// Searches documents using a serialized filter.
+  /// The filter is applied entirely at the index level without deserialization.
+  /// This enables filters to be transferred via GRPC and applied server-side.
+  /// </summary>
+  public List<KeyValuePair<VectorKey, T>> Search(IFilterExpression filter)
+  {
+    return EnumerateDocuments(filter).ToList();
+  }
+
   public bool Remove(VectorKey key)
   {
     var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
@@ -107,19 +135,11 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
     set => this.Add(key, value);
   }
 
-  public ICollection<VectorKey> Keys => (store.PositionIndex.TryGetValue(CollectionName, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();
+  public ICollection<VectorKey> Keys =>
+    (store.PositionIndex.TryGetValue(CollectionName, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();
 
   public ICollection<T> Values
   {
-    get
-    {
-      if (store.PositionIndex.TryGetValue(CollectionName, out var value))
-      {
-        return value.Keys.Select(k => new { k, content = store.GetContent(CollectionName, k) })
-          .Select(k => k.content is { Length: > 0 } ? options.DocumentSerializer.Deserialize<T>(k.content) : null).ToArray();
-      }
-
-      return Array.Empty<T>();
-    }
+    get { return EnumerateDocuments().Select(k => k.Value).ToArray(); }
   }
 }

@@ -1,10 +1,10 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Runtime.CompilerServices;
 
 namespace Jigen.Extensions;
 
-
-public static class VarIntExtensions
+public static class ReadWriteIntExtensions
 {
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public static void WriteByte(this ArrayBufferWriter<byte> writer, byte value)
@@ -24,15 +24,13 @@ public static class VarIntExtensions
   }
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
-  public static void WriteVarUInt(this ArrayBufferWriter<byte> writer, uint value)
+  public static void WriteLEInt(this ArrayBufferWriter<byte> writer, int value)
   {
-    while (value >= 0x80)
-    {
-      writer.WriteByte((byte)((value & 0x7F) | 0x80));
-      value >>= 7;
-    }
-
-    writer.WriteByte((byte)value);
+    
+    Span<byte> buffer = stackalloc byte[sizeof(int)];
+    BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
+    buffer.CopyTo(writer.GetSpan(buffer.Length));
+    writer.Advance(buffer.Length);
   }
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -44,23 +42,12 @@ public static class VarIntExtensions
     return source[offset++];
   }
 
+
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
-  public static uint ReadVarUInt(this ReadOnlySpan<byte> source, ref int offset)
+  public static int ReadLEInt32(this ReadOnlySpan<byte> handle, ref int offset)
   {
-    uint result = 0;
-    int shift = 0;
-
-    while (true)
-    {
-      var next = source.ReadByte(ref offset);
-      result |= (uint)(next & 0x7F) << shift;
-
-      if ((next & 0x80) == 0)
-        return result;
-
-      shift += 7;
-      if (shift >= 35)
-        throw new InvalidDataException("Invalid varint value in IndexNode payload.");
-    }
+    var buffer = handle.Slice(offset, sizeof(int));
+    offset += sizeof(int);
+    return BinaryPrimitives.ReadInt32LittleEndian(buffer);
   }
 }

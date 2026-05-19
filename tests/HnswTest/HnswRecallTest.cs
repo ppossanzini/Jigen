@@ -59,7 +59,7 @@ public class HnswRecallTest : IAsyncDisposable
     Assert.True(recallAtTop >= 0.60f, $"Expected recall >= 0.60, got {recallAtTop:0.000}.");
 
     var queryId = Convert.ToBase64String(seeded[12].Id);
-    Assert.Equal(queryId, Convert.ToBase64String(bruteResults[0].entry.Id));
+    Assert.Equal(queryId, Convert.ToBase64String(bruteResults.First().entry.Id));
   }
 
   private async Task<List<(byte[] Id, float[] Embedding)>> SeedAsync(int totalVectors, int dimensions, int seed)

@@ -17,12 +17,11 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     foreach (var k in value.Keys)
     {
       var content = store.GetContent(CollectionName, k);
-      var embeddings = Array.Empty<float>(); //TODO: Aggiungere metodo per la lettura degli embeddings
       if (content != null)
         yield return new KeyValuePair<VectorKey, VectorEntry<T>>(k,
           new VectorEntry<T>()
           {
-            Key = k, Content = options.DocumentSerializer.Deserialize<T>(content), Embedding = embeddings
+            Key = k, Content = options.DocumentSerializer.Deserialize<T>(content)
           });
     }
   }
@@ -120,7 +119,8 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     set => this.Add(key, value);
   }
 
-  public ICollection<VectorKey> Keys => (store.PositionIndex.TryGetValue(CollectionName, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();
+  public ICollection<VectorKey> Keys =>
+    (store.PositionIndex.TryGetValue(CollectionName, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();
 
   public ICollection<VectorEntry<T>> Values
   {

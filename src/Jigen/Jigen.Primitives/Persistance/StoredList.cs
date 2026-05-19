@@ -40,8 +40,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   private void InitializeStore()
   {
     if (_data is null) throw new ArgumentNullException(nameof(_data));
-
-    // This is a new file so i neeed to write fileHeader
+    
     if (_data.Length == 0)
     {
       _header.Count = 0;
@@ -108,7 +107,10 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     _itemsIndexLock.EnterWriteLock();
     try
     {
-      _itemsIndex.Add(new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer.Span) });
+      _itemsIndex.Add(new ItemIndex() { Position = position, 
+      Length = buffer.Length, 
+      MaxLength = buffer.Length,
+      Hash = XxHash64.HashToUInt64(buffer.Span) });
       Interlocked.Increment(ref _header.Count);
     }
     finally
@@ -226,7 +228,9 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     _itemsIndexLock.EnterWriteLock();
     try
     {
-      _itemsIndex.Insert(index, new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer.Span) });
+      _itemsIndex.Insert(index, new ItemIndex() { Position = position, 
+      MaxLength = buffer.Length,
+      Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer.Span) });
       Interlocked.Increment(ref _header.Count);
     }
     finally
@@ -272,15 +276,27 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     {
       if (value is null) throw new ArgumentNullException(nameof(value), "Value cannot be null");
 
+      var ii = _itemsIndex[index];
       var buffer = value.Serialize();
 
-      var position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
+      long position = ii.Position;
+      if (buffer.Length > ii.MaxLength)
+      {
+        position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
+      }
+
       RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
 
       _itemsIndexLock.EnterWriteLock();
       try
       {
-        _itemsIndex[index] = new ItemIndex() { Position = position, Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer.Span) };
+        _itemsIndex[index] = new ItemIndex()
+        {
+          Position = position, 
+          Length = buffer.Length, 
+          MaxLength = Math.Max(buffer.Length, ii.MaxLength),
+          Hash = XxHash64.HashToUInt64(buffer.Span)
+        };
       }
       finally
       {
