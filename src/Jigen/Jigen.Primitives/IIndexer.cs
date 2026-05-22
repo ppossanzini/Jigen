@@ -5,7 +5,7 @@ namespace Jigen;
 
 public interface IIndexer
 {
-  void AddToIndex(VectorEntry entry);
+  void AddToIndex(VectorEntry entry, bool waitForIndexing = false);
   void RemoveFromIndex(string collection, byte[] key);
 
   IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top, IFilterExpression contentFilter = null);

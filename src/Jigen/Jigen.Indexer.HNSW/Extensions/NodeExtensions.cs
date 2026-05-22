@@ -13,7 +13,7 @@ public static class NodeExtensions
     return level == 0 ? 2 * m : m;
   }
 
-  public static void AddNewNode(this StoredList<IndexNode, SmallWorldOptions> nodes, IndexNode node)
+  public static void AddNewNode(this IList<IndexNode> nodes, IndexNode node)
   {
     lock (nodes)
     {

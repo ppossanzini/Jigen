@@ -22,7 +22,8 @@ namespace Jigen.PerformancePrimitives;
 /// and avoiding reading threads go ahead of writing threads.
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public class CircularMemoryQueue<T>
+public class CircularMemoryQueue<T> 
+where T : class
 {
   private readonly Memory<T> _buffer;
 
@@ -66,7 +67,7 @@ public class CircularMemoryQueue<T>
     try
     {
       var position = (int)((Interlocked.Increment(ref _tail) - 1) & _capacityMask);
-      _buffer.Span[position] = item;
+      Volatile.Write(ref _buffer.Span[position], item);
     }
     finally
     {
@@ -81,7 +82,7 @@ public class CircularMemoryQueue<T>
     try
     {
       var position = (int)((Interlocked.Increment(ref _tail) - 1) & _capacityMask);
-      _buffer.Span[position] = item;
+      Volatile.Write(ref _buffer.Span[position], item);
     }
     finally
     {
@@ -97,8 +98,8 @@ public class CircularMemoryQueue<T>
     try
     {
       var position = (int)((Interlocked.Increment(ref _head) - 1) & _capacityMask);
-      var result = _buffer.Span[position];
-      _buffer.Span[position] = default!;
+      var result = Volatile.Read(ref _buffer.Span[position]);
+      Volatile.Write(ref _buffer.Span[position], default!);
       
       return result;
     }
@@ -117,8 +118,8 @@ public class CircularMemoryQueue<T>
     try
     {
       var position = (int)((Interlocked.Increment(ref _head) - 1) & _capacityMask);
-      result = _buffer.Span[position];
-      _buffer.Span[position] = default!;
+      result = Volatile.Read(ref _buffer.Span[position]);
+      Volatile.Write(ref _buffer.Span[position], default!);
       return true;
     }
     finally
@@ -130,6 +131,6 @@ public class CircularMemoryQueue<T>
   public T Peek()
   {
     var position = (int)(Interlocked.Read(ref _head)  & _capacityMask);
-    return _buffer.Span[position];
+    return Volatile.Read(ref _buffer.Span[position]);
   }
 }

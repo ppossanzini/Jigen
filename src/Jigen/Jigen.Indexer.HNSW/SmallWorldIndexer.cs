@@ -18,7 +18,7 @@ public class SmallWorldIndexer : IIndexer
   private readonly ReaderWriterLockSlim _sync = new(LockRecursionPolicy.SupportsRecursion);
 
   // private readonly Dictionary<string, ReaderWriterLockSlim> _collectionLocks = new(StringComparer.Ordinal);
-  private readonly Dictionary<string, (IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes)> _collectionGraphs = new();
+  private readonly Dictionary<string, (IndexNode entrypoint, IList<IndexNode> nodes)> _collectionGraphs = new();
 
   internal readonly SelectForConnectingDelegate SelectBestForConnecting = null;
 
@@ -36,7 +36,7 @@ public class SmallWorldIndexer : IIndexer
     };
   }
 
-  internal (IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes) GetGraphForCollection(string collection)
+  internal (IndexNode entrypoint, IList<IndexNode> nodes) GetGraphForCollection(string collection)
   {
     _sync.EnterUpgradeableReadLock();
     try
@@ -49,11 +49,15 @@ public class SmallWorldIndexer : IIndexer
         if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
         var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
 
-        var nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
-        {
-          FilePath = filePath,
-          FlushInterval = TimeSpan.FromMinutes(1)
-        }, Options);
+        IList<IndexNode> nodes;
+        if (Options.InMemory)
+          nodes  = new List<IndexNode>();
+        else
+          nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
+          {
+            FilePath = filePath,
+            FlushInterval = TimeSpan.FromMinutes(1)
+          }, Options);
 
         if (!nodes.Any())
         {
@@ -76,13 +80,19 @@ public class SmallWorldIndexer : IIndexer
     }
   }
 
-  private void AssignEntryPoint((IndexNode entrypoint, StoredList<IndexNode, SmallWorldOptions> nodes) entry, IndexNode newNode)
+  private void AssignEntryPoint((IndexNode entrypoint, IList<IndexNode> nodes) entry, IndexNode newNode)
   {
     entry.entrypoint = newNode;
     entry.nodes[0] = newNode;
   }
 
-  public void AddToIndex(VectorEntry entry)
+  public void AddToIndex(VectorEntry entry, bool  waitForIndexing = false)
+  {
+    if (waitForIndexing) AddToIndex(entry);
+    else _ = Task.Run(() => AddToIndex(entry));
+  }
+
+  internal void AddToIndex(VectorEntry entry)
   {
     if (entry is null || entry.Id is null || string.IsNullOrWhiteSpace(entry.CollectionName) || entry.Embedding.IsEmpty)
       return;
@@ -137,15 +147,16 @@ public class SmallWorldIndexer : IIndexer
     }
   }
 
-  public IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top, IFilterExpression contentFilter = null)
+  public IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top,
+    IFilterExpression contentFilter = null)
   {
     if (store is null || string.IsNullOrWhiteSpace(collection) || queryVector is null || queryVector.Length == 0 || top <= 0)
       return [];
-    
+
     var graph = GetGraphForCollection(collection);
     if (graph.entrypoint == null)
       return [];
-    
+
     var destination = CreateQueryNode(queryVector);
     var searchTop = Math.Max(top, Options.SearchPruning);
     var neighbours = this.KNearest(collection, destination, searchTop);
@@ -198,7 +209,6 @@ public class SmallWorldIndexer : IIndexer
         Content = content
       };
     }
-    
   }
 
   private static bool MatchesFilter(ReadOnlyMemory<byte> serializedContent, IFilterExpression filter)
@@ -207,7 +217,8 @@ public class SmallWorldIndexer : IIndexer
 
     try
     {
-      var json = MessagePackSerializer.ConvertToJson(serializedContent, MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance));
+      var json = MessagePackSerializer.ConvertToJson(serializedContent,
+        MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance));
       using var doc = JsonDocument.Parse(json);
       return filter.Matches(doc.RootElement);
     }
@@ -265,7 +276,7 @@ public class SmallWorldIndexer : IIndexer
 
   public Task FlushAsync()
   {
-    List<StoredList<IndexNode, SmallWorldOptions>> toFlush;
+    List<IList<IndexNode>> toFlush;
     _sync.EnterReadLock();
     try
     {
@@ -277,7 +288,7 @@ public class SmallWorldIndexer : IIndexer
     }
 
     foreach (var nodes in toFlush)
-      nodes.Flush();
+      (nodes as StoredList<IndexNode, SmallWorldOptions>)?.Flush();
 
     return Task.CompletedTask;
   }
@@ -318,7 +329,7 @@ public class SmallWorldIndexer : IIndexer
 
     var norm = TensorPrimitives.Norm(vector);
     if (norm <= 0) return;
-    
+
     TensorPrimitives.Divide(vector, norm, vector);
   }
 }

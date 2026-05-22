@@ -17,6 +17,7 @@ public class SmallWorldOptions( int M = 10)
   public Func<IndexNode, IndexNode, float> DefaultDistanceFunction { get; internal set; }
 
   public string StoragePath { get; set; } = Path.Combine(Path.GetTempPath(), "jigen-hnsw");
+  public bool InMemory { get; set; }
 
   /// <summary>
   /// Gets or sets the parameter which defines the maximum number of neighbors in the zero and above-zero layers.
