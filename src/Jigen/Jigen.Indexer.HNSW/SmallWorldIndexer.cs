@@ -38,46 +38,46 @@ public class SmallWorldIndexer : IIndexer
 
   internal (IndexNode entrypoint, IList<IndexNode> nodes) GetGraphForCollection(string collection)
   {
-    _sync.EnterUpgradeableReadLock();
+    // _sync.EnterUpgradeableReadLock();
+    // try
+    // {
+    if (_collectionGraphs.TryGetValue(collection, out var item)) return item;
+
+    _sync.EnterWriteLock();
     try
     {
-      if (_collectionGraphs.TryGetValue(collection, out var item)) return item;
+      if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
+      var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
 
-      _sync.EnterWriteLock();
-      try
-      {
-        if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
-        var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
-
-        IList<IndexNode> nodes;
-        if (Options.InMemory)
-          nodes  = new List<IndexNode>();
-        else
-          nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
-          {
-            FilePath = filePath,
-            FlushInterval = TimeSpan.FromMinutes(1)
-          }, Options);
-
-        if (!nodes.Any())
+      IList<IndexNode> nodes;
+      if (Options.InMemory)
+        nodes  = new List<IndexNode>();
+      else
+        nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
         {
-          var entrypoint = VectorEntry.Empty.ToNode(Options);
-          nodes.Add(entrypoint); // position 0 is reserved for entrypoint nodes
-        }
+          FilePath = filePath,
+          FlushInterval = TimeSpan.FromMinutes(1)
+        }, Options);
 
-        item = (nodes[nodes[0].PositionId], nodes);
-        _collectionGraphs[collection] = item;
-        return item;
-      }
-      finally
+      if (!nodes.Any())
       {
-        _sync.ExitWriteLock();
+        var entrypoint = VectorEntry.Empty.ToNode(Options);
+        nodes.Add(entrypoint); // position 0 is reserved for entrypoint nodes
       }
+
+      item = (nodes[nodes[0].PositionId], nodes);
+      _collectionGraphs[collection] = item;
+      return item;
     }
     finally
     {
-      _sync.ExitUpgradeableReadLock();
+      _sync.ExitWriteLock();
     }
+    // }
+    // finally
+    // {
+    //   _sync.ExitUpgradeableReadLock();
+    // }
   }
 
   private void AssignEntryPoint((IndexNode entrypoint, IList<IndexNode> nodes) entry, IndexNode newNode)
