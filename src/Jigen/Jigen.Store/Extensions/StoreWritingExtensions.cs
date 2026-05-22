@@ -56,7 +56,7 @@ public static class StoreWritingExtensions
     return result;
   }
 
-  internal static async Task<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)>
+  internal static (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)
     AppendContent(this Store store, byte[] id, string collection, ReadOnlyMemory<byte>? content, ReadOnlyMemory<float>? embeddings)
   {
     (long contentPosition, long embeddingPosition, int dimensions, long size) actualindex = default;
@@ -80,10 +80,10 @@ public static class StoreWritingExtensions
       contentPosition = contentStream.Position;
 
       contentStream.WriteInt32Le(id.Length);
-      await contentStream.WriteAsync(id, 0, id.Length);
+      contentStream.Write(id, 0, id.Length);
       contentStream.WriteInt32Le(content.Value.Length);
       
-      await contentStream.WriteAsync(content.Value);
+      contentStream.Write(content.Value.Span);
 
       store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
     }
@@ -96,7 +96,7 @@ public static class StoreWritingExtensions
       embeddingPosition = embeddingsStream.Position;
 
       embeddingsStream.WriteInt32Le(id.Length);
-      await embeddingsStream.WriteAsync(id, 0, id.Length);
+      embeddingsStream.Write(id, 0, id.Length);
 
       // Evita embeddings.Value.ToArray(): scrive lo span come bytes
       embeddingsStream.WriteByteArray(embeddings.Value.Span);

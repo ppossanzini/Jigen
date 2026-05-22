@@ -14,24 +14,38 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
       var position = Marshal.SizeOf<StoredListHeader>();
 
-      foreach (var item in items)
+      // Search for the maximum required buffer size to read items in chunks
+      var maxRequiredSize = items.Length > 0 ? items.Max(i => i.MaxLength) : 0;
+      var sharedBuffer = maxRequiredSize > 0 ? ArrayPool<byte>.Shared.Rent(maxRequiredSize) : Array.Empty<byte>();
+
+      try
       {
-        var buffer = ArrayPool<byte>.Shared.Rent(item.MaxLength);
-
-        RandomAccess.Read(_data.SafeFileHandle, buffer, item.Position);
-        RandomAccess.Write(_data.SafeFileHandle, buffer, position);
-
-        var idx = _itemsIndex.IndexOf(item);
-        _itemsIndex[idx] = new ItemIndex()
+        foreach (var item in items)
         {
-          Position = position,
-          Length = item.Length,
-          MaxLength = item.MaxLength,
-          Hash = item.Hash
-        };
-        ArrayPool<byte>.Shared.Return(buffer);
+          // Slice the shared buffer to the required size for the current item
+          // This allows us to reuse the same buffer for multiple items without allocating a new one each time
+          // Read and Write operations are performed using the sliced buffer, ensuring efficient memory usage while processing items in chunks
+          var bufferSlice = sharedBuffer.AsSpan(0, item.MaxLength);
 
-        position = position + item.MaxLength;
+          RandomAccess.Read(_data.SafeFileHandle, bufferSlice, item.Position);
+          RandomAccess.Write(_data.SafeFileHandle, bufferSlice, position);
+
+          var idx = _itemsIndex.IndexOf(item);
+          _itemsIndex[idx] = new ItemIndex()
+          {
+            Position = position,
+            Length = item.Length,
+            MaxLength = item.MaxLength,
+            Hash = item.Hash
+          };
+
+          position = position + item.MaxLength;
+        }
+      }
+      finally
+      {
+        if (maxRequiredSize > 0)
+          ArrayPool<byte>.Shared.Return(sharedBuffer);
       }
 
       this._header.Count = _itemsIndex.Count;
