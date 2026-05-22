@@ -38,6 +38,9 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     if (payload == null)
       return BadRequest("Payload cannot be null");
 
+    if(dbname is null || collection  is null || key is null)
+      return BadRequest();
+    
     VectorKey keyVector = key switch
     {
       long l => VectorKey.From(l),
@@ -64,6 +67,10 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   [HttpDelete]
   public async Task<IActionResult> DeleteDocument(string dbname, string collection, [FromQuery] object key)
   {
+    
+    if(dbname is null || collection  is null || key is null)
+      return BadRequest();
+    
     VectorKey keyVector = key switch
     {
       long l => VectorKey.From(l),
@@ -90,6 +97,9 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   [HttpGet]
   public async Task<IActionResult> GetDocument(string dbname, string collection, [FromQuery] object key)
   {
+    if(dbname is null || collection  is null || key is null)
+      return BadRequest();
+    
     VectorKey keyVector = key switch
     {
       long l => VectorKey.From(l),
@@ -116,6 +126,9 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   [HttpGet]
   public async Task<IActionResult> GetDocumentJson(string dbname, string collection, [FromQuery] object key)
   {
+    if(dbname is null || collection  is null || key is null)
+      return BadRequest();
+    
     VectorKey keyVector = key switch
     {
       long l => VectorKey.From(l),

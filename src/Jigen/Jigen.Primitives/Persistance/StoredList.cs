@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Collections;
 using System.ComponentModel;
 using System.IO.MemoryMappedFiles;
@@ -40,7 +41,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   private void InitializeStore()
   {
     if (_data is null) throw new ArgumentNullException(nameof(_data));
-    
+
     if (_data.Length == 0)
     {
       _header.Count = 0;
@@ -84,11 +85,41 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
   public IEnumerator<T> GetEnumerator()
   {
-    foreach (var item in _itemsIndex)
+    int initialCount;
+    
+    _itemsIndexLock.EnterReadLock();
+    try
+    { initialCount = _itemsIndex.Count; }
+    finally
     {
-      var buffer = new byte[item.Length];
-      RandomAccess.Read(_data!.SafeFileHandle!, buffer, item.Position);
-      yield return T.Deserialize(buffer, _itemOptions);
+      _itemsIndexLock.ExitReadLock();
+    }
+
+    for (int i = 0; i < initialCount; i++)
+    {
+      ItemIndex ii;
+      _itemsIndexLock.EnterReadLock();
+      try
+      {
+        // Fallback di sicurezza nel caso subisca uno shrink o ritiri durante l'enumerazione
+        if (i >= _itemsIndex.Count) break;
+        ii = _itemsIndex[i];
+      }
+      finally
+      {
+        _itemsIndexLock.ExitReadLock();
+      }
+
+      var buffer = ArrayPool<byte>.Shared.Rent(ii.Length);
+      try
+      {
+        RandomAccess.Read(_data!.SafeFileHandle!, buffer.AsSpan(0, ii.Length), ii.Position);
+        yield return T.Deserialize(buffer.AsMemory(0, ii.Length), _itemOptions);
+      }
+      finally
+      {
+        ArrayPool<byte>.Shared.Return(buffer);
+      }
     }
   }
 
@@ -107,10 +138,13 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     _itemsIndexLock.EnterWriteLock();
     try
     {
-      _itemsIndex.Add(new ItemIndex() { Position = position, 
-      Length = buffer.Length, 
-      MaxLength = buffer.Length,
-      Hash = XxHash64.HashToUInt64(buffer.Span) });
+      _itemsIndex.Add(new ItemIndex()
+      {
+        Position = position,
+        Length = buffer.Length,
+        MaxLength = buffer.Length,
+        Hash = XxHash64.HashToUInt64(buffer.Span)
+      });
       Interlocked.Increment(ref _header.Count);
     }
     finally
@@ -228,9 +262,13 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     _itemsIndexLock.EnterWriteLock();
     try
     {
-      _itemsIndex.Insert(index, new ItemIndex() { Position = position, 
-      MaxLength = buffer.Length,
-      Length = buffer.Length, Hash = XxHash64.HashToUInt64(buffer.Span) });
+      _itemsIndex.Insert(index, new ItemIndex()
+      {
+        Position = position,
+        MaxLength = buffer.Length,
+        Length = buffer.Length,
+        Hash = XxHash64.HashToUInt64(buffer.Span)
+      });
       Interlocked.Increment(ref _header.Count);
     }
     finally
@@ -259,17 +297,26 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   {
     get
     {
+      ItemIndex ii;
       _itemsIndexLock.EnterReadLock();
       try
       {
-        var ii = _itemsIndex[index];
-        var buffer = new byte[ii.Length];
-        RandomAccess.Read(_data!.SafeFileHandle!, buffer, ii.Position);
-        return T.Deserialize(buffer, _itemOptions);
+        ii = _itemsIndex[index];
       }
       finally
       {
         _itemsIndexLock.ExitReadLock();
+      }
+
+      var buffer = ArrayPool<byte>.Shared.Rent(ii.Length);
+      try
+      {
+        RandomAccess.Read(_data!.SafeFileHandle!, buffer.AsSpan(0, ii.Length), ii.Position);
+        return T.Deserialize(buffer.AsMemory(0, ii.Length), _itemOptions);
+      }
+      finally
+      {
+        ArrayPool<byte>.Shared.Return(buffer);
       }
     }
     set
@@ -283,7 +330,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       if (buffer.Length > ii.MaxLength)
       {
         position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
-        Interlocked.Increment( ref _header.TombStonedCount);
+        Interlocked.Increment(ref _header.TombStonedCount);
       }
 
       RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
@@ -293,8 +340,8 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       {
         _itemsIndex[index] = new ItemIndex()
         {
-          Position = position, 
-          Length = buffer.Length, 
+          Position = position,
+          Length = buffer.Length,
           MaxLength = Math.Max(buffer.Length, ii.MaxLength),
           Hash = XxHash64.HashToUInt64(buffer.Span)
         };

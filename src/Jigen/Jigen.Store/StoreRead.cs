@@ -69,17 +69,28 @@ public partial class Store
     if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
           out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
 
-    Span<byte> idSizeBuffer = stackalloc byte[sizeof(int)];
-    RandomAccess.Read(this.ContentFileStream.SafeFileHandle, idSizeBuffer, item.contentposition);
-    var idsize = BitConverter.ToInt32(idSizeBuffer);
+    int headerSize = sizeof(int) + id.Length;
+    byte[] rented = null;
+    Span<byte> headerBuffer = headerSize <= 512 
+        ? stackalloc byte[headerSize] 
+        : (rented = System.Buffers.ArrayPool<byte>.Shared.Rent(headerSize)).AsSpan(0, headerSize);
 
-    Span<byte> contentId = idsize <= 256 ? stackalloc byte[idsize] : new byte[idsize];
-    RandomAccess.Read(this.ContentFileStream.SafeFileHandle, contentId, item.contentposition + sizeof(int));
-
-    if (!contentId.SequenceEqual(id)) throw new InvalidConstraintException("Content ID mismatch");
+    try
+    {
+      RandomAccess.Read(this.ContentFileStream.SafeFileHandle, headerBuffer, item.contentposition);
+      
+      var idsize = BitConverter.ToInt32(headerBuffer.Slice(0, sizeof(int)));
+      if (idsize != id.Length || !headerBuffer.Slice(sizeof(int), id.Length).SequenceEqual(id))
+        throw new InvalidConstraintException("Content ID mismatch");
+    }
+    finally
+    {
+      if (rented != null)
+        System.Buffers.ArrayPool<byte>.Shared.Return(rented);
+    }
 
     byte[] buffer = new byte[item.size];
-    RandomAccess.Read(this.ContentFileStream.SafeFileHandle, buffer, item.contentposition + 2 * sizeof(int) + idsize);
+    RandomAccess.Read(this.ContentFileStream.SafeFileHandle, buffer, item.contentposition + 2 * sizeof(int) + id.Length);
     return buffer;
   }
 }

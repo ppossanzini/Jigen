@@ -76,8 +76,8 @@ public struct VectorKey
     return new VectorKey { Value = value.ToArray() };
   }
   
-  public static implicit operator Span<byte>(VectorKey item)
+  public static implicit operator ReadOnlySpan<byte>(VectorKey item)
   {
-    return (Span<byte>)item.Value;
+    return new ReadOnlySpan<byte>(item.Value);
   }
 }

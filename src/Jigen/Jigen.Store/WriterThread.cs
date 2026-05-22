@@ -52,9 +52,9 @@ public class Writer
 
       lock (_ioLock)
       {
-        _store.EmbeddingFileStream.FlushAsync().GetAwaiter().GetResult();
-        _store.ContentFileStream.FlushAsync().GetAwaiter().GetResult();
-        _store.IndexFileStream.FlushAsync().GetAwaiter().GetResult();
+        _store.EmbeddingFileStream.Flush(false);
+        _store.ContentFileStream.Flush(false);
+        _store.IndexFileStream.Flush(false);
       }
     }
   }
@@ -82,7 +82,7 @@ public class Writer
               entry.Id,
               entry.CollectionName,
               entry.Content,
-              entry.Embedding).GetAwaiter().GetResult();
+              entry.Embedding);
 
             // Cannot immediatly update search index till the file are committed
             TempIndex.Enqueue(result);
@@ -98,15 +98,15 @@ public class Writer
       }
       finally
       {
-        _store.EmbeddingFileStream.FlushAsync().GetAwaiter().GetResult();
-        _store.ContentFileStream.FlushAsync().GetAwaiter().GetResult();
+        _store.EmbeddingFileStream.Flush(false);
+        _store.ContentFileStream.Flush(false);
 
         _store.EnableReading();
 
         while (TempIndex.TryDequeue(out var indexData))
           _store.AppendIndex(indexData);
         
-        _store.IndexFileStream.FlushAsync().GetAwaiter().GetResult();
+        _store.IndexFileStream.Flush(false);
 
         if (_store.IngestionQueue.IsEmpty)
           _writingCompleted.Set();
