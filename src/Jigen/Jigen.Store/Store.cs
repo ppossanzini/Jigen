@@ -107,6 +107,13 @@ public partial class Store : IStore, IDisposable
   public async Task SaveChangesAsync(CancellationToken? cancellationToken = null)
   {
     await Writer.WaitForWritingCompleted;
+    
+    if (Options.Indexer is not null)
+      await Options.Indexer.FlushAsync();
+
+    this.ContentFileStream.Flush(true);
+    this.EmbeddingFileStream.Flush(true);
+    this.IndexFileStream.Flush(true);
   }
 
   public MemoryMappedViewAccessor GetContentAccessor(long offset, long size)

@@ -274,6 +274,20 @@ public class SmallWorldIndexer : IIndexer
     return Task.CompletedTask;
   }
 
+  public Task ShrinkAsync()
+  {
+    List<IList<IndexNode>> toShrink;
+    lock (_collectionGraphs)
+    {
+      toShrink = _collectionGraphs.Values.Select(g => g.nodes).ToList();
+    }
+
+    foreach (var nodes in toShrink)
+      (nodes as StoredList<IndexNode, SmallWorldOptions>)?.ShrinkDb();
+
+    return Task.CompletedTask;
+  }
+
   private static float DefaultDistance(IndexNode left, IndexNode right)
   {
     if (left.Vector is null || right.Vector is null || left.Vector.Length == 0 || right.Vector.Length == 0)

@@ -12,4 +12,5 @@ public interface IIndexer
   IEnumerable<VectorEntry> Search(IStore store, string collection, IFilterExpression contentFilter = null);
 
   Task FlushAsync() => Task.CompletedTask;
+  Task ShrinkAsync() => Task.CompletedTask;
 }
