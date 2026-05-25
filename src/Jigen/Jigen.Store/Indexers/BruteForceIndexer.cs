@@ -11,7 +11,7 @@ namespace Jigen.Indexers;
 
 public class BruteForceIndexer : IIndexer
 {
-  public void AddToIndex(VectorEntry entry)
+  public void AddToIndex(VectorEntry entry, bool waitForIndexing = false)
   {
   }
 

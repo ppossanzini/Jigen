@@ -5,7 +5,7 @@ namespace Jigen.Persistance;
 
 public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<T, TOptions>
 {
-  public void ShrinkDB()
+  public void ShrinkDb()
   {
     this._itemsIndexLock.EnterWriteLock();
     try

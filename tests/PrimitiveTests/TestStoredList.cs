@@ -117,7 +117,7 @@ public class TestStoredList(ITestOutputHelper testOutputHelper)
     var expectedFirst = list[0].Name;
     var expectedSecond = list[1].Name;
 
-    list.ShrinkDB();
+    list.ShrinkDb();
     list.Flush();
 
     var shrunkSize = new FileInfo(filePath).Length;
