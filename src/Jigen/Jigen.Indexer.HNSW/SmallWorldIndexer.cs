@@ -15,9 +15,8 @@ public class SmallWorldIndexer : IIndexer
 {
   internal SmallWorldOptions Options { get; init; }
 
-  private readonly ReaderWriterLockSlim _sync = new(LockRecursionPolicy.SupportsRecursion);
-
-  // private readonly Dictionary<string, ReaderWriterLockSlim> _collectionLocks = new(StringComparer.Ordinal);
+  
+  
   private readonly Dictionary<string, (IndexNode entrypoint, IList<IndexNode> nodes)> _collectionGraphs = new();
 
   internal readonly SelectForConnectingDelegate SelectBestForConnecting = null;
@@ -38,13 +37,9 @@ public class SmallWorldIndexer : IIndexer
 
   internal (IndexNode entrypoint, IList<IndexNode> nodes) GetGraphForCollection(string collection)
   {
-    // _sync.EnterUpgradeableReadLock();
-    // try
-    // {
     if (_collectionGraphs.TryGetValue(collection, out var item)) return item;
 
-    _sync.EnterWriteLock();
-    try
+    lock(_collectionGraphs)
     {
       if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
       var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
@@ -69,15 +64,6 @@ public class SmallWorldIndexer : IIndexer
       _collectionGraphs[collection] = item;
       return item;
     }
-    finally
-    {
-      _sync.ExitWriteLock();
-    }
-    // }
-    // finally
-    // {
-    //   _sync.ExitUpgradeableReadLock();
-    // }
   }
 
   private void AssignEntryPoint((IndexNode entrypoint, IList<IndexNode> nodes) entry, IndexNode newNode)
@@ -277,14 +263,9 @@ public class SmallWorldIndexer : IIndexer
   public Task FlushAsync()
   {
     List<IList<IndexNode>> toFlush;
-    _sync.EnterReadLock();
-    try
+    lock (_collectionGraphs)
     {
       toFlush = _collectionGraphs.Values.Select(g => g.nodes).ToList();
-    }
-    finally
-    {
-      _sync.ExitReadLock();
     }
 
     foreach (var nodes in toFlush)

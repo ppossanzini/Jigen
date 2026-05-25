@@ -13,8 +13,10 @@ public static class NodeExtensions
     return level == 0 ? 2 * m : m;
   }
 
+  [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
   public static void AddNewNode(this IList<IndexNode> nodes, IndexNode node)
   {
+    if (node is null) return;
     lock (nodes)
     {
       node.PositionId = nodes.Count;
@@ -53,7 +55,7 @@ public static class NodeExtensions
 
     var norm = TensorPrimitives.Norm(vector);
     if (norm <= 0) return;
-    
+
     TensorPrimitives.Divide(vector, norm, vector);
   }
 
