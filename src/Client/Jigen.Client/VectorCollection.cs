@@ -1,7 +1,9 @@
 using System.Collections;
+using System.Linq.Expressions;
 using Google.Protobuf;
 using Google.Protobuf.Collections;
 using Jigen.Client.BaseTypes;
+using Jigen.Client.Filtering;
 using Jigen.Proto;
 
 namespace Jigen.Client;
@@ -75,6 +77,59 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   public bool ContainsKey(VectorKey key)
   {
     return store.ServiceClient.Contains(ToItemKey(key)).Success;
+  }
+
+  public List<VectorSearchResult<T>> Search(float[] embeddings, int top = 10)
+  {
+    if (embeddings == null || embeddings.Length == 0)
+      return [];
+
+    var request = new SearchVectorRequest
+    {
+      Database = store.Options.DatabaseName,
+      Collection = _options.Name,
+      Top = top
+    };
+
+    request.Embeddings.AddRange(embeddings);
+
+    var result = store.ServiceClient.SearchVector(request);
+    return result.Results.Select(i => new VectorSearchResult<T>
+    {
+      Key = i.Key.ToByteArray(),
+      Content = _options.DocumentSerializer.Deserialize<T>(i.Content.Memory),
+      Score = i.Score
+    }).ToList();
+  }
+
+  public List<VectorSearchResult<T>> Search(string sentence, int top = 10)
+  {
+    return Search(sentence, predicate: null, top: top);
+  }
+
+  public List<VectorSearchResult<T>> Search(string sentence, Expression<Func<T, bool>> predicate, int top = 10)
+  {
+    if (string.IsNullOrWhiteSpace(sentence))
+      return [];
+
+    var request = new SearchDocumentRequest
+    {
+      Database = store.Options.DatabaseName,
+      Collection = _options.Name,
+      Sentence = sentence,
+      Top = top
+    };
+
+    if (predicate != null)
+      request.Filter = ProtoExpressionTranslator.Translate(predicate);
+
+    var result = store.ServiceClient.SearchDocument(request);
+    return result.Results.Select(i => new VectorSearchResult<T>
+    {
+      Key = i.Key.ToByteArray(),
+      Content = _options.DocumentSerializer.Deserialize<T>(i.Content.Memory),
+      Score = i.Score
+    }).ToList();
   }
 
   public bool Remove(VectorKey key)

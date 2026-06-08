@@ -8,6 +8,8 @@ service StoreCollectionService {
   rpc GetContent (ItemKey) returns (RawContentResult);
   rpc SetDocument (Document) returns (Result);
   rpc SetVector (Vector) returns (Result);
+  rpc SearchVector(SearchVectorRequest) returns(SearchVectorResponse);
+  rpc SearchDocument(SearchDocumentRequest) returns(SearchVectorResponse);
   rpc DeleteVector(ItemKey) returns(Result);
   rpc GetAllKeys(CollectionKey) returns(KeysResult);
   rpc Contains(ItemKey) returns(Result);
@@ -50,6 +52,66 @@ message Vector {
   bytes Key = 3;
   bytes Content = 4;
   repeated float Embeddings = 5;
+}
+
+message SearchVectorRequest {
+  string Database = 1;
+  string Collection = 2;
+  repeated float Embeddings = 3;
+  int32 Top = 4;
+}
+
+message SearchVectorResult {
+  bytes Key = 1;
+  bytes Content = 2;
+  float Score = 3;
+}
+
+message SearchVectorResponse {
+  repeated SearchVectorResult Results = 1;
+}
+
+message SearchDocumentRequest {
+  string Database = 1;
+  string Collection = 2;
+  string Sentence = 3;
+  int32 Top = 4;
+  FilterNode Filter = 5;
+}
+
+message FilterNode {
+  oneof Kind {
+    PropertyEqualsCondition Equals = 1;
+    PropertyCollectionAnyCondition CollectionAny = 2;
+    LogicalCondition And = 3;
+    LogicalCondition Or = 4;
+  }
+}
+
+message PropertyEqualsCondition {
+  string PropertyPath = 1;
+  FilterValue Value = 2;
+}
+
+message PropertyCollectionAnyCondition {
+  string PropertyPath = 1;
+  FilterValue Value = 2;
+}
+
+message LogicalCondition {
+  FilterNode Left = 1;
+  FilterNode Right = 2;
+}
+
+message FilterValue {
+  oneof Kind {
+    string StringValue = 1;
+    int32 IntValue = 2;
+    int64 LongValue = 3;
+    double DoubleValue = 4;
+    bool BoolValue = 5;
+    bool NullValue = 6;
+  }
 }
 
 message Result {

@@ -1,6 +1,7 @@
 using Google.Protobuf;
 using Grpc.Core;
 using Hikyaku;
+using Jigen.Filtering;
 using Jigen.Proto;
 using Jigen.SemanticTools;
 
@@ -60,6 +61,108 @@ public class Server(IHikyaku mediator, IEmbeddingGenerator embeddingGenerator)
     });
 
     return new Result() { Success = true };
+  }
+
+  public override async Task<SearchVectorResponse> SearchVector(SearchVectorRequest request, ServerCallContext context)
+  {
+    var result = await mediator.Send(new Core.Query.collections.SearchVector
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Embeddings = request.Embeddings.ToArray(),
+      Top = request.Top
+    });
+
+    return new SearchVectorResponse
+    {
+      Results =
+      {
+        result.Select(i => new SearchVectorResult
+        {
+          Key = ByteString.CopyFrom(i.Key),
+          Content = ByteString.CopyFrom(i.Content),
+          Score = i.Score
+        })
+      }
+    };
+  }
+
+  public override async Task<SearchVectorResponse> SearchDocument(SearchDocumentRequest request, ServerCallContext context)
+  {
+    if (string.IsNullOrWhiteSpace(request.Sentence))
+      return new SearchVectorResponse();
+
+    var embeddings = embeddingGenerator.GenerateEmbedding(request.Sentence);
+    var filter = ToFilterExpression(request.Filter);
+    var result = await mediator.Send(new Core.Query.collections.SearchVector
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Embeddings = embeddings,
+      Top = request.Top,
+      Filter = filter
+    });
+
+    return new SearchVectorResponse
+    {
+      Results =
+      {
+        result.Select(i => new SearchVectorResult
+        {
+          Key = ByteString.CopyFrom(i.Key),
+          Content = ByteString.CopyFrom(i.Content),
+          Score = i.Score
+        })
+      }
+    };
+  }
+
+  private static IFilterExpression ToFilterExpression(FilterNode node)
+  {
+    if (node == null || node.KindCase == FilterNode.KindOneofCase.None)
+      return null;
+
+    return node.KindCase switch
+    {
+      FilterNode.KindOneofCase.Equals_ => new PropertyEqualsFilter
+      {
+        PropertyPath = node.Equals_.PropertyPath,
+        Value = ToValue(node.Equals_.Value)
+      },
+      FilterNode.KindOneofCase.CollectionAny => new PropertyCollectionAnyFilter
+      {
+        PropertyPath = node.CollectionAny.PropertyPath,
+        Value = ToValue(node.CollectionAny.Value)
+      },
+      FilterNode.KindOneofCase.And => new AndFilter
+      {
+        Left = ToFilterExpression(node.And.Left),
+        Right = ToFilterExpression(node.And.Right)
+      },
+      FilterNode.KindOneofCase.Or => new OrFilter
+      {
+        Left = ToFilterExpression(node.Or.Left),
+        Right = ToFilterExpression(node.Or.Right)
+      },
+      _ => null
+    };
+  }
+
+  private static object ToValue(FilterValue value)
+  {
+    if (value == null || value.KindCase == FilterValue.KindOneofCase.None)
+      return null;
+
+    return value.KindCase switch
+    {
+      FilterValue.KindOneofCase.StringValue => value.StringValue,
+      FilterValue.KindOneofCase.IntValue => value.IntValue,
+      FilterValue.KindOneofCase.LongValue => value.LongValue,
+      FilterValue.KindOneofCase.DoubleValue => value.DoubleValue,
+      FilterValue.KindOneofCase.BoolValue => value.BoolValue,
+      FilterValue.KindOneofCase.NullValue => null,
+      _ => null
+    };
   }
 
   public override async Task<Result> Clear(CollectionKey request, ServerCallContext context)

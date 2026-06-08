@@ -25,6 +25,15 @@ public class Context
     this.ContextBuilder();
   }
 
+  protected Context(ConnectionOptions options, StoreCollectionService.StoreCollectionServiceClient serviceClient)
+  {
+    Options = options;
+    _channel = null!;
+    ServiceClient = serviceClient;
+
+    this.ContextBuilder();
+  }
+
   protected virtual void ContextBuilder()
   {
     // Class to autocreate Collections and inject dependency inside collections

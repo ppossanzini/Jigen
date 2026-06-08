@@ -15,7 +15,8 @@ public class CollectionQueryHandlers(
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
   IRequestHandler<Core.Query.collections.GetCollectionsInfo, IEnumerable<CollectionInfo>>,
   IRequestHandler<Core.Query.collections.GetRawContent, byte[]>,
-  IRequestHandler<Core.Query.collections.GetAllKeys, IEnumerable<VectorKey>>
+  IRequestHandler<Core.Query.collections.GetAllKeys, IEnumerable<VectorKey>>,
+  IRequestHandler<Core.Query.collections.SearchVector, IEnumerable<SearchVectorResultItem>>
 
 {
   public Task<IEnumerable<string>> Handle(ListCollections request, CancellationToken cancellationToken)
@@ -58,5 +59,23 @@ public class CollectionQueryHandlers(
 
     var result = (store.GetCollectionIndexOf(request.Collection, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ?? Array.Empty<VectorKey>();
     return Task.FromResult(result.AsEnumerable());
+  }
+
+  public Task<IEnumerable<SearchVectorResultItem>> Handle(SearchVector request, CancellationToken cancellationToken)
+  {
+    logger.LogDebug($"Executing SearchVector for db {request.Database}");
+    if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
+
+    var top = request.Top <= 0 ? 10 : request.Top;
+    var results = store.Search(request.Collection, request.Embeddings, top, request.Filter)
+      .Select(i => new SearchVectorResultItem
+      {
+        Key = i.entry.Id,
+        Content = i.entry.Content.ToArray(),
+        Score = i.score
+      })
+      .AsEnumerable();
+
+    return Task.FromResult(results);
   }
 }

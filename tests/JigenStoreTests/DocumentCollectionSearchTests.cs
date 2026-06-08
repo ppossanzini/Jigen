@@ -1,5 +1,6 @@
 using Jigen;
 using Jigen.DataStructures;
+using Jigen.Filtering;
 
 namespace JigenTests;
 
@@ -68,6 +69,78 @@ public class DocumentCollectionSearchTests
       Assert.Single(results);
       Assert.Equal("Filtered document", results[0].Value.Title);
       Assert.Equal(1, BitConverter.ToInt32(results[0].Key.Value));
+
+      await store.Close();
+    }
+    finally
+    {
+      if (Directory.Exists(basePath))
+        Directory.Delete(basePath, true);
+    }
+  }
+
+  [Fact]
+  public async Task Search_filters_serialized_documents_with_filter_ast()
+  {
+    var basePath = Path.Combine(Path.GetTempPath(), $"jigen-doc-search-ast-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(basePath);
+
+    try
+    {
+      var store = new Store(new StoreOptions
+      {
+        DataBaseName = "documents_ast",
+        DataBasePath = basePath
+      });
+
+      var documents = new DocumentCollection<SearchDocument>(store, new DocumentCollectionOptions<SearchDocument>
+      {
+        Name = "docs"
+      });
+
+      documents.Add(10, new SearchDocument
+      {
+        Title = "Italian article",
+        Tags = ["science", "ai"],
+        Metadata = new SearchMetadata
+        {
+          Category = "article",
+          Country = "IT"
+        }
+      });
+
+      documents.Add(20, new SearchDocument
+      {
+        Title = "US article",
+        Tags = ["science"],
+        Metadata = new SearchMetadata
+        {
+          Category = "article",
+          Country = "US"
+        }
+      });
+
+      await store.SaveChangesAsync();
+
+      IFilterExpression filter = new AndFilter
+      {
+        Left = new PropertyCollectionAnyFilter
+        {
+          PropertyPath = "Tags",
+          Value = "science"
+        },
+        Right = new PropertyEqualsFilter
+        {
+          PropertyPath = "Metadata.Country",
+          Value = "IT"
+        }
+      };
+
+      var results = documents.Search(filter);
+
+      Assert.Single(results);
+      Assert.Equal("Italian article", results[0].Value.Title);
+      Assert.Equal(10, BitConverter.ToInt32(results[0].Key.Value));
 
       await store.Close();
     }
