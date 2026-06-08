@@ -3,10 +3,16 @@
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    
-    
     <ServerGarbageCollection>true</ServerGarbageCollection>
-    
+    <SignAssembly>true</SignAssembly>
+    <PackageIcon>logo_128.png</PackageIcon>
+    <AssemblyOriginatorKeyFile>..\..\Jigen\assets\jigen.snk</AssemblyOriginatorKeyFile>
+    <Description>Client for Jigen Server</Description>
+    <Authors>Paolo Possanzini</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ppossanzini/Jigen</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ppossanzini/Jigen</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -32,6 +38,18 @@
   
   <ItemGroup>
     <Folder Include="Generated\"/>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <None Include="..\..\Jigen\assets\jigen.snk">
+      <Link>jigen.snk</Link>
+    </None>
+    <Content Include="..\..\Jigen\assets\logo_128.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+      <Link>logo_128.png</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
 </Project>

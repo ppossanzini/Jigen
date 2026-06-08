@@ -4,10 +4,16 @@
     <TargetFrameworks>net10.0;</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PackageIcon>../assets/logo_128.png</PackageIcon>
+    <PackageIcon>logo_128.png</PackageIcon>
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>../assets/jigen.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>..\assets\jigen.snk</AssemblyOriginatorKeyFile>
     <RootNamespace>Jigen</RootNamespace>
+    <Description>In-process vector database</Description>
+    <Authors>Paolo Possanzini</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ppossanzini/Jigen</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ppossanzini/Jigen</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,6 +24,18 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\assets\jigen.snk">
+      <Link>jigen.snk</Link>
+    </None>
+    <Content Include="..\assets\logo_128.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+      <Link>logo_128.png</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   
 
