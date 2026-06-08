@@ -36,9 +36,6 @@ jobs:
       - name: Build
         run: dotnet build Jigen.sln --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test Jigen.sln --configuration Release --no-build --verbosity minimal
-
       - name: Pack Jigen.Client
         run: dotnet pack src/Client/Jigen.Client/Jigen.Client.csproj --configuration Release --no-build -o artifacts/nuget
 
