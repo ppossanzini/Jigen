@@ -21,13 +21,14 @@
     <PackageReference Include="MessagePack" Version="3.1.4"/>
   </ItemGroup>
   <ItemGroup>
-    <Content Include="..\..\..\assets\logo_128.png">
-      <Pack>True</Pack>
-      <Link>logo_128.png</Link>
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </Content>
     <None Include="..\assets\jigen.snk">
       <Link>jigen.snk</Link>
     </None>
+    <Content Include="..\assets\logo_128.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+      <Link>logo_128.png</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 </Project>

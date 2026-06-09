@@ -5,11 +5,19 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Jigen</RootNamespace>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\assets\jigen.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   
   <ItemGroup>
     <PackageReference Include="System.IO.Hashing" Version="10.0.2" />
     
+  </ItemGroup>
+  
+  <ItemGroup>
+    <None Include="..\assets\jigen.snk">
+      <Link>jigen.snk</Link>
+    </None>
   </ItemGroup>
 
 </Project>
