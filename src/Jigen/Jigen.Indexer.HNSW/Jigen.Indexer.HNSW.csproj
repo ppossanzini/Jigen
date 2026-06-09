@@ -9,6 +9,9 @@
     <PackageProjectUrl>https://github.com/ppossanzini/Jigen</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ppossanzini/Jigen</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
+    <PackageIcon>logo_128.png</PackageIcon>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\assets\jigen.snk</AssemblyOriginatorKeyFile>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj"/>
@@ -16,5 +19,15 @@
   <ItemGroup>
     <PackageReference Include="System.Numerics.Tensors" Version="10.0.8"/>
     <PackageReference Include="MessagePack" Version="3.1.4"/>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\..\assets\logo_128.png">
+      <Pack>True</Pack>
+      <Link>logo_128.png</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <None Include="..\assets\jigen.snk">
+      <Link>jigen.snk</Link>
+    </None>
   </ItemGroup>
 </Project>
