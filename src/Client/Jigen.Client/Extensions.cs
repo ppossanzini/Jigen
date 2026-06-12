@@ -10,4 +10,16 @@ public static class Extensions
     return item;
   }
   
+  public static VectorCollection<T> Collection<T>(this Context store, string name)
+  where T : class, new()
+  {
+    return new VectorCollection<T>(store, new VectorCollectionOptions<T>(){Name = name});
+  }
+  
+  public static VectorCollection<T> Collection<T>(this Context store)
+    where T : class, new()
+  {
+    var name = typeof(T).Name;
+    return new VectorCollection<T>(store, new VectorCollectionOptions<T>(){Name = name});
+  }
 }
