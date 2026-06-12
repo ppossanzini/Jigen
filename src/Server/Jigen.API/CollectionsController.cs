@@ -23,7 +23,8 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   {
     var result = await mediator.Send(new Core.Query.collections.GetCollectionInfo()
     {
-      Database = dbname
+      Database = dbname, 
+      Collection = collection
     });
     return Ok(result);
   }

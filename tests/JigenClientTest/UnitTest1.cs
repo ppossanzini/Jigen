@@ -50,7 +50,8 @@ public class UnitTest1
       
       db.Sentences.Add(i, new VectorEntry<Entity1>()
       {
-        Key = i, Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, Embedding = Array.Empty<float>()
+        Key = i, 
+        Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, Embedding = Array.Empty<float>()
       });
     }
     
