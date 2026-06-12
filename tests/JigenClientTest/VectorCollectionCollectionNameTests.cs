@@ -25,7 +25,7 @@ public class VectorCollectionCollectionNameTests
     });
 
     var context = new TestContext(
-      new ConnectionOptions { ConnectionString = "http://localhost:5001", DatabaseName = "TestDb" },
+      new ConnectionOptions { HostName = "localhost", Port = 3223, TLS = false, DatabaseName = "TestDb" },
       new StoreCollectionService.StoreCollectionServiceClient(invoker));
 
     var sut = context.Collection<CollectionNameEntity>();

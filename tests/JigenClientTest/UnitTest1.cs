@@ -16,7 +16,9 @@ public class UnitTest1
     _testOutputHelper = testOutputHelper;
     db = new DB(new ConnectionOptions()
     {
-      ConnectionString = "http://localhost:5001",
+      HostName = "localhost",
+      Port = 3223,
+      TLS = false,
       DatabaseName = "Test"
     });
   }

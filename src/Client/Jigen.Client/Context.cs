@@ -1,3 +1,5 @@
+using System.Net.Http;
+using System.Net.Security;
 using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
 using Jigen.Proto;
@@ -17,7 +19,9 @@ public class Context
   public Context(ConnectionOptions options)
   {
     Options = options;
-    _channel = GrpcChannel.ForAddress(options.ConnectionString, options.ChannelOptions);
+    var address = BuildAddress(options);
+    ConfigureChannelOptions(options);
+    _channel = GrpcChannel.ForAddress(address, options.ChannelOptions);
     // var invoker = _channel.Intercept(new Interceptors.GrpcClientExceptionInterceptor());
     // ServiceClient = new StoreCollectionService.StoreCollectionServiceClient(invoker);
     ServiceClient = new StoreCollectionService.StoreCollectionServiceClient(_channel);
@@ -37,5 +41,50 @@ public class Context
   protected virtual void ContextBuilder()
   {
     // Class to autocreate Collections and inject dependency inside collections
+  }
+
+  private static string BuildAddress(ConnectionOptions options)
+  {
+    var scheme = options.TLS ? "https" : "http";
+    return $"{scheme}://{options.HostName}:{options.Port}";
+  }
+
+  private static void ConfigureChannelOptions(ConnectionOptions options)
+  {
+    if (!options.TLS)
+      AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
+
+    if (!options.AllowUntrustedServerCertificate)
+      return;
+
+    if (options.ChannelOptions.HttpHandler == null)
+    {
+      options.ChannelOptions.HttpHandler = CreateUntrustedHandler();
+      return;
+    }
+
+    switch (options.ChannelOptions.HttpHandler)
+    {
+      case SocketsHttpHandler socketsHandler:
+        socketsHandler.SslOptions = CreateUntrustedSslOptions();
+        break;
+      case HttpClientHandler clientHandler:
+        clientHandler.ServerCertificateCustomValidationCallback =
+          HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+        break;
+    }
+  }
+
+  private static HttpMessageHandler CreateUntrustedHandler()
+  {
+    return new SocketsHttpHandler { SslOptions = CreateUntrustedSslOptions() };
+  }
+
+  private static SslClientAuthenticationOptions CreateUntrustedSslOptions()
+  {
+    return new SslClientAuthenticationOptions
+    {
+      RemoteCertificateValidationCallback = static (_, _, _, _) => true
+    };
   }
 }

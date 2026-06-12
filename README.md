@@ -58,10 +58,10 @@ Run the host project:
 dotnet run --project src/Server/Jigen/Jigen.csproj
 ```
 
-Default endpoints are configured in [src/Server/Jigen/appsettings.json](src/Server/Jigen/appsettings.json):
+Default endpoints are configured in `src/Server/Jigen/Program.cs`:
 
-- `http://localhost:5000` (`Http1AndHttp2AndHttp3`)
-- `http://localhost:5001` (`Http2`)
+- `http://localhost:13223` (`Http1AndHttp2`)
+- `http://localhost:3223` (`Http2`, gRPC)
 
 The gRPC service is mapped by the module in [src/Server/Jigen.Grpc/Module.cs](src/Server/Jigen.Grpc/Module.cs).
 
@@ -78,7 +78,9 @@ using Jigen.Client.BaseTypes;
 
 var ctx = new Context(new ConnectionOptions
 {
-	ConnectionString = "http://localhost:5001",
+	HostName = "localhost",
+	Port = 3223,
+	TLS = false,
 	DatabaseName = "Test"
 });
 
@@ -161,5 +163,4 @@ Check:
 ## License
 
 See [LICENSE.txt](LICENSE.txt).
-
 
