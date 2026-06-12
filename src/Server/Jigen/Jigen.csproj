@@ -23,6 +23,7 @@
     <ProjectReference Include="..\Jigen.API\Jigen.API.csproj"/>
     <ProjectReference Include="..\Jigen.Grpc\Jigen.Grpc.csproj"/>
     <ProjectReference Include="..\Jigen.Handlers\Jigen.Handlers.csproj"/>
+    <ProjectReference Include="..\Jigen.Identity\Jigen.Identity.csproj"/>
   </ItemGroup>
 
   <ItemGroup>

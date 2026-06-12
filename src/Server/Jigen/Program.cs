@@ -2,6 +2,7 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Jigen.Identity.Security;
 using Scalar.AspNetCore;
 using SharedTools;
 
@@ -75,6 +76,7 @@ namespace Jigen
       app.UseResponseCaching();
 
       app.UseAuthentication();
+      app.UseCurrentUserAccessor();
       app.UseAuthorization();
 
       app.MapOpenApi();
