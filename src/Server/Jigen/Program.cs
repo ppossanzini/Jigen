@@ -1,8 +1,8 @@
 ﻿using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Jigen.Identity.Core.Security;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Jigen.Identity.Security;
 using Scalar.AspNetCore;
 using SharedTools;
 
