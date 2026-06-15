@@ -1,139 +1,175 @@
-using System.Security.Cryptography;
+using Hikyaku;
+using Jigen.Core.Dto.identity;
 using Jigen.Core.Security;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using OpenIddict.Abstractions;
 
 namespace Jigen.Identity.Controllers;
 
 [ApiController]
-public class IdentityController : ControllerBase
+public class IdentityController(IHikyaku mediator) : ControllerBase
 {
-  private readonly SignInManager<IdentityUser> _signInManager;
-  private readonly IOpenIddictApplicationManager _applicationManager;
-
-  public IdentityController(
-    SignInManager<IdentityUser> signInManager,
-    IOpenIddictApplicationManager applicationManager)
-  {
-    _signInManager = signInManager;
-    _applicationManager = applicationManager;
-  }
-
   [HttpPost("~/identity/login")]
-  public async Task<IActionResult> Login([FromBody] LoginRequest request)
+  public async Task<IActionResult> Login([FromBody] LoginData request, CancellationToken cancellationToken)
   {
-    if (request == null || string.IsNullOrWhiteSpace(request.UserName) || string.IsNullOrWhiteSpace(request.Password))
-      return BadRequest("Username and password are required.");
+    var result = await mediator.Send(new Core.Command.identity.Login
+    {
+      Data = request
+    }, cancellationToken);
 
-    var result = await _signInManager.PasswordSignInAsync(request.UserName, request.Password, false, false);
-    if (!result.Succeeded)
+    if (result.Status == IdentityActionStatus.InvalidRequest)
+      return BadRequest(result.Message);
+
+    if (result.Status == IdentityActionStatus.Unauthorized)
       return Unauthorized();
 
     return NoContent();
   }
 
   [HttpPost("~/identity/logout")]
-  public async Task<IActionResult> Logout()
+  public async Task<IActionResult> Logout(CancellationToken cancellationToken)
   {
-    await _signInManager.SignOutAsync();
+    await mediator.Send(new Core.Command.identity.Logout(), cancellationToken);
     return NoContent();
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpPost("~/identity/clients")]
-  public async Task<IActionResult> CreateClient([FromBody] CreateClientRequest? request)
+  public async Task<IActionResult> CreateClient([FromBody] CreateClientData request, CancellationToken cancellationToken)
   {
-    request ??= new CreateClientRequest();
-
-    var clientId = request.ClientId ?? GenerateSecret(24);
-    var clientSecret = GenerateSecret(48);
-
-    if (await _applicationManager.FindByClientIdAsync(clientId) != null)
-      return Conflict("ClientId already exists.");
-
-    if (request.AllowAuthorizationCode && (request.RedirectUris == null || request.RedirectUris.Length == 0))
-      return BadRequest("RedirectUris are required when Authorization Code flow is enabled.");
-
-    var descriptor = new OpenIddictApplicationDescriptor
+    request ??= new CreateClientData
     {
-      ClientId = clientId,
-      ClientSecret = clientSecret,
-      DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? clientId : request.DisplayName
+      AllowAuthorizationCode = true,
+      AllowClientCredentials = true,
+      AllowRefreshToken = true
     };
 
-    descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Token);
-    descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Introspection);
-    descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Revocation);
-    descriptor.Permissions.Add("endpoints:userinfo");
-
-    if (request.AllowAuthorizationCode)
+    var result = await mediator.Send(new Core.Command.identity.CreateClient
     {
-      descriptor.Permissions.Add(OpenIddictConstants.Permissions.Endpoints.Authorization);
-      descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.AuthorizationCode);
-      descriptor.Permissions.Add(OpenIddictConstants.Permissions.ResponseTypes.Code);
-    }
+      Data = request
+    }, cancellationToken);
 
-    if (request.AllowClientCredentials)
-      descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.ClientCredentials);
+    if (result.Status == IdentityActionStatus.InvalidRequest)
+      return BadRequest(result.Message);
 
-    if (request.AllowRefreshToken)
-      descriptor.Permissions.Add(OpenIddictConstants.Permissions.GrantTypes.RefreshToken);
+    if (result.Status == IdentityActionStatus.Conflict)
+      return Conflict(result.Message);
 
-    var scopes = request.Scopes?.Length > 0
-      ? request.Scopes
-      : new[] { "jigen_api", "openid" };
-
-    foreach (var scope in scopes)
-      descriptor.Permissions.Add(OpenIddictConstants.Permissions.Prefixes.Scope + scope);
-
-    if (request.RedirectUris != null)
-    {
-      foreach (var uri in request.RedirectUris)
-        if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed))
-          descriptor.RedirectUris.Add(parsed);
-    }
-
-    if (request.PostLogoutRedirectUris != null)
-    {
-      foreach (var uri in request.PostLogoutRedirectUris)
-        if (Uri.TryCreate(uri, UriKind.Absolute, out var parsed))
-          descriptor.PostLogoutRedirectUris.Add(parsed);
-    }
-
-    await _applicationManager.CreateAsync(descriptor);
-
-    return Ok(new CreateClientResponse(clientId, clientSecret));
+    return Ok(new CreateClientResponse(result.ClientId, result.ClientSecret));
   }
 
-  private static string GenerateSecret(int byteLength)
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpGet("~/users")]
+  [HttpGet("~/identity/users")]
+  public async Task<IActionResult> ListUsers(CancellationToken cancellationToken)
   {
-    var bytes = RandomNumberGenerator.GetBytes(byteLength);
-    return Base64UrlEncode(bytes);
+    var result = await mediator.Send(new Core.Query.identity.ListUsers(), cancellationToken);
+    return Ok(result);
   }
 
-  private static string Base64UrlEncode(byte[] bytes)
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpPost("~/users")]
+  public async Task<IActionResult> CreateUser([FromBody] CreateUserData request, CancellationToken cancellationToken)
   {
-    return Convert.ToBase64String(bytes)
-      .TrimEnd('=')
-      .Replace('+', '-')
-      .Replace('/', '_');
+    var result = await mediator.Send(new Core.Command.identity.CreateUser
+    {
+      Data = request
+    }, cancellationToken);
+
+    return MapIdentityCommandResult(result);
   }
 
-  public sealed record LoginRequest(string UserName, string Password);
-
-  public sealed class CreateClientRequest
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpPut("~/users/{id}")]
+  public async Task<IActionResult> UpdateUser(string id, [FromBody] UpdateUserData request, CancellationToken cancellationToken)
   {
-    public string? ClientId { get; init; }
-    public string? DisplayName { get; init; }
-    public bool AllowAuthorizationCode { get; init; } = true;
-    public bool AllowClientCredentials { get; init; } = true;
-    public bool AllowRefreshToken { get; init; } = true;
-    public string[]? RedirectUris { get; init; }
-    public string[]? PostLogoutRedirectUris { get; init; }
-    public string[]? Scopes { get; init; }
+    var result = await mediator.Send(new Core.Command.identity.UpdateUser
+    {
+      Id = id,
+      Data = request
+    }, cancellationToken);
+
+    return MapIdentityCommandResult(result);
+  }
+
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpDelete("~/users/{id}")]
+  public async Task<IActionResult> DeleteUser(string id, CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Core.Command.identity.DeleteUser
+    {
+      Id = id
+    }, cancellationToken);
+
+    return MapIdentityCommandResult(result);
+  }
+
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpGet("~/roles")]
+  [HttpGet("~/identity/roles")]
+  public async Task<IActionResult> ListRoles(CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Core.Query.identity.ListRoles(), cancellationToken);
+    return Ok(result);
+  }
+
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpPost("~/roles")]
+  public async Task<IActionResult> CreateRole([FromBody] CreateRoleData request, CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Core.Command.identity.CreateRole
+    {
+      Data = request
+    }, cancellationToken);
+
+    return MapIdentityCommandResult(result);
+  }
+
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpPut("~/roles/{id}")]
+  public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleData request, CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Core.Command.identity.UpdateRole
+    {
+      Id = id,
+      Data = request
+    }, cancellationToken);
+
+    return MapIdentityCommandResult(result);
+  }
+
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpDelete("~/roles/{id}")]
+  public async Task<IActionResult> DeleteRole(string id, CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Core.Command.identity.DeleteRole
+    {
+      Id = id
+    }, cancellationToken);
+
+    return MapIdentityCommandResult(result);
+  }
+
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpGet("~/identity/apps")]
+  public async Task<IActionResult> ListApps(CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Core.Query.identity.ListApps(), cancellationToken);
+    return Ok(result);
   }
 
   public sealed record CreateClientResponse(string ClientId, string ClientSecret);
+
+  private IActionResult MapIdentityCommandResult(IdentityCommandResult result)
+  {
+    return result.Status switch
+    {
+      IdentityActionStatus.Success => NoContent(),
+      IdentityActionStatus.InvalidRequest => BadRequest(result.Message),
+      IdentityActionStatus.NotFound => NotFound(result.Message),
+      IdentityActionStatus.Conflict => Conflict(result.Message),
+      IdentityActionStatus.Unauthorized => Unauthorized(),
+      _ => BadRequest(result.Message)
+    };
+  }
 }

@@ -41,7 +41,11 @@ namespace Jigen
       var app = builder.Build();
       Configure(app, builder.Environment, builder.Configuration);
 
+      
+      app.Logger.LogInformation("Jigen server started on 3223 port for GRPC connections");
+      app.Logger.LogInformation("Jigen server started on 13223 port for HTTP connections");
       app.Run();
+      
     }
 
 

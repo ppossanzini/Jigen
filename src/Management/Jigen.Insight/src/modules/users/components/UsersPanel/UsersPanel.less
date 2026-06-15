@@ -1,0 +1,66 @@
+@import '@/assets/styles/global/variables.less';
+
+.panel-card {
+  border: var(--app-card-border);
+  background: linear-gradient(155deg, rgba(14, 21, 38, 0.9), rgba(10, 14, 29, 0.97));
+  min-height: 420px;
+
+  :deep(.el-card__body) {
+    padding: 14px;
+    display: grid;
+    gap: 12px;
+  }
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-main);
+
+  :deep(.el-button) {
+    cursor: pointer;
+  }
+}
+
+.users-table {
+  width: 100%;
+
+  :deep(.el-table) {
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  :deep(.el-table th.el-table__cell) {
+    font-weight: 600;
+  }
+}
+
+.role-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.actions-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+
+  :deep(.el-button) {
+    cursor: pointer;
+  }
+}
+
+.dialog-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+
+  :deep(.el-button) {
+    cursor: pointer;
+  }
+}

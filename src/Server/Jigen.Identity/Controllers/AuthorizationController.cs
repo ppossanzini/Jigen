@@ -1,4 +1,6 @@
 using System.Security.Claims;
+using Hikyaku;
+using Jigen.Core.Dto.identity;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -11,6 +13,7 @@ namespace Jigen.Identity.Controllers;
 
 [ApiController]
 public class AuthorizationController (
+  IHikyaku mediator,
   UserManager<IdentityUser> userManager,
   SignInManager<IdentityUser> signInManager)
   : Controller
@@ -42,34 +45,42 @@ public class AuthorizationController (
   }
 
   [HttpPost("~/connect/token")]
-  public async Task<IActionResult> Exchange()
+  public async Task<IActionResult> Exchange(CancellationToken cancellationToken)
   {
     var request = HttpContext.GetOpenIddictServerRequest()
                   ?? throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
 
-    if (request.IsClientCredentialsGrantType())
+    var result = await mediator.Send(new Core.Command.identity.ExchangeToken
     {
-      var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-      identity.AddClaim(OpenIddictConstants.Claims.Subject, request.ClientId!, OpenIddictConstants.Destinations.AccessToken);
-      identity.AddClaim(OpenIddictConstants.Claims.ClientId, request.ClientId!, OpenIddictConstants.Destinations.AccessToken);
+      Data = new ExchangeTokenData
+      {
+        GrantType = request.GrantType,
+        ClientId = request.ClientId,
+        Scopes = request.GetScopes().ToArray()
+      }
+    }, cancellationToken);
 
-      var principal = new ClaimsPrincipal(identity);
-      principal.SetScopes(request.GetScopes());
-      principal.SetResources("jigen_api");
+    if (result.Status == IdentityActionStatus.InvalidRequest)
+      throw new InvalidOperationException(result.Message ?? "The specified grant type is not supported.");
 
-      return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-    }
-
-    if (request.IsAuthorizationCodeGrantType() || request.IsRefreshTokenGrantType())
+    if (result.UseAuthenticatedPrincipal)
     {
-      var result = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
-      if (result.Principal == null)
+      var authenticateResult = await HttpContext.AuthenticateAsync(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+      if (authenticateResult.Principal == null)
         return Forbid(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
 
-      return SignIn(result.Principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+      return SignIn(authenticateResult.Principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
     }
 
-    throw new InvalidOperationException("The specified grant type is not supported.");
+    var identity = new ClaimsIdentity(OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
+    identity.AddClaim(OpenIddictConstants.Claims.Subject, result.Subject, OpenIddictConstants.Destinations.AccessToken);
+    identity.AddClaim(OpenIddictConstants.Claims.ClientId, result.ClientId, OpenIddictConstants.Destinations.AccessToken);
+
+    var principal = new ClaimsPrincipal(identity);
+    principal.SetScopes(result.Scopes ?? Array.Empty<string>());
+    principal.SetResources("jigen_api");
+
+    return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
   }
 
   [Authorize(AuthenticationSchemes = OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)]

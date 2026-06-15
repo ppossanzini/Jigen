@@ -1,0 +1,55 @@
+@import '@/assets/styles/global/variables.less';
+
+.login-card {
+  width: min(460px, 100%);
+  border: var(--app-card-border);
+  background: linear-gradient(175deg, rgba(216, 109, 255, 0.14) 0%, rgba(11, 16, 32, 0.98) 55%);
+  backdrop-filter: blur(8px);
+  animation: fadeUp 320ms ease;
+
+  :deep(.el-card__body) {
+    display: grid;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  :deep(.el-form-item) {
+    margin-bottom: 12px;
+  }
+}
+
+.title-wrap {
+  display: grid;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  color: var(--text-main);
+  font-size: 1.3rem;
+  line-height: 1.05;
+}
+
+.tagline {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.submit-btn {
+  margin-top: 2px;
+  width: 100%;
+  cursor: pointer;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
