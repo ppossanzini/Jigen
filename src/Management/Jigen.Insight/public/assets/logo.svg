@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" width="100%" height="100%">
+  <defs>
+    <linearGradient id="jigenNeonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00FF66" />
+      <stop offset="50%" stop-color="#00F0FF" />
+      <stop offset="100%" stop-color="#7000FF" />
+    </linearGradient>
+
+    <radialGradient id="internalGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#00F0FF" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <circle cx="250" cy="250" r="220" fill="url(#internalGlow)" />
+
+  <circle cx="250" cy="250" r="225" fill="none" stroke="url(#jigenNeonGrad)" stroke-width="3" opacity="0.9" />
+
+  <g transform="translate(250, 250)">
+
+    <path d="M -130,-40 C -100,-110 -20,-140 60,-120 C 140,-100 160,-20 130,50 C 100,120 30,150 -50,130 C -130,110 -160,30 -130,-40 Z"
+          fill="none" stroke="url(#jigenNeonGrad)" stroke-width="2" opacity="0.35" stroke-dasharray="4,4" />
+
+    <path d="M -90,-25 C -70,-75 -10,-95 45,-85 C 100,-75 110,-15 95,30 C 80,75 20,105 -35,90 C -90,75 -110,25 -90,-25 Z"
+          fill="none" stroke="url(#jigenNeonGrad)" stroke-width="3" opacity="0.6" />
+
+    <path d="M -50,-10 C -35,-45 0,-55 30,-50 C 60,-45 65,-10 55,15 C 45,40 10,60 -20,50 C -50,40 -60,20 -50,-10 Z"
+          fill="none" stroke="url(#jigenNeonGrad)" stroke-width="4.5" opacity="0.9" />
+
+    <line x1="-90" y1="-25" x2="-50" y2="-10" stroke="#00FF66" stroke-width="1.5" opacity="0.7" />
+    <line x1="45" y1="-85" x2="30" y2="-50" stroke="#00F0FF" stroke-width="1.5" opacity="0.7" />
+    <line x1="95" y1="30" x2="55" y2="15" stroke="#00F0FF" stroke-width="1.5" opacity="0.7" />
+    <line x1="-35" y1="90" x2="-20" y2="50" stroke="#7000FF" stroke-width="1.5" opacity="0.7" />
+
+    <line x1="-130" y1="-40" x2="30" y2="-50" stroke="#00F0FF" stroke-width="1" stroke-dasharray="2,2" opacity="0.4" />
+    <line x1="130" y1="50" x2="-20" y2="50" stroke="#7000FF" stroke-width="1" stroke-dasharray="2,2" opacity="0.4" />
+    <line x1="-50" y1="130" x2="55" y2="15" stroke="#00FF66" stroke-width="1" stroke-dasharray="2,2" opacity="0.4" />
+
+    <circle cx="-130" cy="-40" r="5" fill="#00FF66" />
+    <circle cx="60" cy="-120" r="4" fill="#00F0FF" />
+    <circle cx="130" cy="50" r="5" fill="#7000FF" />
+    <circle cx="-50" cy="130" r="4" fill="#00F0FF" />
+
+    <circle cx="-90" cy="-25" r="6" fill="#00F0FF" />
+    <circle cx="45" cy="-85" r="5" fill="#00FF66" />
+    <circle cx="95" cy="30" r="6" fill="#7000FF" />
+    <circle cx="-35" cy="90" r="5" fill="#00FF66" />
+
+    <circle cx="-50" cy="-10" r="7" fill="#00FF66" />
+    <circle cx="30" cy="-50" r="7" fill="#00F0FF" />
+    <circle cx="55" cy="15" r="8" fill="#7000FF" />
+    <circle cx="-20" cy="50" r="7" fill="#00F0FF" />
+  </g>
+</svg>

@@ -1,0 +1,91 @@
+@import '@/assets/styles/global/variables.less';
+
+.shell-header {
+  display: grid;
+  grid-template-columns: minmax(280px, auto) 1fr minmax(280px, auto);
+  align-items: center;
+  gap: 20px;
+  height: 74px;
+  padding: 0 20px;
+  border-bottom: 1px solid @line-soft;
+  background: linear-gradient(90deg, rgba(18, 20, 24, 0.95), rgba(31, 34, 40, 0.95));
+  box-shadow: 0 2px 15px 7px rgba(0,0,0,.7);
+}
+
+.left-group,
+.right-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: @text-primary;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.brand-name {
+  margin: 0;
+  font-size: @font-size-app-title-lg;
+  line-height: 1;
+  font-weight: 500;
+}
+
+.workspace-chip,
+.notification-btn,
+.user-pill {
+  border: 0;
+  color: @text-primary;
+  background: #2d3036;
+  border-radius: 999px;
+  padding: 10px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.center-group {
+  display: flex;
+  justify-content: center;
+}
+
+.search-input {
+  max-width: 520px;
+
+  :deep(.el-input__wrapper) {
+    background: #23262c;
+    box-shadow: none;
+    border: 1px solid @line-soft;
+  }
+
+  :deep(input) {
+    color: @text-primary;
+  }
+}
+
+@media (max-width: 1280px) {
+  .shell-header {
+    grid-template-columns: 1fr;
+    height: auto;
+    padding: 12px;
+  }
+
+  .left-group,
+  .right-group {
+    flex-wrap: wrap;
+  }
+
+  .center-group {
+    justify-content: stretch;
+  }
+
+  .search-input {
+    max-width: unset;
+  }
+}

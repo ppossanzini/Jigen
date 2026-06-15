@@ -1,0 +1,62 @@
+@import '@/assets/styles/global/variables.less';
+
+.index-table-card {
+  display: grid;
+  grid-template-rows: minmax(380px, 1fr) auto;
+  border-radius: @radius-lg;
+  border: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.index-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.index-name-cell small {
+  color: @text-muted;
+}
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-action {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  color: @text-primary;
+  background: #3a3f47;
+  cursor: pointer;
+}
+
+.icon-action.danger {
+  background: rgba(255, 63, 63, 0.2);
+  color: #ff7373;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid @line-soft;
+}
+
+.rows-counter {
+  color: @text-muted;
+}
+
+:deep(.el-table) {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.04);
+  --el-table-border-color: rgba(255, 255, 255, 0.06);
+  --el-table-text-color: @text-primary;
+  --el-table-header-text-color: #d4d9e2;
+}

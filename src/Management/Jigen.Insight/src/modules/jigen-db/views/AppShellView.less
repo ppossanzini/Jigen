@@ -1,0 +1,41 @@
+@import '@/assets/styles/global/variables.less';
+
+.app-shell {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  background: #0f1115;
+}
+
+.shell-body {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  padding: 0px;
+  overflow: hidden;
+}
+
+.main-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main-scroll {
+  height: 100%;
+  overflow-y: auto;
+  padding: 12px 12px 12px 0;
+}
+
+@media (max-width: 980px) {
+  .shell-body {
+    grid-template-columns: 84px 1fr;
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .main-scroll {
+    padding: 6px 4px 16px 0;
+  }
+}

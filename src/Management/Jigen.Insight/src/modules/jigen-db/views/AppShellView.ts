@@ -1,0 +1,75 @@
+import { computed, defineComponent, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
+import { ElMessage } from 'element-plus'
+import ShellHeader from '@/modules/jigen-db/components/ShellHeader/ShellHeader.vue'
+import ShellSidebar from '@/modules/jigen-db/components/ShellSidebar/ShellSidebar.vue'
+import type { SidebarItem } from '@/modules/jigen-db/types'
+import { useNavigationStore } from '@/stores/navigation'
+
+export default defineComponent({
+  name: 'AppShellView',
+  components: {
+    ShellHeader,
+    ShellSidebar
+  },
+  setup() {
+    const route = useRoute()
+    const router = useRouter()
+    const { t } = useI18n()
+    const navigationStore = useNavigationStore()
+
+    const navItems = computed<SidebarItem[]>(() => [
+      { key: 'home', label: t('nav.home'), iconClass: 'ti ti-home', routeName: 'dashboard-home' },
+      { key: 'search', label: t('nav.search'), iconClass: 'ti ti-search', routeName: 'coming-soon' },
+      { key: 'indexes', label: t('nav.indexes'), iconClass: 'ti ti-database', routeName: 'index-management' },
+      { key: 'pipelines', label: t('nav.pipelines'), iconClass: 'ti ti-adjustments-horizontal', routeName: 'coming-soon' },
+      { key: 'datasets', label: t('nav.datasets'), iconClass: 'ti ti-folder', routeName: 'coming-soon' },
+      { key: 'settings', label: t('nav.settings'), iconClass: 'ti ti-settings', routeName: 'coming-soon' },
+    ])
+
+
+    watch(
+      () => route.name,
+      (routeName) => {
+        if (routeName === 'dashboard-home') navigationStore.setActiveNav('home')
+        if (routeName === 'index-management') navigationStore.setActiveNav('indexes')
+      },
+      { immediate: true },
+    )
+
+    const onNavigate = async (key: string) => {
+      const target = navItems.value.find((item) => item.key === key)
+
+      if (!target) return
+
+      navigationStore.setActiveNav(target.key)
+
+      if (target.routeName === 'coming-soon') {
+        navigationStore.setFeatureContext(target.label)
+        await router.push({ name: target.routeName, query: { feature: target.label } })
+        return
+      }
+
+      await router.push({ name: target.routeName })
+    }
+
+    const onSearch = (term: string) => {
+      if (!term.trim()) return
+      ElMessage.info(t('app.searchNotice', { term }))
+    }
+
+    const onSwitchWorkspace = () => ElMessage.success(t('app.switch'))
+    const onNotifications = () => ElMessage.info(t('app.notifications'))
+
+    return {
+      t,
+      navigationStore,
+      navItems,
+      onNavigate,
+      onSearch,
+      onSwitchWorkspace,
+      onNotifications,
+    }
+  },
+})

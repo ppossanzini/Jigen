@@ -11,9 +11,10 @@
     "type-check": "vue-tsc --build"
   },
   "dependencies": {
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@tabler/icons-webfont": "^3.44.0",
-    "axios": "^1.17.0",
     "element-plus": "^2.14.2",
+    "less": "^4.6.6",
     "pinia": "^3.0.4",
     "vue": "^3.5.32",
     "vue-i18n": "^11.4.5",
@@ -24,7 +25,6 @@
     "@types/node": "^24.12.2",
     "@vitejs/plugin-vue": "^6.0.6",
     "@vue/tsconfig": "^0.9.1",
-    "less": "^4.6.6",
     "npm-run-all2": "^8.0.4",
     "typescript": "~6.0.0",
     "vite": "^8.0.8",

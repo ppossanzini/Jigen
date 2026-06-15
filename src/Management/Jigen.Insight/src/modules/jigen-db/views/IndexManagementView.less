@@ -1,0 +1,47 @@
+@import '@/assets/styles/global/variables.less';
+
+.index-view {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.workspace-grid {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: 14px;
+}
+
+.bottom-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.bottom-cards :deep(.el-card) {
+  border-radius: @radius-md;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid @line-soft;
+}
+
+.bottom-cards h3 {
+  margin: 0 0 8px;
+  font-size: @font-size-app-heading;
+}
+
+.bottom-cards p {
+  margin: 0;
+  color: @text-muted;
+  line-height: 1.45;
+}
+
+@media (max-width: 1280px) {
+  .workspace-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bottom-cards {
+    grid-template-columns: 1fr;
+  }
+}

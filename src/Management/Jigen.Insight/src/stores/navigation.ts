@@ -1,22 +1,21 @@
-import { ref } from 'vue'
 import { defineStore } from 'pinia'
 
-export const useNavigationStore = defineStore('navigation', () => {
-  const activeMenu = ref('app-home')
-  const currentFeature = ref('dashboard')
+interface NavigationState {
+  activeNavKey: string
+  featureContext: string
+}
 
-  function setActiveMenu(value: string) {
-    activeMenu.value = value
-  }
-
-  function setCurrentFeature(value: string) {
-    currentFeature.value = value
-  }
-
-  return {
-    activeMenu,
-    currentFeature,
-    setActiveMenu,
-    setCurrentFeature,
-  }
+export const useNavigationStore = defineStore('navigation', {
+  state: (): NavigationState => ({
+    activeNavKey: 'home',
+    featureContext: 'home',
+  }),
+  actions: {
+    setActiveNav(key: string) {
+      this.activeNavKey = key
+    },
+    setFeatureContext(feature: string) {
+      this.featureContext = feature
+    },
+  },
 })
