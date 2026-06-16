@@ -2,8 +2,8 @@
   <div class="app-shell">
     <ShellHeader
       :app-name="t('app.name')"
-      workspace="Research-Prod"
-      user-name="Evelyn Park"
+      :workspace="workspaceName"
+      :user-name="userName"
       :search-placeholder="t('app.searchPlaceholder')"
       :notification-label="t('app.notifications')"
       @search="onSearch"

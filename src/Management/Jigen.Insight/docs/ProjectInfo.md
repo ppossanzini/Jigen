@@ -47,3 +47,19 @@ Decision:
 Consequences:
 - The app is immediately navigable and visually aligned to the reference wireframes.
 - CRUD/service integration can be added incrementally without reworking shell composition.
+
+## ADR-0004 - Authentication Module and Sign-In UX
+Date: 2026-06-16
+Status: Accepted
+Context:
+- User requested implementation of the sign-in workspace selector screen from the provided design reference.
+- Data source was confirmed as OpenAPI `https://localhost:13223/openapi/v1.json` with custom operations and no geospatial/table scope.
+Decision:
+- Create a dedicated module `src/modules/auth` with view orchestration in `SignInView` and three presentational components: `SignInWorkspaceSelector`, `SignInHeroPanel`, `SignInCard`.
+- Integrate REST login via axios service layer (`baseRestService` + `authService`) targeting `POST /identity/login`, with optional workspace sent in payload.
+- Add typed contracts in `@types/auth.ts` and wire auth state through Pinia (`auth` store) for token/user/workspace persistence and route guarding.
+- Set `/sign-in` as entry route for unauthenticated users and redirect authenticated sessions to `/dashboard`.
+- Keep all visible texts in i18n namespace `auth.*`, include pointer cursor on actionable custom elements, and preserve mobile/desktop responsiveness.
+Consequences:
+- Authentication now gates application shell routes and provides a reusable foundation for future identity features (logout, refresh token, SSO).
+- Workspace selection is synchronized between login and shell header through shared store state.

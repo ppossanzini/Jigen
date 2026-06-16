@@ -13,6 +13,7 @@
   "dependencies": {
     "@fontsource/jetbrains-mono": "^5.2.8",
     "@tabler/icons-webfont": "^3.44.0",
+    "axios": "^1.18.0",
     "element-plus": "^2.14.2",
     "less": "^4.6.6",
     "pinia": "^3.0.4",

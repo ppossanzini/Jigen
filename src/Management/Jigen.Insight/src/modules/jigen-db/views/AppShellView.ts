@@ -6,6 +6,7 @@ import ShellHeader from '@/modules/jigen-db/components/ShellHeader/ShellHeader.v
 import ShellSidebar from '@/modules/jigen-db/components/ShellSidebar/ShellSidebar.vue'
 import type { SidebarItem } from '@/modules/jigen-db/types'
 import { useNavigationStore } from '@/stores/navigation'
+import { useAuthStore } from '@/stores/auth'
 
 export default defineComponent({
   name: 'AppShellView',
@@ -18,6 +19,19 @@ export default defineComponent({
     const router = useRouter()
     const { t } = useI18n()
     const navigationStore = useNavigationStore()
+    const authStore = useAuthStore()
+
+    const workspaceName = computed(() => {
+      const map: Record<string, string> = {
+        'project-orion': 'Project Orion',
+        'vector-lab': 'Vector Lab',
+        'research-prod': 'Research Prod',
+      }
+
+      return map[authStore.selectedWorkspace] || 'Project Orion'
+    })
+
+    const userName = computed(() => authStore.userName || 'Guest User')
 
     const navItems = computed<SidebarItem[]>(() => [
       { key: 'home', label: t('nav.home'), iconClass: 'ti ti-home', routeName: 'dashboard-home' },
@@ -65,6 +79,8 @@ export default defineComponent({
     return {
       t,
       navigationStore,
+      workspaceName,
+      userName,
       navItems,
       onNavigate,
       onSearch,
