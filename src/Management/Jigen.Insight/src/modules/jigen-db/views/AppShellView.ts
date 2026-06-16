@@ -41,6 +41,11 @@ export default defineComponent({
         key: 'security',
         label: t('nav.security'),
         iconClass: 'ti ti-shield-lock',
+
+      },
+      { key: 'pipelines', label: t('nav.pipelines'), iconClass: 'ti ti-adjustments-horizontal', routeName: 'coming-soon' },
+      { key: 'datasets', label: t('nav.datasets'), iconClass: 'ti ti-folder', routeName: 'coming-soon' },
+      { key: 'settings', label: t('nav.settings'), iconClass: 'ti ti-settings',
         children: [
           {
             key: 'security-users',
@@ -55,10 +60,8 @@ export default defineComponent({
             routeName: 'security-roles',
           },
         ],
-      },
-      { key: 'pipelines', label: t('nav.pipelines'), iconClass: 'ti ti-adjustments-horizontal', routeName: 'coming-soon' },
-      { key: 'datasets', label: t('nav.datasets'), iconClass: 'ti ti-folder', routeName: 'coming-soon' },
-      { key: 'settings', label: t('nav.settings'), iconClass: 'ti ti-settings', routeName: 'coming-soon' },
+
+       },
     ])
 
 

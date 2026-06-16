@@ -1,5 +1,6 @@
 using Hikyaku;
 using Jigen.Identity.Core.Dto;
+using Jigen.Identity.Core.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenIddict.Abstractions;
@@ -12,7 +13,9 @@ public class IdentityQueryHandlers(
   IOpenIddictApplicationManager applicationManager) :
   IRequestHandler<Core.Query.ListUsers, IEnumerable<UserSummary>>,
   IRequestHandler<Core.Query.ListRoles, IEnumerable<RoleSummary>>,
-  IRequestHandler<Core.Query.ListApps, IEnumerable<AppSummary>>
+  IRequestHandler<Core.Query.ListApps, IEnumerable<AppSummary>>,
+  IRequestHandler<Core.Query.GetUserDetail, UserDetail?>,
+  IRequestHandler<Core.Query.GetUsersInRole, IEnumerable<UserSummary>?>
 {
   public async Task<IEnumerable<UserSummary>> Handle(Core.Query.ListUsers request, CancellationToken cancellationToken)
   {
@@ -60,5 +63,48 @@ public class IdentityQueryHandlers(
     }
 
     return apps;
+  }
+
+  public async Task<UserDetail?> Handle(Core.Query.GetUserDetail request, CancellationToken cancellationToken)
+  {
+    if (string.IsNullOrWhiteSpace(request?.Id))
+      return null;
+
+    var user = await userManager.FindByIdAsync(request.Id);
+    if (user == null)
+      return null;
+
+    var roles = await userManager.GetRolesAsync(user);
+    var claims = await userManager.GetClaimsAsync(user);
+    var permissions = claims
+      .Where(c => c.Type == AuthConstants.ClaimTypes.Permission)
+      .Select(c => c.Value)
+      .Distinct()
+      .ToArray();
+
+    return new UserDetail
+    {
+      Id = user.Id,
+      UserName = user.UserName,
+      Roles = roles.ToArray(),
+      Permissions = permissions
+    };
+  }
+
+  public async Task<IEnumerable<UserSummary>?> Handle(Core.Query.GetUsersInRole request, CancellationToken cancellationToken)
+  {
+    if (string.IsNullOrWhiteSpace(request?.RoleId))
+      return null;
+
+    var role = await roleManager.FindByIdAsync(request.RoleId);
+    if (role == null || string.IsNullOrWhiteSpace(role.Name))
+      return null;
+
+    var users = await userManager.GetUsersInRoleAsync(role.Name);
+    return users.Select(u => new UserSummary
+    {
+      Id = u.Id,
+      UserName = u.UserName
+    }).ToList();
   }
 }

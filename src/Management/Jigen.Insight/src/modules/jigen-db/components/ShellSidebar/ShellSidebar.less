@@ -12,8 +12,10 @@
   width: 112px;
   height: 100%;
   border-radius: 18px;
-  border: 1px solid @line-soft;
-  background: linear-gradient(180deg, #141a2b 0%, #0d1220 86%);
+  border: 2px solid @line-soft;
+    background: linear-gradient(180deg, #1b1d22 0%, #111319 86%);
+
+  // background: linear-gradient(180deg, #141a2b 0%, #0d1220 86%);
   box-shadow: @shadow-soft;
   display: grid;
   grid-template-rows: auto 1fr auto;
@@ -59,7 +61,7 @@
   }
 
   :deep(.el-menu-item i) {
-    font-size: @font-size-app-label;
+    font-size: @font-size-app-icon;
     margin-right: 0;
   }
 
@@ -87,7 +89,7 @@
   }
 
   :deep(.el-sub-menu__title i) {
-    font-size: @font-size-app-label;
+    font-size: @font-size-app-icon;
   }
 
   :deep(.el-sub-menu__title span) {

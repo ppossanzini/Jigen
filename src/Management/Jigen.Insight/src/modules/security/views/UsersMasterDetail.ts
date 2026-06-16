@@ -24,7 +24,7 @@ export default defineComponent({
     const currentPage = ref(1)
     const pageSize = ref(6)
     const applyingRoles = ref(false)
-    const loadingUserDetail = ref(false)
+    const loadingEditDetail = ref(false)
     const userDialogVisible = ref(false)
     const userDialogSaving = ref(false)
     const editUserId = ref<string | null>(null)
@@ -71,13 +71,11 @@ export default defineComponent({
     }
 
     const onSelectUser = async (row: SecurityUserApiModel) => {
-      securityStore.setSelectedUser(row.id)
-
       const selectedId = row.id
-      loadingUserDetail.value = true
+      securityStore.setSelectedUser(selectedId)
 
       try {
-        const detail = await securityService.getUserById(selectedId)
+        const detail = await securityService.getUserDetail(selectedId)
 
         if (securityStore.selectedUserId !== selectedId) {
           return
@@ -91,12 +89,8 @@ export default defineComponent({
           return
         }
 
-        // Keep previous cached mapping if detail endpoint fails.
+        // Keep existing roles mapping if detail request fails.
         selectedRoles.value = [...(securityStore.userRolesById[selectedId] ?? [])]
-      } finally {
-        if (securityStore.selectedUserId === selectedId) {
-          loadingUserDetail.value = false
-        }
       }
     }
 
@@ -117,16 +111,36 @@ export default defineComponent({
       userDialogVisible.value = true
     }
 
-    const onOpenEditUserDialog = () => {
+    const onOpenEditUserDialog = async () => {
       if (!selectedUser.value) {
         return
       }
 
-      editUserId.value = selectedUser.value.id
-      userDialogForm.userName = selectedUser.value.userName ?? ''
-      userDialogForm.password = ''
-      userDialogForm.roles = [...selectedRoles.value]
-      userDialogVisible.value = true
+      const selectedId = selectedUser.value.id
+      loadingEditDetail.value = true
+
+      try {
+        const detail = await securityService.getUserDetail(selectedId)
+        const roles = detail.roles ?? []
+
+        securityStore.setUserRoles(selectedId, [...roles])
+        selectedRoles.value = [...roles]
+
+        editUserId.value = selectedId
+        userDialogForm.userName = detail.userName ?? selectedUser.value.userName ?? ''
+        userDialogForm.password = ''
+        userDialogForm.roles = [...roles]
+        userDialogVisible.value = true
+      } catch {
+        // Fall back to currently selected data if detail endpoint fails.
+        editUserId.value = selectedId
+        userDialogForm.userName = selectedUser.value.userName ?? ''
+        userDialogForm.password = ''
+        userDialogForm.roles = [...selectedRoles.value]
+        userDialogVisible.value = true
+      } finally {
+        loadingEditDetail.value = false
+      }
     }
 
     const onCloseUserDialog = () => {
@@ -262,7 +276,7 @@ export default defineComponent({
       visibleUsers,
       roleOptions,
       applyingRoles,
-      loadingUserDetail,
+      loadingEditDetail,
       userDialogVisible,
       userDialogSaving,
       userDialogTitle,

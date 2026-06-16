@@ -14,7 +14,27 @@ class SecurityService extends BaseRestService {
       return []
     }
 
-    return payload.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+    return payload
+      .map((entry) => {
+        if (typeof entry === 'string') {
+          return entry
+        }
+
+        if (typeof entry === 'object' && entry !== null) {
+          const raw = entry as Record<string, unknown>
+
+          if (typeof raw.name === 'string') {
+            return raw.name
+          }
+
+          if (typeof raw.roleName === 'string') {
+            return raw.roleName
+          }
+        }
+
+        return null
+      })
+      .filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
   }
 
   private toUser(payload: unknown): SecurityUserApiModel | null {
@@ -74,19 +94,23 @@ class SecurityService extends BaseRestService {
     return this.toUsers(fallback.data)
   }
 
-  async getUserById(id: string): Promise<SecurityUserApiModel> {
-    const primary = await this.api.get(`/users/${id}`)
-    const primaryUser = this.toUser(primary.data)
+  async getUserDetail(id: string): Promise<SecurityUserApiModel> {
+    try {
+      const response = await this.api.get(`/users/${id}`)
+      const detail = this.toUser(response.data)
 
-    if (primaryUser) {
-      return primaryUser
+      if (detail) {
+        return detail
+      }
+    } catch {
+      // Try identity fallback when primary detail endpoint is unavailable.
     }
 
     const fallback = await this.api.get(`/identity/users/${id}`)
-    const fallbackUser = this.toUser(fallback.data)
+    const detail = this.toUser(fallback.data)
 
-    if (fallbackUser) {
-      return fallbackUser
+    if (detail) {
+      return detail
     }
 
     throw new Error('Invalid user detail payload')

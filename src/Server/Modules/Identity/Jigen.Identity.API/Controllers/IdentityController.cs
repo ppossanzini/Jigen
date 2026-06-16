@@ -3,6 +3,7 @@ using Jigen.Identity.Core.Command;
 using Jigen.Identity.Core.Dto;
 using Jigen.Identity.Core.Security;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jigen.Identity.Controllers;
@@ -62,6 +63,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpGet("~/users")]
   [HttpGet("~/identity/users")]
+  [ProducesResponseType(typeof(IEnumerable<UserSummary>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListUsers(CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Query.ListUsers(), cancellationToken);
@@ -82,6 +84,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpPut("~/users/{id}")]
+  [ProducesResponseType(typeof(UserDetail), StatusCodes.Status200OK)]
   public async Task<IActionResult> UpdateUser(string id, [FromBody] UpdateUserData request, CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Command.UpdateUser
@@ -89,6 +92,19 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
       Id = id,
       Data = request
     }, cancellationToken);
+
+    if (result.Status == IdentityActionStatus.Success)
+    {
+      var detail = await mediator.Send(new Core.Query.GetUserDetail
+      {
+        Id = id
+      }, cancellationToken);
+
+      if (detail == null)
+        return NotFound("User not found.");
+
+      return Ok(detail);
+    }
 
     return MapIdentityCommandResult(result);
   }
@@ -108,9 +124,44 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpGet("~/roles")]
   [HttpGet("~/identity/roles")]
+  [ProducesResponseType(typeof(IEnumerable<RoleSummary>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListRoles(CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Query.ListRoles(), cancellationToken);
+    return Ok(result);
+  }
+
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpGet("~/users/{id}")]
+  [HttpGet("~/identity/users/{id}")]
+  [ProducesResponseType(typeof(UserDetail), StatusCodes.Status200OK)]
+  public async Task<IActionResult> GetUserDetail(string id, CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Core.Query.GetUserDetail
+    {
+      Id = id
+    }, cancellationToken);
+
+    if (result == null)
+      return NotFound("User not found.");
+
+    return Ok(result);
+  }
+
+  [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
+  [HttpGet("~/roles/{id}/users")]
+  [HttpGet("~/identity/roles/{id}/users")]
+  [ProducesResponseType(typeof(IEnumerable<UserSummary>), StatusCodes.Status200OK)]
+  public async Task<IActionResult> ListUsersInRole(string id, CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Core.Query.GetUsersInRole
+    {
+      RoleId = id
+    }, cancellationToken);
+
+    if (result == null)
+      return NotFound("Role not found.");
+
     return Ok(result);
   }
 
