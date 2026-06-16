@@ -1,5 +1,12 @@
 @import './variables.less';
 
+body {
+  background-color: #121212; /* Sfondo scuro di base */
+  color: #e0e0e0;
+  margin: 0;
+  padding: 0;
+}
+
 :root {
   --el-text-color-primary: #d8dbe3;
   --el-text-color-regular: #bcc1cc;
@@ -46,9 +53,16 @@ a {
   text-decoration: none;
 }
 
-.panel-header h3, .el-card__header h3 {
-    margin: 0;
-    font-weight: 500;
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-header h3,
+.el-card__header h3 {
+  margin: 0;
+  font-weight: 500;
 }
 
 /* Reusable module gray theme (dashboard-aligned). */
@@ -60,7 +74,6 @@ a {
   border-radius: @radius-md;
   background: linear-gradient(180deg, #15181d 0%, #111317 100%);
   box-shadow: @shadow-soft;
-  overflow: hidden;
   overflow: hidden;
 }
 

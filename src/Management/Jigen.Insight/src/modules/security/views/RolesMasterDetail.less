@@ -1,13 +1,6 @@
 @import '@/assets/styles/global/variables.less';
 
-.roles-master-detail {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.layout-grid {
+.master-detail-grid {
   flex: 1;
   min-height: 0;
   display: grid;
@@ -16,7 +9,7 @@
 }
 
 @media (max-width: 1280px) {
-  .layout-grid {
+  .master-detail-grid {
     grid-template-columns: 1fr;
   }
 }

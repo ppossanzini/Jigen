@@ -1,22 +1,7 @@
 @import '@/assets/styles/global/variables.less';
 
-.users-master-detail {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.layout-grid {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: minmax(300px, 1fr) minmax(420px, 1.3fr);
-  gap: 12px;
-}
-
 @media (max-width: 1280px) {
-  .layout-grid {
+  .master-detail-grid {
     grid-template-columns: 1fr;
   }
 }

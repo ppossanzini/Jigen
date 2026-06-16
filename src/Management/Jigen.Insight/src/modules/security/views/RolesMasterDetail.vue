@@ -1,13 +1,13 @@
 <template>
-  <section class="roles-master-detail master-detail-view">
-    <header class="toolbar master-detail-toolbar">
+  <section class="master-detail-view">
+    <header class="master-detail-toolbar">
       <h3>{{ t('security.roles.title') }}</h3>
       <el-button type="primary" @click="onOpenCreateRoleDialog">
         {{ t('security.roles.actions.create') }}
       </el-button>
     </header>
 
-    <div class="layout-grid master-detail-grid">
+    <div class="master-detail-grid">
       <article class="panel">
         <RolesMasterTable
           :rows="visibleRoles"
@@ -26,9 +26,9 @@
 
       <article class="panel detail-panel">
         <template v-if="selectedRole">
-          <div class="detail-header master-detail-header panel-header">
+          <div class="master-detail-header panel-header">
             <h3>{{ t('security.roles.detailTitle') }}</h3>
-            <div class="detail-actions master-detail-actions">
+            <div class="master-detail-actions">
               <el-button @click="onOpenEditRoleDialog">{{ t('security.common.edit') }}</el-button>
               <el-button type="danger" @click="onDeleteRole">{{ t('security.common.delete') }}</el-button>
             </div>
@@ -53,12 +53,11 @@
       </article>
     </div>
 
-    <el-dialog
+      <el-dialog
       :model-value="roleDialogVisible"
       :title="roleDialogTitle"
       width="520px"
       :teleported="false"
-      class="security-role-dialog"
       @close="onCloseRoleDialog"
     >
       <el-form label-position="top">

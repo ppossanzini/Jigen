@@ -1,5 +1,5 @@
 <template>
-  <section class="roles-master-table master-table">
+  <section class="master-table">
     <div class="panel-header master-table__header">
       <h3>{{ title }}</h3>
     </div>
@@ -9,14 +9,14 @@
       stripe
       highlight-current-row
       :empty-text="emptyLabel"
-      class="table-body master-table__body"
+      class="master-table__body"
       @row-click="onRowClick"
       v-loading="loading"
     >
       <el-table-column prop="name" :label="roleNameLabel" min-width="180" />
     </el-table>
 
-    <div class="table-footer master-table__footer">
+    <div class="master-table__footer">
       <el-pagination
         :current-page="currentPage"
         :page-size="pageSize"
@@ -24,7 +24,7 @@
         layout="prev, pager, next"
         @current-change="onPageChange"
       />
-      <span class="rows-label master-table__rows-label">{{ rowsLabel }}: {{ pageSize }}</span>
+      <span class="master-table__rows-label">{{ rowsLabel }}: {{ pageSize }}</span>
     </div>
   </section>
 </template>
