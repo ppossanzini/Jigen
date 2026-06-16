@@ -1,0 +1,142 @@
+@import '@/assets/styles/global/variables.less';
+
+.roles-master-detail {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #f4f8ff;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar h3 {
+  margin: 0;
+  font-size: @font-size-app-heading;
+  color: #f4f8ff;
+}
+
+.layout-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(460px, 1.4fr);
+  gap: 12px;
+}
+
+.panel {
+  border: 1px solid fade(@accent-cyan, 24%);
+  border-radius: @radius-md;
+  background: linear-gradient(180deg, #0e1629 0%, #0b1324 100%);
+  min-height: 0;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(143, 232, 255, 0.08);
+}
+
+.detail-panel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-header h3 {
+  margin: 0;
+  font-size: @font-size-app-heading;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.cross-ref-title {
+  margin: 4px 0 0;
+  font-size: @font-size-app-label;
+  color: #d2ddf4;
+}
+
+.roles-master-detail :deep(.el-form-item__label),
+.roles-master-detail :deep(.el-descriptions__label),
+.roles-master-detail :deep(.el-descriptions__content) {
+  color: #d2ddf4 !important;
+}
+
+.roles-master-detail :deep(.el-descriptions__body) {
+  background: #111a2d;
+}
+
+.roles-master-detail :deep(.el-descriptions__label.is-bordered-label) {
+  background: #17233c;
+}
+
+.roles-master-detail :deep(.el-table) {
+  --el-table-bg-color: #0c1425;
+  --el-table-tr-bg-color: #0c1425;
+  --el-table-row-hover-bg-color: rgba(109, 246, 255, 0.14);
+  --el-table-border-color: rgba(109, 246, 255, 0.22);
+  --el-table-header-bg-color: #142038;
+  --el-table-text-color: #e8f0ff;
+  --el-table-header-text-color: #f4f8ff;
+}
+
+.roles-master-detail :deep(.el-empty__description p) {
+  color: #d2ddf4 !important;
+}
+
+.roles-master-detail :deep(.el-button) {
+  font-weight: 600;
+}
+
+.roles-master-detail :deep(.el-button--primary) {
+  --el-button-bg-color: #1c74d8;
+  --el-button-border-color: #1c74d8;
+  --el-button-text-color: #f7fbff;
+  --el-button-hover-bg-color: #2582ea;
+  --el-button-hover-border-color: #2582ea;
+  --el-button-active-bg-color: #1665bf;
+  --el-button-active-border-color: #1665bf;
+}
+
+.roles-master-detail :deep(.el-button--default) {
+  --el-button-bg-color: #1a2338;
+  --el-button-border-color: rgba(109, 246, 255, 0.3);
+  --el-button-text-color: #e8f0ff;
+  --el-button-hover-bg-color: #24324f;
+  --el-button-hover-border-color: rgba(109, 246, 255, 0.5);
+  --el-button-hover-text-color: #f5fbff;
+}
+
+.roles-master-detail :deep(.el-button--danger) {
+  --el-button-bg-color: #c54556;
+  --el-button-border-color: #c54556;
+  --el-button-text-color: #fff7f8;
+  --el-button-hover-bg-color: #d34f62;
+  --el-button-hover-border-color: #d34f62;
+}
+
+.roles-master-detail :deep(.el-button.is-disabled),
+.roles-master-detail :deep(.el-button.is-disabled:hover) {
+  --el-button-bg-color: #2a3a57;
+  --el-button-border-color: #2a3a57;
+  --el-button-text-color: #c8d5ee;
+  opacity: 0.9;
+}
+
+@media (max-width: 1280px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+}

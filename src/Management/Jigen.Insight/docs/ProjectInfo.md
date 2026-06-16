@@ -63,3 +63,19 @@ Decision:
 Consequences:
 - Authentication now gates application shell routes and provides a reusable foundation for future identity features (logout, refresh token, SSO).
 - Workspace selection is synchronized between login and shell header through shared store state.
+
+## ADR-0005 - Security Users/Roles Master-Detail Module
+Date: 2026-06-16
+Status: Accepted
+Context:
+- User requested a new master-detail experience for users and roles management under `src/modules/security`.
+- Data source was confirmed as OpenAPI `https://localhost:13223/openapi/v1.json` with dynamic table page-size and accessibility QA requested during development.
+Decision:
+- Create a dedicated `security` module with nested routes under `/security` using a shared `SecurityLayout` and two views: `UsersMasterDetail` and `RolesMasterDetail`.
+- Add typed OpenAPI contracts in `@types/security.ts` and a dedicated REST adapter `src/services/securityService.ts` using `/users`, `/users/{id}`, `/roles`, `/roles/{id}` with identity fallbacks for listing endpoints.
+- Introduce `src/stores/security.ts` (Pinia) as shared cross-view state for users, roles, selected entities, and in-memory user-role assignments.
+- Implement users CRUD plus role assignment from the user detail pane, and roles CRUD with cross-reference to assigned users.
+- Extend shell navigation and router metadata with `security-users` and `security-roles` routes and add complete i18n coverage in `en.ts`.
+Consequences:
+- Security administration is now reachable as first-class application functionality, no longer routed through Coming Soon placeholders.
+- Role assignment state is persisted through update calls and synchronized in the shared store for consistent master-detail behavior across both security views.

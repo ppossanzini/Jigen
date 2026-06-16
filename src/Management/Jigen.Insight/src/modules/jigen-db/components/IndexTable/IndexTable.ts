@@ -49,6 +49,18 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    refreshActionLabel: {
+      type: String,
+      required: true,
+    },
+    editActionLabel: {
+      type: String,
+      required: true,
+    },
+    deleteActionLabel: {
+      type: String,
+      required: true,
+    },
     perPageLabel: {
       type: String,
       required: true,

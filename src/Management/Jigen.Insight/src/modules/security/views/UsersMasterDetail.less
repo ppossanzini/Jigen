@@ -1,0 +1,116 @@
+@import '@/assets/styles/global/variables.less';
+
+.users-master-detail {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: #f4f8ff;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar h3 {
+  margin: 0;
+  font-size: @font-size-app-heading;
+  color: #f4f8ff;
+}
+
+.layout-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(420px, 1.3fr);
+  gap: 12px;
+}
+
+.panel {
+  border: 1px solid fade(@accent-cyan, 24%);
+  border-radius: @radius-md;
+  background: linear-gradient(180deg, #0e1629 0%, #0b1324 100%);
+  min-height: 0;
+  overflow: hidden;
+  box-shadow: inset 0 1px 0 rgba(143, 232, 255, 0.08);
+}
+
+.detail-panel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.detail-header h3 {
+  margin: 0;
+  font-size: @font-size-app-heading;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.detail-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.users-master-detail :deep(.el-input__wrapper),
+.users-master-detail :deep(.el-select__wrapper),
+.users-master-detail :deep(.el-textarea__inner) {
+  background: #121d33;
+  box-shadow: inset 0 0 0 1px rgba(109, 246, 255, 0.22);
+}
+
+.users-master-detail :deep(.el-input.is-disabled .el-input__wrapper) {
+  background: #111a2d;
+}
+
+
+
+.users-master-detail :deep(.el-form-item__label),
+.users-master-detail :deep(.el-descriptions__label),
+.users-master-detail :deep(.el-descriptions__content),
+.users-master-detail :deep(.el-checkbox__label) {
+  color: #d2ddf4 !important;
+}
+
+.users-master-detail :deep(.el-empty__description p) {
+  color: #d2ddf4 !important;
+}
+
+.users-master-detail :deep(.el-button) {
+  font-weight: 600;
+}
+
+.roles-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.roles-group :deep(.el-checkbox) {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(17, 26, 45, 0.85);
+  border: 1px solid rgba(109, 246, 255, 0.16);
+}
+
+@media (max-width: 1280px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+}

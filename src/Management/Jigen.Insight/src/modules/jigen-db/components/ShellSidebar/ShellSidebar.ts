@@ -17,6 +17,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    helpLabel: {
+      type: String,
+      required: true,
+    },
   },
   emits: ['navigate', 'collapse', 'help'],
   setup(_, { emit }) {

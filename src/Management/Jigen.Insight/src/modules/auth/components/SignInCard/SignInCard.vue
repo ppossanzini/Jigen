@@ -16,6 +16,7 @@
         <el-input
           :model-value="modelValue.email"
           :placeholder="emailPlaceholder"
+          autocomplete="username"
           @update:model-value="onEmailChange"
         />
       </el-form-item>
@@ -26,6 +27,7 @@
           :placeholder="passwordPlaceholder"
           show-password
           type="password"
+          autocomplete="current-password"
           @update:model-value="onPasswordChange"
         />
       </el-form-item>

@@ -20,17 +20,29 @@
       <el-table-column prop="size" :label="sizeLabel" width="115" />
       <el-table-column prop="updatedAt" :label="updatedLabel" min-width="170" />
       <el-table-column :label="actionsLabel" width="110">
-        <template #default>
+        <template #default="scope">
           <div class="row-actions">
-            <button type="button" class="icon-action" @click.stop="$emit('refresh')">
+            <el-button
+              class="icon-action"
+              :aria-label="`${refreshActionLabel} ${scope.row.name}`"
+              @click.stop="$emit('refresh')"
+            >
               <i class="ti ti-refresh" />
-            </button>
-            <button type="button" class="icon-action" @click.stop="$emit('edit')">
+            </el-button>
+            <el-button
+              class="icon-action"
+              :aria-label="`${editActionLabel} ${scope.row.name}`"
+              @click.stop="$emit('edit')"
+            >
               <i class="ti ti-adjustments" />
-            </button>
-            <button type="button" class="icon-action danger" @click.stop="$emit('delete')">
+            </el-button>
+            <el-button
+              class="icon-action danger"
+              :aria-label="`${deleteActionLabel} ${scope.row.name}`"
+              @click.stop="$emit('delete')"
+            >
               <i class="ti ti-trash" />
-            </button>
+            </el-button>
           </div>
         </template>
       </el-table-column>

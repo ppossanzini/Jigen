@@ -2,7 +2,13 @@ export interface SidebarItem {
   key: string
   label: string
   iconClass: string
-  routeName: 'dashboard-home' | 'index-management' | 'coming-soon'
+  routeName?:
+    | 'dashboard-home'
+    | 'index-management'
+    | 'security-users'
+    | 'security-roles'
+    | 'coming-soon'
+  children?: SidebarItem[]
 }
 
 export interface IndexRow {

@@ -3,20 +3,34 @@
     <div class="sidebar-rail">
       <div class="sidebar-logo" aria-hidden="true" />
 
-      <el-menu class="sidebar-menu" :default-active="activeKey" @select="onSelect">
-        <el-menu-item v-for="item in items" :key="item.key" :index="item.key">
-          <i :class="item.iconClass" />
-          <span>{{ item.label }}</span>
-        </el-menu-item>
+      <el-menu class="sidebar-menu" :default-active="activeKey" :default-openeds="['security']" @select="onSelect">
+        <template v-for="item in items" :key="item.key">
+          <el-sub-menu v-if="item.children?.length" :index="item.key">
+            <template #title>
+              <i :class="item.iconClass" />
+              <span>{{ item.label }}</span>
+            </template>
+
+            <el-menu-item v-for="child in item.children" :key="child.key" :index="child.key">
+              <i :class="child.iconClass" />
+              <span>{{ child.label }}</span>
+            </el-menu-item>
+          </el-sub-menu>
+
+          <el-menu-item v-else :index="item.key">
+            <i :class="item.iconClass" />
+            <span>{{ item.label }}</span>
+          </el-menu-item>
+        </template>
       </el-menu>
 
       <div class="sidebar-bottom">
-        <button type="button" class="collapse-btn" @click="onCollapse">
+        <el-button class="collapse-btn" @click="onCollapse">
           <span>{{ collapseLabel }}</span>
-        </button>
-        <button type="button" class="help-btn" @click="onHelp">
+        </el-button>
+        <el-button class="help-btn" :aria-label="helpLabel" @click="onHelp">
           <i class="ti ti-help" />
-        </button>
+        </el-button>
       </div>
     </div>
   </aside>

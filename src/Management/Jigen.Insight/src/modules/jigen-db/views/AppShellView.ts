@@ -37,6 +37,25 @@ export default defineComponent({
       { key: 'home', label: t('nav.home'), iconClass: 'ti ti-home', routeName: 'dashboard-home' },
       { key: 'search', label: t('nav.search'), iconClass: 'ti ti-search', routeName: 'coming-soon' },
       { key: 'indexes', label: t('nav.indexes'), iconClass: 'ti ti-database', routeName: 'index-management' },
+      {
+        key: 'security',
+        label: t('nav.security'),
+        iconClass: 'ti ti-shield-lock',
+        children: [
+          {
+            key: 'security-users',
+            label: t('nav.securityUsers'),
+            iconClass: 'ti ti-user',
+            routeName: 'security-users',
+          },
+          {
+            key: 'security-roles',
+            label: t('nav.securityRoles'),
+            iconClass: 'ti ti-users-group',
+            routeName: 'security-roles',
+          },
+        ],
+      },
       { key: 'pipelines', label: t('nav.pipelines'), iconClass: 'ti ti-adjustments-horizontal', routeName: 'coming-soon' },
       { key: 'datasets', label: t('nav.datasets'), iconClass: 'ti ti-folder', routeName: 'coming-soon' },
       { key: 'settings', label: t('nav.settings'), iconClass: 'ti ti-settings', routeName: 'coming-soon' },
@@ -48,14 +67,33 @@ export default defineComponent({
       (routeName) => {
         if (routeName === 'dashboard-home') navigationStore.setActiveNav('home')
         if (routeName === 'index-management') navigationStore.setActiveNav('indexes')
+        if (routeName === 'security-users') navigationStore.setActiveNav('security-users')
+        if (routeName === 'security-roles') navigationStore.setActiveNav('security-roles')
       },
       { immediate: true },
     )
 
     const onNavigate = async (key: string) => {
-      const target = navItems.value.find((item) => item.key === key)
+      const findByKey = (items: SidebarItem[], lookupKey: string): SidebarItem | null => {
+        for (const item of items) {
+          if (item.key === lookupKey) {
+            return item
+          }
 
-      if (!target) return
+          if (item.children?.length) {
+            const nested = findByKey(item.children, lookupKey)
+            if (nested) {
+              return nested
+            }
+          }
+        }
+
+        return null
+      }
+
+      const target = findByKey(navItems.value, key)
+
+      if (!target?.routeName) return
 
       navigationStore.setActiveNav(target.key)
 

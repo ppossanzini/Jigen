@@ -2,6 +2,7 @@ const en = {
   app: {
     name: 'Jigen DB',
     searchPlaceholder: 'Search indexes, tags or fields',
+    searchLabel: 'Search indexes',
     searchNotice: 'Search placeholder: {term}',
     notifications: 'Notifications',
     switch: 'Switch',
@@ -12,10 +13,14 @@ const en = {
     home: 'Home',
     search: 'Search',
     indexes: 'Indexes',
+    security: 'Security',
+    securityUsers: 'Users',
+    securityRoles: 'Roles',
     pipelines: 'Pipelines',
     datasets: 'Datasets',
     settings: 'Settings',
     collapse: 'Collapse',
+    help: 'Help',
   },
   dashboard: {
     title: 'Dashboard Home',
@@ -61,6 +66,9 @@ const en = {
     storage: 'Storage',
     page: 'Page',
     perPage: 'Rows',
+    refreshAction: 'Refresh index',
+    editAction: 'Edit index',
+    deleteAction: 'Delete index',
     healthCardText:
       '2 indexes showing warnings. Suggestion: increase replicas for news-embeddings-v3.',
     storageCardText:
@@ -103,6 +111,81 @@ const en = {
     validation: {
       emailRequired: 'Username or email is required',
       passwordRequired: 'Password is required',
+    },
+  },
+  security: {
+    layout: {
+      title: 'Security Management',
+      description: 'Manage users, role assignments, and authorization entities.',
+    },
+    common: {
+      edit: 'Edit',
+      delete: 'Delete',
+      save: 'Save',
+      cancel: 'Cancel',
+      warning: 'Warning',
+      error: 'Operation failed. Please retry.',
+      rows: 'Rows',
+      empty: 'No data available',
+    },
+    users: {
+      title: 'Users',
+      masterTitle: 'Users List',
+      detailTitle: 'User Details',
+      emptySelection: 'Select a user to view and manage details.',
+      columns: {
+        id: 'Id',
+        userName: 'Username',
+        password: 'Password',
+        roles: 'Roles',
+      },
+      actions: {
+        create: 'Create User',
+        saveRoles: 'Save Role Assignment',
+      },
+      dialog: {
+        createTitle: 'Create User',
+        editTitle: 'Edit User',
+      },
+      validation: {
+        userNameRequired: 'Username is required',
+        passwordRequired: 'Password is required for new users',
+      },
+      feedback: {
+        created: 'User created successfully.',
+        updated: 'User updated successfully.',
+        deleted: 'User deleted successfully.',
+        rolesUpdated: 'Role assignment saved successfully.',
+        deleteConfirm: 'Do you want to delete the selected user?',
+      },
+    },
+    roles: {
+      title: 'Roles',
+      masterTitle: 'Roles List',
+      detailTitle: 'Role Details',
+      usersTitle: 'Users Assigned To This Role',
+      noUsers: 'No users currently assigned to this role.',
+      emptySelection: 'Select a role to inspect linked users.',
+      columns: {
+        id: 'Id',
+        name: 'Role Name',
+      },
+      actions: {
+        create: 'Create Role',
+      },
+      dialog: {
+        createTitle: 'Create Role',
+        editTitle: 'Edit Role',
+      },
+      validation: {
+        nameRequired: 'Role name is required',
+      },
+      feedback: {
+        created: 'Role created successfully.',
+        updated: 'Role updated successfully.',
+        deleted: 'Role deleted successfully.',
+        deleteConfirm: 'Do you want to delete the selected role?',
+      },
     },
   },
   common: {

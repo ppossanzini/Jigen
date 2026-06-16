@@ -33,11 +33,26 @@
   color: @text-primary;
   background: #3a3f47;
   cursor: pointer;
+  padding: 0;
+  min-height: 28px;
+
+  :deep(span) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
 }
 
 .icon-action.danger {
   background: rgba(255, 63, 63, 0.2);
   color: #ff7373;
+}
+
+.icon-action:focus-visible {
+  outline: 2px solid #7bd8ff;
+  outline-offset: 2px;
 }
 
 .pagination-row {

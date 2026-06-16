@@ -3,21 +3,21 @@
 .shell-sidebar {
   height: 100%;
   display: grid;
-  justify-items: center;
-  padding: 12px 0;
+  justify-items: stretch;
+  padding: 12px 0 12px 0;
   overflow: hidden;
 }
 
 .sidebar-rail {
-  width: 92px;
+  width: 112px;
   height: 100%;
-  border-radius: 22px 22px 22px 22px;
+  border-radius: 18px;
   border: 1px solid @line-soft;
-  background: linear-gradient(180deg, #1b1d22 0%, #111319 86%);
+  background: linear-gradient(180deg, #141a2b 0%, #0d1220 86%);
   box-shadow: @shadow-soft;
   display: grid;
   grid-template-rows: auto 1fr auto;
-  gap: 16px;
+  gap: 12px;
   padding: 14px 8px 12px;
 }
 
@@ -42,43 +42,84 @@
   }
 
   :deep(.el-menu-item) {
-    height: 64px;
+    min-height: 58px;
     line-height: 1;
     width: 100%;
-    padding: 10px 6px !important;
+    padding: 8px 6px !important;
     display: flex;
     flex-direction: column;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     text-align: center;
-    color: @text-muted;
-    border-radius: 14px;
-    margin-bottom: 8px;
-    gap: 6px;
+    color: #d2ddf4;
+    border-radius: 10px;
+    margin-bottom: 6px;
+    gap: 4px;
     cursor: pointer;
   }
 
   :deep(.el-menu-item i) {
-    font-size: @font-size-app-icon;
+    font-size: @font-size-app-label;
     margin-right: 0;
   }
 
   :deep(.el-menu-item span) {
-    width: auto;
+    width: 100%;
     min-width: 0;
-    font-size: @font-size-app-caption;
+    font-size: @font-size-app-label;
     line-height: 1.1;
     margin-left: 0;
   }
 
-  :deep(.el-menu-item:hover) {
-    color: @text-primary;
-    background: rgba(255, 255, 255, 0.06);
+  :deep(.el-sub-menu__title) {
+    min-height: 58px;
+    padding: 8px 6px !important;
+    border-radius: 10px;
+    color: #d2ddf4;
+    gap: 4px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    cursor: pointer;
+    margin-bottom: 6px;
   }
 
-  :deep(.el-menu-item.is-active) {
+  :deep(.el-sub-menu__title i) {
+    font-size: @font-size-app-label;
+  }
+
+  :deep(.el-sub-menu__title span) {
+    
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+
+  :deep(.el-sub-menu__icon-arrow) {
+    display: none;
+  }
+
+  :deep(.el-sub-menu .el-menu-item) {
+    margin-left: 0;
+    width: 100%;
+    opacity: 0.92;
+  }
+
+  :deep(.el-menu-item:hover) {
     color: @text-primary;
-    background: rgba(0, 240, 255, 0.14);
+    background: rgba(156, 179, 255, 0.2);
+  }
+
+  :deep(.el-menu-item.is-active),
+  :deep(.el-sub-menu.is-opened > .el-sub-menu__title) {
+    color: @text-primary;
+    background: rgba(0, 240, 255, 0.18);
+  }
+
+  :deep(.el-sub-menu__title:hover) {
+    color: @text-primary;
+    background: rgba(156, 179, 255, 0.2);
   }
 }
 
@@ -96,9 +137,17 @@
   cursor: pointer;
 }
 
+.collapse-btn:focus-visible,
+.help-btn:focus-visible,
+.sidebar-menu :deep(.el-menu-item:focus-visible) {
+  outline: 2px solid #7bd8ff;
+  outline-offset: 2px;
+}
+
 .collapse-btn {
   min-height: 30px;
-  padding: 0 10px;
+  width: 100%;
+  padding: 0 8px;
   font-size: @font-size-app-micro;
 }
 
@@ -115,18 +164,30 @@
 
 @media (max-width: 980px) {
   .sidebar-rail {
-    width: 76px;
+    width: 88px;
     padding-left: 6px;
     padding-right: 6px;
   }
 
   .sidebar-menu {
-    :deep(.el-menu-item) {
-      height: 54px;
+    :deep(.el-menu-item),
+    :deep(.el-sub-menu__title) {
+      min-height: 54px;
+      justify-content: center;
+      padding: 8px !important;
+    }
+
+    :deep(.el-sub-menu .el-menu-item) {
+      margin-left: 0;
+      width: 100%;
     }
 
     :deep(.el-menu-item span) {
-      display: none;
+      display: block;
+    }
+
+    :deep(.el-sub-menu__title span) {
+      display: block;
     }
   }
 

@@ -2,7 +2,7 @@ import axios, { AxiosHeaders, type AxiosRequestConfig } from 'axios'
 
 export class BaseRestService {
   protected readonly api = axios.create({
-    baseURL: 'https://localhost:13223',
+    baseURL: '/api',
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',

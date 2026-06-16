@@ -5,6 +5,7 @@
       :workspace="workspaceName"
       :user-name="userName"
       :search-placeholder="t('app.searchPlaceholder')"
+      :search-label="t('app.searchLabel')"
       :notification-label="t('app.notifications')"
       @search="onSearch"
       @switch-workspace="onSwitchWorkspace"
@@ -16,6 +17,7 @@
         :items="navItems"
         :active-key="navigationStore.activeNavKey"
         :collapse-label="t('nav.collapse')"
+        :help-label="t('nav.help')"
         @navigate="onNavigate"
       />
 

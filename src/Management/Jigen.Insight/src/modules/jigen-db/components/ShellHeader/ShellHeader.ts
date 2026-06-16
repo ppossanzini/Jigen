@@ -19,6 +19,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    searchLabel: {
+      type: String,
+      required: true,
+    },
     notificationLabel: {
       type: String,
       required: true,
