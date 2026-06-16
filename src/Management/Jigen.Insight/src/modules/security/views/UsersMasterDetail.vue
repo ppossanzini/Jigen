@@ -1,13 +1,13 @@
 <template>
-  <section class="users-master-detail">
-    <header class="toolbar">
+  <section class="users-master-detail master-detail-view">
+    <header class="toolbar master-detail-toolbar">
       <h3>{{ t('security.users.title') }}</h3>
       <el-button type="primary" @click="onOpenCreateUserDialog">
         {{ t('security.users.actions.create') }}
       </el-button>
     </header>
 
-    <div class="layout-grid">
+    <div class="layout-grid master-detail-grid">
       <article class="panel">
         <UsersMasterTable
           :rows="visibleUsers"
@@ -26,15 +26,15 @@
 
       <article class="panel detail-panel">
         <template v-if="selectedUser">
-          <div class="detail-header">
+          <div class="detail-header master-detail-header panel-header">
             <h3>{{ t('security.users.detailTitle') }}</h3>
-            <div class="detail-actions">
+            <div class="detail-actions master-detail-actions">
               <el-button @click="onOpenEditUserDialog">{{ t('security.common.edit') }}</el-button>
               <el-button type="danger" @click="onDeleteUser">{{ t('security.common.delete') }}</el-button>
             </div>
           </div>
 
-          <el-form label-position="top" class="detail-form">
+          <el-form label-position="top" class="detail-form master-detail-form">
             <el-form-item :label="t('security.users.columns.id')">
               <el-input :model-value="selectedUser.id" disabled />
             </el-form-item>
@@ -42,7 +42,7 @@
               <el-input :model-value="selectedUser.userName ?? '-'" disabled />
             </el-form-item>
             <el-form-item :label="t('security.users.columns.roles')">
-              <el-checkbox-group v-model="selectedRoles" class="roles-group">
+              <el-checkbox-group v-model="selectedRoles" class="roles-group chip-checkbox-group">
                 <el-checkbox v-for="roleName in roleOptions" :key="roleName" :value="roleName">
                   {{ roleName }}
                 </el-checkbox>

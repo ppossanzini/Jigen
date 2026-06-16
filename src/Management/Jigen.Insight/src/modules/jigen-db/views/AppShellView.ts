@@ -45,7 +45,8 @@ export default defineComponent({
       },
       { key: 'pipelines', label: t('nav.pipelines'), iconClass: 'ti ti-adjustments-horizontal', routeName: 'coming-soon' },
       { key: 'datasets', label: t('nav.datasets'), iconClass: 'ti ti-folder', routeName: 'coming-soon' },
-      { key: 'settings', label: t('nav.settings'), iconClass: 'ti ti-settings',
+      {
+        key: 'settings', label: t('nav.settings'), iconClass: 'ti ti-settings',
         children: [
           {
             key: 'security-users',
@@ -61,7 +62,7 @@ export default defineComponent({
           },
         ],
 
-       },
+      },
     ])
 
 
