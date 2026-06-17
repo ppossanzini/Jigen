@@ -1,0 +1,34 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Jigen.Indexer</RootNamespace>
+    <Description>HNSW indexer for Jigen.Store</Description>
+    <Authors>Paolo Possanzini</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ppossanzini/Jigen</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ppossanzini/Jigen</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageIcon>logo_128.png</PackageIcon>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\assets\jigen.snk</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj"/>
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="System.Numerics.Tensors" Version="10.0.8"/>
+    <PackageReference Include="MessagePack" Version="3.1.4"/>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\assets\jigen.snk">
+      <Link>jigen.snk</Link>
+    </None>
+    <Content Include="..\assets\logo_128.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+      <Link>logo_128.png</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+</Project>

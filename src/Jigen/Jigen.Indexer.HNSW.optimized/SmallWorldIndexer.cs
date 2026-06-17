@@ -1,0 +1,330 @@
+using System.Text.Json;
+using Jigen.DataStructures;
+using Jigen.Filtering;
+using Jigen.Indexer.Extensions;
+using Jigen.Persistance;
+using System.Numerics.Tensors;
+using MessagePack;
+using MessagePack.Resolvers;
+
+namespace Jigen.Indexer;
+
+internal delegate IList<IndexNode> SelectForConnectingDelegate(IndexNode item, IList<IndexNode> candidates,  SmallWorldIndexer smallworld, string collection);
+
+public class SmallWorldIndexer : IIndexer
+{
+  internal SmallWorldOptions Options { get; init; }
+
+  
+  
+  private readonly Dictionary<string, (IndexNode entrypoint, IList<IndexNode> nodes)> _collectionGraphs = new();
+
+  internal readonly SelectForConnectingDelegate SelectBestForConnecting = null;
+
+
+  public SmallWorldIndexer(SmallWorldOptions options = null)
+  {
+    this.Options = options ?? new SmallWorldOptions();
+    this.Options.DefaultDistanceFunction ??= DefaultDistance;
+
+    this.SelectBestForConnecting = this.Options.NeighbourHeuristic switch
+    {
+      NeighbourSelectionHeuristic.SelectHeuristic => NodeExtensions.SelectBestForConnectingAlg4,
+      NeighbourSelectionHeuristic.SelectSimple => NodeExtensions.SelectBestForConnectingAlg3,
+      _ => NodeExtensions.SelectBestForConnectingAlg3
+    };
+  }
+
+  internal (IndexNode entrypoint, IList<IndexNode> nodes) GetGraphForCollection(string collection)
+  {
+    if (_collectionGraphs.TryGetValue(collection, out var item)) return item;
+
+    lock(_collectionGraphs)
+    {
+      if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
+      var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
+
+      IList<IndexNode> nodes;
+      if (Options.InMemory)
+        nodes  = new List<IndexNode>();
+      else
+        nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
+        {
+          FilePath = filePath,
+          FlushInterval = TimeSpan.FromMinutes(1)
+        }, Options);
+
+      if (!nodes.Any())
+      {
+        var entrypoint = VectorEntry.Empty.ToNode(Options);
+        nodes.Add(entrypoint); // position 0 is reserved for entrypoint nodes
+      }
+
+      item = (nodes[nodes[0].PositionId], nodes);
+      _collectionGraphs[collection] = item;
+      return item;
+    }
+  }
+
+  private void AssignEntryPoint((IndexNode entrypoint, IList<IndexNode> nodes) entry, IndexNode newNode)
+  {
+    entry.entrypoint = newNode;
+    entry.nodes[0] = newNode;
+  }
+
+  public void AddToIndex(VectorEntry entry, bool  waitForIndexing = false)
+  {
+    if (waitForIndexing) AddToIndex(entry);
+    else _ = Task.Run(() => AddToIndex(entry));
+  }
+
+  internal void AddToIndex(VectorEntry entry)
+  {
+    if (entry is null || entry.Id is null || string.IsNullOrWhiteSpace(entry.CollectionName) || entry.Embedding.IsEmpty)
+      return;
+
+    var collection = entry.CollectionName;
+    var graph = GetGraphForCollection(collection);
+    var newNode = entry.ToNode(Options);
+
+    graph.nodes.AddNewNode(newNode);
+
+    if (graph.entrypoint == null)
+    {
+      AssignEntryPoint(graph, newNode);
+      return;
+    }
+
+    var bestPeer = graph.entrypoint;
+    for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
+      bestPeer = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level).Single();
+
+    for (var level = Math.Min(newNode.MaxLevel, graph.entrypoint.MaxLevel); level >= 0; --level)
+    {
+      var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
+      var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, this, collection);
+
+      foreach (var newNeighbour in bestNeighbours)
+      {
+        newNode.AddConnection(newNeighbour, level, this, collection);
+        newNeighbour.AddConnection(newNode, level, this, collection);
+        graph.nodes[newNeighbour.PositionId] = newNeighbour;
+
+        // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
+        if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
+          bestPeer = newNeighbour;
+      }
+    }
+
+    // Persist the newly constructed adjacency lists for the inserted node.
+    graph.nodes[newNode.PositionId] = newNode;
+
+    // zoom out to the highest level
+    if (newNode.MaxLevel > graph.entrypoint.MaxLevel)
+      AssignEntryPoint(graph, newNode);
+  }
+
+  public void RemoveFromIndex(string collection, byte[] key)
+  {
+    if (string.IsNullOrWhiteSpace(collection) || key is null)
+    {
+      var graph = GetGraphForCollection(collection);
+      graph.nodes.Where(i => i.Id.Value.SequenceEqual(key)).ToList().ForEach(i => i.IsDeleted = true);
+    }
+  }
+
+  public IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top,
+    IFilterExpression contentFilter = null)
+  {
+    if (store is null || string.IsNullOrWhiteSpace(collection) || queryVector is null || queryVector.Length == 0 || top <= 0)
+      return [];
+
+    var graph = GetGraphForCollection(collection);
+    if (graph.entrypoint == null)
+      return [];
+
+    var destination = CreateQueryNode(queryVector);
+    var searchTop = Math.Max(top, Options.SearchPruning);
+    var neighbours = this.KNearest(collection, destination, searchTop);
+
+    var resultsByKey = new Dictionary<string, (VectorEntry entry, float score)>(StringComparer.Ordinal);
+
+    foreach (var node in neighbours)
+    {
+      var nodeKey = Convert.ToBase64String(node.Id.Value);
+      var score = 1f - destination.TravelingCosts.From(node, usecache: false);
+
+      if (!resultsByKey.TryGetValue(nodeKey, out var existing) || score > existing.score)
+      {
+        var content = store.GetContent(collection, node.Id.Value);
+        if (content is null) continue;
+        if (contentFilter != null && !MatchesFilter(content, contentFilter)) continue;
+
+        resultsByKey[nodeKey] = (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
+      }
+    }
+
+    return resultsByKey.Values
+      .OrderByDescending(r => r.score)
+      .Take(top);
+  }
+
+  public IEnumerable<VectorEntry> Search(IStore store, string collection, IFilterExpression contentFilter = null)
+  {
+    if (store is null || string.IsNullOrWhiteSpace(collection))
+      yield break;
+
+    if (!store.GetCollectionIndexOf(collection, out var index))
+      yield break;
+
+    var results = new List<VectorEntry>();
+
+    foreach (var key in index.Keys)
+    {
+      var content = store.GetContent(collection, key);
+      if (content is null)
+        continue;
+
+      if (contentFilter != null && !MatchesFilter(content, contentFilter))
+        continue;
+
+      yield return new VectorEntry()
+      {
+        Id = key,
+        CollectionName = collection,
+        Content = content
+      };
+    }
+  }
+
+  private static bool MatchesFilter(ReadOnlyMemory<byte> serializedContent, IFilterExpression filter)
+  {
+    if (filter == null) return true;
+
+    try
+    {
+      var json = MessagePackSerializer.ConvertToJson(serializedContent,
+        MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance));
+      using var doc = JsonDocument.Parse(json);
+      return filter.Matches(doc.RootElement);
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  /// <summary>
+  /// Run knn search for a given item.
+  /// </summary>
+  /// <param name="item">The item to search nearest neighbours.</param>
+  /// <param name="k">The number of nearest neighbours.</param>
+  /// <returns>The list of found nearest neighbours.</returns>
+  public IList<KNNSearchResult> KNNSearch(string collection, IndexNode item, int k)
+  {
+    var neighbourhood = KNearest(collection, item, k);
+    return neighbourhood.Select(n => new KNNSearchResult
+    {
+      Id = n.PositionId,
+      Item = n,
+      Distance = item.TravelingCosts.From(n),
+    }).ToList();
+  }
+
+  /// <summary>
+  /// Get k nearest items for a given one.
+  /// Contains implementation of K-NN-SEARCH(hnsw, q, K, ef) algorithm.
+  /// Article: Section 4. Algorithm 5.
+  /// </summary>
+  /// <param name="destination">The given node to get the nearest neighbourhood for.</param>
+  /// <param name="k">The size of the neighbourhood.</param>
+  /// <returns>The list of the nearest neighbours.</returns>
+  public IList<IndexNode> KNearest(string collection, IndexNode destination, int k)
+  {
+    var graph = GetGraphForCollection(collection);
+    var entrypoint = graph.entrypoint;
+    if (entrypoint == null) return [];
+
+    var bestPeer = entrypoint;
+    for (int level = entrypoint.MaxLevel; level > 0; --level)
+    {
+      bestPeer = this.KNearestAtLevel(collection, bestPeer, destination, 1, level).Single();
+    }
+
+    return this.KNearestAtLevel(collection, bestPeer, destination, k, 0);
+  }
+
+  internal bool IsDeleted(string collection, int positionId)
+  {
+    var coll = GetGraphForCollection(collection);
+    return coll.nodes[positionId].IsDeleted;
+  }
+
+  public Task FlushAsync()
+  {
+    List<IList<IndexNode>> toFlush;
+    lock (_collectionGraphs)
+    {
+      toFlush = _collectionGraphs.Values.Select(g => g.nodes).ToList();
+    }
+
+    foreach (var nodes in toFlush)
+      (nodes as StoredList<IndexNode, SmallWorldOptions>)?.Flush();
+
+    return Task.CompletedTask;
+  }
+
+  public Task ShrinkAsync()
+  {
+    List<IList<IndexNode>> toShrink;
+    lock (_collectionGraphs)
+    {
+      toShrink = _collectionGraphs.Values.Select(g => g.nodes).ToList();
+    }
+
+    foreach (var nodes in toShrink)
+      (nodes as StoredList<IndexNode, SmallWorldOptions>)?.ShrinkDb();
+
+    return Task.CompletedTask;
+  }
+
+  private static float DefaultDistance(IndexNode left, IndexNode right)
+  {
+    if (left.Vector is null || right.Vector is null || left.Vector.Length == 0 || right.Vector.Length == 0)
+      return float.MaxValue;
+
+    return CosineDistance.SIMDForUnits(left.Vector, right.Vector);
+  }
+
+  private static string SanitizeCollectionName(string collection)
+  {
+    var invalid = Path.GetInvalidFileNameChars();
+    var buffer = collection.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray();
+    return new string(buffer);
+  }
+
+  private IndexNode CreateQueryNode(float[] queryVector)
+  {
+    var vector = GC.AllocateUninitializedArray<float>(queryVector.Length);
+    queryVector.CopyTo(vector, 0);
+    NormalizeInPlace(vector);
+
+    return new IndexNode(Options)
+    {
+      Id = new VectorKey { Value = Array.Empty<byte>() },
+      MaxLevel = 0,
+      Connections = Array.Empty<IList<int>>(),
+      Vector = vector
+    };
+  }
+
+  private static void NormalizeInPlace(Span<float> vector)
+  {
+    if (vector.Length == 0) return;
+
+    var norm = TensorPrimitives.Norm(vector);
+    if (norm <= 0) return;
+
+    TensorPrimitives.Divide(vector, norm, vector);
+  }
+}
