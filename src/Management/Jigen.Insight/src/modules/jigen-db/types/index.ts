@@ -4,25 +4,16 @@ export interface SidebarItem {
   iconClass: string
   routeName?:
     | 'dashboard-home'
-    | 'index-management'
+    | 'database-management'
     | 'security-users'
     | 'security-roles'
     | 'coming-soon'
   children?: SidebarItem[]
 }
 
-export interface IndexRow {
-  id: string
+export interface DatabaseRow {
   name: string
-  description: string
-  dimension: number
-  metric: string
-  shardsReplicas: string
-  status: 'Healthy' | 'Warning' | 'Degraded'
-  size: string
-  updatedAt: string
-  namespace: string
-  owner: string
+  collectionsCount: number
 }
 
 export interface DashboardMetric {

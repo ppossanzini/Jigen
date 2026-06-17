@@ -1,12 +1,12 @@
-import { defineComponent } from 'vue'
+import { computed, defineComponent } from 'vue'
 import type { PropType } from 'vue'
-import type { IndexRow } from '@/modules/jigen-db/types'
+import type { DatabaseRow } from '@/modules/jigen-db/types'
 
 export default defineComponent({
   name: 'IndexTable',
   props: {
     rows: {
-      type: Array as PropType<IndexRow[]>,
+      type: Array as PropType<DatabaseRow[]>,
       required: true,
     },
     currentPage: {
@@ -21,27 +21,11 @@ export default defineComponent({
       type: Number,
       required: true,
     },
-    dimensionLabel: {
+    nameLabel: {
       type: String,
       required: true,
     },
-    metricLabel: {
-      type: String,
-      required: true,
-    },
-    shardsLabel: {
-      type: String,
-      required: true,
-    },
-    statusLabel: {
-      type: String,
-      required: true,
-    },
-    sizeLabel: {
-      type: String,
-      required: true,
-    },
-    updatedLabel: {
+    collectionsLabel: {
       type: String,
       required: true,
     },
@@ -49,15 +33,19 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    refreshActionLabel: {
-      type: String,
-      required: true,
-    },
-    editActionLabel: {
+    readActionLabel: {
       type: String,
       required: true,
     },
     deleteActionLabel: {
+      type: String,
+      required: true,
+    },
+    deleteDisabled: {
+      type: Boolean,
+      required: true,
+    },
+    adminOnlyHint: {
       type: String,
       required: true,
     },
@@ -66,21 +54,22 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ['row-click', 'page-change', 'refresh', 'edit', 'delete'],
-  setup(_, { emit }) {
-    const toStatusType = (status: string) => {
-      if (status === 'Healthy') return 'success'
-      if (status === 'Warning') return 'warning'
-      return 'danger'
-    }
-
-    const onRowClick = (row: IndexRow) => emit('row-click', row)
+  emits: ['row-click', 'page-change', 'read-collections', 'delete'],
+  setup(props, { emit }) {
+    const onRowClick = (row: DatabaseRow) => emit('row-click', row)
     const onPageChange = (page: number) => emit('page-change', page)
 
+    const hasReliableCount = computed(
+      () => Number.isFinite(props.total) && props.total >= props.rows.length,
+    )
+
+    const visibleRowsCount = computed(() => props.rows.length)
+
     return {
-      toStatusType,
       onRowClick,
       onPageChange,
+      hasReliableCount,
+      visibleRowsCount,
     }
   },
 })

@@ -6,12 +6,13 @@
     </div>
 
     <div class="actions">
-      <el-button type="success" @click="$emit('create')">{{ createLabel }}</el-button>
-      <el-button @click="$emit('import')">{{ importLabel }}</el-button>
-      <el-button @click="$emit('tune')">{{ tuneLabel }}</el-button>
-      <el-button @click="$emit('filter')">{{ filterLabel }}</el-button>
-      <el-button @click="$emit('compact')">{{ compactLabel }}</el-button>
-      <el-button @click="$emit('export')">{{ exportLabel }}</el-button>
+      <el-tooltip :disabled="!createDisabled" :content="adminOnlyHint" placement="top">
+        <el-button type="success" :disabled="createDisabled" @click="$emit('create')">{{ createLabel }}</el-button>
+      </el-tooltip>
+      <el-button @click="$emit('refresh')">{{ refreshLabel }}</el-button>
+      <el-tooltip :disabled="!deleteDisabled" :content="adminOnlyHint" placement="top">
+        <el-button type="danger"  :disabled="deleteDisabled" @click="$emit('delete')">{{ deleteLabel }}</el-button>
+      </el-tooltip>
     </div>
   </header>
 </template>

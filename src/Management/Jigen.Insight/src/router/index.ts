@@ -26,32 +26,22 @@ const router = createRouter({
           meta: { title: 'Dashboard | Jigen DB' },
         },
         {
-          path: 'index-management',
-          name: 'index-management',
-          component: () => import('@/modules/jigen-db/views/IndexManagementView.vue'),
-          meta: { title: 'Index Management | Jigen DB' },
+          path: 'database-management',
+          name: 'database-management',
+          component: () => import('@/modules/jigen-db/views/DatabaseManagementView.vue'),
+          meta: { title: 'Database Management | Jigen DB' },
         },
         {
-          path: 'security',
-          component: () => import('@/modules/security/views/SecurityLayout.vue'),
-          children: [
-            {
-              path: '',
-              redirect: { name: 'security-users' },
-            },
-            {
-              path: 'users',
-              name: 'security-users',
-              component: () => import('@/modules/security/views/UsersMasterDetail.vue'),
-              meta: { title: 'Security Users | Jigen DB' },
-            },
-            {
-              path: 'roles',
-              name: 'security-roles',
-              component: () => import('@/modules/security/views/RolesMasterDetail.vue'),
-              meta: { title: 'Security Roles | Jigen DB' },
-            },
-          ],
+          path: 'security/users',
+          name: 'security-users',
+          component: () => import('@/modules/security/views/SecurityUsersView.vue'),
+          meta: { title: 'Security Users | Jigen DB' },
+        },
+        {
+          path: 'security/roles',
+          name: 'security-roles',
+          component: () => import('@/modules/security/views/SecurityRolesView.vue'),
+          meta: { title: 'Security Roles | Jigen DB' },
         },
         {
           path: 'coming-soon',

@@ -1,12 +1,12 @@
 import { defineComponent } from 'vue'
 import type { PropType } from 'vue'
-import type { IndexRow } from '@/modules/jigen-db/types'
+import type { DatabaseRow } from '@/modules/jigen-db/types'
 
 export default defineComponent({
   name: 'IndexDetailPanel',
   props: {
     row: {
-      type: Object as PropType<IndexRow | null>,
+      type: Object as PropType<DatabaseRow | null>,
       required: true,
     },
     title: {
@@ -17,27 +17,31 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    statusLabel: {
+    collectionsTitle: {
       type: String,
       required: true,
     },
-    sizeLabel: {
+    collections: {
+      type: Array as PropType<string[]>,
+      required: true,
+    },
+    loadingCollections: {
+      type: Boolean,
+      required: true,
+    },
+    collectionsLabel: {
       type: String,
       required: true,
     },
-    metricLabel: {
+    noCollectionsLabel: {
       type: String,
       required: true,
     },
-    shardsLabel: {
+    chooseDatabaseLabel: {
       type: String,
       required: true,
     },
-    updatedLabel: {
-      type: String,
-      required: true,
-    },
-    insightsTitle: {
+    loadingLabel: {
       type: String,
       required: true,
     },

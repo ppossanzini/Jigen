@@ -13,6 +13,42 @@ body {
   --el-text-color-secondary: #9fa1a7;
   --el-text-color-placeholder: #9fa1a7;
   --el-menu-text-color: #9fa1a7;
+
+  /* Global button tokens for app-wide theming */
+  --app-button-primary-bg: #3b4049;
+  --app-button-primary-border: #3b4049;
+  --app-button-primary-text: #f3f3f3;
+  --app-button-primary-hover-bg: #4b515b;
+  --app-button-primary-hover-border: #4b515b;
+  --app-button-primary-active-bg: #343941;
+  --app-button-primary-active-border: #343941;
+
+  --app-button-default-bg: #2a2e35;
+  --app-button-default-border: rgba(255, 255, 255, 0.12);
+  --app-button-default-text: #d8dbe3;
+  --app-button-default-hover-bg: #333842;
+  --app-button-default-hover-border: rgba(255, 255, 255, 0.22);
+  --app-button-default-hover-text: #f3f3f3;
+
+  --app-button-success-bg: #2b6f4f;
+  --app-button-success-border: #2b6f4f;
+  --app-button-success-text: #f3fff8;
+  --app-button-success-hover-bg: #348660;
+  --app-button-success-hover-border: #348660;
+  --app-button-success-active-bg: #255f44;
+  --app-button-success-active-border: #255f44;
+
+  --app-button-danger-bg: #8b3746;
+  --app-button-danger-border: #8b3746;
+  --app-button-danger-text: #fff6f7;
+  --app-button-danger-hover-bg: #a24253;
+  --app-button-danger-hover-border: #a24253;
+  --app-button-danger-active-bg: #742f3b;
+  --app-button-danger-active-border: #742f3b;
+
+  --app-button-disabled-bg: #2c3038;
+  --app-button-disabled-border: #2c3038;
+  --app-button-disabled-text: #9da4b2;
 }
 
 html,
@@ -221,29 +257,50 @@ a {
   font-weight: 600;
 }
 
-.module-shell .el-button--primary {
-  --el-button-bg-color: #3b4049;
-  --el-button-border-color: #3b4049;
-  --el-button-hover-bg-color: #4b515b;
-  --el-button-hover-border-color: #4b515b;
-  --el-button-active-bg-color: #343941;
-  --el-button-active-border-color: #343941;
+.el-button--primary {
+  --el-button-bg-color: var(--app-button-primary-bg);
+  --el-button-border-color: var(--app-button-primary-border);
+  --el-button-text-color: var(--app-button-primary-text);
+  --el-button-hover-bg-color: var(--app-button-primary-hover-bg);
+  --el-button-hover-border-color: var(--app-button-primary-hover-border);
+  --el-button-active-bg-color: var(--app-button-primary-active-bg);
+  --el-button-active-border-color: var(--app-button-primary-active-border);
 }
 
-.module-shell .el-button--default {
-  --el-button-bg-color: #2a2e35;
-  --el-button-border-color: rgba(255, 255, 255, 0.12);
-  --el-button-text-color: #d8dbe3;
-  --el-button-hover-bg-color: #333842;
-  --el-button-hover-border-color: rgba(255, 255, 255, 0.22);
-  --el-button-hover-text-color: #f3f3f3;
+.el-button--default {
+  --el-button-bg-color: var(--app-button-default-bg);
+  --el-button-border-color: var(--app-button-default-border);
+  --el-button-text-color: var(--app-button-default-text);
+  --el-button-hover-bg-color: var(--app-button-default-hover-bg);
+  --el-button-hover-border-color: var(--app-button-default-hover-border);
+  --el-button-hover-text-color: var(--app-button-default-hover-text);
 }
 
-.module-shell .el-button.is-disabled,
-.module-shell .el-button.is-disabled:hover {
-  --el-button-bg-color: #2c3038;
-  --el-button-border-color: #2c3038;
-  --el-button-text-color: #9da4b2;
+.el-button--success {
+  --el-button-bg-color: var(--app-button-success-bg);
+  --el-button-border-color: var(--app-button-success-border);
+  --el-button-text-color: var(--app-button-success-text);
+  --el-button-hover-bg-color: var(--app-button-success-hover-bg);
+  --el-button-hover-border-color: var(--app-button-success-hover-border);
+  --el-button-active-bg-color: var(--app-button-success-active-bg);
+  --el-button-active-border-color: var(--app-button-success-active-border);
+}
+
+.el-button--danger {
+  --el-button-bg-color: var(--app-button-danger-bg);
+  --el-button-border-color: var(--app-button-danger-border);
+  --el-button-text-color: var(--app-button-danger-text);
+  --el-button-hover-bg-color: var(--app-button-danger-hover-bg);
+  --el-button-hover-border-color: var(--app-button-danger-hover-border);
+  --el-button-active-bg-color: var(--app-button-danger-active-bg);
+  --el-button-active-border-color: var(--app-button-danger-active-border);
+}
+
+.el-button.is-disabled,
+.el-button.is-disabled:hover {
+  --el-button-bg-color: var(--app-button-disabled-bg);
+  --el-button-border-color: var(--app-button-disabled-border);
+  --el-button-text-color: var(--app-button-disabled-text);
   opacity: 0.9;
 }
 

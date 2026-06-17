@@ -1,0 +1,62 @@
+@import '@/assets/styles/global/variables.less';
+
+.security-table-card {
+  display: grid;
+  grid-template-rows: minmax(380px, 1fr) auto;
+  border-radius: @radius-lg;
+  border: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.04);
+  overflow: hidden;
+}
+
+.icon-action {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 8px;
+  color: @text-primary;
+  background: #3a3f47;
+  cursor: pointer;
+  padding: 0;
+  min-height: 44px;
+
+  :deep(span) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+  }
+}
+
+.icon-action:focus-visible {
+  outline: 2px solid #7bd8ff;
+  outline-offset: 2px;
+}
+
+.pagination-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1px solid @line-soft;
+}
+
+.rows-counter {
+  color: @text-muted;
+}
+
+:deep(.el-table) {
+  --el-table-bg-color: transparent;
+  --el-table-tr-bg-color: transparent;
+  --el-table-row-hover-bg-color: rgba(123, 216, 255, 0.14);
+  --el-table-current-row-bg-color: rgba(123, 216, 255, 0.18);
+  --el-table-header-bg-color: rgba(255, 255, 255, 0.04);
+  --el-table-border-color: rgba(255, 255, 255, 0.06);
+  --el-table-text-color: @text-primary;
+  --el-table-header-text-color: #d4d9e2;
+}
+
+:deep(.el-table__row) {
+  cursor: pointer;
+}

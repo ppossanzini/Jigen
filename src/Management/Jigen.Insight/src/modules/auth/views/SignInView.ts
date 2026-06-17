@@ -56,7 +56,7 @@ export default defineComponent({
         }
 
         const result = await authService.login(payload)
-        authStore.persistSession(result.token, form.value.email, form.value.rememberMe)
+        authStore.persistSession(result.token, form.value.email, form.value.rememberMe, result.roles ?? [])
 
         ElMessage.success(t('auth.loginSuccess'))
         await router.push({ name: 'dashboard-home' })

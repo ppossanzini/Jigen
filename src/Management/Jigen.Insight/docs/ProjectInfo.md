@@ -79,3 +79,69 @@ Decision:
 Consequences:
 - Security administration is now reachable as first-class application functionality, no longer routed through Coming Soon placeholders.
 - Role assignment state is persisted through update calls and synchronized in the shared store for consistent master-detail behavior across both security views.
+
+## ADR-0006 - Database Management Scope, Authorization, and Naming Alignment
+Date: 2026-06-17
+Status: Accepted
+Context:
+- User requested a dedicated database management screen with operations read/create/delete and rule: create/delete only for `DatabaseAdmin`.
+- OpenAPI source confirmed at `https://localhost:13223/openapi/v1.json` with endpoints `/database` and `/database/{dbname}/collections`.
+- Existing implementation used Index naming and needed scope realignment to Database semantics.
+Decision:
+- Introduce typed API contracts in `@types/database.ts` and a transport-only service `src/services/databaseService.ts` using axios/baseRestService conventions.
+- Add shared Pinia store `src/stores/database.ts` for cross-component synchronization of selected database and loaded collections.
+- Enforce role-based gating through auth store roles and `isDatabaseAdmin` getter; allow read to authenticated users and gate create/delete in UI interactions.
+- Rename all UI artifacts from `Index*` to `Database*` (`DatabaseManagementView`, `DatabaseToolbar`, `DatabaseTable`, `DatabaseDetailPanel`) including routes and imports.
+- Keep dynamic table page size calculation and all user-facing strings in i18n under `databaseManagement.*`.
+Consequences:
+- Scope naming is now coherent with functional behavior, reducing ambiguity for future maintenance.
+- Database and collections state is synchronized across non parent-child components via Pinia, aligning with project rules.
+- Authorization constraints are visible and enforced in the UI, with clear feedback for non-admin users.
+
+## ADR-0007 - Security Views Visual Alignment With Database View
+Date: 2026-06-17
+Status: Accepted
+Context:
+- User requested redesign of Users/Roles section to match the visual style used in Database Management view.
+- Existing security pages used functional master-detail structure but with less consistent top-level toolbar/title treatment.
+Decision:
+- Refactor `UsersMasterDetail` and `RolesMasterDetail` templates to adopt the same high-level visual composition (`title + subtitle + action area`, consistent spacing and grid container semantics).
+- Introduce shared security view class contract (`security-master-view*`) in view-local LESS files aligned to Database view spacing and sizing.
+- Align dialog footer actions layout to the same horizontal action group pattern used in Database view.
+- Keep business logic, data flow, permissions, and API/store contracts unchanged.
+Consequences:
+- Users/Roles pages are visually consistent with Database Management, improving perceived cohesion across modules.
+- The redesign is low-risk because it is presentation-focused and does not alter domain behavior.
+
+## ADR-0008 - Remove Users/Roles Section
+Date: 2026-06-17
+Status: Accepted
+Context:
+- User requested complete removal of Users and Roles section.
+- Users/Roles were implemented through dedicated security module views, routes, service, store, and shared API types.
+Decision:
+- Remove routes and references to `security-users` and `security-roles` from router and sidebar navigation.
+- Delete `src/modules/security` folder entirely.
+- Delete security-specific data layer files: `src/services/securityService.ts`, `src/stores/security.ts`, `@types/security.ts`.
+- Keep `security` and `settings` sidebar entries navigable by routing them to the existing Coming Soon target.
+Consequences:
+- Users/Roles feature is no longer reachable or compiled in the frontend.
+- Security-related i18n keys remain as inactive text resources and can be cleaned in a future pass if requested.
+
+## ADR-0009 - Reintroduce Security Users/Roles as Database-like Master-Detail
+Date: 2026-06-17
+Status: Accepted
+Context:
+- User requested implementation of users/roles management with master-detail behavior similar to Database Management.
+- Data source confirmed as OpenAPI `https://localhost:13223/openapi/v1.json` with real REST integration, dynamic table page size, and accessibility QA requested.
+- Security module had been removed in ADR-0008, therefore full reintroduction was required.
+Decision:
+- Create mandatory consumer routing instruction files in `.github/instructions/` for frontend and backend skill routing before code generation.
+- Reintroduce security domain through `@types/security.d.ts`, `src/services/securityService.ts`, and `src/stores/security.ts` using `/users`, `/users/{id}`, `/roles`, `/roles/{id}` plus identity fallback endpoints.
+- Implement two routed views under `src/modules/jigen-db/views`: `SecurityUsersView` and `SecurityRolesView` with dedicated presentational components in `src/modules/jigen-db/components/<ComponentName>/`.
+- Align visual composition to Database Management pattern (toolbar + master table + detail panel), keep cross-component synchronization in Pinia, and enable dynamic pagination size recalculation from viewport.
+- Resolve layout rule conflict by applying stricter orchestrator rule: avoid `el-row`/`el-col` and use CSS grid/flex even though local Element Plus instructions generally suggest grid components.
+Consequences:
+- Security Users and Roles are again first-class navigable routes (`/security/users`, `/security/roles`) within the shell sidebar.
+- REST and state management are centralized and reusable, with selection consistency between master and detail sections.
+- Documented conflict resolution prevents future divergence on layout primitives.

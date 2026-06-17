@@ -4,21 +4,22 @@
 
     <template v-if="row">
       <ul>
-        <li><span>ID</span><strong>{{ row.id }}</strong></li>
-        <li><span>{{ statusLabel }}</span><strong>{{ row.status }}</strong></li>
-        <li><span>{{ sizeLabel }}</span><strong>{{ row.size }}</strong></li>
-        <li><span>{{ metricLabel }}</span><strong>{{ row.metric }}</strong></li>
-        <li><span>{{ shardsLabel }}</span><strong>{{ row.shardsReplicas }}</strong></li>
-        <li><span>{{ updatedLabel }}</span><strong>{{ row.updatedAt }}</strong></li>
+        <li><span>{{ collectionsLabel }}</span><strong>{{ row.collectionsCount }}</strong></li>
       </ul>
 
       <div class="insight-box">
-        <h4>{{ insightsTitle }}</h4>
-        <p>{{ row.description }}</p>
+        <h4>{{ collectionsTitle }}</h4>
+        <p v-if="loadingCollections">{{ loadingLabel }}</p>
+        <p v-else-if="!collections.length">{{ noCollectionsLabel }}</p>
+        <el-scrollbar v-else max-height="18rem">
+          <ul class="collection-list">
+            <li v-for="collection in collections" :key="collection">{{ collection }}</li>
+          </ul>
+        </el-scrollbar>
       </div>
     </template>
 
-    <p v-else class="empty">{{ emptyLabel }}</p>
+    <p v-else class="empty">{{ chooseDatabaseLabel }}</p>
   </aside>
 </template>
 

@@ -12,11 +12,6 @@
 .index-name-cell {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-
-.index-name-cell small {
-  color: @text-muted;
 }
 
 .row-actions {
@@ -74,4 +69,8 @@
   --el-table-border-color: rgba(255, 255, 255, 0.06);
   --el-table-text-color: @text-primary;
   --el-table-header-text-color: #d4d9e2;
+}
+
+:deep(.el-table__row) {
+  cursor: pointer;
 }

@@ -6,6 +6,7 @@ export interface LoginData {
 
 export interface LoginResult {
   token: string
+  roles?: string[]
 }
 
 export interface WorkspaceOption {

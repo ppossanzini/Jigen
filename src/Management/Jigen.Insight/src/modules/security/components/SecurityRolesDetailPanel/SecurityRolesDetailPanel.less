@@ -1,0 +1,76 @@
+@import '@/assets/styles/global/variables.less';
+
+.detail-panel {
+  border-radius: @radius-lg;
+  border: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 14px;
+  min-height: 540px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.panel-header {
+  margin-bottom: 6px;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: @font-size-app-title-md;
+  font-weight: 500;
+}
+
+.detail-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.detail-actions :deep(.el-button) {
+  cursor: pointer;
+}
+
+.facts-list {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: @radius-md;
+  border: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.fact-row {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fact-label {
+  color: @text-muted;
+}
+
+.fact-value {
+  color: @text-primary;
+}
+
+.users-box {
+  display: grid;
+  gap: 10px;
+}
+
+.users-title {
+  margin: 0;
+  color: @text-muted;
+}
+
+.empty-note {
+  margin: 0;
+  color: @text-muted;
+}
+
+:deep(.el-tag) {
+  width: 100%;
+  justify-content: flex-start;
+}

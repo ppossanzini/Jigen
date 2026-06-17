@@ -2,7 +2,7 @@ import { defineComponent } from 'vue'
 
 export default defineComponent({
   name: 'IndexToolbar',
-  emits: ['create', 'import', 'tune', 'filter', 'compact', 'export'],
+  emits: ['create', 'refresh', 'delete'],
   props: {
     title: {
       type: String,
@@ -16,23 +16,23 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    importLabel: {
+    refreshLabel: {
       type: String,
       required: true,
     },
-    tuneLabel: {
+    deleteLabel: {
       type: String,
       required: true,
     },
-    filterLabel: {
-      type: String,
+    createDisabled: {
+      type: Boolean,
       required: true,
     },
-    compactLabel: {
-      type: String,
+    deleteDisabled: {
+      type: Boolean,
       required: true,
     },
-    exportLabel: {
+    adminOnlyHint: {
       type: String,
       required: true,
     },
