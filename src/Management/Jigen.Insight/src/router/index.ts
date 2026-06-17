@@ -11,6 +11,12 @@ const router = createRouter({
       meta: { title: 'Sign In | Jigen DB' },
     },
     {
+      path: '/auth/callback',
+      name: 'auth-callback',
+      component: () => import('@/modules/auth/views/AuthCallbackView.vue'),
+      meta: { title: 'Authorizing | Jigen DB' },
+    },
+    {
       path: '/',
       component: () => import('@/modules/jigen-db/views/AppShellView.vue'),
       meta: { requiresAuth: true },

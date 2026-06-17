@@ -35,7 +35,21 @@ export default defineComponent({
     }
 
     const onForgotPassword = () => ElMessage.info(t('auth.forgotPasswordComingSoon'))
-    const onOauthPlaceholder = () => ElMessage.info(t('auth.oauthComingSoon'))
+    const onOauthSignIn = async () => {
+      loading.value = true
+
+      try {
+        await authService.startAuthorizationCodeFlow({
+          userName: form.value.email,
+          rememberMe: form.value.rememberMe,
+          prompt: 'login',
+        })
+      } catch {
+        ElMessage.error(t('auth.oauthStartError'))
+      } finally {
+        loading.value = false
+      }
+    }
 
     const onQuickDemo = async () => {
       await router.push({ name: 'dashboard-home' })
@@ -55,11 +69,27 @@ export default defineComponent({
           workspace: selectedWorkspace.value,
         }
 
-        const result = await authService.login(payload)
-        authStore.persistSession(result.token, form.value.email, form.value.rememberMe, result.roles ?? [])
+        const result = await authService.loginWithCredentials(payload)
 
-        ElMessage.success(t('auth.loginSuccess'))
-        await router.push({ name: 'dashboard-home' })
+        if (result?.token) {
+          authStore.persistSession(
+            result.token,
+            form.value.email,
+            form.value.rememberMe,
+            result.roles ?? [],
+          )
+
+          ElMessage.success(t('auth.loginSuccess'))
+          await router.push({ name: 'dashboard-home' })
+          return
+        }
+
+        await authService.startAuthorizationCodeFlow({
+          userName: form.value.email,
+          rememberMe: form.value.rememberMe,
+          prompt: 'none',
+        })
+
       } catch {
         ElMessage.error(t('auth.loginError'))
       } finally {
@@ -77,7 +107,7 @@ export default defineComponent({
       onWorkspaceChange,
       onSubmit,
       onForgotPassword,
-      onOauthPlaceholder,
+      onOauthSignIn,
       onQuickDemo,
       onBrandAction,
     }

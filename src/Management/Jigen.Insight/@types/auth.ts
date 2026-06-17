@@ -9,6 +9,19 @@ export interface LoginResult {
   roles?: string[]
 }
 
+export interface AuthorizationStartOptions {
+  userName: string
+  rememberMe: boolean
+  prompt?: 'none' | 'login'
+}
+
+export interface AuthorizationCodeResult {
+  token: string
+  userName: string
+  rememberMe: boolean
+  roles?: string[]
+}
+
 export interface WorkspaceOption {
   id: string
   label: string

@@ -43,8 +43,8 @@
         :loading="loading"
         @submit="onSubmit"
         @forgot-password="onForgotPassword"
-        @oauth-google="onOauthPlaceholder"
-        @oauth-sso="onOauthPlaceholder"
+        @oauth-google="onOauthSignIn"
+        @oauth-sso="onOauthSignIn"
         @quick-demo="onQuickDemo"
       />
     </div>

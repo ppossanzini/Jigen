@@ -145,3 +145,19 @@ Consequences:
 - Security Users and Roles are again first-class navigable routes (`/security/users`, `/security/roles`) within the shell sidebar.
 - REST and state management are centralized and reusable, with selection consistency between master and detail sections.
 - Documented conflict resolution prevents future divergence on layout primitives.
+
+## ADR-0010 - Migrate Sign-In to Authorization Code + Token Flow
+Date: 2026-06-17
+Status: Accepted
+Context:
+- Login flow was expected to use authorization code plus token exchange, but frontend accepted cookie-only login responses.
+- `authService` generated a local fallback token when backend did not return a token, causing false authenticated state and downstream 401 errors.
+Decision:
+- Remove local fake-token fallback from `src/services/authService.ts` and accept only real token responses.
+- Add OAuth Authorization Code + PKCE flow in frontend with redirect to `/connect/authorize` and callback route `/auth/callback`.
+- Exchange authorization code at `/connect/token` and persist only returned access token in auth store/local/session storage.
+- Keep credential submit (`/identity/login`) as identity bootstrap, then continue with authorization redirect when direct token is not returned.
+- Add typed OIDC env configuration (`VITE_OIDC_CLIENT_ID`, `VITE_OIDC_CLIENT_SECRET`, `VITE_OIDC_REDIRECT_URI`, `VITE_OIDC_SCOPE`) and callback i18n copy under `auth.*`.
+Consequences:
+- Frontend authentication is aligned to code+token semantics and no longer relies on cookie-only session as final app auth state.
+- Misconfigured OAuth clients now surface explicit login failure instead of silently creating invalid local sessions.
