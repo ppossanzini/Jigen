@@ -26,11 +26,9 @@ public static class ReadWriteIntExtensions
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public static void WriteLEInt(this ArrayBufferWriter<byte> writer, int value)
   {
-    
-    Span<byte> buffer = stackalloc byte[sizeof(int)];
-    BinaryPrimitives.WriteInt32LittleEndian(buffer, value);
-    buffer.CopyTo(writer.GetSpan(buffer.Length));
-    writer.Advance(buffer.Length);
+    // Write directly to the writer's buffer — no stackalloc intermediary
+    BinaryPrimitives.WriteInt32LittleEndian(writer.GetSpan(sizeof(int)), value);
+    writer.Advance(sizeof(int));
   }
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -41,7 +39,6 @@ public static class ReadWriteIntExtensions
 
     return source[offset++];
   }
-
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public static int ReadLEInt32(this ReadOnlySpan<byte> handle, ref int offset)

@@ -1,5 +1,4 @@
 using System.Buffers;
-using System.Runtime.InteropServices;
 
 namespace Jigen.Persistance;
 
@@ -10,28 +9,42 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     this._itemsIndexLock.EnterWriteLock();
     try
     {
-      var items = this._itemsIndex.OrderBy(i => i.Position).ToArray();
+      int count = _itemsIndex.Count;
+      if (count == 0)
+      {
+        _header.TombStonedCount = 0;
+        _header.NextItemPosition = StoredListHeader.Size;
+        _data.SetLength(StoredListHeader.Size);
+        return;
+      }
 
-      var position = Marshal.SizeOf<StoredListHeader>();
+      // Build (originalIndex, item) pairs sorted by position → O(N log N) total
+      // instead of _itemsIndex.IndexOf(item) per item → O(N²)
+      var indexed = new (int originalIndex, ItemIndex item)[count];
+      int maxRequiredSize = 0;
+      for (int i = 0; i < count; i++)
+      {
+        var item = _itemsIndex[i];
+        indexed[i] = (i, item);
+        if (item.MaxLength > maxRequiredSize)
+          maxRequiredSize = item.MaxLength;
+      }
 
-      // Search for the maximum required buffer size to read items in chunks
-      var maxRequiredSize = items.Length > 0 ? items.Max(i => i.MaxLength) : 0;
+      Array.Sort(indexed, (a, b) => a.item.Position.CompareTo(b.item.Position));
+
+      long position = StoredListHeader.Size;
       var sharedBuffer = maxRequiredSize > 0 ? ArrayPool<byte>.Shared.Rent(maxRequiredSize) : Array.Empty<byte>();
 
       try
       {
-        foreach (var item in items)
+        foreach (var (originalIndex, item) in indexed)
         {
-          // Slice the shared buffer to the required size for the current item
-          // This allows us to reuse the same buffer for multiple items without allocating a new one each time
-          // Read and Write operations are performed using the sliced buffer, ensuring efficient memory usage while processing items in chunks
           var bufferSlice = sharedBuffer.AsSpan(0, item.MaxLength);
 
           RandomAccess.Read(_data.SafeFileHandle, bufferSlice, item.Position);
           RandomAccess.Write(_data.SafeFileHandle, bufferSlice, position);
 
-          var idx = _itemsIndex.IndexOf(item);
-          _itemsIndex[idx] = new ItemIndex()
+          _itemsIndex[originalIndex] = new ItemIndex()
           {
             Position = position,
             Length = item.Length,
@@ -39,7 +52,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
             Hash = item.Hash
           };
 
-          position = position + item.MaxLength;
+          position += item.MaxLength;
         }
       }
       finally
@@ -48,10 +61,13 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
           ArrayPool<byte>.Shared.Return(sharedBuffer);
       }
 
-      this._header.Count = _itemsIndex.Count;
+      this._header.Count = count;
       this._header.TombStonedCount = 0;
       this._header.NextItemPosition = position;
       _data.SetLength(position);
+
+      // Invalidate read cache after compaction (positions changed)
+      InvalidateCache();
     }
     finally
     {
