@@ -35,7 +35,7 @@ export default defineComponent({
 
     const navItems = computed<SidebarItem[]>(() => [
       { key: 'home', label: t('nav.home'), iconClass: 'ti ti-home', routeName: 'dashboard-home' },
-      { key: 'search', label: t('nav.search'), iconClass: 'ti ti-search', routeName: 'coming-soon' },
+      { key: 'search', label: t('nav.search'), iconClass: 'ti ti-search', routeName: 'semantic-search' },
       { key: 'indexes', label: t('nav.indexes'), iconClass: 'ti ti-database', routeName: 'database-management' },
       {
         key: 'security',
@@ -69,6 +69,7 @@ export default defineComponent({
       () => route.name,
       (routeName) => {
         if (routeName === 'dashboard-home') navigationStore.setActiveNav('home')
+        if (routeName === 'semantic-search') navigationStore.setActiveNav('search')
         if (routeName === 'database-management') navigationStore.setActiveNav('indexes')
         if (routeName === 'security-users') navigationStore.setActiveNav('security-users')
         if (routeName === 'security-roles') navigationStore.setActiveNav('security-roles')

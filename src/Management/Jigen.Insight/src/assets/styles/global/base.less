@@ -210,6 +210,77 @@ a {
   gap: 2px;
 }
 
+/* Shared contract for primary input sections across modules. */
+.app-inputs-layout {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.app-inputs-layout__field {
+  min-width: 0;
+  grid-column: span 4;
+}
+
+.app-inputs-layout__field--wide {
+  grid-column: span 6;
+}
+
+.app-inputs-layout__field--full {
+  grid-column: span 12;
+}
+
+.app-inputs-layout .el-form-item {
+  margin-bottom: 10px;
+}
+
+.app-inputs-layout .el-form-item__label,
+.app-inputs-layout .el-radio__label,
+.app-inputs-layout .el-checkbox__label {
+  color: #c2c7d1;
+  font-size: @font-size-app-caption;
+}
+
+.app-inputs-layout .el-input__wrapper,
+.app-inputs-layout .el-select__wrapper,
+.app-inputs-layout .el-textarea__inner,
+.app-inputs-layout .el-input-number,
+.app-inputs-layout .el-date-editor {
+  background: @bg-elevated;
+  border-radius: @radius-sm;
+  box-shadow: inset 0 0 0 1px @line-soft;
+}
+
+.app-inputs-layout .el-input__wrapper.is-focus,
+.app-inputs-layout .el-select__wrapper.is-focused,
+.app-inputs-layout .el-textarea__inner:focus,
+.app-inputs-layout .el-input-number:focus-within,
+.app-inputs-layout .el-date-editor:focus-within {
+  box-shadow: inset 0 0 0 1px fade(@accent-cyan, 45%);
+}
+
+.app-inputs-layout .el-input.is-disabled .el-input__wrapper,
+.app-inputs-layout .el-select.is-disabled .el-select__wrapper,
+.app-inputs-layout .el-input-number.is-disabled,
+.app-inputs-layout .el-date-editor.is-disabled {
+  background: #2a2d33;
+}
+
+@media (max-width: 1280px) {
+  .app-inputs-layout__field,
+  .app-inputs-layout__field--wide {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-inputs-layout__field,
+  .app-inputs-layout__field--wide,
+  .app-inputs-layout__field--full {
+    grid-column: span 12;
+  }
+}
+
 .chip-checkbox-group {
   display: flex;
   flex-wrap: wrap;

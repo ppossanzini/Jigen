@@ -20,7 +20,7 @@ public class SystemDB : Store
     });
 
     if (!this.System.ContainsKey(BASEINFO))
-      this.System.Add(BASEINFO, new SystemInfo() { Databases = [] });
+      this.System.Add(BASEINFO, new SystemInfo() { Databases = [], DatabaseInfos = [] });
     
     this.SaveChangesAsync().GetAwaiter().GetResult();
   }

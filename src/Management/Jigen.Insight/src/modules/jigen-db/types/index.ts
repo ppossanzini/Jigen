@@ -4,6 +4,7 @@ export interface SidebarItem {
   iconClass: string
   routeName?:
     | 'dashboard-home'
+    | 'semantic-search'
     | 'database-management'
     | 'security-users'
     | 'security-roles'
