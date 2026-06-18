@@ -1,5 +1,5 @@
 export interface LoginData {
-  userName?: string | null
+  userName: string 
   password?: string | null
   workspace?: string | null
 }

@@ -49,7 +49,7 @@ public class AuthorizationController (
   {
     var request = HttpContext.GetOpenIddictServerRequest()
                   ?? throw new InvalidOperationException("The OpenID Connect request cannot be retrieved.");
-
+    
     var result = await mediator.Send(new Core.Command.ExchangeToken
     {
       Data = new ExchangeTokenData

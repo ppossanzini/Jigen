@@ -49,14 +49,18 @@ public class Module : IModule
         if (!string.IsNullOrWhiteSpace(issuer))
           options.SetIssuer(new Uri(issuer));
 
-        options
+        var opt = options
           .SetAuthorizationEndpointUris("/connect/authorize")
           .SetTokenEndpointUris("/connect/token")
           .SetIntrospectionEndpointUris("/connect/introspect")
           .SetRevocationEndpointUris("/connect/revocation")
           .AllowAuthorizationCodeFlow()
+          .AllowImplicitFlow()
+          .AllowPasswordFlow()
+          .AllowHybridFlow()
           .AllowClientCredentialsFlow()
           .AllowRefreshTokenFlow()
+          .DisableAccessTokenEncryption()
           .RequireProofKeyForCodeExchange()
           .AddDevelopmentEncryptionCertificate()
           .AddDevelopmentSigningCertificate()
@@ -64,6 +68,10 @@ public class Module : IModule
           .EnableAuthorizationEndpointPassthrough()
           .EnableTokenEndpointPassthrough()
           .EnableStatusCodePagesIntegration();
+
+        string[] modes = ["Random", "FromFile"];
+        if (!modes.Contains( configuration["JigenServer:Https:Mode"]))
+          opt.DisableTransportSecurityRequirement(); 
       });
 
     

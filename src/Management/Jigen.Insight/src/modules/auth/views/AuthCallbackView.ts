@@ -17,6 +17,26 @@ const toQueryValue = (value: unknown): string | null => {
   return null
 }
 
+const parseHashParams = (): URLSearchParams => {
+  const rawHash = window.location.hash
+
+  if (!rawHash.startsWith('#')) {
+    return new URLSearchParams()
+  }
+
+  const fragment = rawHash.slice(1)
+
+  if (fragment.startsWith('/')) {
+    const queryIndex = fragment.indexOf('?')
+
+    if (queryIndex >= 0) {
+      return new URLSearchParams(fragment.slice(queryIndex + 1))
+    }
+  }
+
+  return new URLSearchParams(fragment)
+}
+
 export default defineComponent({
   name: 'AuthCallbackView',
   setup() {
@@ -31,13 +51,24 @@ export default defineComponent({
     }
 
     onMounted(async () => {
-      const code = toQueryValue(route.query.code)
-      const state = toQueryValue(route.query.state)
-      const oauthError = toQueryValue(route.query.error)
+      const hashParams = parseHashParams()
+      const code = toQueryValue(route.query.code) || hashParams.get('code')
+      const state = toQueryValue(route.query.state) || hashParams.get('state')
+      const oauthError = toQueryValue(route.query.error) || hashParams.get('error')
+      const directAccessToken = hashParams.get('access_token')
 
       try {
         if (oauthError) {
           throw new Error(oauthError)
+        }
+
+        if (directAccessToken) {
+          const context = authService.consumeAuthorizationTransientContext()
+
+          authStore.persistSession(directAccessToken, context.userName, context.rememberMe)
+          ElMessage.success(t('auth.loginSuccess'))
+          await router.replace({ name: 'dashboard-home' })
+          return
         }
 
         if (!code || !state) {

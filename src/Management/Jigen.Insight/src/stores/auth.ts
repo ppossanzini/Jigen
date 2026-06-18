@@ -56,6 +56,43 @@ const decodeJwtPayload = (token: string): Record<string, unknown> | null => {
   }
 }
 
+const toNumericDate = (value: unknown): number | null => {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+
+  return null
+}
+
+const isJwtValid = (token: string | null): boolean => {
+  if (!token) {
+    return false
+  }
+
+  const payload = decodeJwtPayload(token)
+
+  if (!payload) {
+    return false
+  }
+
+  const exp = toNumericDate(payload.exp)
+
+  if (!exp) {
+    return true
+  }
+
+  const nowInSeconds = Date.now() / 1000
+  return exp > nowInSeconds
+}
+
 const extractRolesFromToken = (token: string | null): string[] => {
   if (!token) {
     return []
@@ -124,7 +161,15 @@ const parseStoredRoles = (): string[] => {
   }
 }
 
-const storedToken = localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY)
+const rawStoredToken = localStorage.getItem(AUTH_TOKEN_KEY) || sessionStorage.getItem(AUTH_TOKEN_KEY)
+const storedToken = isJwtValid(rawStoredToken) ? rawStoredToken : null
+
+if (!storedToken) {
+  localStorage.removeItem(AUTH_TOKEN_KEY)
+  sessionStorage.removeItem(AUTH_TOKEN_KEY)
+  localStorage.removeItem(AUTH_ROLES_KEY)
+  sessionStorage.removeItem(AUTH_ROLES_KEY)
+}
 
 export const useAuthStore = defineStore('auth', {
   state: (): AuthState => ({
@@ -135,7 +180,7 @@ export const useAuthStore = defineStore('auth', {
     roles: resolveRoles(storedToken, parseStoredRoles()),
   }),
   getters: {
-    isAuthenticated: (state) => Boolean(state.token),
+    isAuthenticated: (state) => isJwtValid(state.token),
     isDatabaseAdmin: (state) => state.roles.some(isDatabaseAdminRole),
   },
   actions: {

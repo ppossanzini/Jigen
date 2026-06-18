@@ -1,4 +1,5 @@
 import { BaseRestService } from '@/services/baseRestService'
+import { buildApiUrl, getSettings } from '@/settings'
 import type {
   AuthorizationCodeResult,
   AuthorizationStartOptions,
@@ -11,7 +12,11 @@ const OIDC_VERIFIER_KEY = 'auth.oidc.verifier'
 const OIDC_REMEMBER_KEY = 'auth.oidc.rememberMe'
 const OIDC_USERNAME_KEY = 'auth.oidc.userName'
 const OIDC_CLIENT_ID_KEY = 'auth.oidc.clientId'
-const OIDC_CLIENT_SECRET_KEY = 'auth.oidc.clientSecret'
+
+interface AuthorizationTransientContext {
+  rememberMe: boolean
+  userName: string
+}
 
 const toBase64Url = (bytes: Uint8Array): string => {
   let binary = ''
@@ -36,12 +41,39 @@ const createCodeChallenge = async (verifier: string): Promise<string> => {
 }
 
 class AuthService extends BaseRestService {
-  private getConfiguredClientId(): string {
-    return import.meta.env.VITE_OIDC_CLIENT_ID?.trim() ?? ''
+
+  private findTokenInPayload(payload: Record<string, unknown>): string | null {
+    const directTokenKeys = ['token', 'access_token', 'accessToken', 'jwt', 'jwtToken']
+
+    for (const key of directTokenKeys) {
+      const value = payload[key]
+
+      if (typeof value === 'string' && value.length > 0) {
+        return value
+      }
+    }
+
+    const nestedContainers = ['data', 'result', 'payload']
+
+    for (const key of nestedContainers) {
+      const nestedValue = payload[key]
+
+      if (!nestedValue || typeof nestedValue !== 'object') {
+        continue
+      }
+
+      const nestedToken = this.findTokenInPayload(nestedValue as Record<string, unknown>)
+
+      if (nestedToken) {
+        return nestedToken
+      }
+    }
+
+    return null
   }
 
   private getClientId(): string {
-    const configured = this.getConfiguredClientId()
+    const configured = getSettings().oidc.clientId
 
     if (configured) {
       return configured
@@ -50,18 +82,8 @@ class AuthService extends BaseRestService {
     return sessionStorage.getItem(OIDC_CLIENT_ID_KEY) ?? 'jigen-insight-spa'
   }
 
-  private getClientSecret(): string {
-    const configured = import.meta.env.VITE_OIDC_CLIENT_SECRET?.trim()
-
-    if (configured) {
-      return configured
-    }
-
-    return sessionStorage.getItem(OIDC_CLIENT_SECRET_KEY) ?? ''
-  }
-
   private getRedirectUri(): string {
-    const configured = import.meta.env.VITE_OIDC_REDIRECT_URI?.trim()
+    const configured = getSettings().oidc.redirectUri
 
     if (configured) {
       return configured
@@ -71,7 +93,7 @@ class AuthService extends BaseRestService {
   }
 
   private getScope(): string {
-    const configured = import.meta.env.VITE_OIDC_SCOPE?.trim()
+    const configured = getSettings().oidc.scope
 
     if (configured) {
       return configured
@@ -87,6 +109,19 @@ class AuthService extends BaseRestService {
     sessionStorage.removeItem(OIDC_USERNAME_KEY)
   }
 
+  private readAuthorizationTransientContext(): AuthorizationTransientContext {
+    return {
+      rememberMe: sessionStorage.getItem(OIDC_REMEMBER_KEY) === '1',
+      userName: sessionStorage.getItem(OIDC_USERNAME_KEY) || 'guest',
+    }
+  }
+
+  consumeAuthorizationTransientContext(): AuthorizationTransientContext {
+    const context = this.readAuthorizationTransientContext()
+    this.clearAuthorizationTransientData()
+    return context
+  }
+
   private extractTokenPayload(payload: unknown): LoginResult | null {
     if (typeof payload === 'string' && payload.length > 0) {
       return { token: payload, roles: [] }
@@ -94,8 +129,8 @@ class AuthService extends BaseRestService {
 
     if (payload && typeof payload === 'object') {
       const raw = payload as Record<string, unknown>
-      const token = raw.token ?? raw.access_token
-      const roles = this.toRoles(raw.roles)
+      const token = this.findTokenInPayload(raw)
+      const roles = this.toRoles(raw.roles ?? raw.authorities)
 
       if (typeof token === 'string' && token.length > 0) {
         return { token, roles }
@@ -105,52 +140,6 @@ class AuthService extends BaseRestService {
     return null
   }
 
-  private async ensureDefaultClient(redirectUri: string): Promise<void> {
-    const upsertClient = async (clientId: string): Promise<boolean> => {
-      const payload = {
-        clientId,
-        displayName: clientId,
-        allowAuthorizationCode: true,
-        allowClientCredentials: false,
-        allowRefreshToken: true,
-        redirectUris: [redirectUri],
-        postLogoutRedirectUris: [`${window.location.origin}/sign-in`],
-        scopes: this.getScope().split(/\s+/).filter((entry) => entry.length > 0),
-      }
-
-      const response = await this.post<unknown, typeof payload>('/identity/clients', payload)
-
-      sessionStorage.setItem(OIDC_CLIENT_ID_KEY, clientId)
-
-      if (response && typeof response === 'object') {
-        const raw = response as Record<string, unknown>
-        const secret = raw.clientSecret
-
-        if (typeof secret === 'string' && secret.length > 0) {
-          sessionStorage.setItem(OIDC_CLIENT_SECRET_KEY, secret)
-          return true
-        }
-      }
-
-      return false
-    }
-
-    const configuredClientId = this.getConfiguredClientId()
-    const primaryClientId = this.getClientId()
-
-    try {
-      await upsertClient(primaryClientId)
-    } catch {
-      if (!configuredClientId) {
-        try {
-          const fallbackClientId = `jigen-insight-spa-${createRandomToken(8).toLowerCase()}`
-          await upsertClient(fallbackClientId)
-        } catch {
-          // If the endpoint is protected or unavailable, continue with configured/default client.
-        }
-      }
-    }
-  }
 
   private toRoles(payload: unknown): string[] {
     if (!Array.isArray(payload)) {
@@ -187,7 +176,6 @@ class AuthService extends BaseRestService {
 
   async startAuthorizationCodeFlow(options: AuthorizationStartOptions): Promise<void> {
     const redirectUri = this.getRedirectUri()
-    await this.ensureDefaultClient(redirectUri)
 
     const state = createRandomToken(32)
     const verifier = createRandomToken(64)
@@ -212,7 +200,7 @@ class AuthService extends BaseRestService {
       params.set('prompt', options.prompt)
     }
 
-    window.location.assign(`/api/connect/authorize?${params.toString()}`)
+    window.location.assign(`${buildApiUrl('/connect/authorize')}?${params.toString()}`)
   }
 
   async exchangeAuthorizationCode(code: string, state: string): Promise<AuthorizationCodeResult> {
@@ -225,9 +213,8 @@ class AuthService extends BaseRestService {
     }
 
     const clientId = this.getClientId()
-    const secret = this.getClientSecret()
 
-    const sendTokenRequest = async (mode: 'basic' | 'body'): Promise<Response> => {
+    const sendTokenRequest = async (): Promise<Response> => {
       const payload = new URLSearchParams({
         grant_type: 'authorization_code',
         code,
@@ -240,59 +227,19 @@ class AuthService extends BaseRestService {
         'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
       }
 
-      if (mode === 'basic' && secret.length > 0) {
-        headers.Authorization = `Basic ${btoa(`${clientId}:${secret}`)}`
-      } else {
-        payload.set('client_id', clientId)
+      payload.set('client_id', clientId)
 
-        if (secret.length > 0) {
-          payload.set('client_secret', secret)
-        }
-      }
 
-      return fetch('/api/connect/token', {
+      return fetch(buildApiUrl('/connect/token'), {
         method: 'POST',
+        credentials: 'include',
         headers,
         body: payload.toString(),
       })
     }
 
-    const firstMode: 'basic' | 'body' = secret.length > 0 ? 'basic' : 'body'
-    let response = await sendTokenRequest(firstMode)
-
-    let responseData: unknown = null
-
-    try {
-      responseData = (await response.json()) as unknown
-    } catch {
-      responseData = null
-    }
-
-    if (!response.ok) {
-      const errorBody =
-        responseData && typeof responseData === 'object'
-          ? (responseData as Record<string, unknown>)
-          : null
-
-      const errorCode = typeof errorBody?.error === 'string' ? errorBody.error : ''
-      const errorDescription =
-        typeof errorBody?.error_description === 'string' ? errorBody.error_description : ''
-
-      if (
-        errorCode === 'invalid_request' &&
-        errorDescription.includes('Multiple client credentials') &&
-        secret.length > 0
-      ) {
-        const fallbackMode: 'basic' | 'body' = firstMode === 'basic' ? 'body' : 'basic'
-        response = await sendTokenRequest(fallbackMode)
-
-        try {
-          responseData = (await response.json()) as unknown
-        } catch {
-          responseData = null
-        }
-      }
-    }
+    let response = await sendTokenRequest()
+    let responseData = (await response.json()) as unknown
 
     if (!response.ok) {
       throw new Error(`Token exchange failed with status ${response.status}`)
@@ -305,16 +252,13 @@ class AuthService extends BaseRestService {
       throw new Error('Token exchange did not return an access token')
     }
 
-    const rememberMe = sessionStorage.getItem(OIDC_REMEMBER_KEY) === '1'
-    const userName = sessionStorage.getItem(OIDC_USERNAME_KEY) || 'guest'
-
-    this.clearAuthorizationTransientData()
+    const context = this.consumeAuthorizationTransientContext()
 
     return {
       token: parsed.token,
       roles: parsed.roles,
-      rememberMe,
-      userName,
+      rememberMe: context.rememberMe,
+      userName: context.userName,
     }
   }
 }

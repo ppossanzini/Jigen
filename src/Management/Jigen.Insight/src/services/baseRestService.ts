@@ -1,8 +1,10 @@
 import axios, { AxiosHeaders, type AxiosRequestConfig } from 'axios'
+import { getSettings } from '@/settings'
 
 export class BaseRestService {
   protected readonly api = axios.create({
-    baseURL: '/api',
+    baseURL: getSettings().api.baseUrl,
+    withCredentials: true,
     headers: {
       Accept: 'application/json',
       'Content-Type': 'application/json',
@@ -11,6 +13,9 @@ export class BaseRestService {
 
   constructor() {
     this.api.interceptors.request.use((config) => {
+      config.baseURL = getSettings().api.baseUrl
+      config.withCredentials = true
+
       const token = localStorage.getItem('auth.token') || sessionStorage.getItem('auth.token')
 
       if (!token) {
