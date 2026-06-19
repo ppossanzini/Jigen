@@ -1,14 +1,14 @@
 @import '@/assets/styles/global/variables.less';
 
-.database-table-card {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+.collections-panel {
   border-radius: @radius-lg;
   border: 1px solid @line-soft;
   background: rgba(255, 255, 255, 0.04);
   padding: 12px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   min-height: 540px;
-  min-width: 480px;
+  min-width: 320px;
 }
 
 .panel-header {
@@ -21,16 +21,16 @@
   font-weight: 500;
 }
 
-.database-scroll {
+.collections-scroll {
   min-height: 0;
 }
 
-.database-list {
+.collections-list {
   display: grid;
   gap: 8px;
 }
 
-.database-option {
+.collection-option {
   width: 100%;
   min-height: 64px;
   border-radius: @radius-md;
@@ -39,19 +39,30 @@
   color: @text-primary;
   padding: 10px 12px;
   text-align: left;
+  justify-content: flex-start;
   cursor: pointer;
 }
 
-.database-option.is-active {
+.collection-option.is-active {
   border-color: rgba(123, 216, 255, 0.7);
   background: rgba(123, 216, 255, 0.14);
 }
 
-.database-title {
+.collection-option :deep(.el-button__text) {
+  width: 100%;
+}
+
+.collection-title {
   font-weight: 600;
   margin-bottom: 2px;
 }
 
-.database-option small {
+.collection-option small {
   color: @text-muted;
+}
+
+.empty {
+  margin: 0;
+  color: @text-muted;
+  line-height: 1.5;
 }

@@ -34,19 +34,6 @@
       </el-table-column>
     </el-table>
 
-    <div class="pagination-row">
-      <el-pagination
-        layout="prev, pager, next"
-        :current-page="currentPage"
-        :page-size="pageSize"
-        :total="total"
-        @current-change="onPageChange"
-      />
-      <span v-if="hasReliableCount" class="rows-counter">
-        {{ perPageLabel }}: {{ visibleRowsCount }}
-        <template v-if="total > visibleRowsCount"> / {{ total }}</template>
-      </span>
-    </div>
   </section>
 </template>
 

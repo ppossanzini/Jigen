@@ -1,4 +1,4 @@
-import { computed, defineComponent, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, defineComponent, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import SecurityUsersToolbar from '@/modules/security/components/SecurityUsersToolbar/SecurityUsersToolbar.vue'
@@ -30,8 +30,6 @@ export default defineComponent({
     const { t } = useI18n()
     const securityStore = useSecurityStore()
 
-    const currentPage = ref(1)
-    const pageSize = ref(6)
     const userDialogVisible = ref(false)
     const userDialogMode = ref<UserDialogMode>('create')
     const userDialogSaving = ref(false)
@@ -54,39 +52,15 @@ export default defineComponent({
     const roleOptions = computed(() => securityStore.roles.map((entry) => entry.name))
 
     const users = computed(() => securityStore.users)
-    const visibleUsers = computed(() => {
-      const start = (currentPage.value - 1) * pageSize.value
-      return users.value.slice(start, start + pageSize.value)
-    })
+    const visibleUsers = users
 
     const userDialogTitle = computed(() =>
       userDialogMode.value === 'create' ? t('security.users.dialog.createTitle') : t('security.users.dialog.editTitle'),
     )
 
-    const calculateDynamicPageSize = () => {
-      const reservedSpace = 470
-      const rowHeight = 54
-      const availableHeight = Math.max(window.innerHeight - reservedSpace, rowHeight * 5)
-      pageSize.value = Math.max(4, Math.floor(availableHeight / rowHeight))
-      const maxPages = Math.max(1, Math.ceil(users.value.length / pageSize.value))
-      if (currentPage.value > maxPages) currentPage.value = maxPages
-    }
-
     const onSelectUser = async (user: SecurityUser) => {
       securityStore.setSelectedUser(user.id)
       await securityStore.loadUserDetail(user.id)
-    }
-
-    const onPageChange = (nextPage: number) => {
-      currentPage.value = nextPage
-      const fallback = visibleUsers.value[0] ?? null
-
-      if (!fallback) {
-        securityStore.setSelectedUser(null)
-        return
-      }
-
-      void onSelectUser(fallback)
     }
 
     const refreshData = async () => {
@@ -204,7 +178,7 @@ export default defineComponent({
         )
 
         await securityStore.deleteUser(selectedUser.value.id)
-        const nextSelected = visibleUsers.value[0] ?? null
+        const nextSelected = users.value[0] ?? null
 
         if (nextSelected) {
           await onSelectUser(nextSelected)
@@ -257,19 +231,11 @@ export default defineComponent({
 
     onMounted(() => {
       void refreshData()
-      window.addEventListener('resize', calculateDynamicPageSize)
-      calculateDynamicPageSize()
-    })
-
-    onBeforeUnmount(() => {
-      window.removeEventListener('resize', calculateDynamicPageSize)
     })
 
     return {
       t,
       securityStore,
-      currentPage,
-      pageSize,
       visibleUsers,
       selectedUser,
       selectedUserDetail,
@@ -282,7 +248,6 @@ export default defineComponent({
       applyingRoles,
       selectedRoles,
       onSelectUser,
-      onPageChange,
       onOpenCreateUserDialog,
       onOpenEditUserDialog,
       onCloseUserDialog,

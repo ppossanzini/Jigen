@@ -1,12 +1,20 @@
-import { computed, defineComponent, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, defineComponent, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useI18n } from 'vue-i18n'
 import DatabaseToolbar from '@/modules/jigen-db/components/DatabaseToolbar/DatabaseToolbar.vue'
 import DatabaseTable from '@/modules/jigen-db/components/DatabaseTable/DatabaseTable.vue'
 import DatabaseDetailPanel from '@/modules/jigen-db/components/DatabaseDetailPanel/DatabaseDetailPanel.vue'
+import DatabaseCollectionsPanel from '@/modules/jigen-db/components/DatabaseCollectionsPanel/DatabaseCollectionsPanel.vue'
+import CollectionExplorerPanel from '@/modules/jigen-db/components/CollectionExplorerPanel/CollectionExplorerPanel.vue'
 import type { DatabaseRow } from '@/modules/jigen-db/types'
 import { useDatabaseStore } from '@/stores/database'
 import { useAuthStore } from '@/stores/auth'
+import { securityService } from '@/services/securityService'
+
+interface AssignableUserOption {
+  userId: string
+  userName: string
+}
 
 interface CreateDatabaseForm {
   name: string
@@ -18,16 +26,19 @@ export default defineComponent({
     DatabaseToolbar,
     DatabaseTable,
     DatabaseDetailPanel,
+    DatabaseCollectionsPanel,
+    CollectionExplorerPanel,
   },
   setup() {
     const { t } = useI18n()
     const databaseStore = useDatabaseStore()
     const authStore = useAuthStore()
 
-    const currentPage = ref(1)
-    const pageSize = ref(6)
     const createDialogVisible = ref(false)
     const createSaving = ref(false)
+    const assignUserSaving = ref(false)
+    const assignableUsers = ref<AssignableUserOption[]>([])
+    const selectedAssignableUserId = ref('')
 
     const createForm = reactive<CreateDatabaseForm>({
       name: '',
@@ -37,44 +48,49 @@ export default defineComponent({
 
     const rows = computed<DatabaseRow[]>(() => databaseStore.databases)
     const selectedRow = computed(() => databaseStore.selectedDatabase)
-    const selectedCollections = computed(() => databaseStore.selectedCollections)
+    const selectedDetails = computed(() => databaseStore.selectedDatabaseDetails)
+    const selectedDatabaseCollections = computed(() => databaseStore.selectedDatabaseCollections)
+    const selectedCollectionName = computed(() => databaseStore.selectedCollectionName)
+    const selectedCollection = computed(() => databaseStore.selectedCollection)
 
-    const calculateDynamicPageSize = () => {
-      const reservedSpace = 470
-      const rowHeight = 54
-      const availableHeight = Math.max(window.innerHeight - reservedSpace, rowHeight * 5)
-      pageSize.value = Math.max(4, Math.floor(availableHeight / rowHeight))
-      const maxPages = Math.max(1, Math.ceil(rows.value.length / pageSize.value))
-      if (currentPage.value > maxPages) currentPage.value = maxPages
-    }
-
-    const visibleRows = computed(() => {
-      const start = (currentPage.value - 1) * pageSize.value
-      return rows.value.slice(start, start + pageSize.value)
-    })
+    const showCollectionsPanel = computed(() => Boolean(selectedRow.value))
+    const showCollectionDetailsPanel = computed(() => Boolean(selectedCollection.value))
+    const workspaceGridClass = computed(() => ({
+      'has-database': showCollectionsPanel.value,
+      'has-collection': showCollectionDetailsPanel.value,
+    }))
 
     const onRowClick = async (row: DatabaseRow) => {
       databaseStore.setSelectedDatabase(row.name)
-      await databaseStore.loadCollectionsFor(row.name)
+      await Promise.all([
+        databaseStore.loadCollectionsFor(row.name),
+        databaseStore.loadDetailsFor(row.name),
+      ])
     }
 
-    const onPageChange = (nextPage: number) => {
-      currentPage.value = nextPage
-      const fallback = visibleRows.value[0] ?? null
+    const onSelectCollection = (collectionName: string) => {
+      databaseStore.setSelectedCollection(collectionName)
+    }
 
-      if (!fallback) {
-        databaseStore.setSelectedDatabase(null)
-        return
+    const loadAssignableUsers = async () => {
+      try {
+        const users = await securityService.listUsers()
+        assignableUsers.value = users
+          .map((entry) => ({
+            userId: entry.id?.trim() ?? '',
+            userName: entry.userName?.trim() ?? '',
+          }))
+          .filter((entry) => entry.userId.length > 0)
+      } catch {
+        assignableUsers.value = []
       }
-
-      void onRowClick(fallback)
     }
 
     const refreshDatabases = async () => {
       await databaseStore.loadDatabases()
 
       if (!databaseStore.selectedDatabaseName) {
-        const first = visibleRows.value[0] ?? null
+        const first = rows.value[0] ?? null
 
         if (!first) {
           return
@@ -84,7 +100,10 @@ export default defineComponent({
         return
       }
 
-      await databaseStore.loadCollectionsFor(databaseStore.selectedDatabaseName)
+      await Promise.all([
+        databaseStore.loadCollectionsFor(databaseStore.selectedDatabaseName),
+        databaseStore.loadDetailsFor(databaseStore.selectedDatabaseName),
+      ])
     }
 
     const onOpenCreateDialog = () => {
@@ -119,7 +138,10 @@ export default defineComponent({
       try {
         await databaseStore.createDatabase(normalizedName)
         databaseStore.setSelectedDatabase(normalizedName)
-        await databaseStore.loadCollectionsFor(normalizedName)
+        await Promise.all([
+          databaseStore.loadCollectionsFor(normalizedName),
+          databaseStore.loadDetailsFor(normalizedName),
+        ])
         createDialogVisible.value = false
         ElMessage.success(t('databaseManagement.feedback.created'))
       } catch {
@@ -155,7 +177,7 @@ export default defineComponent({
 
         await databaseStore.deleteDatabase(target.name)
 
-        const nextSelected = visibleRows.value[0] ?? null
+        const nextSelected = rows.value[0] ?? null
         if (nextSelected) {
           await onRowClick(nextSelected)
         }
@@ -166,27 +188,82 @@ export default defineComponent({
       }
     }
 
-    const onReadCollections = async (row: DatabaseRow) => {
-      await onRowClick(row)
-    }
-
     const onRefresh = async () => {
       try {
-        await refreshDatabases()
+        await Promise.all([refreshDatabases(), loadAssignableUsers()])
         ElMessage.success(t('databaseManagement.feedback.refreshed'))
       } catch {
         ElMessage.error(t('databaseManagement.feedback.error'))
       }
     }
 
-    onMounted(() => {
-      void refreshDatabases()
-      window.addEventListener('resize', calculateDynamicPageSize)
-      calculateDynamicPageSize()
-    })
+    const onAssignUserToDatabase = async () => {
+      if (!canManageDatabases.value) {
+        ElMessage.warning(t('databaseManagement.feedback.adminOnly'))
+        return
+      }
 
-    onBeforeUnmount(() => {
-      window.removeEventListener('resize', calculateDynamicPageSize)
+      const targetDatabase = selectedRow.value
+      const targetUserId = selectedAssignableUserId.value.trim()
+
+      if (!targetDatabase) {
+        ElMessage.warning(t('databaseManagement.feedback.selectDatabase'))
+        return
+      }
+
+      if (!targetUserId) {
+        ElMessage.warning(t('databaseManagement.feedback.selectUser'))
+        return
+      }
+
+      const alreadyAssigned =
+        selectedDetails.value?.users.some((entry) => entry.userId === targetUserId) ?? false
+
+      if (alreadyAssigned) {
+        ElMessage.info(t('databaseManagement.feedback.userAlreadyAssigned'))
+        return
+      }
+
+      const selectedUser = assignableUsers.value.find((entry) => entry.userId === targetUserId)
+      if (!selectedUser) {
+        ElMessage.warning(t('databaseManagement.feedback.selectUser'))
+        return
+      }
+
+      const currentUsers = selectedDetails.value?.users ?? []
+      const usersById = new Map<string, { userId: string; userName: string }>()
+
+      for (const user of currentUsers) {
+        if (!user.userId) {
+          continue
+        }
+
+        usersById.set(user.userId, {
+          userId: user.userId,
+          userName: user.userName,
+        })
+      }
+
+      usersById.set(selectedUser.userId, {
+        userId: selectedUser.userId,
+        userName: selectedUser.userName,
+      })
+
+      assignUserSaving.value = true
+
+      try {
+        await databaseStore.setDatabaseUsers(targetDatabase.name, Array.from(usersById.values()))
+        selectedAssignableUserId.value = ''
+        ElMessage.success(t('databaseManagement.feedback.userAssigned'))
+      } catch {
+        ElMessage.error(t('databaseManagement.feedback.error'))
+      } finally {
+        assignUserSaving.value = false
+      }
+    }
+
+    onMounted(() => {
+      void Promise.all([refreshDatabases(), loadAssignableUsers()])
     })
 
     return {
@@ -194,22 +271,29 @@ export default defineComponent({
       databaseStore,
       rows,
       selectedRow,
-      selectedCollections,
+      selectedDetails,
+      selectedDatabaseCollections,
+      selectedCollectionName,
+      selectedCollection,
+      showCollectionsPanel,
+      showCollectionDetailsPanel,
+      workspaceGridClass,
       canManageDatabases,
-      currentPage,
-      pageSize,
       createDialogVisible,
       createSaving,
+      assignUserSaving,
+      assignableUsers,
+      selectedAssignableUserId,
       createForm,
-      visibleRows,
+      visibleRows: rows,
       onRowClick,
-      onPageChange,
+      onSelectCollection,
       onRefresh,
-      onReadCollections,
       onOpenCreateDialog,
       onCloseCreateDialog,
       onCreateDatabase,
       onDeleteDatabase,
+      onAssignUserToDatabase,
     }
   },
 })

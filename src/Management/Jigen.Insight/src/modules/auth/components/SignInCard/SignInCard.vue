@@ -27,6 +27,8 @@
           :placeholder="passwordPlaceholder"
           show-password
           type="password"
+          @click="onSubmit"
+          @keydown.enter.native="(k: KeyboardEvent) => k.code === 'Enter' && onSubmit()"
           autocomplete="current-password"
           @update:model-value="onPasswordChange"
         />

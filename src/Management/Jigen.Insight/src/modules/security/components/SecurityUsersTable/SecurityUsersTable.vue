@@ -1,13 +1,13 @@
 <template>
   <section class="security-table-card">
-    <el-table :data="rows" :empty-text="emptyLabel" :loading="loading" @row-click="onRowClick" height="100%">
-      <el-table-column prop="userName" :label="userNameLabel" min-width="220" />
-      <el-table-column prop="id" :label="idLabel" min-width="220" />
-      <el-table-column :label="actionsLabel" width="100">
+    <el-table :data="rows" :empty-text="$t('security.common.empty')" :loading="loading" @row-click="onRowClick" height="100%">
+      <el-table-column prop="userName" :label="$t('security.users.columns.userName')" min-width="220" />
+      <el-table-column prop="id" :label="$t('security.users.columns.id')" min-width="220" />
+      <el-table-column :label="$t('security.users.actions.actionsLabel')" width="100">
         <template #default="scope">
           <el-button
             class="icon-action"
-            :aria-label="`${openLabel} ${scope.row.userName}`"
+            :aria-label="`${$t('security.users.actions.openDetail')} ${scope.row.userName}`"
             @click.stop="$emit('open', scope.row)"
           >
             <i class="ti ti-list-details" />
@@ -16,19 +16,6 @@
       </el-table-column>
     </el-table>
 
-    <div class="pagination-row">
-      <el-pagination
-        layout="prev, pager, next"
-        :current-page="currentPage"
-        :page-size="pageSize"
-        :total="total"
-        @current-change="onPageChange"
-      />
-      <span v-if="hasReliableCount" class="rows-counter">
-        {{ perPageLabel }}: {{ visibleRowsCount }}
-        <template v-if="total > visibleRowsCount"> / {{ total }}</template>
-      </span>
-    </div>
   </section>
 </template>
 

@@ -2,7 +2,7 @@
 
 .index-table-card {
   display: grid;
-  grid-template-rows: minmax(380px, 1fr) auto;
+  grid-template-rows: minmax(380px, 1fr);
   border-radius: @radius-lg;
   border: 1px solid @line-soft;
   background: rgba(255, 255, 255, 0.04);
@@ -48,18 +48,6 @@
 .icon-action:focus-visible {
   outline: 2px solid #7bd8ff;
   outline-offset: 2px;
-}
-
-.pagination-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 10px 14px;
-  border-top: 1px solid @line-soft;
-}
-
-.rows-counter {
-  color: @text-muted;
 }
 
 :deep(.el-table) {

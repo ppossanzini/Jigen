@@ -12,8 +12,37 @@
   min-height: 0;
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(580px, 1.75fr) minmax(360px, 1fr);
   gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  align-items: stretch;
+  padding-bottom: 8px;
+}
+
+.workspace-grid.has-database {
+  grid-template-columns: minmax(520px, 1.5fr) minmax(320px, 1fr) minmax(320px, 1fr);
+}
+
+.workspace-grid.has-collection {
+  grid-template-columns: minmax(480px, 1.35fr) minmax(300px, 0.9fr) minmax(320px, 0.95fr) minmax(340px, 1.1fr);
+}
+
+.workspace-grid::-webkit-scrollbar {
+  height: 6px;
+}
+
+.workspace-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.workspace-grid::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.workspace-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.35);
 }
 
 .bottom-cards {
@@ -48,6 +77,8 @@
 @media (max-width: 1280px) {
   .workspace-grid {
     grid-template-columns: 1fr;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   .bottom-cards {

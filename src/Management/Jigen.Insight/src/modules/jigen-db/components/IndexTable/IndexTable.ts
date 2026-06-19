@@ -1,4 +1,4 @@
-import { computed, defineComponent } from 'vue'
+import { defineComponent } from 'vue'
 import type { PropType } from 'vue'
 import type { DatabaseRow } from '@/modules/jigen-db/types'
 
@@ -7,18 +7,6 @@ export default defineComponent({
   props: {
     rows: {
       type: Array as PropType<DatabaseRow[]>,
-      required: true,
-    },
-    currentPage: {
-      type: Number,
-      required: true,
-    },
-    pageSize: {
-      type: Number,
-      required: true,
-    },
-    total: {
-      type: Number,
       required: true,
     },
     nameLabel: {
@@ -49,27 +37,13 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    perPageLabel: {
-      type: String,
-      required: true,
-    },
   },
-  emits: ['row-click', 'page-change', 'read-collections', 'delete'],
+  emits: ['row-click', 'read-collections', 'delete'],
   setup(props, { emit }) {
     const onRowClick = (row: DatabaseRow) => emit('row-click', row)
-    const onPageChange = (page: number) => emit('page-change', page)
-
-    const hasReliableCount = computed(
-      () => Number.isFinite(props.total) && props.total >= props.rows.length,
-    )
-
-    const visibleRowsCount = computed(() => props.rows.length)
 
     return {
       onRowClick,
-      onPageChange,
-      hasReliableCount,
-      visibleRowsCount,
     }
   },
 })

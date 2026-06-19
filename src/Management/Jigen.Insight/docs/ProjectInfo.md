@@ -148,6 +148,24 @@ Consequences:
 
 ## ADR-0010 - Migrate Sign-In to Authorization Code + Token Flow
 Date: 2026-06-17
+
+## ADR-0011 - Database Management Details From /database/{name}/details
+Date: 2026-06-18
+Status: Accepted
+Context:
+- User requested that Database Management detail panel be populated from new API `GET /database/{name}/details`.
+- OpenAPI source confirmed at `http://localhost:13223/openapi/v1.json` exposing schema `DatabaseDetails` with storage, vectors, collections, and users metadata.
+- Existing frontend detail panel was based mainly on collections list and did not consume the new database details contract.
+Decision:
+- Extend `@types/database.ts` with `DatabaseDetailsApi`, `CollectionInfoApi`, and `DatabaseUserInfoApi` contracts.
+- Extend `src/services/databaseService.ts` with `getDatabaseDetails(name)` and strict mapping to normalized frontend details model.
+- Extend `src/stores/database.ts` with `detailsByDatabase`, `loadingDetails`, `loadDetailsFor`, and `selectedDatabaseDetails` getter for cross-component synchronization.
+- Refactor `DatabaseDetailPanel` to render overview and diagnostics from API details (non-tabular card/list style), including collections and users sections.
+- Update `DatabaseManagementView` orchestration to load details alongside collections on selection, refresh, and creation flows.
+Consequences:
+- Detail panel now reflects backend source of truth for database-level metrics and associated users.
+- UX keeps non-tabular detail rendering aligned with repository structural memory rules.
+- Frontend state adds one more synchronized slice (`detailsByDatabase`) that must be invalidated on delete and refreshed after mutations.
 Status: Accepted
 Context:
 - Login flow was expected to use authorization code plus token exchange, but frontend accepted cookie-only login responses.
@@ -160,4 +178,54 @@ Decision:
 - Add typed OIDC env configuration (`VITE_OIDC_CLIENT_ID`, `VITE_OIDC_CLIENT_SECRET`, `VITE_OIDC_REDIRECT_URI`, `VITE_OIDC_SCOPE`) and callback i18n copy under `auth.*`.
 Consequences:
 - Frontend authentication is aligned to code+token semantics and no longer relies on cookie-only session as final app auth state.
+
+## ADR-0012 - Database Details User Association Flow
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User requested assigning users to a database directly from Database Details panel.
+- OpenAPI verification on `http://localhost:13223/openapi/v1.json` exposes `PUT /database/{name}/users` with `SetDatabaseUsersData` payload.
+- Current frontend already shows associated users in details but had no write interaction.
+Decision:
+- Extend `src/services/databaseService.ts` with `setDatabaseUsers(name, users)` targeting `PUT /database/{name}/users`.
+- Extend `src/stores/database.ts` with `setDatabaseUsers` action to synchronize `detailsByDatabase` and `usersCount` after successful update.
+- Add Database Details interaction in `DatabaseDetailPanel` using Element Plus controls (`el-form`, `el-select`, `el-button`) to select and add a user.
+- Load assignable users from `securityService.listUsers()` in `DatabaseManagementView` and submit merged existing+selected users to preserve current assignments.
+- Add dedicated i18n labels and feedback messages under `databaseManagement.assignUser` and `databaseManagement.feedback`.
+Consequences:
+- Database administrators can grant user access from the same details context where assignments are inspected.
+- Frontend updates remain aligned with backend contract and avoid overwriting existing associations by sending merged user lists.
 - Misconfigured OAuth clients now surface explicit login failure instead of silently creating invalid local sessions.
+
+## ADR-0012 - Database Workspace Progressive Columns and Collection Drill-Down
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User requested that Database workspace columns expand progressively so collections appear in a third column when a database is selected.
+- User requested a fourth column for selected collection details/exploration, with left tables shrinking to make room.
+- User explicitly accepted horizontal scrolling at workspace level.
+Decision:
+- Keep column order fixed as: Database Table, Database Details, Collections, Collection Details.
+- Show Collections column only when a database is selected and Collection Details column only when a collection is selected.
+- Extend shared Pinia store state with selected collection tracking and derived selected collection detail.
+- Implement a dynamic CSS Grid strategy with class-based templates (`default`, `has-database`, `has-collection`) and horizontal overflow on workspace grid.
+- Keep detail rendering semantic/non-tabular in side panels and keep table behavior resilient with minimum width constraints.
+Consequences:
+- Database management now supports progressive drill-down without route changes or modal transitions.
+- Wide viewports display all contextual levels at once, while narrower viewports preserve access through horizontal grid scrolling.
+- Collection explorer currently exposes structural and metric details; deep content browsing can be added later without changing the layout contract.
+
+## ADR-0013 - Local i18n Labels In Child Components
+Date: 2026-06-19
+Status: Accepted
+Context:
+- New project rule: fixed labels coming only from i18n must not be forwarded as props from parent views.
+- Multiple module views (`jigen-db`, `security`) were passing static localized labels to presentational children.
+Decision:
+- Refactor child components to resolve fixed labels directly with local i18n (`$t(...)`) instead of receiving dedicated label props.
+- Keep text props only where text is runtime-dynamic from parent context (for example titles that include selected entity names).
+- Remove obsolete label props from component contracts and from parent bindings in corresponding views.
+Consequences:
+- Component APIs are slimmer and less coupled to parent views.
+- i18n ownership is clearer for static UI copy, reducing repetitive prop plumbing.
+- Parent views keep focus on orchestration and dynamic state only.

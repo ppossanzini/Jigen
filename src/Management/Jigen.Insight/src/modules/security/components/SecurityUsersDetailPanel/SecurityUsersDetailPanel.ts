@@ -22,38 +22,6 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    idLabel: {
-      type: String,
-      required: true,
-    },
-    userNameLabel: {
-      type: String,
-      required: true,
-    },
-    rolesLabel: {
-      type: String,
-      required: true,
-    },
-    noRolesLabel: {
-      type: String,
-      required: true,
-    },
-    chooseLabel: {
-      type: String,
-      required: true,
-    },
-    saveRolesLabel: {
-      type: String,
-      required: true,
-    },
-    editLabel: {
-      type: String,
-      required: true,
-    },
-    deleteLabel: {
-      type: String,
-      required: true,
-    },
     loading: {
       type: Boolean,
       required: true,

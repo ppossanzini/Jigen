@@ -18,7 +18,7 @@ const router = createRouter({
     },
     {
       path: '/',
-      component: () => import('@/modules/jigen-db/views/AppShellView.vue'),
+      component: () => import('@/modules/main/views/AppShellView.vue'),
       meta: { requiresAuth: true },
       children: [
         {
@@ -58,7 +58,7 @@ const router = createRouter({
         {
           path: 'coming-soon',
           name: 'coming-soon',
-          component: () => import('@/modules/jigen-db/views/ComingSoonView.vue'),
+          component: () => import('@/modules/main/views/ComingSoonView.vue'),
           meta: { title: 'Coming Soon | Jigen DB' },
         },
       ],

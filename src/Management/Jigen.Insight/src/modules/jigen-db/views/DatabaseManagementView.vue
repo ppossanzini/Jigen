@@ -1,50 +1,43 @@
 <template>
   <section class="database-view">
     <DatabaseToolbar
-      :title="t('databaseManagement.title')"
-      :subtitle="t('databaseManagement.subtitle')"
-      :create-label="t('databaseManagement.createDatabase')"
-      :refresh-label="t('databaseManagement.refresh')"
-      :delete-label="t('databaseManagement.deleteDatabase')"
       :create-disabled="!canManageDatabases"
       :delete-disabled="!canManageDatabases || !selectedRow"
-      :admin-only-hint="t('databaseManagement.feedback.adminOnly')"
       @create="onOpenCreateDialog"
       @refresh="onRefresh"
       @delete="onDeleteDatabase()"
     />
 
-    <div class="workspace-grid">
+    <div class="workspace-grid" :class="workspaceGridClass">
       <DatabaseTable
         :rows="visibleRows"
-        :current-page="currentPage"
-        :page-size="pageSize"
-        :total="rows.length"
-        :name-label="t('databaseManagement.columns.name')"
-        :collections-label="t('databaseManagement.columns.collectionsCount')"
-        :actions-label="t('databaseManagement.actions')"
-        :read-action-label="t('databaseManagement.readCollections')"
-        :delete-action-label="t('databaseManagement.deleteDatabase')"
-        :delete-disabled="!canManageDatabases"
-        :admin-only-hint="t('databaseManagement.feedback.adminOnly')"
-        :per-page-label="t('databaseManagement.perPage')"
+        :selected-name="selectedRow?.name ?? null"
         @row-click="onRowClick"
-        @page-change="onPageChange"
-        @read-collections="onReadCollections"
-        @delete="onDeleteDatabase"
       />
 
       <DatabaseDetailPanel
         :row="selectedRow"
-        :title="t('databaseManagement.details')"
-        :empty-label="t('databaseManagement.empty')"
-        :collections-title="t('databaseManagement.collectionsTitle')"
-        :collections="selectedCollections"
-        :loading-collections="databaseStore.loadingCollections"
-        :collections-label="t('databaseManagement.columns.collectionsCount')"
-        :no-collections-label="t('databaseManagement.noCollections')"
-        :choose-database-label="t('databaseManagement.chooseDatabase')"
-        :loading-label="t('databaseManagement.loadingCollections')"
+        :details="selectedDetails"
+        :title="selectedRow ? `${selectedRow.name} Details` : t('databaseManagement.details')"
+        :can-assign-users="canManageDatabases"
+        :available-users="assignableUsers"
+        :selected-user-id="selectedAssignableUserId"
+        :assign-user-loading="assignUserSaving"
+        @update:selected-user-id="selectedAssignableUserId = $event"
+        @assign-user="onAssignUserToDatabase"
+      />
+
+      <DatabaseCollectionsPanel
+        v-if="showCollectionsPanel"
+        :collections="selectedDatabaseCollections"
+        :selected-collection-name="selectedCollectionName"
+        @select="onSelectCollection"
+      />
+
+      <CollectionExplorerPanel
+        v-if="showCollectionDetailsPanel"
+        :collection="selectedCollection"
+        :title="selectedCollection ? `${selectedCollection.name} Details` : t('databaseManagement.collectionDetailsTitle')"
       />
     </div>
 

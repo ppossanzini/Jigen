@@ -1,10 +1,13 @@
 @import '@/assets/styles/global/variables.less';
 
 .hero-panel {
-  border:none;
+  border: none;
   // background: rgba(255, 255, 255, 0.6);
   // border: 0.0625rem solid rgba(150, 156, 170, 0.2);
   background: none;
+
+  max-width: minmax(30%, 300px);
+  justify-self: center;
 
   :deep(.el-card__body) {
     padding: 0.5rem;
@@ -14,7 +17,7 @@
     width: 100%;
     display: block;
     border-radius: 1.2rem;
-    object-fit: cover;
+    object-fit: contain;
     min-height: 22rem;
   }
 }

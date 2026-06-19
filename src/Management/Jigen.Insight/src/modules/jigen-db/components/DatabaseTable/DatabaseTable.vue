@@ -1,52 +1,25 @@
 <template>
   <section class="database-table-card">
-    <el-table :data="rows" @row-click="onRowClick" height="100%">
-      <el-table-column prop="name" :label="nameLabel" min-width="260">
-        <template #default="scope">
-          <div class="database-name-cell">
-            <strong>{{ scope.row.name }}</strong>
-          </div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="collectionsCount" :label="collectionsLabel" width="170" />
-      <el-table-column :label="actionsLabel" width="110">
-        <template #default="scope">
-          <div class="row-actions">
-            <el-button
-              class="icon-action"
-              :aria-label="`${readActionLabel} ${scope.row.name}`"
-              @click.stop="$emit('read-collections', scope.row)"
-            >
-              <i class="ti ti-list-details" />
-            </el-button>
-            <el-tooltip :disabled="!deleteDisabled" :content="adminOnlyHint" placement="top">
-              <el-button
-                class="icon-action danger"
-                :aria-label="`${deleteActionLabel} ${scope.row.name}`"
-                :disabled="deleteDisabled"
-                @click.stop="$emit('delete', scope.row)"
-              >
-                <i class="ti ti-trash" />
-              </el-button>
-            </el-tooltip>
-          </div>
-        </template>
-      </el-table-column>
-    </el-table>
+    <header class="panel-header">
+      <h3>{{ $t('databaseManagement.columns.name') }}</h3>
+    </header>
 
-    <div class="pagination-row">
-      <el-pagination
-        layout="prev, pager, next"
-        :current-page="currentPage"
-        :page-size="pageSize"
-        :total="total"
-        @current-change="onPageChange"
-      />
-      <span v-if="hasReliableCount" class="rows-counter">
-        {{ perPageLabel }}: {{ visibleRowsCount }}
-        <template v-if="total > visibleRowsCount"> / {{ total }}</template>
-      </span>
-    </div>
+    <el-scrollbar class="database-scroll" max-height="100%">
+      <div class="database-list" role="listbox" :aria-label="$t('databaseManagement.columns.name')">
+        <button
+          v-for="row in rows"
+          :key="row.name"
+          type="button"
+          class="database-option"
+          :class="{ 'is-active': row.name === selectedName }"
+          :aria-pressed="row.name === selectedName"
+          @click="onRowClick(row)"
+        >
+          <div class="database-title">{{ row.name }}</div>
+          <small>{{ $t('databaseManagement.columns.collectionsCount') }}: {{ row.collectionsCount }}</small>
+        </button>
+      </div>
+    </el-scrollbar>
   </section>
 </template>
 

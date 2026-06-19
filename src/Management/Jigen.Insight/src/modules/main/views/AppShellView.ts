@@ -2,8 +2,8 @@ import { computed, defineComponent, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { ElMessage } from 'element-plus'
-import ShellHeader from '@/modules/jigen-db/components/ShellHeader/ShellHeader.vue'
-import ShellSidebar from '@/modules/jigen-db/components/ShellSidebar/ShellSidebar.vue'
+import ShellHeader from '@/modules/main/components/ShellHeader/ShellHeader.vue'
+import ShellSidebar from '@/modules/main/components/ShellSidebar/ShellSidebar.vue'
 import type { SidebarItem } from '@/modules/jigen-db/types'
 import { useNavigationStore } from '@/stores/navigation'
 import { useAuthStore } from '@/stores/auth'
@@ -37,10 +37,10 @@ export default defineComponent({
       { key: 'home', label: t('nav.home'), iconClass: 'ti ti-home', routeName: 'dashboard-home' },
       { key: 'search', label: t('nav.search'), iconClass: 'ti ti-search', routeName: 'semantic-search' },
       { key: 'indexes', label: t('nav.indexes'), iconClass: 'ti ti-database', routeName: 'database-management' },
+      { key: 'pipelines', label: t('nav.pipelines'), iconClass: 'ti ti-adjustments-horizontal', routeName: 'coming-soon' },
+      { key: 'datasets', label: t('nav.datasets'), iconClass: 'ti ti-folder', routeName: 'coming-soon' },
       {
-        key: 'security',
-        label: t('nav.security'),
-        iconClass: 'ti ti-shield-lock',
+        key: 'settings', label: t('nav.settings'), iconClass: 'ti ti-settings',
         children: [
           {
             key: 'security-users',
@@ -55,12 +55,6 @@ export default defineComponent({
             routeName: 'security-roles',
           },
         ],
-      },
-      { key: 'pipelines', label: t('nav.pipelines'), iconClass: 'ti ti-adjustments-horizontal', routeName: 'coming-soon' },
-      { key: 'datasets', label: t('nav.datasets'), iconClass: 'ti ti-folder', routeName: 'coming-soon' },
-      {
-        key: 'settings', label: t('nav.settings'), iconClass: 'ti ti-settings', routeName: 'coming-soon',
-
       },
     ])
 

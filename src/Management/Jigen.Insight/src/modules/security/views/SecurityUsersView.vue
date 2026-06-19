@@ -1,11 +1,6 @@
 <template>
   <section class="security-view">
     <SecurityUsersToolbar
-      :title="t('security.users.title')"
-      :subtitle="t('security.users.subtitle')"
-      :create-label="t('security.users.actions.create')"
-      :refresh-label="t('security.users.actions.refresh')"
-      :delete-label="t('security.users.actions.delete')"
       :delete-disabled="!selectedUser"
       @create="onOpenCreateUserDialog"
       @refresh="onRefresh"
@@ -15,34 +10,16 @@
     <div class="workspace-grid">
       <SecurityUsersTable
         :rows="visibleUsers"
-        :current-page="currentPage"
-        :page-size="pageSize"
-        :total="securityStore.users.length"
         :loading="securityStore.loadingUsers"
-        :user-name-label="t('security.users.columns.userName')"
-        :id-label="t('security.users.columns.id')"
-        :actions-label="t('security.users.actions.actionsLabel')"
-        :open-label="t('security.users.actions.openDetail')"
-        :per-page-label="t('security.common.rows')"
-        :empty-label="t('security.common.empty')"
         @row-click="onSelectUser"
         @open="onSelectUser"
-        @page-change="onPageChange"
       />
 
       <SecurityUsersDetailPanel
         :user="selectedUserDetail"
         :selected-roles="selectedRoles"
         :role-options="roleOptions"
-        :title="t('security.users.detailTitle')"
-        :id-label="t('security.users.columns.id')"
-        :user-name-label="t('security.users.columns.userName')"
-        :roles-label="t('security.users.columns.roles')"
-        :no-roles-label="t('security.users.noRoles')"
-        :choose-label="t('security.users.emptySelection')"
-        :save-roles-label="t('security.users.actions.saveRoles')"
-        :edit-label="t('security.common.edit')"
-        :delete-label="t('security.common.delete')"
+        :title="selectedUserDetail ? `${selectedUserDetail.userName} Details` : t('security.users.detailTitle')"
         :loading="securityStore.loadingUserDetail"
         :saving="applyingRoles"
         @update:selected-roles="onSelectedRolesChange"

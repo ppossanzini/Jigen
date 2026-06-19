@@ -22,6 +22,10 @@
   gap: 10px;
 }
 
+.summary-list {
+  grid-template-columns: 1fr;
+}
+
 .detail-panel li {
   display: flex;
   align-items: baseline;
@@ -61,4 +65,23 @@
 
 .collection-list li {
   color: @text-primary;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.collection-name {
+  color: @text-primary;
+}
+
+.collection-list small {
+  color: @text-muted;
+}
+
+.insight-box :deep(.el-form-item) {
+  margin-bottom: 10px;
+}
+
+.insight-box :deep(.el-select) {
+  width: 100%;
 }
