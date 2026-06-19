@@ -1,53 +1,53 @@
 import { computed, defineComponent, onMounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import type { AxiosError } from 'axios'
 import { useI18n } from 'vue-i18n'
+import { databaseService } from '@/services/databaseService'
 import { useDatabaseStore } from '@/stores/database'
+import SemanticSearchControlsPanel from '@/modules/jigen-db/components/SemanticSearchControlsPanel/SemanticSearchControlsPanel.vue'
+import SemanticSearchResultsPanel from '@/modules/jigen-db/components/SemanticSearchResultsPanel/SemanticSearchResultsPanel.vue'
+import SemanticSearchDiagnosticsPanel from '@/modules/jigen-db/components/SemanticSearchDiagnosticsPanel/SemanticSearchDiagnosticsPanel.vue'
+import type {
+  PerCollectionMetric,
+  SearchPathStep,
+  SearchResultRow,
+} from '@/modules/jigen-db/types/semanticSearch'
 
-interface SearchResultRow {
-  id: string
-  collection: string
-  attributes: Record<string, string>
-  content: string
-  score: number
-  responseEmbedding: number[]
-  latencyMs: number
+interface ProblemDetailsPayload {
+  title?: string
+  detail?: string
 }
 
-interface SearchPathStep {
-  key: string
-  title: string
-  detail: string
-  elapsedMs: number
-}
-
-interface AttributeEntry {
-  key: string
-  value: string
-}
-
-const VECTOR_LENGTH = 8
-
-const hashValue = (input: string): number => {
-  let hash = 0
-
-  for (let index = 0; index < input.length; index += 1) {
-    hash = (hash << 5) - hash + input.charCodeAt(index)
-    hash |= 0
-  }
-
-  return Math.abs(hash)
-}
-
-const toEmbedding = (seed: string, length = VECTOR_LENGTH): number[] =>
-  Array.from({ length }, (_, index) => {
-    const source = hashValue(`${seed}-${index}`)
-    return Number(((source % 1000) / 1000).toFixed(4))
-  })
+const TOP_RESULTS = 20
+const TOP_RESULTS_MIN = 1
+const TOP_RESULTS_MAX = 100
 
 const toRoundedMs = (value: number): number => Number(value.toFixed(1))
 
+const decodeBase64Utf8 = (value: string): string => {
+  if (!value) {
+    return ''
+  }
+
+  try {
+    const binary = atob(value)
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0))
+    return new TextDecoder().decode(bytes)
+  } catch {
+    return value
+  }
+}
+
+const toDisplayId = (value: string): string => decodeBase64Utf8(value) || value
+
+
 export default defineComponent({
   name: 'SemanticSearchView',
+  components: {
+    SemanticSearchControlsPanel,
+    SemanticSearchResultsPanel,
+    SemanticSearchDiagnosticsPanel,
+  },
   setup() {
     const { t } = useI18n()
     const databaseStore = useDatabaseStore()
@@ -55,6 +55,7 @@ export default defineComponent({
     const selectedDatabaseName = ref<string | null>(null)
     const selectedCollections = ref<string[]>([])
     const searchText = ref('')
+    const topResults = ref(TOP_RESULTS)
     const searching = ref(false)
 
     const queryEmbedding = ref<number[] | null>(null)
@@ -63,8 +64,9 @@ export default defineComponent({
 
     const queryEmbeddingTimeMs = ref<number | null>(null)
     const globalOperationTimeMs = ref<number | null>(null)
+    const perCollectionMetrics = ref<PerCollectionMetric[]>([])
 
-    const databaseNames = computed(() => databaseStore.databases.map((entry) => entry.name))
+    const databaseNames = computed(() => databaseStore.databases)
     const collectionsLoading = computed(() => databaseStore.loadingCollections)
 
     const availableCollections = computed(() => {
@@ -75,6 +77,22 @@ export default defineComponent({
       return databaseStore.collectionsByDatabase[selectedDatabaseName.value] ?? []
     })
 
+    const canRunSearch = computed(() => {
+      if (searching.value) {
+        return false
+      }
+
+      if (!selectedDatabaseName.value) {
+        return false
+      }
+
+      if (!selectedCollections.value.length) {
+        return false
+      }
+
+      return searchText.value.trim().length > 0
+    })
+
     const queryEmbeddingText = computed(() => {
       if (!queryEmbedding.value) {
         return ''
@@ -83,96 +101,47 @@ export default defineComponent({
       return `[${queryEmbedding.value.map((value) => value.toFixed(4)).join(', ')}]`
     })
 
-    const fastestRow = computed<SearchResultRow | null>(() => {
-      if (!resultRows.value.length) {
-        return null
-      }
-
-      return [...resultRows.value].sort((left, right) => left.latencyMs - right.latencyMs)[0] ?? null
-    })
-
-    const slowestRow = computed<SearchResultRow | null>(() => {
-      if (!resultRows.value.length) {
-        return null
-      }
-
-      return [...resultRows.value].sort((left, right) => right.latencyMs - left.latencyMs)[0] ?? null
-    })
-
-    const highestScoreRow = computed<SearchResultRow | null>(() => {
-      if (!resultRows.value.length) {
-        return null
-      }
-
-      return [...resultRows.value].sort((left, right) => right.score - left.score)[0] ?? null
-    })
-
-    const lowestScoreRow = computed<SearchResultRow | null>(() => {
-      if (!resultRows.value.length) {
-        return null
-      }
-
-      return [...resultRows.value].sort((left, right) => left.score - right.score)[0] ?? null
-    })
-
-    const closestCollectionLabel = computed(() => {
-      if (!resultRows.value.length) {
-        return t('semanticSearch.labels.notCalculated')
-      }
-
-      const scoreByCollection = resultRows.value.reduce<Record<string, { total: number; count: number }>>(
-        (accumulator, row) => {
-          let bucket = accumulator[row.collection]
-
-          if (!bucket) {
-            bucket = { total: 0, count: 0 }
-            accumulator[row.collection] = bucket
-          }
-
-          bucket.total += row.score
-          bucket.count += 1
-          return accumulator
-        },
-        {},
-      )
-
-      const rankedCollection = Object.entries(scoreByCollection)
-        .map(([collection, value]) => ({ collection, average: value.total / value.count }))
-        .sort((left, right) => right.average - left.average)[0]
-
-      return rankedCollection?.collection ?? t('semanticSearch.labels.notCalculated')
-    })
-
-    const formatMs = (value: number | null): string => {
-      if (value === null) {
-        return t('semanticSearch.labels.notCalculated')
-      }
-
-      return `${value.toFixed(1)} ms`
-    }
+    const hasSearchResults = computed(() => resultRows.value.length > 0)
 
     const formatEmbedding = (embedding: number[]): string =>
       `[${embedding.map((value) => value.toFixed(4)).join(', ')}]`
 
-    const toAttributeEntries = (attributes: Record<string, string>): AttributeEntry[] =>
-      Object.entries(attributes).map(([key, value]) => ({ key, value }))
-
-    const toResponseLabel = (row: SearchResultRow | null, byScore = false): string => {
-      if (!row) {
-        return t('semanticSearch.labels.notCalculated')
+    const copyEmbeddingToClipboard = async (embedding: number[]): Promise<void> => {
+      if (!embedding.length) {
+        ElMessage.warning(t('semanticSearch.feedback.noEmbeddingToCopy'))
+        return
       }
 
-      if (byScore) {
-        return `${row.id} (${row.score.toFixed(4)})`
+      try {
+        await navigator.clipboard.writeText(formatEmbedding(embedding))
+        ElMessage.success(t('semanticSearch.feedback.embeddingCopied'))
+      } catch {
+        ElMessage.error(t('semanticSearch.feedback.copyFailed'))
       }
-
-      return `${row.id} (${row.latencyMs} ms)`
     }
 
-    const fastestResponseLabel = computed(() => toResponseLabel(fastestRow.value))
-    const slowestResponseLabel = computed(() => toResponseLabel(slowestRow.value))
-    const highestScoreLabel = computed(() => toResponseLabel(highestScoreRow.value, true))
-    const lowestScoreLabel = computed(() => toResponseLabel(lowestScoreRow.value, true))
+    const copyQueryEmbeddingToClipboard = async (): Promise<void> => {
+      if (!queryEmbedding.value) {
+        ElMessage.warning(t('semanticSearch.feedback.noEmbeddingToCopy'))
+        return
+      }
+
+      try {
+        await navigator.clipboard.writeText(formatEmbedding(queryEmbedding.value))
+        ElMessage.success(t('semanticSearch.feedback.queryEmbeddingCopied'))
+      } catch {
+        ElMessage.error(t('semanticSearch.feedback.copyFailed'))
+      }
+    }
+
+    const copyResultJsonToClipboard = async (row: SearchResultRow): Promise<void> => {
+      try {
+        await navigator.clipboard.writeText(JSON.stringify(row, null, 2))
+        ElMessage.success(t('semanticSearch.feedback.resultJsonCopied'))
+      } catch {
+        ElMessage.error(t('semanticSearch.feedback.copyFailed'))
+      }
+    }
 
     const ensureInitialData = async () => {
       await databaseStore.loadDatabases()
@@ -182,38 +151,63 @@ export default defineComponent({
       }
     }
 
-    const generateRows = (query: string, collections: string[]): SearchResultRow[] => {
-      const rows: SearchResultRow[] = []
+    const toResultRows = (
+      items:
+        | server.database.SearchCollectionsResult['mergedResults']
+        | server.database.CollectionSearchResult['results']
+        | null
+        | undefined,
+      fallbackSearchTimeMs = 0,
+      fallbackCollection = '',
+    ): SearchResultRow[] => {
+      const source = Array.isArray(items) ? items : []
 
-      collections.forEach((collection, collectionIndex) => {
-        const rowsInCollection = 2 + (hashValue(`${query}-${collection}`) % 2)
+      return source
+        .map((item, index): SearchResultRow => {
+          const collection = item.collection || fallbackCollection || t('semanticSearch.labels.notCalculated')
+          const rawScore = Number(item.score ?? 0)
+          const score = Number.isFinite(rawScore) ? Number(rawScore.toFixed(4)) : 0
+          const key = item.key ? toDisplayId(item.key) : ''
+          const content = (() => {
+            if (item.content === null || item.content === undefined) {
+              return ''
+            }
 
-        for (let index = 0; index < rowsInCollection; index += 1) {
-          const seed = `${query}-${collection}-${index}`
-          const score = Number((0.58 + (hashValue(`${seed}-score`) % 390) / 1000).toFixed(4))
-          const latencyMs = 24 + (hashValue(`${seed}-latency`) % 180)
-          const hasContent = hashValue(`${seed}-content`) % 4 !== 0
-          const idSuffix = hashValue(`${seed}-id`) % 10000
+            try {
+              return JSON.stringify(item.content)
+            } catch {
+              return String(item.content)
+            }
+          })()
 
-          rows.push({
-            id: `${collection}-${collectionIndex + 1}-${idSuffix}`,
+          return {
+            id: key || `${collection}-${index + 1}`,
             collection,
             attributes: {
-              source: collection,
-              language: hashValue(`${seed}-lang`) % 2 === 0 ? 'it' : 'en',
-              chunk: `${1 + (hashValue(`${seed}-chunk`) % 32)}`,
+              searchTime: `${toRoundedMs(fallbackSearchTimeMs)} ms`,
             },
-            content: hasContent
-              ? `Excerpt matching "${query}" from ${collection}. Context fragment ${1 + (hashValue(seed) % 120)}.`
-              : '',
+            content,
             score,
-            responseEmbedding: toEmbedding(`${seed}-response`),
-            latencyMs,
-          })
-        }
-      })
+            responseEmbedding: [],
+            latencyMs: toRoundedMs(fallbackSearchTimeMs),
+          }
+        })
+        .sort((left, right) => right.score - left.score)
+    }
 
-      return rows.sort((left, right) => right.score - left.score)
+    const toErrorMessage = (error: unknown): string => {
+      const typedError = error as AxiosError<ProblemDetailsPayload>
+      const details = typedError.response?.data
+
+      if (details?.detail && details.detail.length > 0) {
+        return details.detail
+      }
+
+      if (details?.title && details.title.length > 0) {
+        return details.title
+      }
+
+      return t('semanticSearch.feedback.searchFailed')
     }
 
     const onRunSearch = async () => {
@@ -237,26 +231,50 @@ export default defineComponent({
       searching.value = true
 
       try {
-        const embeddingStart = performance.now()
-        const generatedEmbedding = toEmbedding(`query-${normalizedQuery}`)
-        const syntheticEmbeddingOverhead = 8 + (hashValue(normalizedQuery) % 24)
-        const embeddingDuration = toRoundedMs(performance.now() - embeddingStart + syntheticEmbeddingOverhead)
+        const embeddings = await databaseService.calculateEmbeddings(normalizedQuery)
+        const searchResult = await databaseService.searchCollections(selectedDatabaseName.value, {
+          collections: selectedCollections.value,
+          sentence: normalizedQuery,
+          top: topResults.value,
+        })
 
-        const generatedRows = generateRows(normalizedQuery, selectedCollections.value)
+        queryEmbedding.value = embeddings
+        const mergedResults = Array.isArray(searchResult.mergedResults) ? searchResult.mergedResults : []
+        const collectionsResults: server.database.CollectionSearchResult[] = Array.isArray(searchResult.collectionsResults)
+          ? searchResult.collectionsResults
+          : []
 
-        queryEmbedding.value = generatedEmbedding
-        resultRows.value = generatedRows
+        const mappedRows = mergedResults.length > 0
+          ? toResultRows(mergedResults, Number(searchResult.searchTime ?? 0))
+          : collectionsResults.flatMap((entry) => {
+              const results = Array.isArray(entry.results) ? entry.results : []
+              return toResultRows(results, Number(entry.searchTime ?? 0), entry.collection ?? '')
+            })
 
-        const maxLatency = generatedRows.length
-          ? Math.max(...generatedRows.map((entry) => entry.latencyMs))
-          : 0
-        const rankingDuration = 9 + (hashValue(`${normalizedQuery}-rank`) % 21)
-        const dispatchDuration = 10 + Math.round(maxLatency * 0.35)
-        const finalizeDuration = 6 + (hashValue(`${normalizedQuery}-finalize`) % 12)
+        resultRows.value = mappedRows
 
-        queryEmbeddingTimeMs.value = embeddingDuration
+        const embeddingsCalculationTimeMs = Number(searchResult.embeddingsCalculationTime ?? 0)
+        const searchTimeMs = Number(searchResult.searchTime ?? 0)
+        const mergeTimeMs = Number(searchResult.mergeTime ?? 0)
+        const sortingTimeMs = Number(searchResult.sortingTime ?? 0)
+
+        queryEmbeddingTimeMs.value = toRoundedMs(embeddingsCalculationTimeMs)
         globalOperationTimeMs.value = toRoundedMs(
-          embeddingDuration + dispatchDuration + rankingDuration + finalizeDuration,
+          embeddingsCalculationTimeMs + searchTimeMs + mergeTimeMs + sortingTimeMs,
+        )
+        perCollectionMetrics.value = collectionsResults
+          .map((entry: server.database.CollectionSearchResult) => {
+            const searchTime = Number(entry.searchTime ?? 0)
+            const resultsCount = Array.isArray(entry.results) ? entry.results.length : 0
+
+            return {
+              collection: entry.collection ?? '',
+              searchTimeMs: Number.isFinite(searchTime) ? searchTime : 0,
+              resultsCount,
+            }
+          })
+          .sort(
+          (left: { searchTimeMs: number }, right: { searchTimeMs: number }) => right.searchTimeMs - left.searchTimeMs,
         )
 
         searchPath.value = [
@@ -264,47 +282,54 @@ export default defineComponent({
             key: 'collect-input',
             title: t('semanticSearch.pathSteps.collectInput'),
             detail: `${selectedCollections.value.length} ${t('semanticSearch.labels.collections').toLowerCase()} selected`,
-            elapsedMs: 3,
+            elapsedMs: 1,
           },
           {
             key: 'build-embedding',
             title: t('semanticSearch.pathSteps.buildEmbedding'),
             detail: t('semanticSearch.labels.queryEmbedding'),
-            elapsedMs: embeddingDuration,
+            elapsedMs: toRoundedMs(embeddingsCalculationTimeMs),
           },
           {
             key: 'collections-dispatch',
             title: t('semanticSearch.pathSteps.collectionsDispatch'),
             detail: `${selectedCollections.value.join(', ')}`,
-            elapsedMs: dispatchDuration,
+            elapsedMs: toRoundedMs(searchTimeMs),
           },
           {
             key: 'rank-results',
             title: t('semanticSearch.pathSteps.rankResults'),
-            detail: `${generatedRows.length} ${t('semanticSearch.labels.resultCount').toLowerCase()}`,
-            elapsedMs: rankingDuration,
+            detail: `${resultRows.value.length} ${t('semanticSearch.labels.resultCount').toLowerCase()}`,
+            elapsedMs: toRoundedMs(sortingTimeMs),
           },
           {
             key: 'deliver-output',
             title: t('semanticSearch.pathSteps.deliverOutput'),
-            detail: `${t('semanticSearch.labels.globalTime')}: ${formatMs(globalOperationTimeMs.value)}`,
-            elapsedMs: finalizeDuration,
+            detail: `${t('semanticSearch.labels.globalTime')}: ${globalOperationTimeMs.value.toFixed(1)} ms`,
+            elapsedMs: toRoundedMs(mergeTimeMs),
           },
         ]
 
-        if (!generatedRows.length) {
+        if (!resultRows.value.length) {
           ElMessage.warning(t('semanticSearch.feedback.noResults'))
           return
         }
 
         ElMessage.success(t('semanticSearch.feedback.searchCompleted'))
+      } catch (error) {
+        perCollectionMetrics.value = []
+        ElMessage.error(toErrorMessage(error))
       } finally {
         searching.value = false
       }
     }
 
-    const onSelectAllCollections = () => {
-      selectedCollections.value = [...availableCollections.value]
+    const onSearchTextEnter = async () => {
+      if (!canRunSearch.value) {
+        return
+      }
+
+      await onRunSearch()
     }
 
     const onClear = () => {
@@ -314,6 +339,23 @@ export default defineComponent({
       searchPath.value = []
       queryEmbeddingTimeMs.value = null
       globalOperationTimeMs.value = null
+      perCollectionMetrics.value = []
+    }
+
+    const onUpdateSelectedDatabaseName = (value: string | null) => {
+      selectedDatabaseName.value = value
+    }
+
+    const onUpdateSelectedCollections = (value: string[]) => {
+      selectedCollections.value = value
+    }
+
+    const onUpdateSearchText = (value: string) => {
+      searchText.value = value
+    }
+
+    const onUpdateTopResults = (value: number) => {
+      topResults.value = value
     }
 
     watch(
@@ -349,26 +391,31 @@ export default defineComponent({
       selectedDatabaseName,
       selectedCollections,
       searchText,
+      topResults,
+      topResultsMin: TOP_RESULTS_MIN,
+      topResultsMax: TOP_RESULTS_MAX,
       searching,
       databaseNames,
       collectionsLoading,
       availableCollections,
       queryEmbeddingText,
+      hasSearchResults,
       resultRows,
       searchPath,
       queryEmbeddingTimeMs,
       globalOperationTimeMs,
-      closestCollectionLabel,
-      fastestResponseLabel,
-      slowestResponseLabel,
-      highestScoreLabel,
-      lowestScoreLabel,
+      perCollectionMetrics,
+      canRunSearch,
       onRunSearch,
-      onSelectAllCollections,
+      onSearchTextEnter,
       onClear,
-      formatMs,
-      formatEmbedding,
-      toAttributeEntries,
+      copyEmbeddingToClipboard,
+      copyQueryEmbeddingToClipboard,
+      copyResultJsonToClipboard,
+      onUpdateSelectedDatabaseName,
+      onUpdateSelectedCollections,
+      onUpdateSearchText,
+      onUpdateTopResults,
     }
   },
 })

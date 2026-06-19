@@ -12,6 +12,9 @@ namespace Jigen.Identity.Controllers;
 public class IdentityController(IHikyaku mediator) : ControllerBase
 {
   [HttpPost("~/identity/login")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status401Unauthorized)]
   public async Task<IActionResult> Login([FromBody] LoginData request, CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Command.Login
@@ -29,6 +32,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [HttpPost("~/identity/logout")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
   public async Task<IActionResult> Logout(CancellationToken cancellationToken)
   {
     await mediator.Send(new Core.Command.Logout(), cancellationToken);
@@ -37,6 +41,9 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpPost("~/identity/clients")]
+  [ProducesResponseType(typeof(CreateClientResponse), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
   public async Task<IActionResult> CreateClient([FromBody] CreateClientData request, CancellationToken cancellationToken)
   {
     request ??= new CreateClientData
@@ -72,6 +79,10 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpPost("~/users")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
   public async Task<IActionResult> CreateUser([FromBody] CreateUserData request, CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Command.CreateUser
@@ -111,6 +122,9 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpDelete("~/users/{id}")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<IActionResult> DeleteUser(string id, CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Command.DeleteUser
@@ -167,6 +181,9 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpPost("~/roles")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
   public async Task<IActionResult> CreateRole([FromBody] CreateRoleData request, CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Command.CreateRole
@@ -179,6 +196,9 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpPut("~/roles/{id}")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<IActionResult> UpdateRole(string id, [FromBody] UpdateRoleData request, CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Command.UpdateRole
@@ -192,6 +212,9 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpDelete("~/roles/{id}")]
+  [ProducesResponseType(StatusCodes.Status204NoContent)]
+  [ProducesResponseType(StatusCodes.Status404NotFound)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<IActionResult> DeleteRole(string id, CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Command.DeleteRole
@@ -204,6 +227,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
   [HttpGet("~/identity/apps")]
+  [ProducesResponseType(typeof(IEnumerable<AppSummary>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListApps(CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Core.Query.ListApps(), cancellationToken);

@@ -1,12 +1,11 @@
 import { defineComponent } from 'vue'
 import type { PropType } from 'vue'
-import type { DatabaseCollectionDetail } from '@/services/databaseService'
 
 export default defineComponent({
   name: 'DatabaseCollectionsPanel',
   props: {
     collections: {
-      type: Array as PropType<DatabaseCollectionDetail[]>,
+      type: Array as PropType<server.database.CollectionInfo[]>,
       required: true,
     },
     selectedCollectionName: {

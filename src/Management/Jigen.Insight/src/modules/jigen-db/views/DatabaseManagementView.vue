@@ -11,14 +11,15 @@
     <div class="workspace-grid" :class="workspaceGridClass">
       <DatabaseTable
         :rows="visibleRows"
-        :selected-name="selectedRow?.name ?? null"
+        :collections-count-by-database="collectionsCountByDatabase"
+        :selected-name="selectedRow ?? null"
         @row-click="onRowClick"
       />
 
       <DatabaseDetailPanel
         :row="selectedRow"
         :details="selectedDetails"
-        :title="selectedRow ? `${selectedRow.name} Details` : t('databaseManagement.details')"
+        :title="selectedRow ? `${selectedRow} Details` : t('databaseManagement.details')"
         :can-manage-users="canManageDatabaseUsers"
         :available-users="assignableUsers"
         :selected-user-id="selectedAssignableUserId"
@@ -84,7 +85,7 @@
         <ul class="revoke-access-metadata">
           <li>
             <span>{{ t('databaseManagement.revokeAccessDialog.databaseLabel') }}</span>
-            <strong>{{ selectedRow?.name ?? t('databaseManagement.notAvailable') }}</strong>
+            <strong>{{ selectedRow ?? t('databaseManagement.notAvailable') }}</strong>
           </li>
           <li>
             <span>{{ t('databaseManagement.revokeAccessDialog.userLabel') }}</span>

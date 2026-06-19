@@ -1,6 +1,5 @@
 import { defineComponent } from 'vue'
 import type { PropType } from 'vue'
-import type { DatabaseRow } from '@/modules/jigen-db/types'
 import type { DatabaseDetails } from '@/stores/database'
 
 export default defineComponent({
@@ -8,7 +7,7 @@ export default defineComponent({
   emits: ['update:selectedUserId', 'assign-user', 'request-remove-user'],
   props: {
     row: {
-      type: Object as PropType<DatabaseRow | null>,
+      type: String as PropType<server.database.DatabaseName | null>,
       default: null,
     },
     details: {
@@ -37,7 +36,11 @@ export default defineComponent({
     },
   },
   setup(_, { emit }) {
-    const formatBytes = (value: number): string => {
+    const formatBytes = (value: number | null | undefined): string => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return '0 B'
+      }
+
       if (value <= 0) {
         return '0 B'
       }
@@ -48,7 +51,7 @@ export default defineComponent({
       return `${scaled.toFixed(scaled < 10 && exponent > 0 ? 1 : 0)} ${units[exponent]}`
     }
 
-    const formatDate = (value: string | null): string => {
+    const formatDate = (value: string | null | undefined): string => {
       if (!value) {
         return ''
       }
@@ -61,7 +64,7 @@ export default defineComponent({
       return parsed.toLocaleString()
     }
 
-    const onSelectUser = (userId: string) => {
+    const onSelectUser = (userId: string | null | undefined) => {
       emit('update:selectedUserId', userId)
     }
 
@@ -69,7 +72,11 @@ export default defineComponent({
       emit('assign-user')
     }
 
-    const onRequestRemoveUser = (userId: string, userName: string) => {
+    const onRequestRemoveUser = (userId: string | null | undefined, userName: string | null | undefined) => {
+      if (!userId) {
+        return
+      }
+
       emit('request-remove-user', { userId, userName })
     }
 

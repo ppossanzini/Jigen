@@ -8,15 +8,15 @@
       <div class="database-list" role="listbox" :aria-label="$t('databaseManagement.columns.name')">
         <button
           v-for="row in rows"
-          :key="row.name"
+          :key="row"
           type="button"
           class="database-option"
-          :class="{ 'is-active': row.name === selectedName }"
-          :aria-pressed="row.name === selectedName"
+          :class="{ 'is-active': row === selectedName }"
+          :aria-pressed="row === selectedName"
           @click="onRowClick(row)"
         >
-          <div class="database-title">{{ row.name }}</div>
-          <small>{{ $t('databaseManagement.columns.collectionsCount') }}: {{ row.collectionsCount }}</small>
+          <div class="database-title">{{ row }}</div>
+          <small>{{ $t('databaseManagement.columns.collectionsCount') }}: {{ collectionsCountByDatabase[row] ?? 0 }}</small>
         </button>
       </div>
     </el-scrollbar>

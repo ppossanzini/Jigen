@@ -9,18 +9,18 @@
     <el-scrollbar v-else class="collections-scroll" max-height="100%">
       <div class="collections-list" role="listbox" :aria-label="$t('databaseManagement.collectionsPanelTitle')">
         <div
-          v-for="collection in collections"
-          :key="collection.name"
+          v-for="(collection, index) in collections"
+          :key="collection.name ?? `collection-${index}`"
           text
           class="collection-option"
           :class="{ 'is-active': collection.name === selectedCollectionName }"
           :aria-pressed="collection.name === selectedCollectionName"
-          @click="$emit('select', collection.name)"
+          @click="collection.name && $emit('select', collection.name)"
         >
-          <div class="collection-title">{{ collection.name }}</div>
+          <div class="collection-title">{{ collection.name || $t('databaseManagement.notAvailable') }}</div>
           <small>
-            {{ $t('databaseManagement.detailsLabels.vectors') }}: {{ collection.vectors }} |
-            {{ $t('databaseManagement.detailsLabels.dimensions') }}: {{ collection.dimensions }}
+            {{ $t('databaseManagement.detailsLabels.vectors') }}: {{ collection.vectors ?? 0 }} |
+            {{ $t('databaseManagement.detailsLabels.dimensions') }}: {{ collection.dimensions ?? 0 }}
           </small>
         </div>
       </div>

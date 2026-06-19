@@ -2,6 +2,8 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import ElementPlus from 'element-plus'
 import 'element-plus/dist/index.css'
+// if you just want to import css
+import 'element-plus/theme-chalk/dark/css-vars.css'
 import '@tabler/icons-webfont/dist/tabler-icons.min.css'
 import '@fontsource/jetbrains-mono/index.css'
 
@@ -13,6 +15,7 @@ import './assets/styles/global/base.less'
 
 const bootstrap = async (): Promise<void> => {
 	await loadSettings()
+	document.documentElement.classList.add('dark')
 
 	const app = createApp(App)
 

@@ -1,56 +1,5 @@
 @import './variables.less';
 
-body {
-  background-color: #121212; /* Sfondo scuro di base */
-  color: #e0e0e0;
-  margin: 0;
-  padding: 0;
-}
-
-:root {
-  --el-text-color-primary: #d8dbe3;
-  --el-text-color-regular: #bcc1cc;
-  --el-text-color-secondary: #9fa1a7;
-  --el-text-color-placeholder: #9fa1a7;
-  --el-menu-text-color: #9fa1a7;
-
-  /* Global button tokens for app-wide theming */
-  --app-button-primary-bg: #3b4049;
-  --app-button-primary-border: #3b4049;
-  --app-button-primary-text: #f3f3f3;
-  --app-button-primary-hover-bg: #4b515b;
-  --app-button-primary-hover-border: #4b515b;
-  --app-button-primary-active-bg: #343941;
-  --app-button-primary-active-border: #343941;
-
-  --app-button-default-bg: #2a2e35;
-  --app-button-default-border: rgba(255, 255, 255, 0.12);
-  --app-button-default-text: #d8dbe3;
-  --app-button-default-hover-bg: #333842;
-  --app-button-default-hover-border: rgba(255, 255, 255, 0.22);
-  --app-button-default-hover-text: #f3f3f3;
-
-  --app-button-success-bg: #2b6f4f;
-  --app-button-success-border: #2b6f4f;
-  --app-button-success-text: #f3fff8;
-  --app-button-success-hover-bg: #348660;
-  --app-button-success-hover-border: #348660;
-  --app-button-success-active-bg: #255f44;
-  --app-button-success-active-border: #255f44;
-
-  --app-button-danger-bg: #8b3746;
-  --app-button-danger-border: #8b3746;
-  --app-button-danger-text: #fff6f7;
-  --app-button-danger-hover-bg: #a24253;
-  --app-button-danger-hover-border: #a24253;
-  --app-button-danger-active-bg: #742f3b;
-  --app-button-danger-active-border: #742f3b;
-
-  --app-button-disabled-bg: #2c3038;
-  --app-button-disabled-border: #2c3038;
-  --app-button-disabled-text: #9da4b2;
-}
-
 html,
 body,
 #app {
@@ -213,7 +162,7 @@ a {
 /* Shared contract for primary input sections across modules. */
 .app-inputs-layout {
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: repeat(3,  1fr);
   gap: 12px;
 }
 
@@ -237,7 +186,6 @@ a {
 .app-inputs-layout .el-form-item__label,
 .app-inputs-layout .el-radio__label,
 .app-inputs-layout .el-checkbox__label {
-  color: #c2c7d1;
   font-size: @font-size-app-caption;
 }
 
@@ -257,13 +205,6 @@ a {
 .app-inputs-layout .el-input-number:focus-within,
 .app-inputs-layout .el-date-editor:focus-within {
   box-shadow: inset 0 0 0 1px fade(@accent-cyan, 45%);
-}
-
-.app-inputs-layout .el-input.is-disabled .el-input__wrapper,
-.app-inputs-layout .el-select.is-disabled .el-select__wrapper,
-.app-inputs-layout .el-input-number.is-disabled,
-.app-inputs-layout .el-date-editor.is-disabled {
-  background: #2a2d33;
 }
 
 @media (max-width: 1280px) {
@@ -301,78 +242,8 @@ a {
   box-shadow: inset 0 0 0 1px @line-soft;
 }
 
-.master-detail-view .el-input.is-disabled .el-input__wrapper {
-  background: #2a2d33;
-}
-
-.master-detail-view .el-form-item__label,
-.master-detail-view .el-descriptions__label,
-.master-detail-view .el-descriptions__content,
-.master-detail-view .el-checkbox__label {
-  color: #c2c7d1 !important;
-}
-
-.master-detail-view .el-empty__description p {
-  color: @text-muted !important;
-}
-
-.master-detail-view .el-descriptions__body {
-  background: @bg-elevated;
-}
-
-.master-detail-view .el-descriptions__label.is-bordered-label {
-  background: #2b2f36;
-}
-
 .master-detail-view .el-button {
   font-weight: 600;
-}
-
-.el-button--primary {
-  --el-button-bg-color: var(--app-button-primary-bg);
-  --el-button-border-color: var(--app-button-primary-border);
-  --el-button-text-color: var(--app-button-primary-text);
-  --el-button-hover-bg-color: var(--app-button-primary-hover-bg);
-  --el-button-hover-border-color: var(--app-button-primary-hover-border);
-  --el-button-active-bg-color: var(--app-button-primary-active-bg);
-  --el-button-active-border-color: var(--app-button-primary-active-border);
-}
-
-.el-button--default {
-  --el-button-bg-color: var(--app-button-default-bg);
-  --el-button-border-color: var(--app-button-default-border);
-  --el-button-text-color: var(--app-button-default-text);
-  --el-button-hover-bg-color: var(--app-button-default-hover-bg);
-  --el-button-hover-border-color: var(--app-button-default-hover-border);
-  --el-button-hover-text-color: var(--app-button-default-hover-text);
-}
-
-.el-button--success {
-  --el-button-bg-color: var(--app-button-success-bg);
-  --el-button-border-color: var(--app-button-success-border);
-  --el-button-text-color: var(--app-button-success-text);
-  --el-button-hover-bg-color: var(--app-button-success-hover-bg);
-  --el-button-hover-border-color: var(--app-button-success-hover-border);
-  --el-button-active-bg-color: var(--app-button-success-active-bg);
-  --el-button-active-border-color: var(--app-button-success-active-border);
-}
-
-.el-button--danger {
-  --el-button-bg-color: var(--app-button-danger-bg);
-  --el-button-border-color: var(--app-button-danger-border);
-  --el-button-text-color: var(--app-button-danger-text);
-  --el-button-hover-bg-color: var(--app-button-danger-hover-bg);
-  --el-button-hover-border-color: var(--app-button-danger-hover-border);
-  --el-button-active-bg-color: var(--app-button-danger-active-bg);
-  --el-button-active-border-color: var(--app-button-danger-active-border);
-}
-
-.el-button.is-disabled,
-.el-button.is-disabled:hover {
-  --el-button-bg-color: var(--app-button-disabled-bg);
-  --el-button-border-color: var(--app-button-disabled-border);
-  --el-button-text-color: var(--app-button-disabled-text);
-  opacity: 0.9;
 }
 
 .master-table {
@@ -397,36 +268,6 @@ a {
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  --el-table-bg-color: #1b1e23;
-  --el-table-tr-bg-color: #1b1e23;
-  --el-table-row-hover-bg-color: rgba(255, 255, 255, 0.06);
-  --el-table-current-row-bg-color: rgba(255, 255, 255, 0.11);
-  --el-table-border-color: rgba(255, 255, 255, 0.1);
-  --el-table-header-bg-color: #252931;
-  --el-table-text-color: #d8dbe3;
-  --el-table-header-text-color: #f3f3f3;
-  --el-fill-color-lighter: #232730;
-}
-
-.master-table__body .el-table {
-  background: #1b1e23;
-}
-
-.master-table__body .el-table th.el-table__cell {
-  background: #252931 !important;
-  color: #f3f3f3;
-}
-
-.master-table__body .el-table tr,
-.master-table__body .el-table td.el-table__cell,
-.master-table__body .el-table__body-wrapper,
-.master-table__body .el-table__inner-wrapper {
-  background: #1b1e23;
-  color: #d8dbe3;
-}
-
-.master-table__body .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: #232730;
 }
 
 .master-table__body .el-table__row td.el-table__cell {
@@ -437,82 +278,9 @@ a {
   cursor: pointer;
 }
 
-.el-dialog {
-  background: linear-gradient(180deg, #21252c 0%, #1a1d23 100%);
-  border: 1px solid @line-soft;
-  border-radius: @radius-md;
-  width: min-content;
-}
-
-.el-dialog__header {
-  border-bottom: 1px solid @line-soft;
-  margin-right: 0;
-  padding: 16px;
-}
-
-.el-dialog__title {
-  color: @text-primary;
-}
-
-.el-dialog__headerbtn .el-dialog__close {
-  color: @text-muted;
-}
-
-.el-dialog__footer {
-  border-top: 1px solid @line-soft;
-  padding-top: 12px;
-}
-
-.el-button{
-  i, span{
+.el-button {
+  i,
+  span {
     color: inherit;
-  }
-}
-
-
-.el-button--primary {
-  --el-button-bg-color: #3b4049;
-  --el-button-border-color: #3b4049;
-  --el-button-hover-bg-color: #4b515b;
-  --el-button-hover-border-color: #4b515b;
-  --el-button-active-bg-color: #343941;
-  --el-button-active-border-color: #343941;
-  i,span{
-    color: #f3f3f3;
-  }
-}
-
-.el-button--default {
-  --el-button-bg-color: #2a2e35;
-  --el-button-border-color: rgba(255, 255, 255, 0.12);
-  --el-button-text-color: #d8dbe3;
-  --el-button-hover-bg-color: #333842;
-  --el-button-hover-border-color: rgba(255, 255, 255, 0.22);
-  --el-button-hover-text-color: #f3f3f3;
-  i,span{
-    color: #d8dbe3;
-  }
-}
-
-.el-button--danger {
-  --el-button-bg-color: #934751;
-  --el-button-border-color: #934751;
-
-  --el-button-text-color: #f5ecee;
-  --el-button-hover-bg-color: #a35661;
-  --el-button-hover-border-color: #a35661;
-    i,span{
-    color: #f5ecee;
-  }
-}
-
-.el-button.is-disabled,
-.el-button.is-disabled:hover {
-  --el-button-bg-color: #2c3038;
-  --el-button-border-color: #2c3038;
-  --el-button-text-color: #9da4b2;
-  opacity: 0.9;
-  i,span{
-    color: #9da4b2;
   }
 }

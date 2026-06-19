@@ -6,7 +6,6 @@ import DatabaseTable from '@/modules/jigen-db/components/DatabaseTable/DatabaseT
 import DatabaseDetailPanel from '@/modules/jigen-db/components/DatabaseDetailPanel/DatabaseDetailPanel.vue'
 import DatabaseCollectionsPanel from '@/modules/jigen-db/components/DatabaseCollectionsPanel/DatabaseCollectionsPanel.vue'
 import CollectionExplorerPanel from '@/modules/jigen-db/components/CollectionExplorerPanel/CollectionExplorerPanel.vue'
-import type { DatabaseRow } from '@/modules/jigen-db/types'
 import { useDatabaseStore } from '@/stores/database'
 import { useAuthStore } from '@/stores/auth'
 import { securityService } from '@/services/securityService'
@@ -56,12 +55,28 @@ export default defineComponent({
     const canManageDatabases = computed(() => authStore.isDatabaseAdmin)
     const canManageDatabaseUsers = computed(() => authStore.isSecurityAdmin)
 
-    const rows = computed<DatabaseRow[]>(() => databaseStore.databases)
+    const rows = computed<server.database.DatabaseName[]>(() => databaseStore.databases)
     const selectedRow = computed(() => databaseStore.selectedDatabase)
     const selectedDetails = computed(() => databaseStore.selectedDatabaseDetails)
     const selectedDatabaseCollections = computed(() => databaseStore.selectedDatabaseCollections)
     const selectedCollectionName = computed(() => databaseStore.selectedCollectionName)
     const selectedCollection = computed(() => databaseStore.selectedCollection)
+    const collectionsCountByDatabase = computed<Record<string, number>>(() => {
+      const counts: Record<string, number> = {}
+
+      for (const name of databaseStore.databases) {
+        const detailsCount = databaseStore.detailsByDatabase[name]?.collectionsCount
+        const loadedCollectionsCount = databaseStore.collectionsByDatabase[name]?.length
+
+        counts[name] = typeof detailsCount === 'number'
+          ? detailsCount
+          : typeof loadedCollectionsCount === 'number'
+            ? loadedCollectionsCount
+            : 0
+      }
+
+      return counts
+    })
 
     const showCollectionsPanel = computed(() => Boolean(selectedRow.value))
     const showCollectionDetailsPanel = computed(() => Boolean(selectedCollection.value))
@@ -70,11 +85,11 @@ export default defineComponent({
       'has-collection': showCollectionDetailsPanel.value,
     }))
 
-    const onRowClick = async (row: DatabaseRow) => {
-      databaseStore.setSelectedDatabase(row.name)
+    const onRowClick = async (row: server.database.DatabaseName) => {
+      databaseStore.setSelectedDatabase(row)
       await Promise.all([
-        databaseStore.loadCollectionsFor(row.name),
-        databaseStore.loadDetailsFor(row.name),
+        databaseStore.loadCollectionsFor(row),
+        databaseStore.loadDetailsFor(row),
       ])
     }
 
@@ -161,7 +176,7 @@ export default defineComponent({
       }
     }
 
-    const onDeleteDatabase = async (row?: DatabaseRow) => {
+    const onDeleteDatabase = async (row?: server.database.DatabaseName) => {
       if (!canManageDatabases.value) {
         ElMessage.warning(t('databaseManagement.feedback.adminOnly'))
         return
@@ -176,7 +191,7 @@ export default defineComponent({
 
       try {
         await ElMessageBox.confirm(
-          t('databaseManagement.feedback.deleteConfirm', { name: target.name }),
+          t('databaseManagement.feedback.deleteConfirm', { name: target }),
           t('databaseManagement.warning'),
           {
             type: 'warning',
@@ -185,7 +200,7 @@ export default defineComponent({
           },
         )
 
-        await databaseStore.deleteDatabase(target.name)
+        await databaseStore.deleteDatabase(target)
 
         const nextSelected = rows.value[0] ?? null
         if (nextSelected) {
@@ -227,7 +242,7 @@ export default defineComponent({
       }
 
       const alreadyAssigned =
-        selectedDetails.value?.users.some((entry) => entry.userId === targetUserId) ?? false
+        (selectedDetails.value?.users ?? []).some((entry) => entry.userId === targetUserId)
 
       if (alreadyAssigned) {
         ElMessage.info(t('databaseManagement.feedback.userAlreadyAssigned'))
@@ -250,7 +265,7 @@ export default defineComponent({
 
         usersById.set(user.userId, {
           userId: user.userId,
-          userName: user.userName,
+          userName: user.userName ?? '',
         })
       }
 
@@ -262,7 +277,7 @@ export default defineComponent({
       assignUserSaving.value = true
 
       try {
-        await databaseStore.setDatabaseUsers(targetDatabase.name, Array.from(usersById.values()))
+        await databaseStore.setDatabaseUsers(targetDatabase, Array.from(usersById.values()))
         selectedAssignableUserId.value = ''
         ElMessage.success(t('databaseManagement.feedback.userAssigned'))
       } catch {
@@ -317,7 +332,11 @@ export default defineComponent({
       }
 
       const currentUsers = selectedDetails.value?.users ?? []
-      const filteredUsers = currentUsers.filter((entry) => entry.userId !== targetUser.userId)
+      const filteredUsers = currentUsers.filter((entry) => entry.userId && entry.userId !== targetUser.userId)
+      const normalizedFilteredUsers = filteredUsers.map((entry) => ({
+        userId: entry.userId as string,
+        userName: entry.userName ?? '',
+      }))
 
       if (filteredUsers.length === currentUsers.length) {
         ElMessage.info(t('databaseManagement.feedback.userNotFoundInDatabase'))
@@ -327,7 +346,7 @@ export default defineComponent({
       revokeAccessSaving.value = true
 
       try {
-        await databaseStore.setDatabaseUsers(targetDatabase.name, filteredUsers)
+        await databaseStore.setDatabaseUsers(targetDatabase, normalizedFilteredUsers)
         ElMessage.success(t('databaseManagement.feedback.userRemoved'))
         onCloseRevokeAccessDialog()
       } catch {
@@ -350,6 +369,7 @@ export default defineComponent({
       selectedDatabaseCollections,
       selectedCollectionName,
       selectedCollection,
+      collectionsCountByDatabase,
       showCollectionsPanel,
       showCollectionDetailsPanel,
       workspaceGridClass,

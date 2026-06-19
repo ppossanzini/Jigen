@@ -247,3 +247,134 @@ Consequences:
 - Security policy is explicit in UI: only `SecurityAdmin` can modify database user access while read-only visibility remains available.
 - Revocation flow now prevents accidental destructive expectations by clearly stating non-cascade behavior.
 - Frontend keeps backend contract unchanged by reusing existing set-users endpoint with filtered associations.
+
+## ADR-0015 - Semantic Search Switched To Real OpenAPI Integration
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User requested implementation of search functionality using backend OpenAPI at `http://localhost:13223/openapi/v1.json`.
+- Existing `SemanticSearchView` generated synthetic/mock results, timings, and embeddings.
+Decision:
+- Extend `@types/database.ts` with `SearchCollectionsData`, `SearchCollectionsResult`, and collection search result contracts.
+- Extend `src/services/databaseService.ts` with `calculateEmbeddings(sentence)` and `searchCollections(dbname, payload)` plus normalization of merged/per-collection results.
+- Refactor `SemanticSearchView` orchestration to call real APIs, decode base64 payload fields (`key`, `content`), and derive runtime diagnostics from backend timing fields.
+- Keep the existing card-based, non-tabular result rendering and i18n-driven labels/feedback in the view.
+- Add configurable Top-K control in search inputs and pass selected value to search API payload.
+- Expose per-collection runtime telemetry in the runtime analysis panel using backend `perCollection` metrics.
+- Keep Top Results above query editor and make query text area consume full remaining width, with action buttons stacked vertically on the right.
+- Disable search action until required inputs are complete (database, collections, query) and trigger search with Enter key in query field.
+- Remove Select All action from the search toolbar.
+Consequences:
+- Semantic search now reflects real backend data and metrics instead of synthetic placeholders.
+- Response mapping is centralized in the service layer, keeping transport concerns outside the view.
+
+## ADR-0016 - Native Element Plus Dark Mode As Source Of Truth
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User requested verification after introducing dark mode and enabling it in bootstrap.
+- Multiple global CSS blocks were overriding Element Plus colors (buttons, dialogs, table tokens, text variables), causing divergence from native dark behavior.
+Decision:
+- Enforce native dark mode at runtime by setting `html.dark` in app bootstrap (`main.ts`) while keeping `element-plus/theme-chalk/dark/css-vars.css` import.
+- Remove broad global color overrides for Element Plus in `src/assets/styles/global/base.less` (button tokens, table palette variables, dialog repaint, global `--el-*` text variables).
+- Keep only structural/layout rules and minimal non-color helpers globally; avoid repainting Element Plus component internals unless strictly required.
+- Simplify `SemanticSearchView` by removing custom select popper color skin and control color repaint so dropdown/input colors come from native dark theme.
+- Verify authenticated routes in browser (`/dashboard`, `/search`, `/database-management`, `/security/users`, `/security/roles`, `/coming-soon`) with `html.dark` active.
+Consequences:
+- Visual consistency improves across pages because Element Plus dark tokens drive component colors.
+- Future style maintenance is easier: fewer custom overrides and less risk of contrast regressions from local repaint rules.
+
+## ADR-0017 - Database Service Complexity Reduction Without API Breakage
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User reported `src/services/databaseService.ts` was too complex and overloaded with class-internal declarations.
+- Existing consumers (`stores` and `views`) already depend on the current public method signatures and exported service instance.
+Decision:
+- Keep the domain service class and singleton export unchanged (`databaseService`) to preserve existing imports and behavior.
+- Extract payload normalization and coercion logic into module-level pure functions (`toSafeNumber`, `toSearchResult`, `toDatabaseDetails`, etc.) instead of class private methods.
+- Keep endpoint methods in `DatabaseService` focused on transport concerns only (HTTP call + mapping function call).
+- Preserve existing exported interfaces used by consumers (`DatabaseDetailsItem`, `DatabaseCollectionDetail`, `DatabaseSearchResult`, request/result contracts).
+Consequences:
+- `databaseService.ts` is shorter and easier to scan, with clearer separation between transport and normalization.
+- No migration is required in current consumers because method signatures and exported instance remain stable.
+
+## ADR-0018 - Raw Server Payload Policy For Frontend Services
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User requested removal of defensive normalization helpers in frontend services (`toSafeString`, `toSafeNumber`, payload mappers).
+- User requirement: services must return objects exactly as received from backend APIs.
+Decision:
+- Remove payload normalization/coercion logic from `src/services/databaseService.ts` and return typed API payloads directly.
+- Keep fallback handling for nullable fields in consumer layers (stores/views/components), not in service layer.
+- Update skill ownership file `fe-base-rest-service/SKILL.md` to forbid service-side normalization helpers and enforce raw payload returns.
+Consequences:
+- Service layer is strictly transport-oriented and easier to audit.
+- Consumer code must explicitly manage nullable backend fields where needed for rendering or interaction safety.
+
+## ADR-0019 - Database Service Recovery Check And Semantic Search Hotfix
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User reported full malfunction in database service flows after recent raw-payload refactor.
+- Runtime inspection showed prior Vite hot-reload failures on `SemanticSearchView.vue` and inconsistent content decoding in `SemanticSearchView.ts`.
+- API smoke checks confirmed backend behavior: `GET /database` and `POST /embeddings/calculate` are healthy, while `GET /database/{name}/details` and `POST /database/{name}/collections/search` return `500` for invalid/nonexistent database names.
+Decision:
+- Remove accidental stray template text in Semantic Search runtime analysis block.
+- Restore safe content rendering in Semantic Search by decoding only string payload values and defaulting non-string content to empty string at view layer.
+- Keep raw payload policy in services unchanged and handle rendering fallbacks only in consumer layers.
+Consequences:
+- Frontend database/search pages compile and build correctly again, with no local type/template errors.
+- Remaining hard failures on details/search for invalid database names are backend API semantics and require server-side handling (for example 404/ProblemDetails instead of 500).
+
+## ADR-0020 - Database/OpenAPI Contract Realignment For Search And Management Masks
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User requested reading OpenAPI `http://localhost:13223/openapi/v1.json` and implementing/fixing database consultation and semantic search service flows.
+- Current frontend consumed `databaseService` with stale assumptions: `/database` was treated as object array, while OpenAPI defines `string[]`.
+- Existing imports pointed to deleted local contract file (`@types/database.ts`) and some masks were not aligned to service-exported types.
+Decision:
+- Recreate database API contracts in `@types/database.d.ts` under ambient namespace `server.database`, and keep `src/services/databaseService.ts` free from interface declarations.
+- Align `src/services/databaseService.ts` to OpenAPI contracts for `GET /database`, `GET /database/{name}/details`, `POST /embeddings/calculate`, and `POST /database/{dbname}/collections/search`.
+- Update search request payload to strict OpenAPI shape (`collections`, `sentence`, `top`) and keep embeddings only as separate calculated data.
+- Fix `src/stores/database.ts` list mapping for `/database` (`string[]`) and preserve/update per-database `collectionsCount` from loaded details.
+- Refactor masks to consume service types directly (`DatabaseManagementView`, `DatabaseTable`, `SemanticSearchView`) without layout/template changes.
+Consequences:
+- Database list is populated correctly again and no longer collapses due to object-vs-string mismatch.
+- Semantic search request is compliant with server contract and typed end-to-end through service exports.
+- UI structure and visual layout remain unchanged while data/service integration becomes consistent.
+
+## ADR-0021 - Raw Service Types In Store Without Mapping
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User requested that store state must not perform mapping/transformation and must use the same payload types returned by services.
+- Previous implementation transformed database list entries in `database` store before exposing data to views.
+Decision:
+- Keep `src/stores/database.ts` state `databases` as raw `server.database.DatabaseName[]` assigned directly from `databaseService.listDatabases()`.
+- Remove all mapping/coercion logic from `loadDatabases` and remove collections-count enrichment logic from `loadDetailsFor`.
+- Move UI adaptation to presentation layer (`DatabaseManagementView` + `DatabaseTable`) while preserving existing layout structure.
+- Keep service and ambient types as source of truth under `server.database` contracts.
+Consequences:
+- Store remains transport-faithful and aligned with user/skill constraints.
+- UI consumes raw names for database list rendering; detail metrics continue to come from details endpoint.
+
+## ADR-0022 - Semantic Search View Decomposed Into Presentational Subcomponents
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User requested splitting `SemanticSearchView` into subcomponents following frontend skill guidance.
+- Existing implementation concentrated controls, result cards, and diagnostics in a single large view file.
+Decision:
+- Keep orchestration/state/API calls in `src/modules/jigen-db/views/SemanticSearchView.ts`.
+- Extract presentational blocks into dedicated component folders under `src/modules/jigen-db/components/`:
+	- `SemanticSearchControlsPanel`
+	- `SemanticSearchResultsPanel`
+	- `SemanticSearchDiagnosticsPanel`
+- Introduce feature-local shared contracts in `src/modules/jigen-db/types/semanticSearch.ts` for result/diagnostic props.
+- Keep template/script/style separation for all new components and move block-specific LESS styles from the view into the corresponding components.
+Consequences:
+- Semantic search UI is easier to maintain and evolve without touching orchestration logic.
+- Component APIs are explicit and reusable while keeping business logic centralized in the view.

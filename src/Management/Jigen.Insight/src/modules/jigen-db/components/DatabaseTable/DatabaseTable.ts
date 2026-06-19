@@ -1,12 +1,15 @@
 import { defineComponent } from 'vue'
 import type { PropType } from 'vue'
-import type { DatabaseRow } from '@/modules/jigen-db/types'
 
 export default defineComponent({
   name: 'DatabaseTable',
   props: {
     rows: {
-      type: Array as PropType<DatabaseRow[]>,
+      type: Array as PropType<server.database.DatabaseName[]>,
+      required: true,
+    },
+    collectionsCountByDatabase: {
+      type: Object as PropType<Record<string, number>>,
       required: true,
     },
     selectedName: {
@@ -16,7 +19,7 @@ export default defineComponent({
   },
   emits: ['row-click'],
   setup(props, { emit }) {
-    const onRowClick = (row: DatabaseRow) => emit('row-click', row)
+    const onRowClick = (row: server.database.DatabaseName) => emit('row-click', row)
 
     return {
       onRowClick,

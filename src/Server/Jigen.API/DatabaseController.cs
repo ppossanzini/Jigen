@@ -11,6 +11,7 @@ namespace Jigen.API;
 public class DatabaseController(IHikyaku mediator) : ControllerBase
 {
   [HttpPost]
+  [ProducesResponseType(StatusCodes.Status200OK)]
   public async Task<IActionResult> Create(string name, CancellationToken cancellationToken)
   {
     await mediator.Send(new Jigen.Core.Command.database.CreateDatabase()
@@ -21,6 +22,7 @@ public class DatabaseController(IHikyaku mediator) : ControllerBase
   }
 
   [HttpDelete]
+  [ProducesResponseType(StatusCodes.Status200OK)]
   public async Task<IActionResult> Delete(string name, CancellationToken cancellationToken)
   {
     await mediator.Send(new Jigen.Core.Command.database.DeleteDatabase()
@@ -31,6 +33,7 @@ public class DatabaseController(IHikyaku mediator) : ControllerBase
   }
 
   [HttpGet]
+  [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
   public async Task<IActionResult> List(CancellationToken cancellationToken)
   {
     var result = await mediator.Send(new Jigen.Core.Query.database.ListDatabases()

@@ -1,12 +1,11 @@
 import { defineComponent } from 'vue'
 import type { PropType } from 'vue'
-import type { DatabaseCollectionDetail } from '@/services/databaseService'
 
 export default defineComponent({
   name: 'CollectionExplorerPanel',
   props: {
     collection: {
-      type: Object as PropType<DatabaseCollectionDetail | null>,
+      type: Object as PropType<server.database.CollectionInfo | null>,
       default: null,
     },
     title: {
@@ -15,7 +14,11 @@ export default defineComponent({
     },
   },
   setup() {
-    const formatBytes = (value: number): string => {
+    const formatBytes = (value: number | null | undefined): string => {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        return '0 B'
+      }
+
       if (value <= 0) {
         return '0 B'
       }

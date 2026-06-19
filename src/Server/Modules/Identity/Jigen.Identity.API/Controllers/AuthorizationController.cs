@@ -4,6 +4,7 @@ using Jigen.Identity.Core.Dto;
 using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
@@ -20,6 +21,9 @@ public class AuthorizationController (
 {
   [HttpGet("~/connect/authorize")]
   [HttpPost("~/connect/authorize")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+  [ProducesResponseType(StatusCodes.Status403Forbidden)]
   public async Task<IActionResult> Authorize()
   {
     var request = HttpContext.GetOpenIddictServerRequest()
@@ -45,6 +49,9 @@ public class AuthorizationController (
   }
 
   [HttpPost("~/connect/token")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status403Forbidden)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<IActionResult> Exchange(CancellationToken cancellationToken)
   {
     var request = HttpContext.GetOpenIddictServerRequest()
@@ -86,6 +93,8 @@ public class AuthorizationController (
   [Authorize(AuthenticationSchemes = OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)]
   [HttpGet("~/connect/userinfo")]
   [HttpPost("~/connect/userinfo")]
+  [ProducesResponseType(typeof(Dictionary<string, object>), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status403Forbidden)]
   public async Task<IActionResult> Userinfo()
   {
     var user = await userManager.GetUserAsync(User);

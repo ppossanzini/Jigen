@@ -1,16 +1,10 @@
 import { defineStore } from 'pinia'
-import type { DatabaseDetailsItem } from '@/services/databaseService'
 import { databaseService } from '@/services/databaseService'
 
-export interface DatabaseSummary {
-  name: string
-  collectionsCount: number
-}
-
-export interface DatabaseDetails extends DatabaseDetailsItem {}
+export interface DatabaseDetails extends server.database.DatabaseDetails {}
 
 interface DatabaseState {
-  databases: DatabaseSummary[]
+  databases: server.database.DatabaseName[]
   selectedDatabaseName: string | null
   selectedCollectionName: string | null
   collectionsByDatabase: Record<string, string[]>
@@ -33,7 +27,7 @@ export const useDatabaseStore = defineStore('database', {
   }),
   getters: {
     selectedDatabase: (state) =>
-      state.databases.find((entry) => entry.name === state.selectedDatabaseName) ?? null,
+      state.databases.find((entry) => entry === state.selectedDatabaseName) ?? null,
     selectedCollections: (state) => {
       if (!state.selectedDatabaseName) {
         return []
@@ -47,7 +41,7 @@ export const useDatabaseStore = defineStore('database', {
       }
 
       const details = state.detailsByDatabase[state.selectedDatabaseName]
-      return details?.collections ?? []
+      return Array.isArray(details?.collections) ? details.collections : []
     },
     selectedCollection: (state) => {
       if (!state.selectedDatabaseName || !state.selectedCollectionName) {
@@ -59,7 +53,8 @@ export const useDatabaseStore = defineStore('database', {
         return null
       }
 
-      return details.collections.find((entry) => entry.name === state.selectedCollectionName) ?? null
+      const collections = Array.isArray(details.collections) ? details.collections : []
+      return collections.find((entry) => entry?.name === state.selectedCollectionName) ?? null
     },
     selectedDatabaseDetails: (state): DatabaseDetails | null => {
       if (!state.selectedDatabaseName) {
@@ -74,11 +69,12 @@ export const useDatabaseStore = defineStore('database', {
       this.loadingDatabases = true
 
       try {
-        this.databases = await databaseService.listDatabases()
+        const payload = await databaseService.listDatabases()
+        this.databases = payload
 
         if (
           this.selectedDatabaseName &&
-          !this.databases.some((entry) => entry.name === this.selectedDatabaseName)
+          !this.databases.includes(this.selectedDatabaseName)
         ) {
           this.selectedDatabaseName = null
         }
@@ -127,7 +123,7 @@ export const useDatabaseStore = defineStore('database', {
         this.loadingDetails = false
       }
     },
-    async setDatabaseUsers(databaseName: string, users: { userId: string; userName: string }[]) {
+    async setDatabaseUsers(databaseName: string, users: server.database.DatabaseUserInfo[]) {
       const updatedUsers = await databaseService.setDatabaseUsers(databaseName, users)
       const currentDetails = this.detailsByDatabase[databaseName]
 
