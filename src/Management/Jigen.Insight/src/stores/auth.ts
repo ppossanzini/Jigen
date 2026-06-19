@@ -131,6 +131,11 @@ const isDatabaseAdminRole = (role: string): boolean => {
   return normalized.includes('databaseadmin')
 }
 
+const isSecurityAdminRole = (role: string): boolean => {
+  const normalized = role.replace(/[^a-z]/gi, '').toLowerCase()
+  return normalized.includes('securityadmin')
+}
+
 const resolveRoles = (token: string | null, roles: unknown): string[] => {
   const normalized = normalizeRoles(roles)
 
@@ -182,6 +187,7 @@ export const useAuthStore = defineStore('auth', {
   getters: {
     isAuthenticated: (state) => isJwtValid(state.token),
     isDatabaseAdmin: (state) => state.roles.some(isDatabaseAdminRole),
+    isSecurityAdmin: (state) => state.roles.some(isSecurityAdminRole),
   },
   actions: {
     setWorkspace(workspace: string) {

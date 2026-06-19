@@ -40,15 +40,30 @@
         <p v-if="!details.users.length">{{ $t('databaseManagement.noUsers') }}</p>
         <el-scrollbar v-else max-height="14rem">
           <ul class="collection-list">
-            <li v-for="user in details.users" :key="`${user.userId}-${user.userName}`">
-              <div class="collection-name">{{ user.userName || $t('databaseManagement.notAvailable') }}</div>
-              <small>{{ user.userId || $t('databaseManagement.notAvailable') }}</small>
+            <li v-for="user in details.users" :key="`${user.userId}-${user.userName}`" class="user-item">
+              <div class="user-item-main">
+                <div class="collection-name">{{ user.userName || $t('databaseManagement.notAvailable') }}</div>
+                <small>{{ user.userId || $t('databaseManagement.notAvailable') }}</small>
+              </div>
+              <el-button
+                v-if="canManageUsers"
+                type="danger"
+                link
+                :disabled="!user.userId"
+                class="remove-user-button"
+                @click="onRequestRemoveUser(user.userId, user.userName)"
+              >
+                {{ $t('databaseManagement.assignUser.removeAction') }}
+              </el-button>
             </li>
           </ul>
         </el-scrollbar>
+        <p v-if="!canManageUsers" class="access-guard-note">
+          {{ $t('databaseManagement.assignUser.securityAdminOnly') }}
+        </p>
       </div>
 
-      <div v-if="details && canAssignUsers" class="insight-box">
+      <div v-if="details && canManageUsers" class="insight-box">
         <h4>{{ $t('databaseManagement.assignUser.title') }}</h4>
         <p v-if="!availableUsers.length">{{ $t('databaseManagement.assignUser.noUsersAvailable') }}</p>
         <el-form v-else @submit.prevent>

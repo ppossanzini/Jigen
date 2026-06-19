@@ -229,3 +229,21 @@ Consequences:
 - Component APIs are slimmer and less coupled to parent views.
 - i18n ownership is clearer for static UI copy, reducing repetitive prop plumbing.
 - Parent views keep focus on orchestration and dynamic state only.
+
+## ADR-0014 - SecurityAdmin-Gated Database User Access Revocation
+Date: 2026-06-19
+Status: Accepted
+Context:
+- User reported that database user access could be granted but not removed from Database Management.
+- User explicitly requested non-cascade behavior and a dedicated detailed mask before revocation.
+- User constraint: database user manipulation must be allowed only for role `SecurityAdmin`.
+Decision:
+- Extend auth store with `isSecurityAdmin` role getter and keep `isDatabaseAdmin` for create/delete database actions only.
+- Gate assign/remove user access actions in Database Management view with `SecurityAdmin` checks and dedicated feedback message.
+- Add a detailed revoke-access dialog that shows database, user name, user id, explicit non-cascade warning, and confirmation checkbox.
+- Execute revocation by updating `PUT /database/{name}/users` payload with selected user removed from current association list.
+- Extend `DatabaseDetailPanel` user list with explicit remove action button for each associated user when security permission is present.
+Consequences:
+- Security policy is explicit in UI: only `SecurityAdmin` can modify database user access while read-only visibility remains available.
+- Revocation flow now prevents accidental destructive expectations by clearly stating non-cascade behavior.
+- Frontend keeps backend contract unchanged by reusing existing set-users endpoint with filtered associations.

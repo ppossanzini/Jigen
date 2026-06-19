@@ -16,6 +16,11 @@ interface AssignableUserOption {
   userName: string
 }
 
+interface DatabaseAssignedUser {
+  userId: string
+  userName: string
+}
+
 interface CreateDatabaseForm {
   name: string
 }
@@ -37,6 +42,10 @@ export default defineComponent({
     const createDialogVisible = ref(false)
     const createSaving = ref(false)
     const assignUserSaving = ref(false)
+    const revokeAccessSaving = ref(false)
+    const revokeAccessDialogVisible = ref(false)
+    const revokeAccessAcknowledge = ref(false)
+    const revokeAccessTargetUser = ref<DatabaseAssignedUser | null>(null)
     const assignableUsers = ref<AssignableUserOption[]>([])
     const selectedAssignableUserId = ref('')
 
@@ -45,6 +54,7 @@ export default defineComponent({
     })
 
     const canManageDatabases = computed(() => authStore.isDatabaseAdmin)
+    const canManageDatabaseUsers = computed(() => authStore.isSecurityAdmin)
 
     const rows = computed<DatabaseRow[]>(() => databaseStore.databases)
     const selectedRow = computed(() => databaseStore.selectedDatabase)
@@ -198,8 +208,8 @@ export default defineComponent({
     }
 
     const onAssignUserToDatabase = async () => {
-      if (!canManageDatabases.value) {
-        ElMessage.warning(t('databaseManagement.feedback.adminOnly'))
+      if (!canManageDatabaseUsers.value) {
+        ElMessage.warning(t('databaseManagement.feedback.securityAdminOnly'))
         return
       }
 
@@ -231,7 +241,7 @@ export default defineComponent({
       }
 
       const currentUsers = selectedDetails.value?.users ?? []
-      const usersById = new Map<string, { userId: string; userName: string }>()
+      const usersById = new Map<string, DatabaseAssignedUser>()
 
       for (const user of currentUsers) {
         if (!user.userId) {
@@ -262,6 +272,71 @@ export default defineComponent({
       }
     }
 
+    const onOpenRevokeAccessDialog = (user: DatabaseAssignedUser) => {
+      if (!canManageDatabaseUsers.value) {
+        ElMessage.warning(t('databaseManagement.feedback.securityAdminOnly'))
+        return
+      }
+
+      if (!selectedRow.value) {
+        ElMessage.warning(t('databaseManagement.feedback.selectDatabase'))
+        return
+      }
+
+      revokeAccessTargetUser.value = {
+        userId: user.userId,
+        userName: user.userName,
+      }
+      revokeAccessAcknowledge.value = false
+      revokeAccessDialogVisible.value = true
+    }
+
+    const onCloseRevokeAccessDialog = () => {
+      revokeAccessDialogVisible.value = false
+      revokeAccessAcknowledge.value = false
+      revokeAccessTargetUser.value = null
+    }
+
+    const onConfirmRevokeAccess = async () => {
+      if (!canManageDatabaseUsers.value) {
+        ElMessage.warning(t('databaseManagement.feedback.securityAdminOnly'))
+        return
+      }
+
+      const targetDatabase = selectedRow.value
+      const targetUser = revokeAccessTargetUser.value
+
+      if (!targetDatabase) {
+        ElMessage.warning(t('databaseManagement.feedback.selectDatabase'))
+        return
+      }
+
+      if (!targetUser?.userId) {
+        ElMessage.warning(t('databaseManagement.feedback.selectUser'))
+        return
+      }
+
+      const currentUsers = selectedDetails.value?.users ?? []
+      const filteredUsers = currentUsers.filter((entry) => entry.userId !== targetUser.userId)
+
+      if (filteredUsers.length === currentUsers.length) {
+        ElMessage.info(t('databaseManagement.feedback.userNotFoundInDatabase'))
+        return
+      }
+
+      revokeAccessSaving.value = true
+
+      try {
+        await databaseStore.setDatabaseUsers(targetDatabase.name, filteredUsers)
+        ElMessage.success(t('databaseManagement.feedback.userRemoved'))
+        onCloseRevokeAccessDialog()
+      } catch {
+        ElMessage.error(t('databaseManagement.feedback.error'))
+      } finally {
+        revokeAccessSaving.value = false
+      }
+    }
+
     onMounted(() => {
       void Promise.all([refreshDatabases(), loadAssignableUsers()])
     })
@@ -279,9 +354,14 @@ export default defineComponent({
       showCollectionDetailsPanel,
       workspaceGridClass,
       canManageDatabases,
+      canManageDatabaseUsers,
       createDialogVisible,
       createSaving,
       assignUserSaving,
+      revokeAccessSaving,
+      revokeAccessDialogVisible,
+      revokeAccessAcknowledge,
+      revokeAccessTargetUser,
       assignableUsers,
       selectedAssignableUserId,
       createForm,
@@ -294,6 +374,9 @@ export default defineComponent({
       onCreateDatabase,
       onDeleteDatabase,
       onAssignUserToDatabase,
+      onOpenRevokeAccessDialog,
+      onCloseRevokeAccessDialog,
+      onConfirmRevokeAccess,
     }
   },
 })

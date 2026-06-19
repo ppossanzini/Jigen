@@ -26,6 +26,7 @@ public class Module : IModule
 
     services.AddSingleton<DatabasesManager>();
     services.AddSingleton<IDocumentSerializer>(serviceProvider => MessagePackDocumentSerializer.Instance);
+    services.AddScoped<CQRS.DatabaseOwnershipGuard>();
     // services.AddTransient<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
     services.AddSingleton<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
   }

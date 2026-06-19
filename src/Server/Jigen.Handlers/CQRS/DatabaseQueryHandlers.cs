@@ -7,7 +7,7 @@ namespace Jigen.Handlers.CQRS;
 
 public class DatabaseQueryHandlers(
   DatabasesManager manager,
-  SystemDB master) :
+  DatabaseOwnershipGuard ownershipGuard) :
   IRequestHandler<Core.Query.database.GetInfo, Core.Dto.database.DatabaseInfo>,
   IRequestHandler<Core.Query.database.ListDatabases, IEnumerable<string>>,
   IRequestHandler<Core.Query.database.GetDetails, Core.Dto.database.DatabaseDetails>,
@@ -16,8 +16,7 @@ public class DatabaseQueryHandlers(
 {
   public Task<DatabaseInfo> Handle(GetInfo request, CancellationToken cancellationToken)
   {
-    var dbInfo = NormalizeInfo(master.System[SystemDB.BASEINFO]);
-    if (!dbInfo.Databases.Contains(request.Database)) throw new ArgumentException("Database not found");
+    ownershipGuard.EnsureCanReadDatabase(request.Database);
 
     var store = manager.ActiveDatabases[request.Database];
 
@@ -37,15 +36,15 @@ public class DatabaseQueryHandlers(
 
   public Task<IEnumerable<string>> Handle(ListDatabases request, CancellationToken cancellationToken)
   {
-    var dbInfo = NormalizeInfo(master.System[SystemDB.BASEINFO]);
-    return Task.FromResult(dbInfo.Databases.AsEnumerable());
+    var dbInfo = ownershipGuard.GetNormalizedSystemInfo();
+    return Task.FromResult(ownershipGuard.GetReadableDatabases(dbInfo));
   }
 
   public Task<DatabaseDetails> Handle(GetDetails request, CancellationToken cancellationToken)
   {
-    var dbInfo = NormalizeInfo(master.System[SystemDB.BASEINFO]);
-    if (!dbInfo.Databases.Contains(request.Database))
-      throw new ArgumentException("Database not found");
+    ownershipGuard.EnsureCanReadDatabase(request.Database);
+
+    var dbInfo = ownershipGuard.GetNormalizedSystemInfo();
 
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store))
       throw new ArgumentException("Database not found");
@@ -75,9 +74,9 @@ public class DatabaseQueryHandlers(
 
   public Task<IEnumerable<DatabaseUserInfo>> Handle(ListDatabaseUsers request, CancellationToken cancellationToken)
   {
-    var dbInfo = NormalizeInfo(master.System[SystemDB.BASEINFO]);
-    if (!dbInfo.Databases.Contains(request.Database))
-      throw new ArgumentException("Database not found");
+    ownershipGuard.EnsureCanReadDatabase(request.Database);
+
+    var dbInfo = ownershipGuard.GetNormalizedSystemInfo();
 
     var databaseInfo = dbInfo.DatabaseInfos.FirstOrDefault(i =>
       string.Equals(i.Database, request.Database, StringComparison.OrdinalIgnoreCase));
@@ -91,29 +90,5 @@ public class DatabaseQueryHandlers(
       .ToArray();
 
     return Task.FromResult(users.AsEnumerable());
-  }
-
-  private static SystemInfo NormalizeInfo(SystemInfo info)
-  {
-    info.Databases ??= [];
-    info.DatabaseInfos ??= [];
-
-    foreach (var db in info.Databases)
-    {
-      var exists = info.DatabaseInfos.Any(i => string.Equals(i.Database, db, StringComparison.OrdinalIgnoreCase));
-      if (!exists)
-      {
-        info.DatabaseInfos.Add(new DatabaseSystemInfo
-        {
-          Database = db,
-          Users = []
-        });
-      }
-    }
-
-    foreach (var databaseInfo in info.DatabaseInfos)
-      databaseInfo.Users ??= [];
-
-    return info;
   }
 }

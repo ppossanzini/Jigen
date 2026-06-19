@@ -94,7 +94,21 @@ const en = {
       title: 'User access',
       placeholder: 'Select a user to grant access',
       action: 'Add User',
+      removeAction: 'Remove Access',
       noUsersAvailable: 'No users available for assignment.',
+      securityAdminOnly: 'Only SecurityAdmin can manage database user access.',
+    },
+    revokeAccessDialog: {
+      title: 'Remove user access',
+      description:
+        'Review the selected user before confirming. This operation updates only database access assignments.',
+      databaseLabel: 'Database',
+      userLabel: 'User',
+      userIdLabel: 'User ID',
+      nonCascadeNotice:
+        'Non-cascade operation: only the access link to this database is removed. The user account remains active.',
+      acknowledge: 'I confirm I want to remove this user access from the selected database.',
+      confirmAction: 'Remove Access',
     },
     validation: {
       nameRequired: 'Database name is required',
@@ -107,8 +121,11 @@ const en = {
       error: 'Operation failed. Please retry.',
       selectDatabase: 'Select a database first.',
       selectUser: 'Select a user first.',
+      securityAdminOnly: 'Only SecurityAdmin can manage database user access.',
       userAssigned: 'User associated with database successfully.',
+      userRemoved: 'User access removed from database successfully.',
       userAlreadyAssigned: 'The selected user already has access to this database.',
+      userNotFoundInDatabase: 'The selected user is no longer associated with this database.',
       deleteConfirm: 'Do you want to delete database {name}?',
     },
     cards: {

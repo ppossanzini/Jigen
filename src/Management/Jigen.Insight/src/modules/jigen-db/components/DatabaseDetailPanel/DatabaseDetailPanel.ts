@@ -5,7 +5,7 @@ import type { DatabaseDetails } from '@/stores/database'
 
 export default defineComponent({
   name: 'DatabaseDetailPanel',
-  emits: ['update:selectedUserId', 'assign-user'],
+  emits: ['update:selectedUserId', 'assign-user', 'request-remove-user'],
   props: {
     row: {
       type: Object as PropType<DatabaseRow | null>,
@@ -19,7 +19,7 @@ export default defineComponent({
       type: String,
       required: true,
     },
-    canAssignUsers: {
+    canManageUsers: {
       type: Boolean,
       default: false,
     },
@@ -69,11 +69,16 @@ export default defineComponent({
       emit('assign-user')
     }
 
+    const onRequestRemoveUser = (userId: string, userName: string) => {
+      emit('request-remove-user', { userId, userName })
+    }
+
     return {
       formatBytes,
       formatDate,
       onSelectUser,
       onAssignUser,
+      onRequestRemoveUser,
     }
   },
 })

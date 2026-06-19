@@ -11,6 +11,7 @@ namespace Jigen.Handlers.CQRS;
 public class DatabaseCommandHandlers(
   DatabasesManager manager,
   SystemDB master,
+  DatabaseOwnershipGuard ownershipGuard,
   IOptions<JigenServerSettings> settings,
   ILogger<DatabaseCommandHandlers> logger
 ) :
@@ -33,12 +34,14 @@ public class DatabaseCommandHandlers(
 
     // Save DbInfo in master DB.
     var info = NormalizeInfo(master.System[SystemDB.BASEINFO]);
+    var creator = ownershipGuard.GetCurrentUserAssociation();
+
     info.Databases.Add(request.Name);
     info.DatabaseInfos.Add(new DatabaseSystemInfo
     {
       Database = request.Name,
       CreatedAtUtc = DateTime.UtcNow,
-      Users = []
+      Users = creator == null ? [] : [creator]
     });
 
     master.System[SystemDB.BASEINFO] = info;
