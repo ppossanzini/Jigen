@@ -63,6 +63,14 @@ class DatabaseService extends BaseRestService {
     )
     return response.data
   }
+
+  async getServerStatusHistory(window = '1h'): Promise<server.metrics.ServerStatusHistory> {
+    const response = await this.api.get<server.metrics.ServerStatusHistory>(
+      `/metric/server-status/${encodeURIComponent(window)}`,
+    )
+
+    return response.data
+  }
 }
 
 export const databaseService = new DatabaseService()

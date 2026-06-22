@@ -25,7 +25,7 @@ public partial class Store : IStore, IDisposable
   internal FileStream EmbeddingFileStream;
   internal FileStream IndexFileStream;
 
-  public int IngestionQueueLength => IngestionQueue.Length;
+  public long IngestionQueueLength => IngestionQueue.Count;
   
   public readonly StoreOptions Options;
   internal readonly StoreHeader VectorStoreHeader = new();

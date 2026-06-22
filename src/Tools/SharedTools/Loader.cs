@@ -46,7 +46,7 @@ namespace SharedTools
             ModuleLoader loadContext = new ModuleLoader(dir);
 
             var s = loadContext.LoadFromAssemblyName(new AssemblyName(Path.GetFileNameWithoutExtension(f)));
-            if (s.GetTypes().Where(p => typeof(IModule).IsAssignableFrom(p)).Any()) assemblies.Add(s);
+            if (s.GetTypes().Any(p => typeof(IModule).IsAssignableFrom(p) && p is { IsInterface: false, IsAbstract: false })) assemblies.Add(s);
           }
           catch (Exception ex)
           {
@@ -58,7 +58,7 @@ namespace SharedTools
 
       foreach (var a in assemblies)
       {
-        foreach (var m in a.GetTypes().Where(p => typeof(IModule).IsAssignableFrom(p)))
+        foreach (var m in a.GetTypes().Where(p => typeof(IModule).IsAssignableFrom(p) && p is { IsInterface: false, IsAbstract: false }))
         {
           try
           {
@@ -72,8 +72,21 @@ namespace SharedTools
         }
       }
 
-      this.Assemblies = assemblies;
-      this.Modules = modules;
+      this.Assemblies = assemblies
+        .GroupBy(a => a.GetName().Name, StringComparer.OrdinalIgnoreCase)
+        .Select(g => g.First())
+        .ToArray();
+
+      // Avoid double service registration when the same module assembly is discovered multiple times.
+      this.Modules = modules
+        .Where(m => m is not null)
+        .GroupBy(m => new
+        {
+          Assembly = m.GetType().Assembly.GetName().Name,
+          Type = m.GetType().FullName
+        })
+        .Select(g => g.First())
+        .ToArray();
     }
 
     public void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment hostingEnvironment)

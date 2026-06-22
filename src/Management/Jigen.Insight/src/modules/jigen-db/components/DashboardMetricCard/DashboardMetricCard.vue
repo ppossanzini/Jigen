@@ -2,7 +2,7 @@
   <article class="metric-card">
     <header>
       <h3>{{ title }}</h3>
-      <el-tag :type="tagType" effect="dark">{{ hint }}</el-tag>
+      <el-tag :type="tagType" effect="dark" :class="tagClass">{{ hint }}</el-tag>
     </header>
     <p class="value">{{ value }}</p>
   </article>

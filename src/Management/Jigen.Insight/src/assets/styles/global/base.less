@@ -284,3 +284,29 @@ a {
     color: inherit;
   }
 }
+
+/* Global badge policy: all tags use black background across the app. */
+.el-tag,
+.el-tag.el-tag--success,
+.el-tag.el-tag--info,
+.el-tag.el-tag--warning,
+.el-tag.el-tag--danger,
+.el-tag.el-tag--primary,
+.el-tag.el-tag--success.el-tag--dark,
+.el-tag.el-tag--info.el-tag--dark,
+.el-tag.el-tag--warning.el-tag--dark,
+.el-tag.el-tag--danger.el-tag--dark,
+.el-tag.el-tag--primary.el-tag--dark,
+.el-tag.el-tag--success.el-tag--plain,
+.el-tag.el-tag--info.el-tag--plain,
+.el-tag.el-tag--warning.el-tag--plain,
+.el-tag.el-tag--danger.el-tag--plain,
+.el-tag.el-tag--primary.el-tag--plain {
+  color: #fff !important;
+  
+}
+
+.el-tag .el-tag__content {
+  color: inherit !important;
+  font-weight: normal;
+}

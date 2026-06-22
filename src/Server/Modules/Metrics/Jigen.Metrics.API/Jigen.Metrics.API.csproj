@@ -6,4 +6,18 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Hikyaku" Version="9.2.1" />
+    <PackageReference Include="System.Composition" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Tools\SharedTools\SharedTools.csproj" />
+    <ProjectReference Include="..\Jigen.Metrics.Core\Jigen.Metrics.Core.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -1,5 +1,5 @@
 
-Version="${VARIABLE:-1.0.1}"
+Version="${VARIABLE:-1.0.5}"
 
 dotnet publish src/Server/Jigen -o publish 
 
