@@ -62,5 +62,40 @@ declare namespace server {
       collectionsResults?: CollectionSearchResult[] | null
       mergedResults?: CollectionSearchResultItem[] | null
     }
+
+  }
+
+  namespace metrics {
+    interface CollectionStatus {
+      name: string
+      elementsCount?: number | null
+      dimensions?: number | null
+      contentSizeBytes?: number | null
+      vectorSizeBytes?: number | null
+    }
+
+    interface DatabaseStatus {
+      name: string
+      ingestionQueueLength?: number | null
+      collectionsCount?: number | null
+      totalElementsCount?: number | null
+      contentSizeBytes?: number | null
+      vectorSizeBytes?: number | null
+      collections: CollectionStatus[]
+    }
+
+    interface ServerStatusSample {
+      timestampUtc?: string | null
+      cpuUsagePercent?: number | null
+      memoryUsageBytes?: number | null
+      databases: DatabaseStatus[]
+    }
+
+    interface ServerStatusHistory {
+      fromUtc?: string | null
+      toUtc?: string | null
+      sampleIntervalSeconds?: number | null
+      samples: ServerStatusSample[]
+    }
   }
 }

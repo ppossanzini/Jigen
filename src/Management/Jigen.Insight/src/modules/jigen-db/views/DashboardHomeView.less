@@ -18,10 +18,10 @@
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1.4fr 1.4fr 1.1fr;
+  grid-template-columns: 1.2fr 1fr;
   grid-template-areas:
-    'status recent logs'
-    'queries datasets alerts';
+    'status databases'
+    'samples samples';
   gap: 16px;
 }
 
@@ -35,24 +35,12 @@
   grid-area: status;
 }
 
-.recent-searches {
-  grid-area: recent;
+.databases-status {
+  grid-area: databases;
 }
 
-.live-logs {
-  grid-area: logs;
-}
-
-.top-queries {
-  grid-area: queries;
-}
-
-.dataset-summary {
-  grid-area: datasets;
-}
-
-.alerts {
-  grid-area: alerts;
+.samples-history {
+  grid-area: samples;
 }
 
 .panel-header h3 {
@@ -61,24 +49,119 @@
   font-weight: 500;
 }
 
+.panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.window-select {
+  width: 88px;
+}
+
+.status-alert {
+  margin-bottom: 12px;
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.gemini-map {
-  width: 100%;
-  max-height: 260px;
-  object-fit: contain;
+.global-chart-block {
+  margin-top: 12px;
+  border: 1px solid @line-soft;
+  border-radius: @radius-md;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.global-chart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   margin-bottom: 8px;
 }
 
-.score-list,
-.live-logs ul,
-.top-queries ul,
-.dataset-summary ul,
-.alerts ul {
+.global-chart-header h4 {
+  margin: 0;
+  font-size: @font-size-app-body;
+  font-weight: 600;
+}
+
+.global-trend-chart {
+  width: 100%;
+  height: 180px;
+  display: block;
+  border-radius: @radius-sm;
+  background:
+    linear-gradient(180deg, rgba(89, 161, 220, 0.07), rgba(89, 161, 220, 0.01)),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.05) 0,
+      rgba(255, 255, 255, 0.05) 1px,
+      transparent 1px,
+      transparent 24px
+    );
+}
+
+.global-chart-legend {
+  margin-top: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: @text-muted;
+  font-size: @font-size-app-caption;
+}
+
+.db-chart {
+  display: grid;
+  gap: 10px;
+}
+
+.db-chart-row {
+  border: 1px solid @line-soft;
+  border-radius: @radius-md;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.db-chart-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.db-chart-row-head h4 {
+  margin: 0;
+  font-size: @font-size-app-body;
+  font-weight: 600;
+}
+
+.db-chart-row-head span {
+  color: @text-muted;
+  font-size: @font-size-app-caption;
+}
+
+.db-chart-track {
+  margin-top: 8px;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.db-chart-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #f8c355, #f3a432);
+}
+
+.samples-list {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -86,34 +169,32 @@
   gap: 10px;
 }
 
-.score-list li,
-.top-queries li,
-.dataset-summary li {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.samples-list li {
+  border: 1px solid @line-soft;
+  border-radius: @radius-md;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.dataset-summary li div p,
-.alerts p {
-  margin: 2px 0 0;
+.database-metrics,
+.sample-metrics {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
   color: @text-muted;
 }
 
-.live-logs li strong {
-  color: @accent-green;
-  margin-right: 8px;
+.sample-time {
+  font-weight: 600;
 }
 
 @media (max-width: 1440px) {
   .dashboard-grid {
     grid-template-columns: 1fr 1fr;
     grid-template-areas:
-      'status recent'
-      'logs logs'
-      'queries datasets'
-      'alerts alerts';
+      'status databases'
+      'samples samples';
   }
 }
 
@@ -122,10 +203,18 @@
     grid-template-columns: 1fr;
     grid-template-areas:
       'status'
-      'recent'
-      'logs'
-      'queries'
-      'datasets'
-      'alerts';
+      'databases'
+      'samples';
+  }
+
+  .database-metrics,
+  .sample-metrics,
+  .global-chart-legend,
+  .db-chart-row-head {
+    grid-template-columns: 1fr;
+  }
+
+  .global-chart-legend {
+    display: grid;
   }
 }

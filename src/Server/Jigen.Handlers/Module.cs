@@ -30,10 +30,15 @@ public class Module : IModule
     services.AddSingleton<IDocumentSerializer>(serviceProvider => MessagePackDocumentSerializer.Instance);
     services.AddScoped<CQRS.DatabaseOwnershipGuard>();
 
-    if (settings.TransientEmbedding)
-      services.AddTransient<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
-    else
-      services.AddSingleton<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
+    services.AddSingleton<IEmbeddingGenerator>(_ =>
+    {
+      return new QueuedEmbeddingGenerator(
+        new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath),
+          settings.EmbeddingsMaxConcurrency,
+          settings.EmbeddingsQueueCapacity,
+          TimeSpan.FromSeconds(settings.EmbeddingsQueueTimeoutSeconds));
+    });
+
   }
 
   public void OnStartup(IServiceProvider services)

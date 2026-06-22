@@ -4,6 +4,10 @@
 - ADR-0001 | Accepted | Backend | Database access control and DB details endpoint baseline | docs/ProjectInfo.md
 - ADR-0002 | Accepted | Backend | Database ownership enforcement for read visibility | docs/ProjectInfo.md
 - ADR-0003 | Accepted | Backend | Multi-collection search API with timing telemetry | docs/ProjectInfo.md
+- ADR-0004 | Accepted | Backend | In-memory server status history for metrics module | docs/ProjectInfo.md
+- ADR-0005 | Superseded | Backend | Fixed selectable windows for Metrics status endpoint | docs/ProjectInfo.md
+- ADR-0006 | Accepted | Backend | Explicit route windows for Metrics status endpoint | docs/ProjectInfo.md
+- ADR-0007 | Accepted | Backend | Embeddings bulkhead with bounded queue and concurrency cap | docs/ProjectInfo.md
 
 ## ADR-0001 - Database access control and DB details endpoint baseline
 - Date: 2026-06-18
@@ -60,3 +64,66 @@
   - API consumers can profile end-to-end query cost and compare phase impact.
   - Global merged ranking is limited to top-k after merge/sort, while each collection still exposes its local top-k.
   - Text-based queries have additional latency due to embeddings generation, now explicitly measurable.
+
+## ADR-0004 - In-memory server status history for metrics module
+- Date: 2026-06-22
+- Status: Accepted
+- Context:
+  - A new Metrics API endpoint is needed to expose server state over the last hour with one sample every 5 seconds.
+  - The payload must include process CPU usage, process memory usage, per-database ingestion backlog, and collection sizes expressed as number of elements.
+  - The Metrics module currently has no CQRS contracts, controllers, or handler wiring.
+- Decision:
+  - Implement a dedicated Metrics CQRS query that returns a fixed 1-hour rolling window sampled every 5 seconds.
+  - Keep sampling in memory inside the Metrics Handlers module through a singleton hosted service, with no persistence layer or EF usage.
+  - Build per-database snapshots directly from active `Store` instances exposed by `DatabasesManager`, using `IngestionQueueLength` and `GetCollectionInfo`.
+  - Expose the data via a dedicated Metrics API controller that dispatches only through `IHikyaku`.
+- Consequences:
+  - Metrics history is available only after process startup and is limited to the last rolling hour.
+  - Sampling remains lightweight and avoids schema changes, but historical data is lost on restart.
+
+## ADR-0005 - Fixed selectable windows for Metrics status endpoint
+- Date: 2026-06-22
+- Status: Superseded
+- Superseded-By: ADR-0006
+- Context:
+  - Consumers need to query server status for shorter recent windows without downloading the full one-hour dataset.
+  - Allowed windows must be constrained to a finite set: 1 minute, 5 minutes, 10 minutes, or 1 hour.
+- Decision:
+  - Extend Metrics status query with a requested window and enforce a strict allow-list of windows.
+  - Accept the window in API as `window` query parameter with values `1m`, `5m`, `10m`, `1h`.
+  - Keep internal sampling cadence and retention unchanged (5-second samples, 1-hour rolling buffer).
+  - Return only filtered samples for the requested window while preserving response shape.
+- Consequences:
+  - Clients can reduce payload size and focus on short-term trends.
+  - Unsupported window values return HTTP 400 at API boundary.
+
+## ADR-0006 - Explicit route windows for Metrics status endpoint
+- Date: 2026-06-22
+- Status: Accepted
+- Supersedes: ADR-0005
+- Context:
+  - Query-parameter based windows are less discoverable for API consumers.
+  - Requirement is to expose explicit self-describing routes for each supported window.
+- Decision:
+  - Replace query-parameter selection with explicit routes under `metric/server-status`.
+  - Expose four endpoints only: `/metric/server-status/1m`, `/metric/server-status/5m`, `/metric/server-status/10m`, `/metric/server-status/1h`.
+  - Keep internal query payload and service filtering unchanged.
+- Consequences:
+  - API contract is clearer and easier to discover in OpenAPI.
+  - Existing clients using query parameter must update to the new route paths.
+
+## ADR-0007 - Embeddings bulkhead with bounded queue and concurrency cap
+- Date: 2026-06-22
+- Status: Accepted
+- Context:
+  - Embeddings computation is CPU/ONNX intensive and concurrent spikes can saturate resources.
+  - Requirement: enforce a maximum number of concurrent executions and queue overflow requests.
+- Decision:
+  - Introduce a queued wrapper (`QueuedEmbeddingGenerator`) around `IEmbeddingGenerator`.
+  - Use bounded channel queue with configurable capacity and configurable worker concurrency.
+  - Expose runtime knobs in `JigenServer` settings: `EmbeddingsMaxConcurrency`, `EmbeddingsQueueCapacity`, `EmbeddingsQueueTimeoutSeconds`.
+  - Keep legacy behavior only when cap is explicitly disabled (`EmbeddingsMaxConcurrency <= 0`).
+- Consequences:
+  - Request bursts are smoothed by queueing instead of spawning uncontrolled concurrent embedding executions.
+  - When queue stays full beyond timeout, requests fail fast with timeout error.
+  - Same pattern can be applied to other heavy services by adding equivalent queued decorators.

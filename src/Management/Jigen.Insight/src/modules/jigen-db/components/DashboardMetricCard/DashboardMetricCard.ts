@@ -28,8 +28,11 @@ export default defineComponent({
       return 'warning'
     })
 
+    const tagClass = computed(() => `metric-tag metric-tag--${props.tone}`)
+
     return {
       tagType,
+      tagClass,
     }
   },
 })

@@ -6,4 +6,15 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Hikyaku" Version="9.2.1" />
+    <PackageReference Include="System.Composition" Version="10.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\Tools\SharedTools\SharedTools.csproj" />
+    <ProjectReference Include="..\..\..\Jigen.Handlers\Jigen.Handlers.csproj" />
+    <ProjectReference Include="..\Jigen.Metrics.Core\Jigen.Metrics.Core.csproj" />
+  </ItemGroup>
+
 </Project>

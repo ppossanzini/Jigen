@@ -25,6 +25,9 @@
     <ProjectReference Include="..\Jigen.Handlers\Jigen.Handlers.csproj"/>
     <ProjectReference Include="..\Modules\Identity\Jigen.Identity.API\Jigen.Identity.API.csproj"/>
     <ProjectReference Include="..\Modules\Identity\Jigen.Identity.Handlers\Jigen.Identity.Handlers.csproj" />
+    <ProjectReference Include="..\Modules\Metrics\Jigen.Metrics.API\Jigen.Metrics.API.csproj" />
+    <ProjectReference Include="..\Modules\Metrics\Jigen.Metrics.Core\Jigen.Metrics.Core.csproj" />
+    <ProjectReference Include="..\Modules\Metrics\Jigen.Metrics.Handlers\Jigen.Metrics.Handlers.csproj" />
   </ItemGroup>
 
   <ItemGroup>

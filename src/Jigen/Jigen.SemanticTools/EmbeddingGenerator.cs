@@ -67,6 +67,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor)
     };
 
+    
     using var modelResults = _modelSession.Run(modelInputs);
     return modelResults.Last().AsTensor<float>().ToArray();
   }
