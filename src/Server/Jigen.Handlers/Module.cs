@@ -17,6 +17,8 @@ public class Module : IModule
     var settings = configuration.GetSection("JigenServer").Get<JigenServerSettings>();
     services.Configure<JigenServerSettings>(configuration.GetSection("JigenServer"));
 
+    AppContext.SetData("GCHeapHardLimit", settings.MemoryLimitMB * 1024 * 1024);
+
     services.AddSingleton<SystemDB>(serviceProvider => new SystemDB(
       new StoreOptions()
       {
@@ -27,8 +29,11 @@ public class Module : IModule
     services.AddSingleton<DatabasesManager>();
     services.AddSingleton<IDocumentSerializer>(serviceProvider => MessagePackDocumentSerializer.Instance);
     services.AddScoped<CQRS.DatabaseOwnershipGuard>();
-    // services.AddTransient<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
-    services.AddSingleton<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
+
+    if (settings.TransientEmbedding)
+      services.AddTransient<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
+    else
+      services.AddSingleton<IEmbeddingGenerator>(p => new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath));
   }
 
   public void OnStartup(IServiceProvider services)
