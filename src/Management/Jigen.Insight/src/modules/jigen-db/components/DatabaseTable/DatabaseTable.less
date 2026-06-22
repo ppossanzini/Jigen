@@ -1,0 +1,57 @@
+@import '@/assets/styles/global/variables.less';
+
+.database-table-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  border-radius: @radius-lg;
+  border: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 12px;
+  min-height: 540px;
+  min-width: 480px;
+}
+
+.panel-header {
+  margin-bottom: 10px;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: @font-size-app-title-md;
+  font-weight: 500;
+}
+
+.database-scroll {
+  min-height: 0;
+}
+
+.database-list {
+  display: grid;
+  gap: 8px;
+}
+
+.database-option {
+  width: 100%;
+  min-height: 64px;
+  border-radius: @radius-md;
+  border: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.02);
+  color: @text-primary;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.database-option.is-active {
+  border-color: rgba(123, 216, 255, 0.7);
+  background: rgba(123, 216, 255, 0.14);
+}
+
+.database-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.database-option small {
+  color: @text-muted;
+}

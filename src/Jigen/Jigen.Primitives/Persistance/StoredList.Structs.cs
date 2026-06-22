@@ -1,7 +1,9 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Jigen.Persistance;
 
+[StructLayout(LayoutKind.Sequential)]
 public struct StoredListHeader
 {
   public int Count;
@@ -10,15 +12,17 @@ public struct StoredListHeader
   public bool HasOwnHeader;
   public long HeaderPosition;
   public long HeaderSize;
-  public byte[] HeaderData => MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref this, 1)).ToArray();
-  
+
+  public static readonly int Size = Unsafe.SizeOf<StoredListHeader>();
 }
 
+[StructLayout(LayoutKind.Sequential)]
 public struct ItemIndex
 {
   public long Position;
   public int Length;
   public int MaxLength;
   public ulong Hash;
-  public byte[] Data => MemoryMarshal.AsBytes(MemoryMarshal.CreateSpan(ref this, 1)).ToArray();
+
+  public static readonly int Size = Unsafe.SizeOf<ItemIndex>();
 }

@@ -1,0 +1,10 @@
+{
+  "api": {
+    "baseUrl": "http://localhost:13223"
+  },
+  "oidc": {
+    "clientId": "jigen-insight-spa",
+    "redirectUri": "",
+    "scope": "openid jigen_api"
+  }
+}

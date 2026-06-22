@@ -1,0 +1,286 @@
+@import './variables.less';
+
+html,
+body,
+#app {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: radial-gradient(circle at 18% 12%, #2e3239 0%, @bg-deep 42%, #090a0c 100%);
+  color: @text-primary;
+  font-size: @font-size-app-body;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, 'Liberation Mono',
+    monospace;
+}
+
+p,
+small,
+label,
+li,
+span {
+  color: #9fa1a7;
+}
+
+small {
+  font-size: @font-size-app-caption;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.panel-header h3,
+.el-card__header h3 {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* Reusable module gray theme (dashboard-aligned). */
+.module-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid @line-soft;
+  border-radius: @radius-md;
+  background: linear-gradient(180deg, #15181d 0%, #111317 100%);
+  box-shadow: @shadow-soft;
+  overflow: hidden;
+}
+
+.module-shell__header {
+  padding: 14px 16px;
+  border-bottom: 1px solid @line-soft;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+}
+
+.module-shell__header h2 {
+  margin: 0 0 6px;
+  font-size: @font-size-app-title-lg;
+  color: @text-primary;
+}
+
+.module-shell__header p {
+  margin: 0;
+  color: @text-muted;
+}
+
+.module-shell__content {
+  flex: 1;
+  min-height: 0;
+  padding: 14px;
+  overflow: hidden;
+}
+
+.master-detail-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: @text-primary;
+}
+
+.master-detail-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.master-detail-toolbar h3 {
+  margin: 0;
+  font-size: @font-size-app-heading;
+  color: @text-primary;
+}
+
+.master-detail-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) minmax(420px, 1.3fr);
+  gap: 12px;
+}
+
+.master-detail-view .panel {
+  border: 1px solid @line-soft;
+  border-radius: @radius-md;
+  background: rgba(255, 255, 255, 0.04);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.master-detail-view .detail-panel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.master-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.master-detail-header h3 {
+  margin: 0;
+  font-size: @font-size-app-heading;
+}
+
+.master-detail-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.cross-ref-title {
+  margin: 4px 0 0;
+  font-size: @font-size-app-label;
+  color: @text-muted;
+}
+
+.master-detail-form {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Shared contract for primary input sections across modules. */
+.app-inputs-layout {
+  display: grid;
+  grid-template-columns: repeat(3,  1fr);
+  gap: 12px;
+}
+
+.app-inputs-layout__field {
+  min-width: 0;
+  grid-column: span 4;
+}
+
+.app-inputs-layout__field--wide {
+  grid-column: span 6;
+}
+
+.app-inputs-layout__field--full {
+  grid-column: span 12;
+}
+
+.app-inputs-layout .el-form-item {
+  margin-bottom: 10px;
+}
+
+.app-inputs-layout .el-form-item__label,
+.app-inputs-layout .el-radio__label,
+.app-inputs-layout .el-checkbox__label {
+  font-size: @font-size-app-caption;
+}
+
+.app-inputs-layout .el-input__wrapper,
+.app-inputs-layout .el-select__wrapper,
+.app-inputs-layout .el-textarea__inner,
+.app-inputs-layout .el-input-number,
+.app-inputs-layout .el-date-editor {
+  background: @bg-elevated;
+  border-radius: @radius-sm;
+  box-shadow: inset 0 0 0 1px @line-soft;
+}
+
+.app-inputs-layout .el-input__wrapper.is-focus,
+.app-inputs-layout .el-select__wrapper.is-focused,
+.app-inputs-layout .el-textarea__inner:focus,
+.app-inputs-layout .el-input-number:focus-within,
+.app-inputs-layout .el-date-editor:focus-within {
+  box-shadow: inset 0 0 0 1px fade(@accent-cyan, 45%);
+}
+
+@media (max-width: 1280px) {
+  .app-inputs-layout__field,
+  .app-inputs-layout__field--wide {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-inputs-layout__field,
+  .app-inputs-layout__field--wide,
+  .app-inputs-layout__field--full {
+    grid-column: span 12;
+  }
+}
+
+.chip-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip-checkbox-group .el-checkbox {
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid @line-soft;
+}
+
+.master-detail-view .el-input__wrapper,
+.master-detail-view .el-select__wrapper,
+.master-detail-view .el-textarea__inner {
+  background: @bg-elevated;
+  box-shadow: inset 0 0 0 1px @line-soft;
+}
+
+.master-detail-view .el-button {
+  font-weight: 600;
+}
+
+.master-table {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.master-table__header {
+  padding: 12px;
+  border-bottom: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.master-table__header h3 {
+  margin: 0;
+  font-size: @font-size-app-heading;
+  color: @text-primary;
+}
+
+.master-table__body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.master-table__body .el-table__row td.el-table__cell {
+  border-bottom-color: rgba(255, 255, 255, 0.08);
+}
+
+.master-table__body .el-table__body .el-table__row {
+  cursor: pointer;
+}
+
+.el-button {
+  i,
+  span {
+    color: inherit;
+  }
+}

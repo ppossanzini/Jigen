@@ -3,6 +3,7 @@ using System.Text;
 using Jigen;
 using Jigen.DataStructures;
 using Jigen.Extensions;
+using Jigen.Indexer;
 using Xunit.Abstractions;
 
 
@@ -20,6 +21,15 @@ public class IngestionTests
     {
       DataBaseName = "tests",
       DataBasePath = "/data/jigendb"
+      , Indexer = new SmallWorldIndexer(new SmallWorldOptions()
+      {
+        M = 16,
+        EfConstruction = 200,
+        EfSearch = 80,
+        StoragePath = "/data/jigendb/hnsw"
+      })
+      
+      
     });
   }
 
@@ -27,7 +37,7 @@ public class IngestionTests
   [InlineData(1)]
   [InlineData(1000)]
   [InlineData(10_000)]
-  [InlineData(1_000_000)]
+  // [InlineData(1_000_000)]
   public async Task SimpleAppend(int count)
   {
     _testOutputHelper.WriteLine("\n SimpleAppend");

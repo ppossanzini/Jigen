@@ -1,0 +1,59 @@
+@import '@/assets/styles/global/variables.less';
+
+.collection-detail-panel {
+  border-radius: @radius-lg;
+  border: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 12px;
+  min-height: 540px;
+  min-width: 340px;
+}
+
+.panel-header {
+  margin-bottom: 10px;
+}
+
+.panel-header h3 {
+  margin: 0;
+  font-size: @font-size-app-title-md;
+  font-weight: 500;
+}
+
+.summary-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.summary-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.summary-list li span {
+  color: @text-muted;
+}
+
+.explorer-box {
+  margin-top: 16px;
+  border-radius: @radius-md;
+  border: 1px solid @line-soft;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
+}
+
+.explorer-box h4 {
+  margin: 0 0 8px;
+  font-size: @font-size-app-heading;
+}
+
+.explorer-box p,
+.empty {
+  margin: 0;
+  color: @text-muted;
+  line-height: 1.5;
+}

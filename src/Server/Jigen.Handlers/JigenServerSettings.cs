@@ -6,5 +6,8 @@ public class JigenServerSettings
   
   public string TokenizerPath { get; set; }
   public string EmbeddingsModelPath { get; set; }
-  
+
+  // ReSharper disable once InconsistentNaming
+  public  int MemoryLimitMB { get; set; } = 2048;
+  public bool TransientEmbedding { get; set; } = true;
 }

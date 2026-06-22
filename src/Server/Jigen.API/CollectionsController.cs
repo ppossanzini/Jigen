@@ -1,5 +1,7 @@
 using Jigen.DataStructures;
 using Hikyaku;
+using Jigen.Core.Dto.collections;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jigen.API;
@@ -9,6 +11,7 @@ namespace Jigen.API;
 public class CollectionsController(IHikyaku mediator, IDocumentSerializer serializer) : ControllerBase
 {
   [HttpGet]
+  [ProducesResponseType(typeof(IEnumerable<string>), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetCollections(string dbname)
   {
     var result = await mediator.Send(new Core.Query.collections.ListCollections()
@@ -19,13 +22,37 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   }
 
   [HttpGet("{collection}/info")]
+  [ProducesResponseType(typeof(CollectionInfo), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetCollectionInfo(string dbname, string collection)
   {
     var result = await mediator.Send(new Core.Query.collections.GetCollectionInfo()
     {
-      Database = dbname, 
+      Database = dbname,
       Collection = collection
     });
+    return Ok(result);
+  }
+
+  [HttpPost("search")]
+  [ProducesResponseType(typeof(SearchCollectionsResult), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> Search(string dbname, [FromBody] SearchCollectionsData request, CancellationToken cancellationToken)
+  {
+    if (request == null)
+      return BadRequest("Request payload is required");
+
+    if (request.Collections == null || !request.Collections.Any())
+      return BadRequest("At least one collection is required");
+
+    if (string.IsNullOrWhiteSpace(request.Sentence))
+      return BadRequest("Provide either sentence or embeddings");
+    
+    var result = await mediator.Send(new Core.Query.collections.SearchCollections
+    {
+      Database = dbname,
+      Data = request
+    }, cancellationToken);
+
     return Ok(result);
   }
 
@@ -34,14 +61,16 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   [Route("{collection}/documents/{key:guid}")]
   [Route("{collection}/documents/{key:long}")]
   [HttpPost, HttpPut, HttpPatch]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<IActionResult> SetDocument(string dbname, string collection, [FromQuery] object key, [FromBody] Dto.DocumentPayload payload)
   {
     if (payload == null)
       return BadRequest("Payload cannot be null");
 
-    if(dbname is null || collection  is null || key is null)
+    if (dbname is null || collection  is null || key is null)
       return BadRequest();
-    
+
     VectorKey keyVector = key switch
     {
       long l => VectorKey.From(l),
@@ -66,12 +95,13 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   [Route("{collection}/documents/{key:guid}")]
   [Route("{collection}/documents/{key:long}")]
   [HttpDelete]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<IActionResult> DeleteDocument(string dbname, string collection, [FromQuery] object key)
   {
-    
-    if(dbname is null || collection  is null || key is null)
+    if (dbname is null || collection  is null || key is null)
       return BadRequest();
-    
+
     VectorKey keyVector = key switch
     {
       long l => VectorKey.From(l),
@@ -96,11 +126,13 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   [Route("{collection}/documents/{key:guid}")]
   [Route("{collection}/documents/{key:long}")]
   [HttpGet]
+  [ProducesResponseType(typeof(byte[]), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<IActionResult> GetDocument(string dbname, string collection, [FromQuery] object key)
   {
-    if(dbname is null || collection  is null || key is null)
+    if (dbname is null || collection  is null || key is null)
       return BadRequest();
-    
+
     VectorKey keyVector = key switch
     {
       long l => VectorKey.From(l),
@@ -125,11 +157,13 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   [Route("{collection}/documents/{key:guid}/json")]
   [Route("{collection}/documents/{key:long}/json")]
   [HttpGet]
+  [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
   public async Task<IActionResult> GetDocumentJson(string dbname, string collection, [FromQuery] object key)
   {
-    if(dbname is null || collection  is null || key is null)
+    if (dbname is null || collection  is null || key is null)
       return BadRequest();
-    
+
     VectorKey keyVector = key switch
     {
       long l => VectorKey.From(l),
