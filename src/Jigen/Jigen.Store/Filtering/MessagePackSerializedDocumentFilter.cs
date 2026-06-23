@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Jigen.Filtering;
 using MessagePack;
@@ -16,11 +17,23 @@ public class MessagePackSerializedDocumentFilter : ISerializedDocumentFilter
 
   readonly MessagePackSerializerOptions _serializerOptions = MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance);
 
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public ReadOnlyMemory<byte> Serialize(object document) => _baseSerializer.Serialize(document);
+  
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public object Deserialize(Type t, ReadOnlyMemory<byte> data) => _baseSerializer.Deserialize(t, data);
+  
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public ReadOnlyMemory<byte> Serialize<T>(T document) => _baseSerializer.Serialize(document);
+  
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public T Deserialize<T>(ReadOnlyMemory<byte> data) => _baseSerializer.Deserialize<T>(data);
+  
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public string ToJson(ReadOnlyMemory<byte> data) => _baseSerializer.ToJson(data);
+  
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public object ToJsonObject(ReadOnlyMemory<byte> data) => Newtonsoft.Json.JsonConvert.DeserializeObject(ToJson( data));
 
   public bool MatchesFilter(ReadOnlyMemory<byte> serializedData, IFilterExpression filter)
   {

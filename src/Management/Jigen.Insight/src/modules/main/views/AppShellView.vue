@@ -7,9 +7,11 @@
       :search-placeholder="t('app.searchPlaceholder')"
       :search-label="t('app.searchLabel')"
       :notification-label="t('app.notifications')"
+      :logout-label="t('app.logoff')"
       @search="onSearch"
       @switch-workspace="onSwitchWorkspace"
       @notifications="onNotifications"
+      @logout="onLogout"
     />
 
     <div class="shell-body">

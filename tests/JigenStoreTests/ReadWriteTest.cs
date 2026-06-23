@@ -4,6 +4,8 @@ using Jigen;
 using Jigen.DataStructures;
 using Jigen.Extensions;
 using Jigen.Indexer;
+using Jigen.SemanticTools;
+using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
 using ZstdSharp.Unsafe;
 
@@ -15,7 +17,7 @@ public class ReadWriteTest : IDisposable
   private Store _store;
   private Jigen.SemanticTools.OnnxEmbeddingGenerator _embeddingGenerator;
 
-  public ReadWriteTest(ITestOutputHelper testOutputHelper)
+  public ReadWriteTest(ITestOutputHelper testOutputHelper, ILogger<ReadWriteTest> logger)
   {
     _testOutputHelper = testOutputHelper;
     _store = new Store(new StoreOptions()
@@ -28,7 +30,9 @@ public class ReadWriteTest : IDisposable
 
     _embeddingGenerator = new(
       "/data/onnx/multi-lingual/tokenizer.onnx",
-      "/data/onnx/multi-lingual/model.onnx");
+      "/data/onnx/multi-lingual/model.onnx",
+      logger,
+      new EmbeddingGeneratorOptions(){});
   }
 
   public void Dispose()

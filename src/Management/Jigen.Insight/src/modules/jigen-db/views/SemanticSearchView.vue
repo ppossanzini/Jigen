@@ -39,9 +39,7 @@
         <SemanticSearchResultsPanel
           :query-embedding-text="queryEmbeddingText"
           :result-rows="resultRows"
-          @copy-query-embedding="copyQueryEmbeddingToClipboard"
-          @copy-embedding="copyEmbeddingToClipboard"
-          @copy-result-json="copyResultJsonToClipboard"
+          @copy-result-content-json="copyResultContentJsonToClipboard"
         />
 
         <SemanticSearchDiagnosticsPanel

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using MessagePack;
 using MessagePack.Resolvers;
 
@@ -10,28 +11,21 @@ public class MessagePackDocumentSerializer : IDocumentSerializer
 
   readonly MessagePackSerializerOptions _serializerOptions = MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance);
 
-  public ReadOnlyMemory<byte> Serialize(object document)
-  {
-    return MessagePackSerializer.Serialize(document, _serializerOptions);
-  }
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public ReadOnlyMemory<byte> Serialize(object document) => MessagePackSerializer.Serialize(document, _serializerOptions);
 
-  public object Deserialize(Type t, ReadOnlyMemory<byte> data)  
-  {
-    return MessagePackSerializer.Deserialize(t, data, _serializerOptions);
-  }
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public object Deserialize(Type t, ReadOnlyMemory<byte> data)  => MessagePackSerializer.Deserialize(t, data, _serializerOptions);
 
-  public ReadOnlyMemory<byte> Serialize<T>(T document)
-  {
-    return MessagePackSerializer.Serialize(document, _serializerOptions);
-  }
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public ReadOnlyMemory<byte> Serialize<T>(T document) => MessagePackSerializer.Serialize(document, _serializerOptions);
 
-  public T Deserialize<T>(ReadOnlyMemory<byte> data)
-  {
-    return MessagePackSerializer.Deserialize<T>(data, _serializerOptions);
-  }
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public T Deserialize<T>(ReadOnlyMemory<byte> data) => MessagePackSerializer.Deserialize<T>(data, _serializerOptions);
 
-  public string ToJson(ReadOnlyMemory<byte> data)
-  {
-    return MessagePackSerializer.ConvertToJson(data, _serializerOptions);
-  }
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public string ToJson(ReadOnlyMemory<byte> data) => MessagePackSerializer.ConvertToJson(data, _serializerOptions);
+
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public object ToJsonObject(ReadOnlyMemory<byte> data) => Newtonsoft.Json.JsonConvert.DeserializeObject(ToJson(data));
 }

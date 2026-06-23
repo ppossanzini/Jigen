@@ -3,18 +3,6 @@
     <el-card class="panel embedding-panel">
       <div class="result-card__block-header">
         <h3>{{ $t('semanticSearch.labels.queryEmbedding') }}</h3>
-        <el-button
-          class="embedding-copy-button"
-          text
-          circle
-          size="small"
-          :disabled="!queryEmbeddingText"
-          :title="$t('semanticSearch.buttons.copyQueryEmbedding')"
-          :aria-label="$t('semanticSearch.buttons.copyQueryEmbedding')"
-          @click="onCopyQueryEmbedding"
-        >
-          <i class="ti ti-copy"></i>
-        </el-button>
       </div>
       <el-empty v-if="!queryEmbeddingText" :description="$t('semanticSearch.labels.notCalculated')" />
       <code v-else class="embedding-code embedding-code--muted">{{ queryEmbeddingText }}</code>
@@ -43,13 +31,15 @@
                   text
                   circle
                   size="small"
-                  :title="$t('semanticSearch.buttons.copyResultJson')"
-                  :aria-label="$t('semanticSearch.buttons.copyResultJson')"
-                  @click="onCopyResultJson(row)"
+                  :title="$t('semanticSearch.buttons.copyContentJson')"
+                  :aria-label="$t('semanticSearch.buttons.copyContentJson')"
+                  @click="onCopyResultContentJson(row)"
                 >
                   <i class="ti ti-copy"></i>
                 </el-button>
-                <el-tag class="result-score-tag" effect="dark" type="warning">{{ row.score.toFixed(4) }}</el-tag>
+                <el-tag class="result-score-tag" effect="dark" type="warning">
+                  {{ $t('semanticSearch.labels.score') }}: {{ row.score.toFixed(4) }}
+                </el-tag>
                 <el-tag class="result-latency-tag" effect="dark" type="info">{{ row.latencyMs }} ms</el-tag>
               </div>
             </header>
@@ -73,27 +63,6 @@
             <section class="result-card__block">
               <h4>{{ $t('semanticSearch.labels.content') }}</h4>
               <p class="content-cell">{{ row.content || $t('semanticSearch.labels.noContent') }}</p>
-            </section>
-
-            <section class="result-card__block">
-              <div class="result-card__block-header">
-                <h4>{{ $t('semanticSearch.labels.responseEmbedding') }}</h4>
-                <el-button
-                  class="embedding-copy-button"
-                  text
-                  circle
-                  size="small"
-                  :disabled="!row.responseEmbedding.length"
-                  :title="$t('semanticSearch.buttons.copyEmbedding')"
-                  :aria-label="$t('semanticSearch.buttons.copyEmbedding')"
-                  @click="onCopyEmbedding(row.responseEmbedding)"
-                >
-                  <i class="ti ti-copy"></i>
-                </el-button>
-              </div>
-              <code class="embedding-inline embedding-inline--muted">
-                {{ row.responseEmbedding.length ? formatEmbedding(row.responseEmbedding) : $t('semanticSearch.labels.notAvailable') }}
-              </code>
             </section>
           </article>
         </div>

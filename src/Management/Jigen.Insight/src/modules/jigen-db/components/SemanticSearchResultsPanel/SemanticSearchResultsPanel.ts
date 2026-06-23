@@ -19,7 +19,7 @@ export default defineComponent({
       required: true,
     },
   },
-  emits: ['copy-query-embedding', 'copy-embedding', 'copy-result-json'],
+  emits: ['copy-result-content-json'],
   setup(_, { emit }) {
     const toAttributeEntries = (attributes: Record<string, string>): AttributeEntry[] =>
       Object.entries(attributes).map(([key, value]) => ({ key, value }))
@@ -27,28 +27,14 @@ export default defineComponent({
     const hasAttributes = (attributes: Record<string, string>): boolean =>
       toAttributeEntries(attributes).length > 0
 
-    const formatEmbedding = (embedding: number[]): string =>
-      `[${embedding.map((value) => value.toFixed(4)).join(', ')}]`
-
-    const onCopyQueryEmbedding = () => {
-      emit('copy-query-embedding')
-    }
-
-    const onCopyEmbedding = (embedding: number[]) => {
-      emit('copy-embedding', embedding)
-    }
-
-    const onCopyResultJson = (row: SearchResultRow) => {
-      emit('copy-result-json', row)
+    const onCopyResultContentJson = (row: SearchResultRow) => {
+      emit('copy-result-content-json', row)
     }
 
     return {
       toAttributeEntries,
       hasAttributes,
-      formatEmbedding,
-      onCopyQueryEmbedding,
-      onCopyEmbedding,
-      onCopyResultJson,
+      onCopyResultContentJson,
     }
   },
 })

@@ -6,24 +6,18 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using OpenIddict.Abstractions;
 
 namespace Jigen.Identity.Handlers;
 
-public sealed class IdentitySeeder : IHostedService
+public sealed class IdentitySeeder(IServiceProvider serviceProvider, IConfiguration configuration, ILogger<IdentitySeeder> logger) : IHostedService
 {
-  private readonly IServiceProvider _serviceProvider;
-  private readonly IConfiguration _configuration;
 
-  public IdentitySeeder(IServiceProvider serviceProvider, IConfiguration configuration)
-  {
-    _serviceProvider = serviceProvider;
-    _configuration = configuration;
-  }
 
   public async Task StartAsync(CancellationToken cancellationToken)
   {
-    using var scope = _serviceProvider.CreateScope();
+    using var scope = serviceProvider.CreateScope();
 
     var dbContext = scope.ServiceProvider.GetRequiredService<JigenIdentityDbContext>();
     await dbContext.Database.EnsureCreatedAsync(cancellationToken);
@@ -39,8 +33,8 @@ public sealed class IdentitySeeder : IHostedService
 
   private async Task SeedUserAsync(IServiceProvider services, CancellationToken cancellationToken)
   {
-    var userName = _configuration["JigenIdentity:SeedUser:UserName"];
-    var password = _configuration["JigenIdentity:SeedUser:Password"];
+    var userName = configuration["JigenIdentity:SeedUser:UserName"];
+    var password = configuration["JigenIdentity:SeedUser:Password"];
 
     if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(password))
       return;
@@ -56,7 +50,7 @@ public sealed class IdentitySeeder : IHostedService
     var user = new IdentityUser { UserName = userName };
     var result = await userManager.CreateAsync(user, password);
     if (!result.Succeeded)
-      throw new InvalidOperationException($"Failed to create seed user '{userName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
+      logger.LogError($"Failed to create seed user '{userName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
 
     await AssignSeedUserRolesAndPermissionsAsync(userManager, user, cancellationToken);
   }
@@ -68,27 +62,27 @@ public sealed class IdentitySeeder : IHostedService
     await EnsureRoleAsync(roleManager, AuthConstants.Roles.SecurityAdmin, cancellationToken);
   }
 
-  private static async Task EnsureRoleAsync(RoleManager<IdentityRole> roleManager, string roleName, CancellationToken cancellationToken)
+  private async Task EnsureRoleAsync(RoleManager<IdentityRole> roleManager, string roleName, CancellationToken cancellationToken)
   {
     if (await roleManager.RoleExistsAsync(roleName))
       return;
 
     var result = await roleManager.CreateAsync(new IdentityRole(roleName));
     if (!result.Succeeded)
-      throw new InvalidOperationException($"Failed to create role '{roleName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
+      logger.LogError( $"Failed to create role '{roleName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
   }
 
   private async Task AssignSeedUserRolesAndPermissionsAsync(UserManager<IdentityUser> userManager, IdentityUser user, CancellationToken cancellationToken)
   {
-    var roles = _configuration.GetSection("JigenIdentity:SeedUser:Roles").Get<string[]>() ?? [];
+    var roles = configuration.GetSection("JigenIdentity:SeedUser:Roles").Get<string[]>() ?? [];
     if (roles.Length > 0)
     {
       var addRolesResult = await userManager.AddToRolesAsync(user, roles);
       if (!addRolesResult.Succeeded)
-        throw new InvalidOperationException($"Failed to assign roles to seed user '{user.UserName}': {string.Join(", ", addRolesResult.Errors.Select(e => e.Description))}");
+        logger.LogError($"Failed to assign roles to seed user '{user.UserName}': {string.Join(", ", addRolesResult.Errors.Select(e => e.Description))}");
     }
 
-    var permissions = _configuration.GetSection("JigenIdentity:SeedUser:Permissions").Get<string[]>() ?? [];
+    var permissions = configuration.GetSection("JigenIdentity:SeedUser:Permissions").Get<string[]>() ?? [];
     if (permissions.Length > 0)
     {
       var existingClaims = await userManager.GetClaimsAsync(user);
@@ -108,7 +102,7 @@ public sealed class IdentitySeeder : IHostedService
 
   private async Task SeedClientAsync(IServiceProvider services, CancellationToken cancellationToken)
   {
-    var clientId = _configuration["JigenIdentity:DefaultClient:ClientId"];
+    var clientId = configuration["JigenIdentity:DefaultClient:ClientId"];
     if (string.IsNullOrWhiteSpace(clientId))
       return;
 
@@ -116,14 +110,14 @@ public sealed class IdentitySeeder : IHostedService
     if (await manager.FindByClientIdAsync(clientId, cancellationToken) != null)
       return;
 
-    var redirectUris = _configuration.GetSection("JigenIdentity:DefaultClient:RedirectUris").Get<string[]>() ?? [];
-    var postLogoutRedirectUris = _configuration.GetSection("JigenIdentity:DefaultClient:PostLogoutRedirectUris").Get<string[]>() ?? [];
+    var redirectUris = configuration.GetSection("JigenIdentity:DefaultClient:RedirectUris").Get<string[]>() ?? [];
+    var postLogoutRedirectUris = configuration.GetSection("JigenIdentity:DefaultClient:PostLogoutRedirectUris").Get<string[]>() ?? [];
 
     var descriptor = new OpenIddictApplicationDescriptor
     {
       ClientId = clientId,
-      ClientSecret = _configuration["JigenIdentity:DefaultClient:ClientSecret"],
-      DisplayName = _configuration["JigenIdentity:DefaultClient:DisplayName"] ?? clientId,
+      ClientSecret = configuration["JigenIdentity:DefaultClient:ClientSecret"],
+      DisplayName = configuration["JigenIdentity:DefaultClient:DisplayName"] ?? clientId,
       Permissions =
       {
         OpenIddictConstants.Permissions.Endpoints.Authorization,

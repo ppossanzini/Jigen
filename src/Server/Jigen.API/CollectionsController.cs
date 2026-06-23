@@ -84,7 +84,7 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     {
       Database = dbname, Collection = collection,
       Key = keyVector.Value,
-      Content = payload.Payload,
+      Content = payload.Payload != null ? serializer.Serialize(payload.Payload).ToArray() : null,
       Sentence = payload.Sentence
     });
     return Ok();

@@ -111,6 +111,12 @@ export default defineComponent({
 
     const onSwitchWorkspace = () => ElMessage.success(t('app.switch'))
     const onNotifications = () => ElMessage.info(t('app.notifications'))
+    const onLogout = async () => {
+      authStore.logout()
+      navigationStore.setActiveNav('home')
+      await router.push({ name: 'sign-in' })
+      ElMessage.success(t('app.loggedOff'))
+    }
 
     return {
       t,
@@ -122,6 +128,7 @@ export default defineComponent({
       onSearch,
       onSwitchWorkspace,
       onNotifications,
+      onLogout,
     }
   },
 })

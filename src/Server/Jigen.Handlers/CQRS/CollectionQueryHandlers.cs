@@ -15,9 +15,9 @@ namespace Jigen.Handlers.CQRS;
 
 public class CollectionQueryHandlers(
   DatabasesManager manager,
-  DatabaseOwnershipGuard ownershipGuard,
-  IEmbeddingGenerator embeddingGenerator,
+  // DatabaseOwnershipGuard ownershipGuard,
   IDocumentSerializer serializer,
+  IEmbeddingGenerator embeddingGenerator,
   ILogger<CollectionCommandHandlers> logger) :
   IRequestHandler<Core.Query.collections.ListCollections, IEnumerable<string>>,
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
@@ -31,7 +31,6 @@ public class CollectionQueryHandlers(
   public Task<IEnumerable<string>> Handle(ListCollections request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing ListCollection for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     return Task.FromResult(store.GetCollections().AsEnumerable());
   }
@@ -39,7 +38,6 @@ public class CollectionQueryHandlers(
   public Task<CollectionInfo> Handle(GetCollectionInfo request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetCollectionInfo for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     return Task.FromResult(store.GetCollectionInfo(request.Collection));
   }
@@ -47,7 +45,6 @@ public class CollectionQueryHandlers(
   public Task<IEnumerable<CollectionInfo>> Handle(GetCollectionsInfo request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetCollectionsInfo for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     return Task.FromResult(
@@ -58,7 +55,6 @@ public class CollectionQueryHandlers(
   public Task<byte[]> Handle(GetRawContent request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetRawContent for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var result = store.GetContent(request.Collection, request.Key);
@@ -68,7 +64,6 @@ public class CollectionQueryHandlers(
   public Task<IEnumerable<VectorKey>> Handle(GetAllKeys request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetAllKeys for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var result = (store.GetCollectionIndexOf(request.Collection, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ??
@@ -79,7 +74,6 @@ public class CollectionQueryHandlers(
   public Task<IEnumerable<SearchVectorResultItem>> Handle(SearchVector request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing SearchVector for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var top = request.Top <= 0 ? 10 : request.Top;
@@ -98,7 +92,6 @@ public class CollectionQueryHandlers(
   public async Task<SearchCollectionsResult> Handle(SearchCollections request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing SearchCollections for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     if (request.Data == null) throw new ArgumentException("Request payload is required");
 
@@ -138,7 +131,7 @@ public class CollectionQueryHandlers(
         {
           Collection = collection,
           Key = r.entry.Id,
-          Content = r.entry.Content,
+          Content = serializer.ToJsonObject(r.entry.Content),
           Score = r.score
         })
         .ToArray();

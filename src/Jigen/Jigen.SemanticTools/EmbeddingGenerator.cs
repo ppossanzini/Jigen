@@ -14,13 +14,22 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   private readonly InferenceSession _tokenizerSession;
   private readonly InferenceSession _modelSession;
   private readonly ILogger _logger;
+  private readonly int _maxTokens;
+  private readonly bool _useChunking;
+  private readonly int _chunkSize;
+  private readonly int _chunkOverlap;
+  private readonly int _headTokens;
 
   /// <summary>
   /// Initializes a new instance of the OnnxEmbeddingGenerator class.
   /// </summary>
   /// <param name="tokenizerPath">Path to the ONNX tokenizer model.</param>
   /// <param name="modelPath">Path to the ONNX embedding model.</param>
-  public OnnxEmbeddingGenerator(string tokenizerPath, string modelPath, ILogger<OnnxEmbeddingGenerator> logger)
+  public OnnxEmbeddingGenerator(
+    string tokenizerPath,
+    string modelPath,
+    ILogger logger = null,
+    EmbeddingGeneratorOptions options= null)
   {
     // Initialize tokenizer session with ONNX Extensions
     var tokenizerOptions = new SessionOptions();
@@ -29,6 +38,14 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     _tokenizerSession = new InferenceSession(tokenizerPath, tokenizerOptions);
     _modelSession = new InferenceSession(modelPath);
     _logger = logger;
+
+    if (options == null) options = new EmbeddingGeneratorOptions();
+    
+    _maxTokens = Math.Max(options.MaxTokens, 8);
+    _useChunking = options.UseChunking;
+    _chunkSize = Math.Clamp(options.ChunkSize, 8, _maxTokens);
+    _chunkOverlap = Math.Clamp(options.ChunkOverlap, 0, _chunkSize - 1);
+    _headTokens = Math.Clamp(options.HeadTailHeadTokens, 1, _maxTokens - 1);
   }
 
   /// <summary>
@@ -38,7 +55,63 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   /// <returns>The embedding vector as a float array.</returns>
   public float[] GenerateEmbedding(string text)
   {
-    // Create input for tokenizer using CreateFromTensor
+    if (string.IsNullOrWhiteSpace(text))
+      throw new ArgumentException("Input text cannot be null or empty.", nameof(text));
+
+    try
+    {
+      var tokenIds = TokenizeToInputIds(text);
+      _logger?.LogDebug("Tokenized text chars={Chars}, tokens={Tokens}", text.Length, tokenIds.Length);
+
+      if (tokenIds.Length == 0)
+        return Array.Empty<float>();
+
+      if (tokenIds.Length <= _maxTokens)
+        return RunModel(tokenIds);
+
+      if (!_useChunking)
+      {
+        var truncated = TruncateHeadTail(tokenIds);
+        _logger?.LogInformation(
+          "Input tokens exceed max tokens. Using head-tail truncation: original={OriginalTokens}, truncated={TruncatedTokens}",
+          tokenIds.Length,
+          truncated.Length);
+        return RunModel(truncated);
+      }
+
+      var chunks = BuildChunks(tokenIds);
+      _logger?.LogInformation(
+        "Input tokens exceed max tokens. Using chunking: original={OriginalTokens}, chunks={ChunkCount}, chunkSize={ChunkSize}, overlap={ChunkOverlap}",
+        tokenIds.Length,
+        chunks.Count,
+        _chunkSize,
+        _chunkOverlap);
+
+      var vectors = new List<(float[] Vector, int Weight)>(chunks.Count);
+      foreach (var chunk in chunks)
+      {
+        var vector = RunModel(chunk);
+        if (vector.Length > 0)
+          vectors.Add((vector, chunk.Length));
+      }
+
+      if (vectors.Count == 0)
+        return Array.Empty<float>();
+
+      if (vectors.Count == 1)
+        return vectors[0].Vector;
+
+      return WeightedAverage(vectors);
+    }
+    catch (Exception ex)
+    {
+      _logger?.LogError(ex, "Error while generating embedding. The input may exceed model token limits.");
+      return Array.Empty<float>();
+    }
+  }
+
+  private long[] TokenizeToInputIds(string text)
+  {
     var tokenizerInputs = new List<NamedOnnxValue>
     {
       NamedOnnxValue.CreateFromTensor("inputs", new DenseTensor<string>([1])
@@ -46,24 +119,24 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
         [0] = text
       })
     };
-    
-    _logger.LogDebug($"$Tokenizing text ({text.Length}): {text}");
 
-    // Run tokenizer
     using var tokenizerResults = _tokenizerSession.Run(tokenizerInputs);
     var tokenizerResultsList = tokenizerResults.ToList();
 
-    // Extract tokens and token_indices (order: tokens, instance_indices, token_indices)
     var tokens = tokenizerResultsList[0].AsTensor<int>().ToArray();
     var tokenIndices = tokenizerResultsList[2].AsTensor<int>().ToArray();
 
-    // Convert to input_ids by sorting tokens based on token_indices
-    var tokenPairs = tokens.Zip(tokenIndices, (t, i) => (token: t, index: i)).OrderBy(p => p.index).Select(p => (long)p.token).ToArray();
+    return tokens
+      .Zip(tokenIndices, (token, index) => (token, index))
+      .OrderBy(item => item.index)
+      .Select(item => (long)item.token)
+      .ToArray();
+  }
 
-    // Create input_ids tensor with shape [1, tokenPairs.Length]
-    var inputIdsTensor = new DenseTensor<long>(tokenPairs, [1, tokenPairs.Length], false);
-
-    var attentionMaskTensor = new DenseTensor<long>([1, tokenPairs.Length]);
+  private float[] RunModel(long[] tokenIds)
+  {
+    var inputIdsTensor = new DenseTensor<long>(tokenIds, [1, tokenIds.Length], false);
+    var attentionMaskTensor = new DenseTensor<long>([1, tokenIds.Length]);
     attentionMaskTensor.Fill(1);
 
     var modelInputs = new List<NamedOnnxValue>
@@ -72,17 +145,69 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor)
     };
 
+    using var modelResults = _modelSession.Run(modelInputs);
+    return modelResults.Last().AsTensor<float>().ToArray();
+  }
 
-    try
+  private long[] TruncateHeadTail(long[] tokenIds)
+  {
+    if (tokenIds.Length <= _maxTokens)
+      return tokenIds;
+
+    var tailCount = _maxTokens - _headTokens;
+    if (tailCount <= 0)
+      return tokenIds.Take(_maxTokens).ToArray();
+
+    var truncated = new long[_maxTokens];
+    Array.Copy(tokenIds, 0, truncated, 0, _headTokens);
+    Array.Copy(tokenIds, tokenIds.Length - tailCount, truncated, _headTokens, tailCount);
+    return truncated;
+  }
+
+  private List<long[]> BuildChunks(long[] tokenIds)
+  {
+    var chunks = new List<long[]>();
+    var step = _chunkSize - _chunkOverlap;
+
+    for (var start = 0; start < tokenIds.Length; start += step)
     {
-      using var modelResults = _modelSession.Run(modelInputs);
-      return modelResults.Last().AsTensor<float>().ToArray();
+      var length = Math.Min(_chunkSize, tokenIds.Length - start);
+      var chunk = new long[length];
+      Array.Copy(tokenIds, start, chunk, 0, length);
+      chunks.Add(chunk);
+
+      if (start + length >= tokenIds.Length)
+        break;
     }
-    catch
+
+    return chunks;
+  }
+
+  private static float[] WeightedAverage(List<(float[] Vector, int Weight)> vectors)
+  {
+    var dimension = vectors[0].Vector.Length;
+    var accumulator = new double[dimension];
+    var totalWeight = 0d;
+
+    foreach (var (vector, weight) in vectors)
     {
-      _logger.LogError("Error while generating embedding ... may be the sentence is too long");
-      return Array.Empty<float>();
+      if (weight <= 0 || vector.Length != dimension)
+        continue;
+
+      for (var i = 0; i < dimension; i++)
+        accumulator[i] += vector[i] * weight;
+
+      totalWeight += weight;
     }
+
+    if (totalWeight <= 0)
+      return vectors[0].Vector;
+
+    var pooled = new float[dimension];
+    for (var i = 0; i < dimension; i++)
+      pooled[i] = (float)(accumulator[i] / totalWeight);
+
+    return pooled;
   }
 
 

@@ -10,4 +10,5 @@ public interface IDocumentSerializer
   T Deserialize<T>(ReadOnlyMemory<byte> data);
 
   string ToJson(ReadOnlyMemory<byte> data);
+  object ToJsonObject(ReadOnlyMemory<byte> data);
 }

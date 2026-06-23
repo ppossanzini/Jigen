@@ -32,10 +32,21 @@
         <i class="ti ti-bell" />
         <span>{{ notificationLabel }}</span>
       </el-button>
-      <div class="user-pill" role="status" aria-live="polite">
-        <i class="ti ti-user-circle" />
-        <span>{{ userName }}</span>
-      </div>
+      <el-dropdown class="user-menu" trigger="click" @command="onUserMenuCommand">
+        <el-button class="user-pill" role="status" aria-live="polite">
+          <i class="ti ti-user-circle" />
+          <span>{{ userName }}</span>
+          <i class="ti ti-chevron-down" />
+        </el-button>
+        <template #dropdown>
+          <el-dropdown-menu>
+            <el-dropdown-item command="logout">
+              <i class="ti ti-logout"></i>
+              <span>{{ logoutLabel }}</span>
+            </el-dropdown-item>
+          </el-dropdown-menu>
+        </template>
+      </el-dropdown>
     </div>
   </header>
 </template>
