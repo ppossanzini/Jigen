@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using SharedTools;
 
 namespace Jigen.Handlers;
@@ -33,7 +34,7 @@ public class Module : IModule
     services.AddSingleton<IEmbeddingGenerator>(_ =>
     {
       return new QueuedEmbeddingGenerator(
-        new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath),
+        new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath, _.GetService<ILogger<OnnxEmbeddingGenerator>>()),
           settings.EmbeddingsMaxConcurrency,
           settings.EmbeddingsQueueCapacity,
           TimeSpan.FromSeconds(settings.EmbeddingsQueueTimeoutSeconds));

@@ -28,8 +28,9 @@ public sealed class IdentitySeeder : IHostedService
     var dbContext = scope.ServiceProvider.GetRequiredService<JigenIdentityDbContext>();
     await dbContext.Database.EnsureCreatedAsync(cancellationToken);
 
+    await SeedRolesAsync(scope.ServiceProvider, cancellationToken); 
     await SeedUserAsync(scope.ServiceProvider, cancellationToken);
-    await SeedRolesAsync(scope.ServiceProvider, cancellationToken);
+    
     await SeedClientAsync(scope.ServiceProvider, cancellationToken);
     await SeedScopeAsync(scope.ServiceProvider, cancellationToken);
   }

@@ -1,5 +1,6 @@
 ﻿// This Class is from https://github.com/yuniko-software/tokenizer-to-onnx-model sample
 
+using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 
@@ -12,13 +13,14 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 {
   private readonly InferenceSession _tokenizerSession;
   private readonly InferenceSession _modelSession;
+  private readonly ILogger _logger;
 
   /// <summary>
   /// Initializes a new instance of the OnnxEmbeddingGenerator class.
   /// </summary>
   /// <param name="tokenizerPath">Path to the ONNX tokenizer model.</param>
   /// <param name="modelPath">Path to the ONNX embedding model.</param>
-  public OnnxEmbeddingGenerator(string tokenizerPath, string modelPath)
+  public OnnxEmbeddingGenerator(string tokenizerPath, string modelPath, ILogger<OnnxEmbeddingGenerator> logger)
   {
     // Initialize tokenizer session with ONNX Extensions
     var tokenizerOptions = new SessionOptions();
@@ -26,6 +28,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 
     _tokenizerSession = new InferenceSession(tokenizerPath, tokenizerOptions);
     _modelSession = new InferenceSession(modelPath);
+    _logger = logger;
   }
 
   /// <summary>
@@ -43,6 +46,8 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
         [0] = text
       })
     };
+    
+    _logger.LogDebug($"$Tokenizing text ({text.Length}): {text}");
 
     // Run tokenizer
     using var tokenizerResults = _tokenizerSession.Run(tokenizerInputs);
@@ -67,9 +72,17 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor)
     };
 
-    
-    using var modelResults = _modelSession.Run(modelInputs);
-    return modelResults.Last().AsTensor<float>().ToArray();
+
+    try
+    {
+      using var modelResults = _modelSession.Run(modelInputs);
+      return modelResults.Last().AsTensor<float>().ToArray();
+    }
+    catch
+    {
+      _logger.LogError("Error while generating embedding ... may be the sentence is too long");
+      return Array.Empty<float>();
+    }
   }
 
 

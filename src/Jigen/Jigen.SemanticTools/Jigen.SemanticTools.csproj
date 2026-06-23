@@ -13,4 +13,11 @@
     <PackageReference Include="Microsoft.ML.OnnxRuntime.Extensions" Version="0.14.0"/>
   </ItemGroup>
 
+
+  <ItemGroup>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+      <HintPath>..\..\..\..\..\..\.nuget\packages\microsoft.extensions.logging.abstractions\10.0.2\lib\net10.0\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>
