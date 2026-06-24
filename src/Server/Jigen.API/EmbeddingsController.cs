@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jigen.API;
 
 [ApiController]
-[Route("embeddings")]
+[Route("~/api/embeddings")]
 public class EmbeddingsController(IEmbeddingGenerator generator) : ControllerBase
 {
   [HttpPost("calculate")]

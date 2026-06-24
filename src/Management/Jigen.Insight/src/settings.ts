@@ -11,7 +11,7 @@ export interface AppSettings {
 
 const defaultSettings: AppSettings = {
   api: {
-    baseUrl: 'http://localhost:13223',
+    baseUrl: 'http://localhost:13223/api',
   },
   oidc: {
     clientId: 'jigen-insight-spa',

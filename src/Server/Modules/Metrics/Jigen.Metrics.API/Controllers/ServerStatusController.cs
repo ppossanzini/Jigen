@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jigen.Metrics.Controllers;
 
 [ApiController]
-[Route("metric/server-status")]
+[Route("~/api/metric/server-status")]
 public class ServerStatusController(IHikyaku hikyaku) : ControllerBase
 {
   [HttpGet("1m")]

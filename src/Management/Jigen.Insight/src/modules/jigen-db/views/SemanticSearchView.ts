@@ -321,6 +321,15 @@ export default defineComponent({
       perCollectionMetrics.value = []
     }
 
+    const clearSearchResults = () => {
+      queryEmbedding.value = null
+      resultRows.value = []
+      searchPath.value = []
+      queryEmbeddingTimeMs.value = null
+      globalOperationTimeMs.value = null
+      perCollectionMetrics.value = []
+    }
+
     const onUpdateSelectedDatabaseName = (value: string | null) => {
       selectedDatabaseName.value = value
     }
@@ -341,7 +350,7 @@ export default defineComponent({
       selectedDatabaseName,
       async (databaseName) => {
         selectedCollections.value = []
-        onClear()
+        clearSearchResults()
 
         if (!databaseName) {
           return

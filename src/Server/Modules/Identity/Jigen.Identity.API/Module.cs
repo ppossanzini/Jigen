@@ -50,10 +50,10 @@ public class Module : IModule
           options.SetIssuer(new Uri(issuer));
 
         var opt = options
-          .SetAuthorizationEndpointUris("/connect/authorize")
-          .SetTokenEndpointUris("/connect/token")
-          .SetIntrospectionEndpointUris("/connect/introspect")
-          .SetRevocationEndpointUris("/connect/revocation")
+          .SetAuthorizationEndpointUris("/api/connect/authorize")
+          .SetTokenEndpointUris("/api/connect/token")
+          .SetIntrospectionEndpointUris("/api/connect/introspect")
+          .SetRevocationEndpointUris("/api/connect/revocation")
           .AllowAuthorizationCodeFlow()
           .AllowImplicitFlow()
           .AllowPasswordFlow()

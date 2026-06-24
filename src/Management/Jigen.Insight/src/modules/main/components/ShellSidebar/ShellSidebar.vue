@@ -24,14 +24,6 @@
         </template>
       </el-menu>
 
-      <div class="sidebar-bottom">
-        <el-button class="collapse-btn" @click="onCollapse">
-          <span>{{ collapseLabel }}</span>
-        </el-button>
-        <el-button class="help-btn" :aria-label="helpLabel" @click="onHelp">
-          <i class="ti ti-help" />
-        </el-button>
-      </div>
     </div>
   </aside>
 </template>

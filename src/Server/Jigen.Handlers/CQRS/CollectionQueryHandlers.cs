@@ -23,7 +23,7 @@ public class CollectionQueryHandlers(
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
   IRequestHandler<Core.Query.collections.GetCollectionsInfo, IEnumerable<CollectionInfo>>,
   IRequestHandler<Core.Query.collections.GetRawContent, byte[]>,
-  IRequestHandler<Core.Query.collections.GetAllKeys, IEnumerable<VectorKey>>,
+  IRequestHandler<Core.Query.collections.GetAllKeys, IEnumerable<VectorKey>>, 
   IRequestHandler<Core.Query.collections.SearchVector, IEnumerable<SearchVectorResultItem>>,
   IRequestHandler<Core.Query.collections.SearchCollections, SearchCollectionsResult>
 
@@ -103,24 +103,20 @@ public class CollectionQueryHandlers(
     if (collections.Length == 0)
       throw new ArgumentException("At least one collection is required");
 
-    if (string.IsNullOrWhiteSpace(request.Data.Sentence))
-      throw new ArgumentException("Provide a sentence ");
+    var embeddingsTimer = new Stopwatch();
+    var embeddings = request.Data.Embeddings;
+    if (request.Data.Embeddings == null || request.Data.Embeddings.Length == 0)
+    {
+      if (string.IsNullOrWhiteSpace(request.Data.Sentence))
+        throw new ArgumentException("Provide a sentence or embeddings");
 
-    var embeddingsTimer = Stopwatch.StartNew();
-    var embeddings = embeddingGenerator.GenerateEmbedding(request.Data.Sentence);
-    embeddingsTimer.Stop();
-
+      embeddingsTimer.Start();
+      embeddings = embeddingGenerator.GenerateEmbedding(request.Data.Sentence);
+      embeddingsTimer.Stop();
+    }
     var top = request.Data.Top <= 0 ? 10 : request.Data.Top;
     var searchTimer = Stopwatch.StartNew();
     var collectionsResults = new CollectionSearchResult[collections.Length];
-
-
-    var parallelOptions = new ParallelOptions
-    {
-      CancellationToken = cancellationToken,
-      MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, collections.Length)
-    };
-
 
     Parallel.For(0, collections.Length, (i, ct) =>
     {
@@ -129,7 +125,6 @@ public class CollectionQueryHandlers(
       var resultItems = store.Search(collection, embeddings, top)
         .Select(r => new CollectionSearchResultItem
         {
-          Collection = collection,
           Key = r.entry.Id,
           Content = serializer.ToJsonObject(r.entry.Content),
           Score = r.score

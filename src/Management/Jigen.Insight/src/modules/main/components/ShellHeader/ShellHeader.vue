@@ -5,15 +5,15 @@
         <img src="/assets/logo.svg" alt="" />
       </div>
       <h1 class="brand-name">{{ appName }}</h1>
-      <el-button class="workspace-chip" @click="onSwitchWorkspace">
+      <!-- <el-button class="workspace-chip" @click="onSwitchWorkspace">
         <i class="ti ti-stack" />
         <span>{{ workspace }}</span>
         <i class="ti ti-chevron-down" />
-      </el-button>
+      </el-button> -->
     </div>
 
     <div class="center-group">
-      <span class="sr-only">{{ searchLabel }}</span>
+      <!-- <span class="sr-only">{{ searchLabel }}</span>
       <el-input
         v-model="searchText"
         class="search-input"
@@ -24,14 +24,14 @@
         <template #prefix>
           <i class="ti ti-search" />
         </template>
-      </el-input>
+      </el-input> -->
     </div>
 
     <div class="right-group">
-      <el-button class="notification-btn" @click="onNotifications">
+      <!-- <el-button class="notification-btn" @click="onNotifications">
         <i class="ti ti-bell" />
         <span>{{ notificationLabel }}</span>
-      </el-button>
+      </el-button> -->
       <el-dropdown class="user-menu" trigger="click" @command="onUserMenuCommand">
         <el-button class="user-pill" role="status" aria-live="polite">
           <i class="ti ti-user-circle" />

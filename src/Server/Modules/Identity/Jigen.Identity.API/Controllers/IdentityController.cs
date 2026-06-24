@@ -6,12 +6,12 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Jigen.Identity.Controllers;
+namespace Jigen.Identity.API.Controllers;
 
 [ApiController]
 public class IdentityController(IHikyaku mediator) : ControllerBase
 {
-  [HttpPost("~/identity/login")]
+  [HttpPost("~/api/identity/login")]
   [ProducesResponseType(StatusCodes.Status204NoContent)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
   [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -31,7 +31,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
     return NoContent();
   }
 
-  [HttpPost("~/identity/logout")]
+  [HttpPost("~/api/identity/logout")]
   [ProducesResponseType(StatusCodes.Status204NoContent)]
   public async Task<IActionResult> Logout(CancellationToken cancellationToken)
   {
@@ -40,7 +40,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpPost("~/identity/clients")]
+  [HttpPost("~/api/identity/clients")]
   [ProducesResponseType(typeof(CreateClientResponse), StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
   [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -68,8 +68,8 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpGet("~/users")]
-  [HttpGet("~/identity/users")]
+  [HttpGet("~/api/users")]
+  [HttpGet("~/api/identity/users")]
   [ProducesResponseType(typeof(IEnumerable<UserSummary>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListUsers(CancellationToken cancellationToken)
   {
@@ -78,7 +78,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpPost("~/users")]
+  [HttpPost("~/api/users")]
   [ProducesResponseType(StatusCodes.Status204NoContent)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
   [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -94,7 +94,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpPut("~/users/{id}")]
+  [HttpPut("~/api/users/{id}")]
   [ProducesResponseType(typeof(UserDetail), StatusCodes.Status200OK)]
   public async Task<IActionResult> UpdateUser(string id, [FromBody] UpdateUserData request, CancellationToken cancellationToken)
   {
@@ -121,7 +121,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpDelete("~/users/{id}")]
+  [HttpDelete("~/api/users/{id}")]
   [ProducesResponseType(StatusCodes.Status204NoContent)]
   [ProducesResponseType(StatusCodes.Status404NotFound)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -136,8 +136,8 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpGet("~/roles")]
-  [HttpGet("~/identity/roles")]
+  [HttpGet("~/api/roles")]
+  [HttpGet("~/api/identity/roles")]
   [ProducesResponseType(typeof(IEnumerable<RoleSummary>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListRoles(CancellationToken cancellationToken)
   {
@@ -146,8 +146,8 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpGet("~/users/{id}")]
-  [HttpGet("~/identity/users/{id}")]
+  [HttpGet("~/api/users/{id}")]
+  [HttpGet("~/api/identity/users/{id}")]
   [ProducesResponseType(typeof(UserDetail), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetUserDetail(string id, CancellationToken cancellationToken)
   {
@@ -163,8 +163,8 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpGet("~/roles/{id}/users")]
-  [HttpGet("~/identity/roles/{id}/users")]
+  [HttpGet("~/api/roles/{id}/users")]
+  [HttpGet("~/api/identity/roles/{id}/users")]
   [ProducesResponseType(typeof(IEnumerable<UserSummary>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListUsersInRole(string id, CancellationToken cancellationToken)
   {
@@ -180,7 +180,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpPost("~/roles")]
+  [HttpPost("~/api/roles")]
   [ProducesResponseType(StatusCodes.Status204NoContent)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
   [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -195,7 +195,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpPut("~/roles/{id}")]
+  [HttpPut("~/api/roles/{id}")]
   [ProducesResponseType(StatusCodes.Status204NoContent)]
   [ProducesResponseType(StatusCodes.Status404NotFound)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -211,7 +211,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpDelete("~/roles/{id}")]
+  [HttpDelete("~/api/roles/{id}")]
   [ProducesResponseType(StatusCodes.Status204NoContent)]
   [ProducesResponseType(StatusCodes.Status404NotFound)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -226,7 +226,7 @@ public class IdentityController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Roles = AuthConstants.Roles.SecurityAdmin)]
-  [HttpGet("~/identity/apps")]
+  [HttpGet("~/api/identity/apps")]
   [ProducesResponseType(typeof(IEnumerable<AppSummary>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListApps(CancellationToken cancellationToken)
   {
