@@ -17,7 +17,7 @@ public class ReadWriteTest : IDisposable
   private Store _store;
   private Jigen.SemanticTools.OnnxEmbeddingGenerator _embeddingGenerator;
 
-  public ReadWriteTest(ITestOutputHelper testOutputHelper, ILogger<ReadWriteTest> logger)
+  public ReadWriteTest(ITestOutputHelper testOutputHelper)
   {
     _testOutputHelper = testOutputHelper;
     _store = new Store(new StoreOptions()
@@ -31,7 +31,7 @@ public class ReadWriteTest : IDisposable
     _embeddingGenerator = new(
       "/data/onnx/multi-lingual/tokenizer.onnx",
       "/data/onnx/multi-lingual/model.onnx",
-      logger,
+      null,
       new EmbeddingGeneratorOptions(){});
   }
 

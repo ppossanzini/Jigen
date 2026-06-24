@@ -14,6 +14,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   private readonly InferenceSession _tokenizerSession;
   private readonly InferenceSession _modelSession;
   private readonly ILogger _logger;
+  private readonly bool _requiresTokenTypeIds;
   private readonly int _maxTokens;
   private readonly bool _useChunking;
   private readonly int _chunkSize;
@@ -38,6 +39,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     _tokenizerSession = new InferenceSession(tokenizerPath, tokenizerOptions);
     _modelSession = new InferenceSession(modelPath);
     _logger = logger;
+    _requiresTokenTypeIds = _modelSession.InputMetadata.Keys.Contains("token_type_ids", StringComparer.OrdinalIgnoreCase);
 
     if (options == null) options = new EmbeddingGeneratorOptions();
     
@@ -145,8 +147,111 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       NamedOnnxValue.CreateFromTensor("attention_mask", attentionMaskTensor)
     };
 
+    if (_requiresTokenTypeIds)
+    {
+      var tokenTypeIdsTensor = new DenseTensor<long>([1, tokenIds.Length]);
+      tokenTypeIdsTensor.Fill(0);
+      modelInputs.Add(NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor));
+    }
+
     using var modelResults = _modelSession.Run(modelInputs);
-    return modelResults.Last().AsTensor<float>().ToArray();
+    var results = modelResults.ToList();
+    return ExtractEmbeddingVector(results, tokenIds.Length);
+  }
+
+  private float[] ExtractEmbeddingVector(IReadOnlyList<DisposableNamedOnnxValue> results, int tokenCount)
+  {
+    foreach (var result in results)
+    {
+      if (!string.Equals(result.Name, "sentence_embedding", StringComparison.OrdinalIgnoreCase))
+        continue;
+
+      if (TryExtractRank2Vector(result, out var sentenceEmbedding))
+        return sentenceEmbedding;
+    }
+
+    foreach (var result in results)
+    {
+      if (TryExtractRank2Vector(result, out var pooled))
+        return pooled;
+    }
+
+    foreach (var result in results)
+    {
+      if (TryExtractRank3MeanPooledVector(result, tokenCount, out var meanPooled))
+        return meanPooled;
+    }
+
+    foreach (var result in results.Reverse())
+    {
+      try
+      {
+        return result.AsTensor<float>().ToArray();
+      }
+      catch
+      {
+      }
+    }
+
+    _logger?.LogWarning("No float tensor output found in ONNX model results.");
+    return Array.Empty<float>();
+  }
+
+  private static bool TryExtractRank2Vector(DisposableNamedOnnxValue output, out float[] vector)
+  {
+    vector = null;
+
+    try
+    {
+      var tensor = output.AsTensor<float>();
+      var dims = tensor.Dimensions;
+      if (dims.Length != 2 || dims[0] != 1 || dims[1] <= 0)
+        return false;
+
+      vector = tensor.ToArray();
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
+  }
+
+  private static bool TryExtractRank3MeanPooledVector(DisposableNamedOnnxValue output, int tokenCount, out float[] vector)
+  {
+    vector = null;
+
+    try
+    {
+      var tensor = output.AsTensor<float>();
+      var dims = tensor.Dimensions;
+      if (dims.Length != 3 || dims[0] != 1 || dims[1] <= 0 || dims[2] <= 0)
+        return false;
+
+      var sequenceLength = (int)dims[1];
+      var hiddenSize = (int)dims[2];
+      var effectiveTokens = Math.Clamp(tokenCount, 1, sequenceLength);
+      var values = tensor.ToArray();
+      var pooled = new float[hiddenSize];
+
+      for (var token = 0; token < effectiveTokens; token++)
+      {
+        var offset = token * hiddenSize;
+        for (var i = 0; i < hiddenSize; i++)
+          pooled[i] += values[offset + i];
+      }
+
+      var divisor = 1f / effectiveTokens;
+      for (var i = 0; i < hiddenSize; i++)
+        pooled[i] *= divisor;
+
+      vector = pooled;
+      return true;
+    }
+    catch
+    {
+      return false;
+    }
   }
 
   private long[] TruncateHeadTail(long[] tokenIds)
