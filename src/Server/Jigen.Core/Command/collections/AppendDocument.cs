@@ -9,4 +9,5 @@ public class AppendDocument :  IRequest
   public byte[] Key { get; set; }
   public byte[] Content { get; set; }
   public string Sentence { get; set; }
+  public float[] Embeddings { get; set; }
 }

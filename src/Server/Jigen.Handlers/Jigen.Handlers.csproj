@@ -7,14 +7,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hikyaku" Version="9.2.1" />
+    <PackageReference Include="Hikyaku" Version="9.4.3" />
     <PackageReference Include="System.Composition" Version="10.0.2"/>
     <PackageReference Include="MessagePack" Version="3.1.4"/>
 <!--    <PackageReference Include="Hikyaku" Version="9.1.1" />-->
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj"/>
+    
+    <ProjectReference Include="..\..\Embedding\TextEmbedding\Jigen.TextEmbedding.Core\Jigen.TextEmbedding.Core.csproj" />
+    
     <ProjectReference Include="..\..\Jigen\Jigen.Store\Jigen.Store.csproj"/>
     <ProjectReference Include="..\Modules\Identity\Jigen.Identity.Core\Jigen.Identity.Core.csproj"/>
     <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>

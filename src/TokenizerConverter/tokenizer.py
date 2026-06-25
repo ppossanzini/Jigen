@@ -1,7 +1,7 @@
 from transformers import AutoTokenizer
 from onnxruntime_extensions import gen_processing_models
 
-model_id = "intfloat/multilingual-e5-small"
+model_id = "nomic-ai/nomic-embed-text-v1.5" #"intfloat/multilingual-e5-small" 
 
 tokenizer = AutoTokenizer.from_pretrained(model_id)
 

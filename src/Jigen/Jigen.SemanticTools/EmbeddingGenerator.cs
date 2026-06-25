@@ -3,6 +3,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using Microsoft.ML.Tokenizers;
 
 namespace Jigen.SemanticTools;
 
@@ -12,6 +13,9 @@ namespace Jigen.SemanticTools;
 public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 {
   private readonly InferenceSession _tokenizerSession;
+  private readonly Tokenizer _jsonTokenizer;
+  private readonly string _tokenizerInputName;
+
   private readonly InferenceSession _modelSession;
   private readonly ILogger _logger;
   private readonly bool _requiresTokenTypeIds;
@@ -30,19 +34,31 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     string tokenizerPath,
     string modelPath,
     ILogger logger = null,
-    EmbeddingGeneratorOptions options= null)
+    EmbeddingGeneratorOptions options = null)
   {
-    // Initialize tokenizer session with ONNX Extensions
-    var tokenizerOptions = new SessionOptions();
-    tokenizerOptions.RegisterOrtExtensions();
-
-    _tokenizerSession = new InferenceSession(tokenizerPath, tokenizerOptions);
-    _modelSession = new InferenceSession(modelPath);
     _logger = logger;
+
+    if (tokenizerPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+    {
+      _jsonTokenizer = CreateSentencePieceTokenizerFromJsonPath(tokenizerPath);
+      _logger?.LogInformation("Loaded tokenizer from JSON path {TokenizerPath}", tokenizerPath);
+    }
+    else
+    {
+      // Initialize tokenizer session with ONNX Extensions
+      var tokenizerOptions = new SessionOptions();
+      tokenizerOptions.RegisterOrtExtensions();
+
+      _tokenizerSession = new InferenceSession(tokenizerPath, tokenizerOptions);
+      _tokenizerInputName = ResolveTokenizerInputName(_tokenizerSession);
+      _logger?.LogInformation("Loaded tokenizer ONNX from path {TokenizerPath}", tokenizerPath);
+    }
+
+    _modelSession = new InferenceSession(modelPath);
     _requiresTokenTypeIds = _modelSession.InputMetadata.Keys.Contains("token_type_ids", StringComparer.OrdinalIgnoreCase);
 
     if (options == null) options = new EmbeddingGeneratorOptions();
-    
+
     _maxTokens = Math.Max(options.MaxTokens, 8);
     _useChunking = options.UseChunking;
     _chunkSize = Math.Clamp(options.ChunkSize, 8, _maxTokens);
@@ -60,63 +76,65 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     if (string.IsNullOrWhiteSpace(text))
       throw new ArgumentException("Input text cannot be null or empty.", nameof(text));
 
-    try
-    {
-      var tokenIds = TokenizeToInputIds(text);
-      _logger?.LogDebug("Tokenized text chars={Chars}, tokens={Tokens}", text.Length, tokenIds.Length);
+    var tokenIds = TokenizeToInputIds(text);
+    _logger?.LogDebug("Tokenized text chars={Chars}, tokens={Tokens}", text.Length, tokenIds.Length);
 
-      if (tokenIds.Length == 0)
-        return Array.Empty<float>();
-
-      if (tokenIds.Length <= _maxTokens)
-        return RunModel(tokenIds);
-
-      if (!_useChunking)
-      {
-        var truncated = TruncateHeadTail(tokenIds);
-        _logger?.LogInformation(
-          "Input tokens exceed max tokens. Using head-tail truncation: original={OriginalTokens}, truncated={TruncatedTokens}",
-          tokenIds.Length,
-          truncated.Length);
-        return RunModel(truncated);
-      }
-
-      var chunks = BuildChunks(tokenIds);
-      _logger?.LogInformation(
-        "Input tokens exceed max tokens. Using chunking: original={OriginalTokens}, chunks={ChunkCount}, chunkSize={ChunkSize}, overlap={ChunkOverlap}",
-        tokenIds.Length,
-        chunks.Count,
-        _chunkSize,
-        _chunkOverlap);
-
-      var vectors = new List<(float[] Vector, int Weight)>(chunks.Count);
-      foreach (var chunk in chunks)
-      {
-        var vector = RunModel(chunk);
-        if (vector.Length > 0)
-          vectors.Add((vector, chunk.Length));
-      }
-
-      if (vectors.Count == 0)
-        return Array.Empty<float>();
-
-      if (vectors.Count == 1)
-        return vectors[0].Vector;
-
-      return WeightedAverage(vectors);
-    }
-    catch (Exception ex)
-    {
-      _logger?.LogError(ex, "Error while generating embedding. The input may exceed model token limits.");
+    if (tokenIds.Length == 0)
       return Array.Empty<float>();
+
+    if (tokenIds.Length <= _maxTokens)
+      return RunModel(tokenIds);
+
+    if (!_useChunking)
+    {
+      var truncated = TruncateHeadTail(tokenIds);
+      _logger?.LogInformation(
+        "Input tokens exceed max tokens. Using head-tail truncation: original={OriginalTokens}, truncated={TruncatedTokens}",
+        tokenIds.Length,
+        truncated.Length);
+      return RunModel(truncated);
     }
+
+    var chunks = BuildChunks(tokenIds);
+    _logger?.LogInformation(
+      "Input tokens exceed max tokens. Using chunking: original={OriginalTokens}, chunks={ChunkCount}, chunkSize={ChunkSize}, overlap={ChunkOverlap}",
+      tokenIds.Length,
+      chunks.Count,
+      _chunkSize,
+      _chunkOverlap);
+
+    var vectors = new List<(float[] Vector, int Weight)>(chunks.Count);
+    foreach (var chunk in chunks)
+    {
+      var vector = RunModel(chunk);
+      if (vector.Length > 0)
+        vectors.Add((vector, chunk.Length));
+    }
+
+    if (vectors.Count == 0)
+      return Array.Empty<float>();
+
+    if (vectors.Count == 1)
+      return vectors[0].Vector;
+
+    return WeightedAverage(vectors);
   }
+
+  public float[] GenerateEmbedding(string task, string input) =>
+    GenerateEmbedding(!string.IsNullOrWhiteSpace(task) ? $"{task}: {input}" : input);
+
 
   private long[] TokenizeToInputIds(string text)
   {
+    if (_jsonTokenizer != null)
+    {
+      var ids = _jsonTokenizer.EncodeToIds(text, true, true);
+      return ids.Select(static id => (long)id).ToArray();
+    }
+
     var tokenizerInputs = new List<NamedOnnxValue>
     {
-      NamedOnnxValue.CreateFromTensor("inputs", new DenseTensor<string>([1])
+      NamedOnnxValue.CreateFromTensor(_tokenizerInputName, new DenseTensor<string>([1])
       {
         [0] = text
       })
@@ -125,14 +143,93 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     using var tokenizerResults = _tokenizerSession.Run(tokenizerInputs);
     var tokenizerResultsList = tokenizerResults.ToList();
 
-    var tokens = tokenizerResultsList[0].AsTensor<int>().ToArray();
-    var tokenIndices = tokenizerResultsList[2].AsTensor<int>().ToArray();
+    var idsOutput = tokenizerResultsList.FirstOrDefault(output =>
+      string.Equals(output.Name, "input_ids", StringComparison.OrdinalIgnoreCase) ||
+      string.Equals(output.Name, "ids", StringComparison.OrdinalIgnoreCase) ||
+      string.Equals(output.Name, "token_ids", StringComparison.OrdinalIgnoreCase));
 
-    return tokens
-      .Zip(tokenIndices, (token, index) => (token, index))
-      .OrderBy(item => item.index)
-      .Select(item => (long)item.token)
-      .ToArray();
+    if (idsOutput != null && TryReadLongTensor(idsOutput, out var directIds))
+      return directIds;
+
+    // Backward compatibility for tokenizer-to-onnx-model layout: [tokens, ..., tokenIndices]
+    if (tokenizerResultsList.Count >= 3 &&
+        TryReadIntTensor(tokenizerResultsList[0], out var tokens) &&
+        TryReadIntTensor(tokenizerResultsList[2], out var tokenIndices) &&
+        tokens.Length == tokenIndices.Length)
+    {
+      return tokens
+        .Zip(tokenIndices, (token, index) => (token, index))
+        .OrderBy(item => item.index)
+        .Select(item => (long)item.token)
+        .ToArray();
+    }
+
+    _logger?.LogError(
+      "Unsupported tokenizer ONNX output layout. Available outputs: {Outputs}",
+      string.Join(", ", tokenizerResultsList.Select(output => output.Name)));
+
+    return Array.Empty<long>();
+  }
+
+  private static string ResolveTokenizerInputName(InferenceSession tokenizerSession)
+  {
+    var stringInput = tokenizerSession.InputMetadata
+      .FirstOrDefault(input => input.Value.ElementDataType == TensorElementType.String);
+
+    if (!string.IsNullOrWhiteSpace(stringInput.Key))
+      return stringInput.Key;
+
+    if (tokenizerSession.InputMetadata.Count == 1)
+      return tokenizerSession.InputMetadata.Keys.First();
+
+    throw new InvalidOperationException(
+      "Tokenizer ONNX input name could not be resolved automatically. Ensure the model exposes a single string input.");
+  }
+
+  private static bool TryReadLongTensor(DisposableNamedOnnxValue value, out long[] result)
+  {
+    try
+    {
+      result = value.AsTensor<long>().ToArray();
+      return true;
+    }
+    catch
+    {
+      result = null;
+      return false;
+    }
+  }
+
+  private static bool TryReadIntTensor(DisposableNamedOnnxValue value, out int[] result)
+  {
+    try
+    {
+      result = value.AsTensor<int>().ToArray();
+      return true;
+    }
+    catch
+    {
+      result = null;
+      return false;
+    }
+  }
+
+
+  private static Tokenizer CreateSentencePieceTokenizerFromJsonPath(string tokenizerJsonPath)
+  {
+    if (!File.Exists(tokenizerJsonPath))
+      throw new FileNotFoundException($"Tokenizer JSON not found at path '{tokenizerJsonPath}'.", tokenizerJsonPath);
+
+    var directory = Path.GetDirectoryName(tokenizerJsonPath) ?? throw new InvalidOperationException("Tokenizer directory not found.");
+    var sentencePiecePath = Path.Combine(directory, "sentencepiece.bpe.model");
+
+    if (!File.Exists(sentencePiecePath))
+      throw new FileNotFoundException(
+        "Tokenizer JSON support requires the sidecar sentencepiece model file 'sentencepiece.bpe.model' in the same directory.",
+        sentencePiecePath);
+
+    using var stream = File.OpenRead(sentencePiecePath);
+    return SentencePieceTokenizer.Create(stream, addBeginningOfSentence: true, addEndOfSentence: true, specialTokens: null);
   }
 
   private float[] RunModel(long[] tokenIds)
@@ -318,7 +415,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 
   public void Dispose()
   {
-    _tokenizerSession.Dispose();
+    _tokenizerSession?.Dispose();
     _modelSession.Dispose();
   }
 }

@@ -56,27 +56,28 @@ namespace Jigen.Proto {
             "dWUYAiABKAVIABITCglMb25nVmFsdWUYAyABKANIABIVCgtEb3VibGVWYWx1",
             "ZRgEIAEoAUgAEhMKCUJvb2xWYWx1ZRgFIAEoCEgAEhMKCU51bGxWYWx1ZRgG",
             "IAEoCEgAQgYKBEtpbmQiKgoGUmVzdWx0Eg8KB1N1Y2Nlc3MYASABKAgSDwoH",
-            "TWVzc2FnZRgCIAEoCSIjChBFbWJlZGRpbmdSZXF1ZXN0Eg8KB01lc3NhZ2UY",
-            "ASABKAkiJwoRRW1iZWRkaW5nUmVzcG9uc2USEgoKRW1iZWRkaW5ncxgBIAMo",
-            "AiIrChRMaXN0Q29sbGVjdGlvblJlc3VsdBITCgtjb2xsZWN0aW9ucxgBIAMo",
-            "CSIjChBSYXdDb250ZW50UmVzdWx0Eg8KB2NvbnRlbnQYASABKAwiJAoRSnNv",
-            "bkNvbnRlbnRSZXN1bHQSDwoHY29udGVudBgBIAEoCTLBBQoWU3RvcmVDb2xs",
-            "ZWN0aW9uU2VydmljZRJECg9MaXN0Q29sbGVjdGlvbnMSFC5qaWdlbi5Db2xs",
-            "ZWN0aW9uS2V5GhsuamlnZW4uTGlzdENvbGxlY3Rpb25SZXN1bHQSNQoKR2V0",
-            "Q29udGVudBIOLmppZ2VuLkl0ZW1LZXkaFy5qaWdlbi5SYXdDb250ZW50UmVz",
-            "dWx0Ei0KC1NldERvY3VtZW50Eg8uamlnZW4uRG9jdW1lbnQaDS5qaWdlbi5S",
-            "ZXN1bHQSKQoJU2V0VmVjdG9yEg0uamlnZW4uVmVjdG9yGg0uamlnZW4uUmVz",
-            "dWx0EkcKDFNlYXJjaFZlY3RvchIaLmppZ2VuLlNlYXJjaFZlY3RvclJlcXVl",
-            "c3QaGy5qaWdlbi5TZWFyY2hWZWN0b3JSZXNwb25zZRJLCg5TZWFyY2hEb2N1",
-            "bWVudBIcLmppZ2VuLlNlYXJjaERvY3VtZW50UmVxdWVzdBobLmppZ2VuLlNl",
-            "YXJjaFZlY3RvclJlc3BvbnNlEi0KDERlbGV0ZVZlY3RvchIOLmppZ2VuLkl0",
-            "ZW1LZXkaDS5qaWdlbi5SZXN1bHQSNQoKR2V0QWxsS2V5cxIULmppZ2VuLkNv",
-            "bGxlY3Rpb25LZXkaES5qaWdlbi5LZXlzUmVzdWx0EikKCENvbnRhaW5zEg4u",
-            "amlnZW4uSXRlbUtleRoNLmppZ2VuLlJlc3VsdBIsCgVDbGVhchIULmppZ2Vu",
-            "LkNvbGxlY3Rpb25LZXkaDS5qaWdlbi5SZXN1bHQSMQoFQ291bnQSFC5qaWdl",
-            "bi5Db2xsZWN0aW9uS2V5GhIuamlnZW4uQ291bnRSZXN1bHQSSAoTQ2FsY3Vs",
-            "YXRlRW1iZWRkaW5ncxIXLmppZ2VuLkVtYmVkZGluZ1JlcXVlc3QaGC5qaWdl",
-            "bi5FbWJlZGRpbmdSZXNwb25zZUIOqgILSmlnZW4uUHJvdG9iBnByb3RvMw=="));
+            "TWVzc2FnZRgCIAEoCSIxChBFbWJlZGRpbmdSZXF1ZXN0Eg8KB01lc3NhZ2UY",
+            "ASABKAkSDAoEVGFzaxgCIAEoCSInChFFbWJlZGRpbmdSZXNwb25zZRISCgpF",
+            "bWJlZGRpbmdzGAEgAygCIisKFExpc3RDb2xsZWN0aW9uUmVzdWx0EhMKC2Nv",
+            "bGxlY3Rpb25zGAEgAygJIiMKEFJhd0NvbnRlbnRSZXN1bHQSDwoHY29udGVu",
+            "dBgBIAEoDCIkChFKc29uQ29udGVudFJlc3VsdBIPCgdjb250ZW50GAEgASgJ",
+            "MsEFChZTdG9yZUNvbGxlY3Rpb25TZXJ2aWNlEkQKD0xpc3RDb2xsZWN0aW9u",
+            "cxIULmppZ2VuLkNvbGxlY3Rpb25LZXkaGy5qaWdlbi5MaXN0Q29sbGVjdGlv",
+            "blJlc3VsdBI1CgpHZXRDb250ZW50Eg4uamlnZW4uSXRlbUtleRoXLmppZ2Vu",
+            "LlJhd0NvbnRlbnRSZXN1bHQSLQoLU2V0RG9jdW1lbnQSDy5qaWdlbi5Eb2N1",
+            "bWVudBoNLmppZ2VuLlJlc3VsdBIpCglTZXRWZWN0b3ISDS5qaWdlbi5WZWN0",
+            "b3IaDS5qaWdlbi5SZXN1bHQSRwoMU2VhcmNoVmVjdG9yEhouamlnZW4uU2Vh",
+            "cmNoVmVjdG9yUmVxdWVzdBobLmppZ2VuLlNlYXJjaFZlY3RvclJlc3BvbnNl",
+            "EksKDlNlYXJjaERvY3VtZW50EhwuamlnZW4uU2VhcmNoRG9jdW1lbnRSZXF1",
+            "ZXN0GhsuamlnZW4uU2VhcmNoVmVjdG9yUmVzcG9uc2USLQoMRGVsZXRlVmVj",
+            "dG9yEg4uamlnZW4uSXRlbUtleRoNLmppZ2VuLlJlc3VsdBI1CgpHZXRBbGxL",
+            "ZXlzEhQuamlnZW4uQ29sbGVjdGlvbktleRoRLmppZ2VuLktleXNSZXN1bHQS",
+            "KQoIQ29udGFpbnMSDi5qaWdlbi5JdGVtS2V5Gg0uamlnZW4uUmVzdWx0EiwK",
+            "BUNsZWFyEhQuamlnZW4uQ29sbGVjdGlvbktleRoNLmppZ2VuLlJlc3VsdBIx",
+            "CgVDb3VudBIULmppZ2VuLkNvbGxlY3Rpb25LZXkaEi5qaWdlbi5Db3VudFJl",
+            "c3VsdBJIChNDYWxjdWxhdGVFbWJlZGRpbmdzEhcuamlnZW4uRW1iZWRkaW5n",
+            "UmVxdWVzdBoYLmppZ2VuLkVtYmVkZGluZ1Jlc3BvbnNlQg6qAgtKaWdlbi5Q",
+            "cm90b2IGcHJvdG8z"));
       descriptor = pbr::FileDescriptor.FromGeneratedCode(descriptorData,
           new pbr::FileDescriptor[] { global::Google.Protobuf.WellKnownTypes.EmptyReflection.Descriptor, },
           new pbr::GeneratedClrTypeInfo(null, null, new pbr::GeneratedClrTypeInfo[] {
@@ -96,7 +97,7 @@ namespace Jigen.Proto {
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.LogicalCondition), global::Jigen.Proto.LogicalCondition.Parser, new[]{ "Left", "Right" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.FilterValue), global::Jigen.Proto.FilterValue.Parser, new[]{ "StringValue", "IntValue", "LongValue", "DoubleValue", "BoolValue", "NullValue" }, new[]{ "Kind" }, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.Result), global::Jigen.Proto.Result.Parser, new[]{ "Success", "Message" }, null, null, null, null),
-            new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.EmbeddingRequest), global::Jigen.Proto.EmbeddingRequest.Parser, new[]{ "Message" }, null, null, null, null),
+            new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.EmbeddingRequest), global::Jigen.Proto.EmbeddingRequest.Parser, new[]{ "Message", "Task" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.EmbeddingResponse), global::Jigen.Proto.EmbeddingResponse.Parser, new[]{ "Embeddings" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.ListCollectionResult), global::Jigen.Proto.ListCollectionResult.Parser, new[]{ "Collections" }, null, null, null, null),
             new pbr::GeneratedClrTypeInfo(typeof(global::Jigen.Proto.RawContentResult), global::Jigen.Proto.RawContentResult.Parser, new[]{ "Content" }, null, null, null, null),
@@ -4720,6 +4721,7 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public EmbeddingRequest(EmbeddingRequest other) : this() {
       message_ = other.message_;
+      task_ = other.task_;
       _unknownFields = pb::UnknownFieldSet.Clone(other._unknownFields);
     }
 
@@ -4741,6 +4743,18 @@ namespace Jigen.Proto {
       }
     }
 
+    /// <summary>Field number for the "Task" field.</summary>
+    public const int TaskFieldNumber = 2;
+    private string task_ = "";
+    [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
+    [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
+    public string Task {
+      get { return task_; }
+      set {
+        task_ = pb::ProtoPreconditions.CheckNotNull(value, "value");
+      }
+    }
+
     [global::System.Diagnostics.DebuggerNonUserCodeAttribute]
     [global::System.CodeDom.Compiler.GeneratedCode("protoc", null)]
     public override bool Equals(object other) {
@@ -4757,6 +4771,7 @@ namespace Jigen.Proto {
         return true;
       }
       if (Message != other.Message) return false;
+      if (Task != other.Task) return false;
       return Equals(_unknownFields, other._unknownFields);
     }
 
@@ -4765,6 +4780,7 @@ namespace Jigen.Proto {
     public override int GetHashCode() {
       int hash = 1;
       if (Message.Length != 0) hash ^= Message.GetHashCode();
+      if (Task.Length != 0) hash ^= Task.GetHashCode();
       if (_unknownFields != null) {
         hash ^= _unknownFields.GetHashCode();
       }
@@ -4787,6 +4803,10 @@ namespace Jigen.Proto {
         output.WriteRawTag(10);
         output.WriteString(Message);
       }
+      if (Task.Length != 0) {
+        output.WriteRawTag(18);
+        output.WriteString(Task);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(output);
       }
@@ -4801,6 +4821,10 @@ namespace Jigen.Proto {
         output.WriteRawTag(10);
         output.WriteString(Message);
       }
+      if (Task.Length != 0) {
+        output.WriteRawTag(18);
+        output.WriteString(Task);
+      }
       if (_unknownFields != null) {
         _unknownFields.WriteTo(ref output);
       }
@@ -4813,6 +4837,9 @@ namespace Jigen.Proto {
       int size = 0;
       if (Message.Length != 0) {
         size += 1 + pb::CodedOutputStream.ComputeStringSize(Message);
+      }
+      if (Task.Length != 0) {
+        size += 1 + pb::CodedOutputStream.ComputeStringSize(Task);
       }
       if (_unknownFields != null) {
         size += _unknownFields.CalculateSize();
@@ -4828,6 +4855,9 @@ namespace Jigen.Proto {
       }
       if (other.Message.Length != 0) {
         Message = other.Message;
+      }
+      if (other.Task.Length != 0) {
+        Task = other.Task;
       }
       _unknownFields = pb::UnknownFieldSet.MergeFrom(_unknownFields, other._unknownFields);
     }
@@ -4852,6 +4882,10 @@ namespace Jigen.Proto {
             Message = input.ReadString();
             break;
           }
+          case 18: {
+            Task = input.ReadString();
+            break;
+          }
         }
       }
     #endif
@@ -4873,6 +4907,10 @@ namespace Jigen.Proto {
             break;
           case 10: {
             Message = input.ReadString();
+            break;
+          }
+          case 18: {
+            Task = input.ReadString();
             break;
           }
         }

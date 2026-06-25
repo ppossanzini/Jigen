@@ -28,9 +28,15 @@ public class ReadWriteTest : IDisposable
         new (m : 16, efConstruction : 200, efSearch : 50, storagePath : "/data/jigendb/hnsw"))
     });
 
+    // _embeddingGenerator = new(
+    //   "/data/onnx/multi-lingual/tokenizer.onnx",
+    //   "/data/onnx/multi-lingual/model.onnx",
+    //   null,
+    //   new EmbeddingGeneratorOptions(){});
+    
     _embeddingGenerator = new(
-      "/data/onnx/multi-lingual/tokenizer.onnx",
-      "/data/onnx/multi-lingual/model.onnx",
+      "/data/onnx/nomic-embed-text-v1.5/tokenizer.onnx",
+      "/data/onnx/nomic-embed-text-v1.5/model.onnx",
       null,
       new EmbeddingGeneratorOptions(){});
   }
@@ -63,14 +69,14 @@ public class ReadWriteTest : IDisposable
       // var s = sentences.First();
     {
       var rr = await _store.AppendContent(new VectorEntry()
-      {
+      { 
         Id = s.id.ToByteArray(),
         CollectionName = "vicini",
         Content = MessagePackDocumentSerializer.Instance.Serialize(s.sentence),
-        Embedding = _embeddingGenerator.GenerateEmbedding(s.sentence),
+        Embedding = _embeddingGenerator.GenerateEmbedding("search_document",s.sentence),
       });
 
-      _testOutputHelper.WriteLine($"{rr.Id} - {rr.Content} - {String.Concat(rr.Embedding.Slice(0, 10).ToArray().Select(i => $"{i},"))}");
+      _testOutputHelper.WriteLine($"{rr.Id} - {rr.Content} - {String.Concat(rr.Embedding.Slice(0, Math.Min(10, rr.Embedding.Length)).ToArray().Select(i => $"{i},"))}");
     }
 
 
@@ -87,7 +93,7 @@ public class ReadWriteTest : IDisposable
   public async Task Search(string search)
   {
     var serializer = MessagePackDocumentSerializer.Instance;
-    var query = _embeddingGenerator.GenerateEmbedding(search);
+    var query = _embeddingGenerator.GenerateEmbedding("search_query",search);
     _testOutputHelper.WriteLine($"{String.Concat(query.Take(10).Select(i => $"{i},"))}");
 
     var sw = new Stopwatch();

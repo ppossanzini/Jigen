@@ -7,6 +7,8 @@
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <ServerGarbageCollection>true</ServerGarbageCollection>
     <IsPackable>false</IsPackable>
+    <RootNamespace>Jigen</RootNamespace>
+    <AssemblyName>Jigen</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +23,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Embedding\TextEmbedding\Jigen.TextEmbedding.Api\Jigen.TextEmbedding.Api.csproj" />
+    <ProjectReference Include="..\..\Embedding\TextEmbedding\Jigen.TextEmbedding.Handlers\Jigen.TextEmbedding.Handlers.csproj" />
     <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>
     <ProjectReference Include="..\Jigen.API\Jigen.API.csproj"/>
     <ProjectReference Include="..\Jigen.Grpc\Jigen.Grpc.csproj"/>

@@ -3,19 +3,22 @@ using Grpc.Core;
 using Hikyaku;
 using Jigen.Filtering;
 using Jigen.Proto;
-using Jigen.SemanticTools;
 
 namespace Jigen.Grpc;
 
-public class Server(IHikyaku mediator, IEmbeddingGenerator embeddingGenerator)
+public class Server(IHikyaku mediator, IHikyaku hikyaku)
   : Jigen.Proto.StoreCollectionService.StoreCollectionServiceBase
 {
-  public override Task<EmbeddingResponse> CalculateEmbeddings(EmbeddingRequest request, ServerCallContext context)
+  public override async Task<EmbeddingResponse> CalculateEmbeddings(EmbeddingRequest request, ServerCallContext context)
   {
-    var result = embeddingGenerator.GenerateEmbedding(request.Message);
+    var result =  await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings()
+    {
+      Task = request.Task,
+      Sentence = request.Message
+    });
     var response = new EmbeddingResponse();
     response.Embeddings.AddRange(result);
-    return Task.FromResult(response);
+    return response;
   }
 
   public override async Task<RawContentResult> GetContent(ItemKey request, ServerCallContext context)
@@ -91,8 +94,8 @@ public class Server(IHikyaku mediator, IEmbeddingGenerator embeddingGenerator)
   {
     if (string.IsNullOrWhiteSpace(request.Sentence))
       return new SearchVectorResponse();
-
-    var embeddings = embeddingGenerator.GenerateEmbedding(request.Sentence);
+        
+    var embeddings =  await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence });
     var filter = ToFilterExpression(request.Filter);
     var result = await mediator.Send(new Core.Query.collections.SearchVector
     {
@@ -218,5 +221,4 @@ public class Server(IHikyaku mediator, IEmbeddingGenerator embeddingGenerator)
     });
     return new Result() { Success = true };
   }
-  
 }

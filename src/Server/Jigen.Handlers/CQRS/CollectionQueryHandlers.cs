@@ -9,7 +9,6 @@ using Jigen.Handlers.Model;
 using Jigen.Indexers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Jigen.SemanticTools;
 
 namespace Jigen.Handlers.CQRS;
 
@@ -17,13 +16,13 @@ public class CollectionQueryHandlers(
   DatabasesManager manager,
   // DatabaseOwnershipGuard ownershipGuard,
   IDocumentSerializer serializer,
-  IEmbeddingGenerator embeddingGenerator,
+  IHikyaku hikyaku,
   ILogger<CollectionCommandHandlers> logger) :
   IRequestHandler<Core.Query.collections.ListCollections, IEnumerable<string>>,
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
   IRequestHandler<Core.Query.collections.GetCollectionsInfo, IEnumerable<CollectionInfo>>,
   IRequestHandler<Core.Query.collections.GetRawContent, byte[]>,
-  IRequestHandler<Core.Query.collections.GetAllKeys, IEnumerable<VectorKey>>, 
+  IRequestHandler<Core.Query.collections.GetAllKeys, IEnumerable<VectorKey>>,
   IRequestHandler<Core.Query.collections.SearchVector, IEnumerable<SearchVectorResultItem>>,
   IRequestHandler<Core.Query.collections.SearchCollections, SearchCollectionsResult>
 
@@ -111,9 +110,10 @@ public class CollectionQueryHandlers(
         throw new ArgumentException("Provide a sentence or embeddings");
 
       embeddingsTimer.Start();
-      embeddings = embeddingGenerator.GenerateEmbedding(request.Data.Sentence);
+      embeddings =  await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Data.Sentence }, cancellationToken);
       embeddingsTimer.Stop();
     }
+
     var top = request.Data.Top <= 0 ? 10 : request.Data.Top;
     var searchTimer = Stopwatch.StartNew();
     var collectionsResults = new CollectionSearchResult[collections.Length];

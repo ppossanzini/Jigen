@@ -14,7 +14,7 @@
     <PackageReference Include="Parquet.Net" Version="5.5.0" />
     <PackageReference Include="xunit" Version="2.9.2"/>
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2"/>
-    <PackageReference Include="Microsoft.ML.Tokenizers" Version="1.0.3" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
     <PackageReference Include="Microsoft.ML.OnnxTransformer" Version="5.0.0" />
     <PackageReference Include="Microsoft.SemanticKernel" Version="1.70.0" />
     <PackageReference Include="Microsoft.SemanticKernel.Connectors.Onnx" Version="1.70.0-alpha" />
