@@ -3,11 +3,11 @@
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
+    
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hikyaku" Version="9.2.1" />
+    <PackageReference Include="Hikyaku" Version="9.4.3" />
     <PackageReference Include="System.Composition" Version="10.0.2" />
   </ItemGroup>
 

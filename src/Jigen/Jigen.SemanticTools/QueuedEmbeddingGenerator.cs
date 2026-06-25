@@ -65,6 +65,9 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
     return completion.Task.GetAwaiter().GetResult();
   }
 
+  public float[] GenerateEmbedding(string task, string input) =>
+    GenerateEmbedding(!string.IsNullOrWhiteSpace(task) ? $"{task}: {input}" : input);
+
   public void Dispose()
   {
     _disposed = true;
@@ -84,7 +87,6 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
 
     if (_inner is IDisposable disposable)
       disposable.Dispose();
-
   }
 
   private async Task ProcessQueueAsync()

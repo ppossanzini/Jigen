@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Hikyaku" Version="9.4.3"/>
+    <PackageReference Include="System.Composition" Version="10.0.2"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Jigen.TextEmbedding.Core\Jigen.TextEmbedding.Core.csproj" />
+  </ItemGroup>
+
+</Project>

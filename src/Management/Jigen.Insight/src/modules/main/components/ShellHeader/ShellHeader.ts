@@ -27,20 +27,30 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    logoutLabel: {
+      type: String,
+      required: true,
+    },
   },
-  emits: ['search', 'switch-workspace', 'notifications'],
+  emits: ['search', 'switch-workspace', 'notifications', 'logout'],
   setup(_, { emit }) {
     const searchText = ref('')
 
     const onSearch = () => emit('search', searchText.value)
     const onSwitchWorkspace = () => emit('switch-workspace')
     const onNotifications = () => emit('notifications')
+    const onUserMenuCommand = (command: string) => {
+      if (command === 'logout') {
+        emit('logout')
+      }
+    }
 
     return {
       searchText,
       onSearch,
       onSwitchWorkspace,
       onNotifications,
+      onUserMenuCommand,
     }
   },
 })

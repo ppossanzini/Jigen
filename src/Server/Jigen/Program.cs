@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Hikyaku.Kaido;
 using Jigen.Identity.Core.Security;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Scalar.AspNetCore;
@@ -18,10 +19,7 @@ namespace Jigen
 
       builder.WebHost.ConfigureKestrel(options =>
       {
-        options.ListenAnyIP(3223, listenOptions =>
-        {
-          listenOptions.Protocols = HttpProtocols.Http2;
-        });
+        options.ListenAnyIP(3223, listenOptions => { listenOptions.Protocols = HttpProtocols.Http2; });
 
         options.ListenAnyIP(13223, listenOptions =>
         {
@@ -41,11 +39,10 @@ namespace Jigen
       var app = builder.Build();
       Configure(app, builder.Environment, builder.Configuration);
 
-      
+
       app.Logger.LogInformation("Jigen server started on 3223 port for GRPC connections");
       app.Logger.LogInformation("Jigen server started on 13223 port for HTTP connections");
       app.Run();
-      
     }
 
 
@@ -57,15 +54,29 @@ namespace Jigen
         options.AddDefaultPolicy(opt =>
           opt.AllowAnyMethod().AllowAnyHeader().SetIsOriginAllowed(s => true).AllowCredentials());
       });
-      
+
       Loader.Current.ConfigureServices(services, configuration, environment);
 
       services.AddControllers().AddNewtonsoftJson(options => options.SerializerSettings.ConfigureDefaults());
 
       services.AddHikyaku(cfg => { cfg.RegisterServicesFromAssemblies(Loader.Current.Assemblies.ToArray()); });
-
-
       services.AddMapZilla(Loader.Current.Assemblies);
+
+      if (configuration.GetValue<bool>("Kaido:Enabled"))
+      {
+        services.AddKaido(options =>
+        {
+          options.Behaviour = HikyakuBehaviourEnum.ImplicitRemote;
+          options.InferLocalRequests(Loader.Current.Assemblies);
+          options.InferLocalNotifications(Loader.Current.Assemblies);
+        });
+
+        services.AddHikyakuRabbitMQMessageDispatcher(o =>
+        {
+          configuration.GetSection("RabbitMQ").Bind(o);
+          o.ClientName = Assembly.GetExecutingAssembly().FullName;
+        }).AddRabbitMQRequestManager();
+      }
       services.AddOpenApi();
     }
 
@@ -90,7 +101,7 @@ namespace Jigen
           .WithLayout(ScalarLayout.Modern)
           .WithSidebar(true).WithClientButton(false)
           .WithDefaultHttpClient(ScalarTarget.CSharp, ScalarClient.HttpClient);
-      
+
       app.MapScalarApiReference(configureOptions);
 
       Loader.Current.AddModules(app.Services);
@@ -98,11 +109,30 @@ namespace Jigen
       app.MapControllers();
       foreach (var m in Loader.Current.Modules.DistinctBy(x => x.GetType()))
         m.UseEndpoints(app);
-      
+
+      app.UseDefaultFiles();
       app.UseStaticFiles();
+
+      string[] apipaths =
+      [
+        "/api", "/scalar", "/connect", "/identity"
+      ];
+
+      app.MapFallback(async context =>
+      {
+        var path = context.Request.Path;
+        if (apipaths.Any(p => path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase)))
+        {
+          context.Response.StatusCode = StatusCodes.Status404NotFound;
+          return;
+        }
+
+        context.Response.ContentType = "text/html; charset=utf-8";
+        await context.Response.SendFileAsync(Path.Combine(app.Environment.WebRootPath, "index.html"));
+      });
     }
 
-    private static X509Certificate2? ResolveHttpsCertificate(IConfiguration configuration)
+    private static X509Certificate2 ResolveHttpsCertificate(IConfiguration configuration)
     {
       var mode = configuration["JigenServer:Https:Mode"];
       if (string.Equals(mode, "Random", StringComparison.OrdinalIgnoreCase))

@@ -1,10 +1,10 @@
 using System.Composition;
 using Jigen.Handlers.Model;
-using Jigen.SemanticTools;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using SharedTools;
 
 namespace Jigen.Handlers;
@@ -30,14 +30,6 @@ public class Module : IModule
     services.AddSingleton<IDocumentSerializer>(serviceProvider => MessagePackDocumentSerializer.Instance);
     services.AddScoped<CQRS.DatabaseOwnershipGuard>();
 
-    services.AddSingleton<IEmbeddingGenerator>(_ =>
-    {
-      return new QueuedEmbeddingGenerator(
-        new OnnxEmbeddingGenerator(settings.TokenizerPath, settings.EmbeddingsModelPath),
-          settings.EmbeddingsMaxConcurrency,
-          settings.EmbeddingsQueueCapacity,
-          TimeSpan.FromSeconds(settings.EmbeddingsQueueTimeoutSeconds));
-    });
 
   }
 

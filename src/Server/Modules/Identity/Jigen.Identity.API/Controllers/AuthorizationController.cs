@@ -10,7 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
 
-namespace Jigen.Identity.Controllers;
+namespace Jigen.Identity.API.Controllers;
 
 [ApiController]
 public class AuthorizationController (
@@ -19,8 +19,8 @@ public class AuthorizationController (
   SignInManager<IdentityUser> signInManager)
   : Controller
 {
-  [HttpGet("~/connect/authorize")]
-  [HttpPost("~/connect/authorize")]
+  [HttpGet("~/api/connect/authorize")]
+  [HttpPost("~/api/connect/authorize")]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status401Unauthorized)]
   [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -48,7 +48,7 @@ public class AuthorizationController (
     return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
   }
 
-  [HttpPost("~/connect/token")]
+  [HttpPost("~/api/connect/token")]
   [ProducesResponseType(StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status403Forbidden)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -91,8 +91,8 @@ public class AuthorizationController (
   }
 
   [Authorize(AuthenticationSchemes = OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)]
-  [HttpGet("~/connect/userinfo")]
-  [HttpPost("~/connect/userinfo")]
+  [HttpGet("~/api/connect/userinfo")]
+  [HttpPost("~/api/connect/userinfo")]
   [ProducesResponseType(typeof(Dictionary<string, object>), StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status403Forbidden)]
   public async Task<IActionResult> Userinfo()

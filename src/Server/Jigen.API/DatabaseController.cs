@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jigen.API;
 
 [ApiController]
-[Route("database")]
+[Route("~/api/database")]
 public class DatabaseController(IHikyaku mediator) : ControllerBase
 {
   [HttpPost]

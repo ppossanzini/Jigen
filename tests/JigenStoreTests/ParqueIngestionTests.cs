@@ -4,7 +4,9 @@ using Jigen;
 using Jigen.DataStructures;
 using Jigen.Extensions;
 using Jigen.Indexer;
+using Jigen.SemanticTools;
 using JigenTests.entity;
+using Microsoft.Extensions.Logging;
 using Parquet;
 using Parquet.Data;
 using Parquet.Schema;
@@ -19,7 +21,7 @@ public class ParqueIngestionTests : IDisposable
   private Store _store = null;
   private Jigen.SemanticTools.OnnxEmbeddingGenerator _embeddingGenerator;
 
-  public ParqueIngestionTests(ITestOutputHelper testOutputHelper)
+  public ParqueIngestionTests(ITestOutputHelper testOutputHelper, ILogger<ParqueIngestionTests> logger)
   {
     _testOutputHelper = testOutputHelper;
     _store = new Store(new StoreOptions()
@@ -34,7 +36,7 @@ public class ParqueIngestionTests : IDisposable
     
     _embeddingGenerator = new(
       "/data/onnx/multi-lingual/tokenizer.onnx",
-      "/data/onnx/multi-lingual/model.onnx");
+      "/data/onnx/multi-lingual/model.onnx", logger, new EmbeddingGeneratorOptions(){});
   }
 
   public void Dispose()

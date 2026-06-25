@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace Jigen.API;
 
 [ApiController]
-[Route("database/{dbname}/collections")]
+[Route("~/api/database/{dbname}/collections")]
 public class CollectionsController(IHikyaku mediator, IDocumentSerializer serializer) : ControllerBase
 {
   [HttpGet]
@@ -44,7 +44,7 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     if (request.Collections == null || !request.Collections.Any())
       return BadRequest("At least one collection is required");
 
-    if (string.IsNullOrWhiteSpace(request.Sentence))
+    if (string.IsNullOrWhiteSpace(request.Sentence) && (request.Embeddings == null || !request.Embeddings.Any()))
       return BadRequest("Provide either sentence or embeddings");
     
     var result = await mediator.Send(new Core.Query.collections.SearchCollections
@@ -84,7 +84,7 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     {
       Database = dbname, Collection = collection,
       Key = keyVector.Value,
-      Content = payload.Payload,
+      Content = payload.Payload != null ? serializer.Serialize(payload.Payload).ToArray() : null,
       Sentence = payload.Sentence
     });
     return Ok();

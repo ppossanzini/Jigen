@@ -21,7 +21,6 @@ public class CollectionSearchResult
 
 public class CollectionSearchResultItem
 {
-  public string Collection { get; set; }
   public byte[] Key { get; set; }
   public object Content { get; set; }
   public float Score { get; set; }

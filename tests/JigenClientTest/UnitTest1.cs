@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using Jigen.Client;
 using Jigen.Client.BaseTypes;
+using Jigen.Proto;
 using JigenClientTest.Model;
 using Xunit.Abstractions;
 
@@ -59,6 +60,92 @@ public class UnitTest1
     
     sw.Stop();
     _testOutputHelper.WriteLine($"Elapsed: {sw.ElapsedMilliseconds}");
+  }
+
+  [Fact]
+  public void SerializationRoundTripTest()
+  {
+    // Arrange
+    var testKey = 9999;
+    var testKeyVector = (VectorKey)testKey;
+    var expectedEntity = new Entity1()
+    {
+      Id = Guid.NewGuid(),
+      Title = "Serialization Test",
+      Sentence = "tes tets"  // Space between words to verify exact match
+    };
+
+    _testOutputHelper.WriteLine($"Writing entity with Sentence: '{expectedEntity.Sentence}'");
+
+    // Act: Write
+    db.Sentences.Add(testKeyVector, new VectorEntry<Entity1>()
+    {
+      Key = testKeyVector,
+      Content = expectedEntity,
+      Embedding = Array.Empty<float>()
+    });
+
+    // Act: Read back
+    _testOutputHelper.WriteLine($"Reading entity back with key: {testKey}");
+    
+    
+    var success = db.Sentences.TryGetValue(testKeyVector, out var retrievedEntry);
+
+    // Assert: Content matches exactly
+    Assert.True(success, "Failed to retrieve the written entity");
+    Assert.NotNull(retrievedEntry);
+    Assert.NotNull(retrievedEntry.Content);
+
+    var retrievedEntity = retrievedEntry.Content;
+    _testOutputHelper.WriteLine($"Retrieved entity with Sentence: '{retrievedEntity.Sentence}'");
+
+    Assert.Equal(expectedEntity.Sentence, retrievedEntity.Sentence);
+    Assert.Equal(expectedEntity.Title, retrievedEntity.Title);
+    Assert.Equal(expectedEntity.Id, retrievedEntity.Id);
+
+    _testOutputHelper.WriteLine("✓ Serialization round-trip verified: content is identical");
+  }
+
+  [Fact]
+  public void SearchBySemanticSimilarityTest()
+  {
+    // Arrange
+    var testKey = 8888;
+    var testKeyVector = (VectorKey)testKey;
+    var indexedEntity = new Entity1()
+    {
+      Id = Guid.NewGuid(),
+      Title = "Semantic Search Test",
+      Sentence = "tes tets"
+    };
+
+    _testOutputHelper.WriteLine($"Indexing entity with Sentence: '{indexedEntity.Sentence}'");
+
+    // Act: Write with sentence for embedding
+    db.Sentences.Add(testKeyVector, new VectorEntry<Entity1>()
+    {
+      Key = testKeyVector,
+      Content = indexedEntity,
+      Embedding = db.ServiceClient.CalculateEmbeddings(new EmbeddingRequest(){Message = "test test test test"}).Embeddings.ToArray()
+    });
+
+    // Act: Search for semantically similar text
+    var searchQuery = "test";
+    _testOutputHelper.WriteLine($"Searching for: '{searchQuery}'");
+    var results = db.Sentences.Search(searchQuery, top: 10);
+
+    // Assert: Should find the indexed document
+    _testOutputHelper.WriteLine($"Found {results.Count} results");
+    Assert.NotEmpty(results);
+
+    var found = results.FirstOrDefault(r => r.Key.Value.SequenceEqual(testKeyVector.Value));
+    Assert.NotNull(found);
+    Assert.NotNull(found.Content);
+
+    var foundEntity = found.Content;
+    Assert.Equal("tes tets", foundEntity.Sentence);
+
+    _testOutputHelper.WriteLine($"✓ Semantic search verified: found '{foundEntity.Sentence}' when searching for '{searchQuery}'");
   }
 
 }

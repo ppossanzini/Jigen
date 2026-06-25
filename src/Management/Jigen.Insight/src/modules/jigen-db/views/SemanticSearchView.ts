@@ -40,7 +40,6 @@ const decodeBase64Utf8 = (value: string): string => {
 
 const toDisplayId = (value: string): string => decodeBase64Utf8(value) || value
 
-
 export default defineComponent({
   name: 'SemanticSearchView',
   components: {
@@ -103,43 +102,23 @@ export default defineComponent({
 
     const hasSearchResults = computed(() => resultRows.value.length > 0)
 
-    const formatEmbedding = (embedding: number[]): string =>
-      `[${embedding.map((value) => value.toFixed(4)).join(', ')}]`
-
-    const copyEmbeddingToClipboard = async (embedding: number[]): Promise<void> => {
-      if (!embedding.length) {
-        ElMessage.warning(t('semanticSearch.feedback.noEmbeddingToCopy'))
+    const copyResultContentJsonToClipboard = async (row: SearchResultRow): Promise<void> => {
+      if (!row.content) {
+        ElMessage.warning(t('semanticSearch.feedback.noContentToCopy'))
         return
       }
 
       try {
-        await navigator.clipboard.writeText(formatEmbedding(embedding))
-        ElMessage.success(t('semanticSearch.feedback.embeddingCopied'))
+        const parsedContent = JSON.parse(row.content)
+        await navigator.clipboard.writeText(JSON.stringify(parsedContent, null, 2))
+        ElMessage.success(t('semanticSearch.feedback.contentJsonCopied'))
       } catch {
-        ElMessage.error(t('semanticSearch.feedback.copyFailed'))
-      }
-    }
-
-    const copyQueryEmbeddingToClipboard = async (): Promise<void> => {
-      if (!queryEmbedding.value) {
-        ElMessage.warning(t('semanticSearch.feedback.noEmbeddingToCopy'))
-        return
-      }
-
-      try {
-        await navigator.clipboard.writeText(formatEmbedding(queryEmbedding.value))
-        ElMessage.success(t('semanticSearch.feedback.queryEmbeddingCopied'))
-      } catch {
-        ElMessage.error(t('semanticSearch.feedback.copyFailed'))
-      }
-    }
-
-    const copyResultJsonToClipboard = async (row: SearchResultRow): Promise<void> => {
-      try {
-        await navigator.clipboard.writeText(JSON.stringify(row, null, 2))
-        ElMessage.success(t('semanticSearch.feedback.resultJsonCopied'))
-      } catch {
-        ElMessage.error(t('semanticSearch.feedback.copyFailed'))
+        try {
+          await navigator.clipboard.writeText(JSON.stringify(row.content, null, 2))
+          ElMessage.success(t('semanticSearch.feedback.contentJsonCopied'))
+        } catch {
+          ElMessage.error(t('semanticSearch.feedback.contentCopyFailed'))
+        }
       }
     }
 
@@ -274,8 +253,8 @@ export default defineComponent({
             }
           })
           .sort(
-          (left: { searchTimeMs: number }, right: { searchTimeMs: number }) => right.searchTimeMs - left.searchTimeMs,
-        )
+            (left: { searchTimeMs: number }, right: { searchTimeMs: number }) => right.searchTimeMs - left.searchTimeMs,
+          )
 
         searchPath.value = [
           {
@@ -342,6 +321,15 @@ export default defineComponent({
       perCollectionMetrics.value = []
     }
 
+    const clearSearchResults = () => {
+      queryEmbedding.value = null
+      resultRows.value = []
+      searchPath.value = []
+      queryEmbeddingTimeMs.value = null
+      globalOperationTimeMs.value = null
+      perCollectionMetrics.value = []
+    }
+
     const onUpdateSelectedDatabaseName = (value: string | null) => {
       selectedDatabaseName.value = value
     }
@@ -362,7 +350,7 @@ export default defineComponent({
       selectedDatabaseName,
       async (databaseName) => {
         selectedCollections.value = []
-        onClear()
+        clearSearchResults()
 
         if (!databaseName) {
           return
@@ -409,9 +397,7 @@ export default defineComponent({
       onRunSearch,
       onSearchTextEnter,
       onClear,
-      copyEmbeddingToClipboard,
-      copyQueryEmbeddingToClipboard,
-      copyResultJsonToClipboard,
+      copyResultContentJsonToClipboard,
       onUpdateSelectedDatabaseName,
       onUpdateSelectedCollections,
       onUpdateSearchText,

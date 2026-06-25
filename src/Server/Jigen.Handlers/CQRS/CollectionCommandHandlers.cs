@@ -8,11 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Jigen.Handlers.CQRS;
 
-public class CollectionCommandHandlers(
-  DatabasesManager manager,
-  IDocumentSerializer serializer,
-  Jigen.SemanticTools.IEmbeddingGenerator embeddingGenerator
-) :
+public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hikyaku) :
   IRequestHandler<Core.Command.collections.AppendDocument>,
   IRequestHandler<Core.Command.collections.SetDocument>,
   IRequestHandler<Core.Command.collections.AppendVector>,
@@ -28,15 +24,16 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var content = request.Content != null ? serializer.Serialize(request.Content) : null;
-    float[] embeddings = request.Sentence != null ? embeddingGenerator.GenerateEmbedding(request.Sentence) : null;
+    float[] embeddings = request.Embeddings ?? ( request.Sentence != null
+      ? await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence }, cancellationToken)
+      : null);
 
     await store.AppendContent(
       new VectorEntry()
       {
         CollectionName = request.Collection,
         Id = request.Key,
-        Content = content,
+        Content = request.Content,
         Embedding = embeddings
       });
   }
@@ -45,15 +42,16 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var content = request.Content != null ? serializer.Serialize(request.Content) : null;
-    var embeddings = request.Sentence != null ? embeddingGenerator.GenerateEmbedding(request.Sentence) : null;
+    var embeddings = request.Embeddings ?? ( request.Sentence != null
+      ? await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence }, cancellationToken)
+      : null);
 
     await store.AppendContent(
       new VectorEntry()
       {
         CollectionName = request.Collection,
         Id = request.Key,
-        Content = content,
+        Content = request.Content,
         Embedding = embeddings
       });
   }
@@ -62,14 +60,12 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var content = request.Content != null ? serializer.Serialize(request.Content) : null;
-
     await store.AppendContent(
       new VectorEntry()
       {
         CollectionName = request.Collection,
         Id = request.Key,
-        Content = content,
+        Content = request.Content,
         Embedding = request.Embeddings
       });
   }
@@ -85,14 +81,12 @@ public class CollectionCommandHandlers(
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var content = request.Content != null ? serializer.Serialize(request.Content) : null;
-
     await store.AppendContent(
       new VectorEntry()
-      { 
+      {
         CollectionName = request.Collection,
         Id = request.Key,
-        Content = content,
+        Content = request.Content,
         Embedding = request.Embeddings
       });
   }

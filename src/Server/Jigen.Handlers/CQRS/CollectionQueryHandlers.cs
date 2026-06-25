@@ -9,15 +9,14 @@ using Jigen.Handlers.Model;
 using Jigen.Indexers;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Jigen.SemanticTools;
 
 namespace Jigen.Handlers.CQRS;
 
 public class CollectionQueryHandlers(
   DatabasesManager manager,
-  DatabaseOwnershipGuard ownershipGuard,
-  IEmbeddingGenerator embeddingGenerator,
+  // DatabaseOwnershipGuard ownershipGuard,
   IDocumentSerializer serializer,
+  IHikyaku hikyaku,
   ILogger<CollectionCommandHandlers> logger) :
   IRequestHandler<Core.Query.collections.ListCollections, IEnumerable<string>>,
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
@@ -31,7 +30,6 @@ public class CollectionQueryHandlers(
   public Task<IEnumerable<string>> Handle(ListCollections request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing ListCollection for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     return Task.FromResult(store.GetCollections().AsEnumerable());
   }
@@ -39,7 +37,6 @@ public class CollectionQueryHandlers(
   public Task<CollectionInfo> Handle(GetCollectionInfo request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetCollectionInfo for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     return Task.FromResult(store.GetCollectionInfo(request.Collection));
   }
@@ -47,7 +44,6 @@ public class CollectionQueryHandlers(
   public Task<IEnumerable<CollectionInfo>> Handle(GetCollectionsInfo request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetCollectionsInfo for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     return Task.FromResult(
@@ -58,7 +54,6 @@ public class CollectionQueryHandlers(
   public Task<byte[]> Handle(GetRawContent request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetRawContent for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var result = store.GetContent(request.Collection, request.Key);
@@ -68,7 +63,6 @@ public class CollectionQueryHandlers(
   public Task<IEnumerable<VectorKey>> Handle(GetAllKeys request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetAllKeys for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var result = (store.GetCollectionIndexOf(request.Collection, out var index) ? index.Keys.Select(i => (VectorKey)i).ToArray() : null) ??
@@ -79,7 +73,6 @@ public class CollectionQueryHandlers(
   public Task<IEnumerable<SearchVectorResultItem>> Handle(SearchVector request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing SearchVector for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var top = request.Top <= 0 ? 10 : request.Top;
@@ -98,7 +91,6 @@ public class CollectionQueryHandlers(
   public async Task<SearchCollectionsResult> Handle(SearchCollections request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing SearchCollections for db {request.Database}");
-    ownershipGuard.EnsureCanReadDatabase(request.Database);
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
     if (request.Data == null) throw new ArgumentException("Request payload is required");
 
@@ -110,24 +102,21 @@ public class CollectionQueryHandlers(
     if (collections.Length == 0)
       throw new ArgumentException("At least one collection is required");
 
-    if (string.IsNullOrWhiteSpace(request.Data.Sentence))
-      throw new ArgumentException("Provide a sentence ");
+    var embeddingsTimer = new Stopwatch();
+    var embeddings = request.Data.Embeddings;
+    if (request.Data.Embeddings == null || request.Data.Embeddings.Length == 0)
+    {
+      if (string.IsNullOrWhiteSpace(request.Data.Sentence))
+        throw new ArgumentException("Provide a sentence or embeddings");
 
-    var embeddingsTimer = Stopwatch.StartNew();
-    var embeddings = embeddingGenerator.GenerateEmbedding(request.Data.Sentence);
-    embeddingsTimer.Stop();
+      embeddingsTimer.Start();
+      embeddings =  await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Data.Sentence }, cancellationToken);
+      embeddingsTimer.Stop();
+    }
 
     var top = request.Data.Top <= 0 ? 10 : request.Data.Top;
     var searchTimer = Stopwatch.StartNew();
     var collectionsResults = new CollectionSearchResult[collections.Length];
-
-
-    var parallelOptions = new ParallelOptions
-    {
-      CancellationToken = cancellationToken,
-      MaxDegreeOfParallelism = Math.Min(Environment.ProcessorCount, collections.Length)
-    };
-
 
     Parallel.For(0, collections.Length, (i, ct) =>
     {
@@ -136,9 +125,8 @@ public class CollectionQueryHandlers(
       var resultItems = store.Search(collection, embeddings, top)
         .Select(r => new CollectionSearchResultItem
         {
-          Collection = collection,
           Key = r.entry.Id,
-          Content = r.entry.Content,
+          Content = serializer.ToJsonObject(r.entry.Content),
           Score = r.score
         })
         .ToArray();

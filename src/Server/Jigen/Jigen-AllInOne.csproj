@@ -1,0 +1,53 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <ServerGarbageCollection>true</ServerGarbageCollection>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Jigen</RootNamespace>
+    <AssemblyName>Jigen</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Hikyaku" Version="9.4.3" />
+    <PackageReference Include="Hikyaku.Kaido" Version="9.4.6" />
+    <PackageReference Include="Hikyaku.Kaido.RabbitMQ" Version="9.4.6" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.9"/>
+    <PackageReference Include="MapZilla" Version="9.1.5"/>
+
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9"/>
+    <PackageReference Include="Scalar.AspNetCore" Version="2.8.4"/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\Embedding\TextEmbedding\Jigen.TextEmbedding.Api\Jigen.TextEmbedding.Api.csproj" />
+    <ProjectReference Include="..\..\Embedding\TextEmbedding\Jigen.TextEmbedding.Handlers\Jigen.TextEmbedding.Handlers.csproj" />
+    <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>
+    <ProjectReference Include="..\Jigen.API\Jigen.API.csproj"/>
+    <ProjectReference Include="..\Jigen.Grpc\Jigen.Grpc.csproj"/>
+    <ProjectReference Include="..\Jigen.Handlers\Jigen.Handlers.csproj"/>
+    <ProjectReference Include="..\Modules\Identity\Jigen.Identity.API\Jigen.Identity.API.csproj"/>
+    <ProjectReference Include="..\Modules\Identity\Jigen.Identity.Handlers\Jigen.Identity.Handlers.csproj" />
+    <ProjectReference Include="..\Modules\Metrics\Jigen.Metrics.API\Jigen.Metrics.API.csproj" />
+    <ProjectReference Include="..\Modules\Metrics\Jigen.Metrics.Core\Jigen.Metrics.Core.csproj" />
+    <ProjectReference Include="..\Modules\Metrics\Jigen.Metrics.Handlers\Jigen.Metrics.Handlers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Update="wwwroot\index.html">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <None Remove="Dockerfile" />
+    <Content Include="Dockerfile">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="App_Data\" />
+  </ItemGroup>
+
+</Project>

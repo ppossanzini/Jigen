@@ -53,30 +53,12 @@
               <el-tag effect="plain" type="info">{{ t('dashboard.samplesLabel', { count: trendSamples.length }) }}</el-tag>
             </div>
 
-            <svg
+            <div
+              ref="globalTrendChartRef"
               class="global-trend-chart"
-              :viewBox="`0 0 ${globalChartWidth} ${globalChartHeight}`"
-              preserveAspectRatio="none"
               role="img"
               :aria-label="t('dashboard.globalTrendTitle')"
-            >
-              <polyline
-                :points="globalTrendChart.cpuLinePoints"
-                fill="none"
-                stroke="#7fcf4b"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-              <polyline
-                :points="globalTrendChart.memoryLinePoints"
-                fill="none"
-                stroke="#4da5db"
-                stroke-width="2.5"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
+            />
 
             <div class="global-chart-legend">
               <span>{{ t('dashboard.cpuLegend', { max: globalTrendChart.cpuMax.toFixed(1) }) }}</span>

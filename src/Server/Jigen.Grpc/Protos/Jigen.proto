@@ -121,6 +121,7 @@ message Result {
 
 message EmbeddingRequest {
   string Message = 1;
+  string Task = 2;
 }
 
 message EmbeddingResponse {

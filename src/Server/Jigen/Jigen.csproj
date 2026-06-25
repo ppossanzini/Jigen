@@ -10,7 +10,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Hikyaku" Version="9.2.1"/>
+    <PackageReference Include="Hikyaku" Version="9.4.3" />
+    <PackageReference Include="Hikyaku.Kaido" Version="9.4.6" />
+    <PackageReference Include="Hikyaku.Kaido.RabbitMQ" Version="9.4.6" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.9"/>
     <PackageReference Include="MapZilla" Version="9.1.5"/>
 
@@ -32,6 +34,10 @@
 
   <ItemGroup>
     <Content Update="wwwroot\index.html">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <None Remove="Dockerfile" />
+    <Content Include="Dockerfile">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
   </ItemGroup>

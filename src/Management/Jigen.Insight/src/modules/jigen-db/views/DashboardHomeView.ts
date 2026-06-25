@@ -1,6 +1,11 @@
-import { computed, defineComponent, onMounted, onUnmounted, ref } from 'vue'
+import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
+import { BarChart, LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
+import { init, use } from 'echarts/core'
+import type { ECharts, EChartsCoreOption } from 'echarts/core'
+import { CanvasRenderer } from 'echarts/renderers'
 import DashboardMetricCard from '@/modules/jigen-db/components/DashboardMetricCard/DashboardMetricCard.vue'
 import type { DashboardMetric } from '@/modules/jigen-db/types'
 import { databaseService } from '@/services/databaseService'
@@ -18,10 +23,24 @@ const WINDOW_OPTIONS: WindowOption[] = [
 ]
 
 const POLLING_INTERVAL_MS = 5000
-const GLOBAL_CHART_WIDTH = 760
-const GLOBAL_CHART_HEIGHT = 200
-const GLOBAL_CHART_PADDING_X = 20
-const GLOBAL_CHART_PADDING_Y = 18
+const CHART_SLOTS = 40
+const MAX_CHART_SLOTS = 240
+
+const getWindowDurationMs = (windowValue: string): number => {
+  switch (windowValue) {
+    case '1m':
+      return 60 * 1000
+    case '5m':
+      return 5 * 60 * 1000
+    case '10m':
+      return 10 * 60 * 1000
+    case '1h':
+    default:
+      return 60 * 60 * 1000
+  }
+}
+
+use([BarChart, LineChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 const toNumber = (value: number | null | undefined): number => {
   if (typeof value !== 'number' || Number.isNaN(value)) {
@@ -56,6 +75,26 @@ const formatDateTime = (value: string | null | undefined): string => {
   return date.toLocaleString()
 }
 
+const formatChartTime = (value: string | null | undefined): string => {
+  if (!value) {
+    return '-'
+  }
+
+  const date = new Date(value)
+
+  if (Number.isNaN(date.getTime())) {
+    return '-'
+  }
+
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    hourCycle: 'h23',
+  })
+}
+
 const toPercentageTone = (cpuUsagePercent: number): DashboardMetric['tone'] => {
   if (cpuUsagePercent >= 85) {
     return 'magenta'
@@ -66,26 +105,6 @@ const toPercentageTone = (cpuUsagePercent: number): DashboardMetric['tone'] => {
   }
 
   return 'green'
-}
-
-const toLinePoints = (values: number[], maxValue: number): string => {
-  if (!values.length) {
-    return ''
-  }
-
-  const plotWidth = GLOBAL_CHART_WIDTH - GLOBAL_CHART_PADDING_X * 2
-  const plotHeight = GLOBAL_CHART_HEIGHT - GLOBAL_CHART_PADDING_Y * 2
-  const safeMax = maxValue > 0 ? maxValue : 1
-
-  return values
-    .map((value, index) => {
-      const x = values.length === 1
-        ? GLOBAL_CHART_PADDING_X
-        : GLOBAL_CHART_PADDING_X + (plotWidth * index) / (values.length - 1)
-      const y = GLOBAL_CHART_PADDING_Y + plotHeight - (Math.min(value, safeMax) / safeMax) * plotHeight
-      return `${x.toFixed(2)},${y.toFixed(2)}`
-    })
-    .join(' ')
 }
 
 export default defineComponent({
@@ -100,6 +119,8 @@ export default defineComponent({
     const refreshInProgress = ref(false)
     const selectedWindow = ref<string>('1h')
     const serverStatusHistory = ref<server.metrics.ServerStatusHistory | null>(null)
+    const globalTrendChartRef = ref<HTMLElement | null>(null)
+    let globalTrendChartInstance: ECharts | null = null
     let pollingTimer: ReturnType<typeof setInterval> | null = null
 
     const windowOptions = WINDOW_OPTIONS
@@ -128,30 +149,257 @@ export default defineComponent({
     const lastUpdatedLabel = computed(() => formatDateTime(latestSample.value?.timestampUtc))
 
     const globalTrendChart = computed(() => {
-      const source = trendSamples.value
+      const source = samples.value
 
       if (!source.length) {
         return {
-          cpuLinePoints: '',
-          memoryLinePoints: '',
+          labels: [] as string[],
+          cpuSeries: [] as Array<number | null>,
+          memorySeriesMb: [] as Array<number | null>,
           cpuMax: 0,
           memoryMaxMb: 0,
         }
       }
 
-      const cpuSeries = source.map((entry) => toNumber(entry.cpuUsagePercent))
-      const memorySeriesMb = source.map((entry) => toNumber(entry.memoryUsageBytes) / (1024 * 1024))
+      const windowMs = getWindowDurationMs(selectedWindow.value)
+      const historySampleIntervalMs =
+        (serverStatusHistory.value?.sampleIntervalSeconds ?? 0) > 0
+          ? Number(serverStatusHistory.value?.sampleIntervalSeconds) * 1000
+          : 0
+      const latestSampleTimestamp = source
+        .map((entry) => new Date(entry.timestampUtc ?? '').getTime())
+        .filter((timestamp) => Number.isFinite(timestamp))
+        .reduce((max, timestamp) => Math.max(max, timestamp), 0)
 
-      const cpuMax = Math.max(...cpuSeries, 100)
-      const memoryMaxMb = Math.max(...memorySeriesMb, 1)
+      const windowEndTimestamp = latestSampleTimestamp > 0 ? latestSampleTimestamp : Date.now()
+      const windowStartTimestamp = windowEndTimestamp - windowMs
+
+      const slotCount = historySampleIntervalMs > 0
+        ? Math.min(MAX_CHART_SLOTS, Math.max(CHART_SLOTS, Math.floor(windowMs / historySampleIntervalMs) + 1))
+        : CHART_SLOTS
+      const slotStepMs = windowMs / Math.max(slotCount - 1, 1)
+
+      const labels: string[] = []
+      const cpuSeries: Array<number | null> = Array.from({ length: slotCount }, () => null)
+      const memorySeriesMb: Array<number | null> = Array.from({ length: slotCount }, () => null)
+
+      for (let index = 0; index < slotCount; index += 1) {
+        labels.push(formatChartTime(new Date(windowStartTimestamp + index * slotStepMs).toISOString()))
+      }
+
+      for (const entry of source) {
+        const timestamp = new Date(entry.timestampUtc ?? '').getTime()
+
+        if (!Number.isFinite(timestamp) || timestamp < windowStartTimestamp || timestamp > windowEndTimestamp) {
+          continue
+        }
+
+        const slotIndex = Math.min(
+          slotCount - 1,
+          Math.max(0, Math.round((timestamp - windowStartTimestamp) / slotStepMs)),
+        )
+
+        cpuSeries[slotIndex] = toNumber(entry.cpuUsagePercent)
+        memorySeriesMb[slotIndex] = toNumber(entry.memoryUsageBytes) / (1024 * 1024)
+      }
+
+      const availableCpuValues = cpuSeries.filter((value): value is number => value !== null)
+      const availableMemoryValues = memorySeriesMb.filter((value): value is number => value !== null)
+
+      const cpuMax = availableCpuValues.length ? Math.max(...availableCpuValues) : 0
+      const memoryMaxMb = availableMemoryValues.length ? Math.max(...availableMemoryValues) : 0
 
       return {
-        cpuLinePoints: toLinePoints(cpuSeries, cpuMax),
-        memoryLinePoints: toLinePoints(memorySeriesMb, memoryMaxMb),
+        labels,
+        cpuSeries,
+        memorySeriesMb,
         cpuMax,
         memoryMaxMb,
       }
     })
+
+    const globalTrendChartOption = computed<EChartsCoreOption | null>(() => {
+      const chartData = globalTrendChart.value
+
+      if (!chartData.labels.length) {
+        return null
+      }
+
+      const cpuAxisMax = Math.max(
+        10,
+        chartData.cpuMax > 0 ? Number((chartData.cpuMax * 1.1).toFixed(2)) : 10,
+      )
+      const memoryAxisMax = chartData.memoryMaxMb > 0 ? Number((chartData.memoryMaxMb * 1.1).toFixed(2)) : 1
+
+      return {
+        animation: false,
+        grid: {
+          top: 18,
+          right: 18,
+          bottom: 24,
+          left: 18,
+          containLabel: true,
+        },
+        tooltip: {
+          trigger: 'axis',
+          axisPointer: {
+            type: 'cross',
+          },
+          formatter: (params: unknown) => {
+            const entries = Array.isArray(params) ? params : [params]
+
+            if (!entries.length) {
+              return ''
+            }
+
+            const firstEntry = entries[0] as { axisValueLabel?: string }
+            const lines: string[] = [firstEntry.axisValueLabel ?? '']
+
+            for (const rawEntry of entries) {
+              const entry = rawEntry as {
+                marker?: string
+                seriesName?: string
+                seriesIndex?: number
+                value?: number | string | null
+              }
+
+              const numericValue = typeof entry.value === 'number' ? entry.value : Number(entry.value)
+              const formattedValue = Number.isFinite(numericValue) ? numericValue.toFixed(2) : '-'
+              const unit = entry.seriesIndex === 0 ? '%' : ' MB'
+
+              lines.push(`${entry.marker ?? ''}${entry.seriesName ?? ''}: ${formattedValue}${unit}`)
+            }
+
+            return lines.join('<br/>')
+          },
+        },
+        xAxis: {
+          type: 'category',
+          boundaryGap: true,
+          data: chartData.labels,
+          axisLabel: {
+            color: '#a8b6c7',
+            hideOverlap: true,
+          },
+          axisLine: {
+            lineStyle: {
+              color: 'rgba(255, 255, 255, 0.2)',
+            },
+          },
+        },
+        yAxis: [
+          {
+            type: 'value',
+            min: 10,
+            max: cpuAxisMax,
+            axisLabel: {
+              color: '#a8b6c7',
+              formatter: '{value}%',
+            },
+            splitLine: {
+              lineStyle: {
+                color: 'rgba(255, 255, 255, 0.08)',
+              },
+            },
+          },
+          {
+            type: 'value',
+            min: 0,
+            max: memoryAxisMax,
+            axisLabel: {
+              color: '#a8b6c7',
+              formatter: '{value} MB',
+            },
+            splitLine: {
+              show: false,
+            },
+          },
+        ],
+        series: [
+          {
+            name: t('dashboard.cpuUsage'),
+            type: 'bar',
+            yAxisIndex: 0,
+            barMaxWidth: 12,
+            itemStyle: {
+              color: '#7fcf4b',
+              borderRadius: [4, 4, 0, 0],
+            },
+            data: chartData.cpuSeries,
+          },
+          {
+            name: t('dashboard.memoryUsage'),
+            type: 'line',
+            yAxisIndex: 1,
+            smooth: true,
+            symbol: 'none',
+            showSymbol: false,
+            lineStyle: {
+              color: '#4da5db',
+              width: 2,
+            },
+            itemStyle: {
+              color: '#4da5db',
+            },
+            data: chartData.memorySeriesMb,
+          },
+        ],
+      }
+    })
+
+    const disposeGlobalTrendChart = () => {
+      if (!globalTrendChartInstance) {
+        return
+      }
+
+      globalTrendChartInstance.dispose()
+      globalTrendChartInstance = null
+    }
+
+    const ensureGlobalTrendChart = (): ECharts | null => {
+      const container = globalTrendChartRef.value
+
+      if (!container) {
+        return null
+      }
+
+      if (!globalTrendChartInstance) {
+        globalTrendChartInstance = init(container)
+      }
+
+      return globalTrendChartInstance
+    }
+
+    const renderGlobalTrendChart = () => {
+      const option = globalTrendChartOption.value
+
+      if (!option) {
+        disposeGlobalTrendChart()
+        return
+      }
+
+      const chart = ensureGlobalTrendChart()
+
+      if (!chart) {
+        return
+      }
+
+      chart.setOption(option, true)
+      chart.resize()
+    }
+
+    const onWindowResize = () => {
+      globalTrendChartInstance?.resize()
+    }
+
+    watch(
+      globalTrendChartOption,
+      async () => {
+        await nextTick()
+        renderGlobalTrendChart()
+      },
+      { deep: true },
+    )
 
     const dbStatusChartRows = computed(() => {
       const source = latestDatabases.value
@@ -272,11 +520,16 @@ export default defineComponent({
 
     onMounted(async () => {
       await refreshServerStatus()
+      await nextTick()
+      renderGlobalTrendChart()
+      window.addEventListener('resize', onWindowResize)
       startPolling()
     })
 
     onUnmounted(() => {
       stopPolling()
+      window.removeEventListener('resize', onWindowResize)
+      disposeGlobalTrendChart()
     })
 
     return {
@@ -289,6 +542,7 @@ export default defineComponent({
       recentSamples,
       trendSamples,
       globalTrendChart,
+      globalTrendChartRef,
       dbStatusChartRows,
       lastUpdatedLabel,
       serverStatusHistory,
@@ -297,8 +551,6 @@ export default defineComponent({
       formatBytes,
       formatDateTime,
       toNumber,
-      globalChartWidth: GLOBAL_CHART_WIDTH,
-      globalChartHeight: GLOBAL_CHART_HEIGHT,
     }
   },
 })
