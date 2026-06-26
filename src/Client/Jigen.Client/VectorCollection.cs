@@ -62,16 +62,46 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
 
   public void Add(VectorKey key, VectorEntry<T> value)
   {
+    ArgumentNullException.ThrowIfNull(value);
+    ArgumentNullException.ThrowIfNull(key.Value);
+    ArgumentNullException.ThrowIfNull(value.Content);
+
     var v = new Vector()
     {
-      Database = store.Options.DatabaseName,
-      Collection = _options.Name,
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
       Key = ByteString.CopyFrom(key.Value),
       Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(value.Content).Span),
     };
 
-    v.Embeddings.AddRange(value.Embedding);
+    if (value.Embedding != null)
+      v.Embeddings.AddRange(value.Embedding);
+
     store.ServiceClient.SetVector(v);
+  }
+
+  public void Add(VectorKey key, T content, string sentence)
+  {
+    ArgumentNullException.ThrowIfNull(key.Value);
+    ArgumentNullException.ThrowIfNull(sentence);
+    ArgumentNullException.ThrowIfNull(content);
+
+    store.ServiceClient.SetDocument(new Document()
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Key = ByteString.CopyFrom(key.Value),
+      Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(content).Span),
+      Sentence = sentence
+    });
+  }
+
+  public void Add(VectorKey key, T content, float[] embeddings)
+  {
+    this.Add(key, new VectorEntry<T>()
+    {
+      Content = content, Embedding = embeddings
+    });
   }
 
   public bool ContainsKey(VectorKey key)
@@ -86,8 +116,8 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
 
     var request = new SearchVectorRequest
     {
-      Database = store.Options.DatabaseName,
-      Collection = _options.Name,
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
       Top = top
     };
 
@@ -114,8 +144,8 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
 
     var request = new SearchDocumentRequest
     {
-      Database = store.Options.DatabaseName,
-      Collection = _options.Name,
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
       Sentence = sentence,
       Top = top
     };
@@ -159,18 +189,38 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   }
 
   public ICollection<VectorKey> Keys => store.ServiceClient.GetAllKeys(CollectionKey).Keys.Select(k => (VectorKey)k.Span).ToList();
-  public ICollection<VectorEntry<T>> Values => store.ServiceClient.GetAllKeys(CollectionKey).Keys.Select(k => TryGetValue(k.Span, out var value) ? value : null).ToList();
+
+  public ICollection<VectorEntry<T>> Values =>
+    store.ServiceClient.GetAllKeys(CollectionKey).Keys.Select(k => TryGetValue(k.Span, out var value) ? value : null).ToList();
 
 
   private ItemKey ToItemKey(VectorKey key) => new()
   {
-    Database = store.Options.DatabaseName,
-    Collection = _options.Name,
+    Database = GetDatabaseName(),
+    Collection = GetCollectionName(),
     Key = ByteString.CopyFrom(key.Value)
   };
 
   private CollectionKey CollectionKey => new()
   {
-    Database = store.Options.DatabaseName, Collection = _options.Name
+    Database = GetDatabaseName(), Collection = GetCollectionName()
   };
+
+  private string GetDatabaseName()
+  {
+    if (string.IsNullOrWhiteSpace(store.Options.DatabaseName))
+      throw new InvalidOperationException(
+        "ConnectionOptions.DatabaseName is required and cannot be null or empty.");
+
+    return store.Options.DatabaseName;
+  }
+
+  private string GetCollectionName()
+  {
+    if (string.IsNullOrWhiteSpace(_options.Name))
+      throw new InvalidOperationException(
+        "VectorCollectionOptions.Name is required and cannot be null or empty.");
+
+    return _options.Name;
+  }
 }
