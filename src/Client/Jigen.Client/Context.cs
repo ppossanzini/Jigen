@@ -20,12 +20,12 @@ public class Context
   {
     Options = options;
     var address = BuildAddress(options);
-    ConfigureChannelOptions(options);
-    _channel = GrpcChannel.ForAddress(address, options.ChannelOptions);
+    var channelOptions = ConfigureChannelOptions(options);
+    _channel = GrpcChannel.ForAddress(address, channelOptions);
     // var invoker = _channel.Intercept(new Interceptors.GrpcClientExceptionInterceptor());
     // ServiceClient = new StoreCollectionService.StoreCollectionServiceClient(invoker);
     ServiceClient = new StoreCollectionService.StoreCollectionServiceClient(_channel);
-    
+
     this.ContextBuilder();
   }
 
@@ -49,21 +49,23 @@ public class Context
     return $"{scheme}://{options.HostName}:{options.Port}";
   }
 
-  private static void ConfigureChannelOptions(ConnectionOptions options)
+  private static GrpcChannelOptions ConfigureChannelOptions(ConnectionOptions options)
   {
+    var result = new GrpcChannelOptions();
+
     if (!options.TLS)
       AppContext.SetSwitch("System.Net.Http.SocketsHttpHandler.Http2UnencryptedSupport", true);
 
     if (!options.AllowUntrustedServerCertificate)
-      return;
+      return result;
 
-    if (options.ChannelOptions.HttpHandler == null)
+    if (result.HttpHandler == null)
     {
-      options.ChannelOptions.HttpHandler = CreateUntrustedHandler();
-      return;
+      result.HttpHandler = CreateUntrustedHandler();
+      return result;
     }
 
-    switch (options.ChannelOptions.HttpHandler)
+    switch (result.HttpHandler)
     {
       case SocketsHttpHandler socketsHandler:
         socketsHandler.SslOptions = CreateUntrustedSslOptions();
@@ -73,6 +75,7 @@ public class Context
           HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
         break;
     }
+    return result;
   }
 
   private static HttpMessageHandler CreateUntrustedHandler()

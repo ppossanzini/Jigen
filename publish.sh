@@ -3,7 +3,8 @@ Version="${VARIABLE:-1.1.0}"
 
 dotnet publish src/Server/Jigen/Jigen.csproj -o publish/server
 dotnet publish src/Server/Jigen/Jigen-AllInOne.csproj -o publish/all-in-one-server
-dotnet publish src/Embedding/Jigen.TextEmbedding -o publish/embeddings
+dotnet publish src/Embedding/TextEmbedding/Jigen.TextEmbedding -o publish/embeddings
+
 rm -rf publish/server/wwwroot/*
 rm -rf publish/all-in-one-server/wwwroot/*
 

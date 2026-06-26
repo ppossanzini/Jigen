@@ -1,3 +1,4 @@
+using Jigen.Indexer;
 using Microsoft.Extensions.Options;
 
 namespace Jigen.Handlers.Model;
@@ -23,7 +24,13 @@ public class DatabasesManager
     {
       if (ActiveDatabases.ContainsKey(db))
         continue;
-      ActiveDatabases.Add(db, new Store(new StoreOptions() { DataBaseName = db, DataBasePath = _settings.DataFolderPath }));
+      ActiveDatabases.Add(db, new Store(new StoreOptions()
+      {
+        DataBaseName = db,
+        DataBasePath = _settings.DataFolderPath,
+        Indexer = new SmallWorldIndexer(
+          new (m : 16, efConstruction : 200, efSearch : 50, storagePath : Path.Combine(_settings.DataFolderPath, "hnsw")))
+      }));
     }
   }
 }

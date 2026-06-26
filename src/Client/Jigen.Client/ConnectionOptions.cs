@@ -12,7 +12,5 @@ public class ConnectionOptions
 
   public bool AllowUntrustedServerCertificate { get; set; }
 
-  public GrpcChannelOptions ChannelOptions { get; set; } = new ();
-
   public string DatabaseName { get; set; }
 }

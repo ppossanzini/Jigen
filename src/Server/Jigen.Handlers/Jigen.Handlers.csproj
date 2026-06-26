@@ -17,6 +17,8 @@
     
     <ProjectReference Include="..\..\Embedding\TextEmbedding\Jigen.TextEmbedding.Core\Jigen.TextEmbedding.Core.csproj" />
     
+    <ProjectReference Include="..\..\Jigen\Jigen.Indexer.HNSW.optimized\Jigen.Indexer.HNSW.optimized.csproj" />
+    
     <ProjectReference Include="..\..\Jigen\Jigen.Store\Jigen.Store.csproj"/>
     <ProjectReference Include="..\Modules\Identity\Jigen.Identity.Core\Jigen.Identity.Core.csproj"/>
     <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>
