@@ -73,7 +73,7 @@ namespace Jigen
 
         services.AddHikyakuRabbitMQMessageDispatcher(o =>
         {
-          configuration.GetSection("RabbitMQ").Bind(o);
+          configuration.GetSection("Kaido:RabbitMQ").Bind(o);
           o.ClientName = Assembly.GetExecutingAssembly().FullName;
         }).AddRabbitMQRequestManager();
       }
