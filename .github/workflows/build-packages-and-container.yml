@@ -2,9 +2,6 @@ name: Build Packages And Container
 
 on:
   push:
-    branches:
-      - main
-      - master
     tags:
       - 'v*'
   pull_request:
@@ -62,31 +59,31 @@ jobs:
           path: artifacts/nuget/*.nupkg
           if-no-files-found: error
 
-  build-container:
-    name: Build Docker Container
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup .NET 10
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Publish Server
-        run: dotnet publish src/Server/Jigen/Jigen.csproj --configuration Release -o publish
-
-      - name: Build Docker Image
-        run: docker build . -t jigendb:ci-${{ github.sha }}
-
-      - name: Export Docker Image
-        run: docker save jigendb:ci-${{ github.sha }} | gzip > artifacts-jigendb-image.tar.gz
-
-      - name: Upload Docker Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: jigendb-image
-          path: artifacts-jigendb-image.tar.gz
-          if-no-files-found: error
+#  build-container:
+#    name: Build Docker Container
+#    runs-on: ubuntu-latest
+#
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#
+#      - name: Setup .NET 10
+#        uses: actions/setup-dotnet@v4
+#        with:
+#          dotnet-version: 10.0.x
+#
+#      - name: Publish Server
+#        run: dotnet publish src/Server/Jigen/Jigen.csproj --configuration Release -o publish
+#
+#      - name: Build Docker Image
+#        run: docker build . -t jigendb:ci-${{ github.sha }}
+#
+#      - name: Export Docker Image
+#        run: docker save jigendb:ci-${{ github.sha }} | gzip > artifacts-jigendb-image.tar.gz
+#
+#      - name: Upload Docker Artifact
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: jigendb-image
+#          path: artifacts-jigendb-image.tar.gz
+#          if-no-files-found: error
