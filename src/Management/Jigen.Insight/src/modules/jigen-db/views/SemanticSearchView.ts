@@ -53,6 +53,9 @@ export default defineComponent({
 
     const selectedDatabaseName = ref<string | null>(null)
     const selectedCollections = ref<string[]>([])
+    const embeddingTasks = ref<string[]>([])
+    const selectedEmbeddingTask = ref<string | null>(null)
+    const embeddingTasksLoading = ref(false)
     const searchText = ref('')
     const topResults = ref(TOP_RESULTS)
     const searching = ref(false)
@@ -76,6 +79,21 @@ export default defineComponent({
       return databaseStore.collectionsByDatabase[selectedDatabaseName.value] ?? []
     })
 
+    const loadEmbeddingTasks = async () => {
+      embeddingTasksLoading.value = true
+
+      try {
+        const tasks = await databaseService.listEmbeddingTasks()
+        embeddingTasks.value = Array.isArray(tasks) ? tasks : []
+        selectedEmbeddingTask.value = null
+      } catch {
+        embeddingTasks.value = []
+        selectedEmbeddingTask.value = null
+      } finally {
+        embeddingTasksLoading.value = false
+      }
+    }
+
     const canRunSearch = computed(() => {
       if (searching.value) {
         return false
@@ -86,6 +104,10 @@ export default defineComponent({
       }
 
       if (!selectedCollections.value.length) {
+        return false
+      }
+
+      if (embeddingTasks.value.length > 0 && !selectedEmbeddingTask.value) {
         return false
       }
 
@@ -123,7 +145,7 @@ export default defineComponent({
     }
 
     const ensureInitialData = async () => {
-      await databaseStore.loadDatabases()
+      await Promise.all([databaseStore.loadDatabases(), loadEmbeddingTasks()])
 
       if (!selectedDatabaseName.value) {
         selectedDatabaseName.value = databaseNames.value[0] ?? null
@@ -191,6 +213,7 @@ export default defineComponent({
 
     const onRunSearch = async () => {
       const normalizedQuery = searchText.value.trim()
+      const selectedTask = selectedEmbeddingTask.value?.trim() || undefined
 
       if (!selectedDatabaseName.value) {
         ElMessage.warning(t('semanticSearch.feedback.databaseRequired'))
@@ -207,17 +230,27 @@ export default defineComponent({
         return
       }
 
+      if (embeddingTasks.value.length > 0 && !selectedEmbeddingTask.value) {
+        ElMessage.warning(t('semanticSearch.feedback.embeddingTaskRequired'))
+        return
+      }
+
       searching.value = true
 
       try {
-        const embeddings = await databaseService.calculateEmbeddings(normalizedQuery)
+        const embeddingCalculationStartedAt = performance.now()
+        const embeddings = await databaseService.calculateEmbeddings(normalizedQuery, selectedTask)
+        const embeddingCalculationTimeMs = performance.now() - embeddingCalculationStartedAt
+        queryEmbedding.value = embeddings
+        queryEmbeddingTimeMs.value = toRoundedMs(embeddingCalculationTimeMs)
+
         const searchResult = await databaseService.searchCollections(selectedDatabaseName.value, {
           collections: selectedCollections.value,
+          embeddings,
           sentence: normalizedQuery,
           top: topResults.value,
         })
 
-        queryEmbedding.value = embeddings
         const mergedResults = Array.isArray(searchResult.mergedResults) ? searchResult.mergedResults : []
         const collectionsResults: server.database.CollectionSearchResult[] = Array.isArray(searchResult.collectionsResults)
           ? searchResult.collectionsResults
@@ -232,12 +265,13 @@ export default defineComponent({
 
         resultRows.value = mappedRows
 
-        const embeddingsCalculationTimeMs = Number(searchResult.embeddingsCalculationTime ?? 0)
+        const embeddingsCalculationTimeMs = Number.isFinite(embeddingCalculationTimeMs)
+          ? embeddingCalculationTimeMs
+          : Number(searchResult.embeddingsCalculationTime ?? 0)
         const searchTimeMs = Number(searchResult.searchTime ?? 0)
         const mergeTimeMs = Number(searchResult.mergeTime ?? 0)
         const sortingTimeMs = Number(searchResult.sortingTime ?? 0)
 
-        queryEmbeddingTimeMs.value = toRoundedMs(embeddingsCalculationTimeMs)
         globalOperationTimeMs.value = toRoundedMs(
           embeddingsCalculationTimeMs + searchTimeMs + mergeTimeMs + sortingTimeMs,
         )
@@ -266,7 +300,9 @@ export default defineComponent({
           {
             key: 'build-embedding',
             title: t('semanticSearch.pathSteps.buildEmbedding'),
-            detail: t('semanticSearch.labels.queryEmbedding'),
+            detail: selectedTask
+              ? `${t('semanticSearch.labels.queryEmbedding')} · ${selectedTask}`
+              : t('semanticSearch.labels.queryEmbedding'),
             elapsedMs: toRoundedMs(embeddingsCalculationTimeMs),
           },
           {
@@ -338,6 +374,10 @@ export default defineComponent({
       selectedCollections.value = value
     }
 
+    const onUpdateSelectedEmbeddingTask = (value: string | null) => {
+      selectedEmbeddingTask.value = value
+    }
+
     const onUpdateSearchText = (value: string) => {
       searchText.value = value
     }
@@ -378,6 +418,9 @@ export default defineComponent({
       databaseStore,
       selectedDatabaseName,
       selectedCollections,
+      embeddingTasks,
+      selectedEmbeddingTask,
+      embeddingTasksLoading,
       searchText,
       topResults,
       topResultsMin: TOP_RESULTS_MIN,
@@ -400,6 +443,7 @@ export default defineComponent({
       copyResultContentJsonToClipboard,
       onUpdateSelectedDatabaseName,
       onUpdateSelectedCollections,
+      onUpdateSelectedEmbeddingTask,
       onUpdateSearchText,
       onUpdateTopResults,
     }

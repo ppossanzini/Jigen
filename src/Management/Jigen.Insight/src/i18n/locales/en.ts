@@ -167,6 +167,7 @@ const en = {
     labels: {
       database: 'Database',
       collections: 'Collections',
+      embeddingTask: 'Embedding task',
       query: 'Search text',
       topResults: 'Top results',
       queryEmbedding: 'Embedding used for search',
@@ -197,6 +198,7 @@ const en = {
     placeholders: {
       database: 'Select a database',
       collections: 'Choose one or more collections',
+      embeddingTask: 'Select an embedding task',
       query: 'Insert required search text',
     },
     buttons: {
@@ -211,6 +213,7 @@ const en = {
       queryRequired: 'Search text is required.',
       databaseRequired: 'Select a database first.',
       collectionsRequired: 'Select at least one collection.',
+      embeddingTaskRequired: 'Select an embedding task first.',
       noResults: 'No result found. Try another search text.',
       searchCompleted: 'Search completed.',
       searchFailed: 'Search failed. Please retry.',

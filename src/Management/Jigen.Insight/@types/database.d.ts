@@ -38,6 +38,7 @@ declare namespace server {
     interface SearchCollectionsData {
       collections?: string[] | null
       sentence?: string | null
+      embeddings?: number[] | null
       top?: number | null
     }
 

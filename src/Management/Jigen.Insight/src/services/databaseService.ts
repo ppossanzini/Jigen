@@ -2,6 +2,11 @@ import { BaseRestService } from '@/services/baseRestService'
 
 class DatabaseService extends BaseRestService {
 
+  async listEmbeddingTasks(): Promise<string[]> {
+    const response = await this.api.get<string[]>('/embeddings/tasks')
+    return response.data
+  }
+
   async listDatabases(): Promise<server.database.DatabaseName[]> {
     const response = await this.api.get<server.database.DatabaseName[]>('/database')
     return response.data
@@ -48,8 +53,13 @@ class DatabaseService extends BaseRestService {
     return response.data
   }
 
-  async calculateEmbeddings(sentence: string): Promise<number[]> {
-    const response = await this.api.post<number[]>('/embeddings/calculate', sentence)
+  async calculateEmbeddings(sentence: string, task?: string | null): Promise<number[]> {
+    const normalizedTask = task?.trim()
+    const path = normalizedTask
+      ? `/embeddings/calculate/${encodeURIComponent(normalizedTask)}`
+      : '/embeddings/calculate'
+
+    const response = await this.api.post<number[]>(path, sentence)
     return response.data
   }
 

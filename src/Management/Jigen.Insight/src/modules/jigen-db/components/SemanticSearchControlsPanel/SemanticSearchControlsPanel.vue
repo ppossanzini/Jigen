@@ -44,6 +44,20 @@
           </el-form-item>
         </div>
 
+        <div v-if="embeddingTasksLoading || embeddingTasks.length > 0" class="search-form-grid__field">
+          <el-form-item :label="$t('semanticSearch.labels.embeddingTask')">
+            <el-select
+              :model-value="selectedEmbeddingTask"
+              :placeholder="$t('semanticSearch.placeholders.embeddingTask')"
+              :loading="embeddingTasksLoading"
+              :disabled="embeddingTasksLoading || !embeddingTasks.length"
+              @update:model-value="onUpdateEmbeddingTask"
+            >
+              <el-option v-for="task in embeddingTasks" :key="task" :label="task" :value="task" />
+            </el-select>
+          </el-form-item>
+        </div>
+
         <div class="search-form-grid__field search-form-grid__field--top-results">
           <el-form-item :label="$t('semanticSearch.labels.topResults')">
             <el-input-number

@@ -13,7 +13,7 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
   [ProducesResponseType(typeof(string[]), StatusCodes.Status200OK)]
   public IActionResult Get()
   {
-    return Ok(configuration.GetValue<string[]>("JigenEmbeddings:Tasks")  ?? Array.Empty<string>());
+    return Ok(configuration.GetSection("JigenEmbeddings:Tasks").Get<string[]>() ?? Array.Empty<string>());
   }
 
 

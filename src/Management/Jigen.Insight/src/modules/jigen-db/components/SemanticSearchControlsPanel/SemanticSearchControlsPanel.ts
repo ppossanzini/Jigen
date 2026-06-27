@@ -16,6 +16,18 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       required: true,
     },
+    embeddingTasks: {
+      type: Array as PropType<string[]>,
+      required: true,
+    },
+    selectedEmbeddingTask: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
+    embeddingTasksLoading: {
+      type: Boolean,
+      default: false,
+    },
     searchText: {
       type: String,
       required: true,
@@ -56,6 +68,7 @@ export default defineComponent({
   emits: [
     'update:selectedDatabaseName',
     'update:selectedCollections',
+    'update:selectedEmbeddingTask',
     'update:searchText',
     'update:topResults',
     'run-search',
@@ -69,6 +82,10 @@ export default defineComponent({
 
     const onUpdateCollections = (value: string[]) => {
       emit('update:selectedCollections', value)
+    }
+
+    const onUpdateEmbeddingTask = (value: string | null) => {
+      emit('update:selectedEmbeddingTask', value)
     }
 
     const onUpdateSearchText = (value: string) => {
@@ -98,6 +115,7 @@ export default defineComponent({
     return {
       onUpdateDatabase,
       onUpdateCollections,
+      onUpdateEmbeddingTask,
       onUpdateSearchText,
       onUpdateTopResults,
       onRunSearch,
