@@ -7,7 +7,6 @@ using Jigen.Indexer;
 using Jigen.SemanticTools;
 using Microsoft.Extensions.Logging;
 using Xunit.Abstractions;
-using ZstdSharp.Unsafe;
 
 namespace JigenTests;
 

@@ -10,12 +10,12 @@
   
   <ItemGroup>
     <PackageReference Include="Hikyaku" Version="9.4.3" />
-    <PackageReference Include="Hikyaku.Kaido" Version="9.4.6" />
-    <PackageReference Include="Hikyaku.Kaido.RabbitMQ" Version="9.4.6" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.9"/>
+    <PackageReference Include="Hikyaku.Kaido" Version="9.4.7" />
+    <PackageReference Include="Hikyaku.Kaido.RabbitMQ" Version="9.4.7" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.9" />
     <PackageReference Include="MapZilla" Version="9.1.5"/>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9"/>
-    <PackageReference Include="Scalar.AspNetCore" Version="2.8.4"/>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <PackageReference Include="Scalar.AspNetCore" Version="2.16.10" />
 
   </ItemGroup>
   

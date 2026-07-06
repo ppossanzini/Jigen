@@ -1,4 +1,4 @@
-using Parquet.Serialization.Attributes;
+
 
 namespace JigenTests.entity;
 
