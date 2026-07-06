@@ -225,6 +225,25 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     Array.Clear(_readCache);
   }
 
+  /// <summary>
+  /// Absolute file position and length of the item at <paramref name="index"/>.
+  /// Lets callers read the raw record through their own channel (e.g. a
+  /// memory mapping) without deserializing it.
+  /// </summary>
+  public (long Position, int Length) GetItemLocation(int index)
+  {
+    _itemsIndexLock.EnterReadLock();
+    try
+    {
+      var item = _itemsIndex[index];
+      return (item.Position, item.Length);
+    }
+    finally
+    {
+      _itemsIndexLock.ExitReadLock();
+    }
+  }
+
   public IEnumerator<T> GetEnumerator()
   {
     int initialCount;

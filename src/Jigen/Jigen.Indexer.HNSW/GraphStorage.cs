@@ -187,39 +187,33 @@ internal sealed class AdjacencyPart : IStorableItem<AdjacencyPart, SmallWorldOpt
 }
 
 /// <summary>
-/// Disk-backed node list splitting each node across two StoredLists sharing
-/// the same index space: immutable vectors ({name}.vec, append-only) and
-/// mutable adjacency records ({name}.adj, fixed-size in-place updates).
-/// Assigning <c>this[i] = node</c> persists ONLY the adjacency half.
-/// Slot 0 is the entrypoint pointer: its adjacency record stores the
-/// PositionId of the current entrypoint (see AssignEntryPoint).
+/// Disk-backed node list with the hnswlib-style runtime layout:
+/// - one CANONICAL IndexNode per position, resident in RAM (id, levels,
+///   adjacency, deletion flag) — indexing never allocates or deserializes;
+/// - vectors are NOT held in RAM: nodes read them zero-copy from the memory
+///   mapped {name}.vec (freshly inserted nodes keep a staging float[] until a
+///   remap covers their offset, then it is dropped);
+/// - mutations write through: adjacency records go to {name}.adj in place,
+///   vector records are appended once to {name}.vec and never touched again.
+/// Slot 0 is the entrypoint pointer (see AssignEntryPoint). The on-disk
+/// format is unchanged from the previous split storage.
 /// </summary>
 internal sealed class SplitNodeList : IList<IndexNode>
 {
-  private readonly int _cacheMask;
+  // Vectors staged in RAM before a remap makes them readable from the map.
+  private const int StageLimit = 4096;
 
   private readonly StoredList<VectorPart, SmallWorldOptions> _vectors;
   private readonly StoredList<AdjacencyPart, SmallWorldOptions> _adjacency;
+  private readonly MappedVectorFile _mapped;
   private readonly SmallWorldOptions _options;
 
-  private sealed class CacheEntry(int index, IndexNode value)
-  {
-    public readonly int Index = index;
-    public readonly IndexNode Value = value;
-  }
-
-  private readonly CacheEntry[] _cache;
+  private readonly List<IndexNode> _nodes = new();
+  private readonly List<IndexNode> _staged = new();
 
   public SplitNodeList(string vectorsPath, string adjacencyPath, SmallWorldOptions options, TimeSpan? flushInterval)
   {
     _options = options;
-
-    // Every graph hop goes through this[i]: the composed-node cache is what
-    // keeps a disk-backed search close to in-memory speed once warm.
-    var slots = (int)System.Numerics.BitOperations.RoundUpToPowerOf2((uint)Math.Max(options.NodeCacheSize, 512));
-    _cache = new CacheEntry[slots];
-    _cacheMask = slots - 1;
-
     _vectors = new StoredList<VectorPart, SmallWorldOptions>(
       new StoreListOptions { FilePath = vectorsPath, FlushInterval = flushInterval }, options);
     _adjacency = new StoredList<AdjacencyPart, SmallWorldOptions>(
@@ -230,80 +224,156 @@ internal sealed class SplitNodeList : IList<IndexNode>
     // aligned (the dropped nodes are restored by the store reconciliation).
     while (_vectors.Count > _adjacency.Count) _vectors.RemoveAt(_vectors.Count - 1);
     while (_adjacency.Count > _vectors.Count) _adjacency.RemoveAt(_adjacency.Count - 1);
+
+    _mapped = new MappedVectorFile(vectorsPath);
+    LoadNodes();
   }
 
-  public int Count => _adjacency.Count;
+  // VectorPart record layout (see VectorPart.Serialize):
+  // [version 1B][idlen 4B][id][maxLevel 4B][veclen 4B][floats]
+  private static long FloatOffsetOf(long recordPosition, int idLength) =>
+    recordPosition + 1 + sizeof(int) + idLength + 2 * sizeof(int);
+
+  private void LoadNodes()
+  {
+    var count = _adjacency.Count;
+    if (count == 0) return;
+
+    _nodes.Capacity = count;
+
+    for (var i = 0; i < count; i++)
+    {
+      var adjacency = _adjacency[i];
+      var (position, length) = _vectors.GetItemLocation(i);
+
+      // Only the record HEADER is read (id and vector location): the floats
+      // stay untouched on disk until a distance needs them through the map.
+      var version = _mapped.Bytes(position, 1)[0];
+      if (version != 1)
+        throw new InvalidDataException($"Unsupported VectorPart serialization version: {version}");
+
+      var idLength = BinaryPrimitives.ReadInt32LittleEndian(_mapped.Bytes(position + 1, sizeof(int)));
+      if (idLength < 0 || 1 + 3 * sizeof(int) + idLength > length)
+        throw new InvalidDataException("Invalid Id length in vector record header.");
+
+      var id = _mapped.Bytes(position + 1 + sizeof(int), idLength).ToArray();
+      var afterId = position + 1 + sizeof(int) + idLength;
+      var maxLevel = BinaryPrimitives.ReadInt32LittleEndian(_mapped.Bytes(afterId, sizeof(int)));
+      var dimensions = BinaryPrimitives.ReadInt32LittleEndian(_mapped.Bytes(afterId + sizeof(int), sizeof(int)));
+      if (dimensions < 0 || 1 + 3 * sizeof(int) + idLength + (long)dimensions * sizeof(float) > length)
+        throw new InvalidDataException("Invalid vector length in vector record header.");
+
+      _nodes.Add(new IndexNode(_options)
+      {
+        PositionId = i == 0 ? adjacency.EntryPointer : i,
+        Id = new VectorKey { Value = id },
+        MaxLevel = maxLevel,
+        IsDeleted = adjacency.IsDeleted,
+        Connections = adjacency.Connections,
+        MappedVectors = _mapped,
+        MappedFloatOffset = afterId + 2 * sizeof(int),
+        MappedDimensions = dimensions
+      });
+    }
+  }
+
+  public int Count => _nodes.Count;
   public bool IsReadOnly => false;
 
   public void Add(IndexNode node)
   {
     if (node is null) return;
 
-    var index = _adjacency.Count;
-    _vectors.Add(new VectorPart { Id = node.Id, Vector = node.Vector, MaxLevel = node.MaxLevel });
-    _adjacency.Add(new AdjacencyPart(_options)
+    // Reentrant under the graph lock (callers already hold lock(nodes)).
+    lock (this)
     {
-      EntryPointer = node.PositionId,
-      IsDeleted = node.IsDeleted,
-      Connections = node.Connections
-    });
+      var index = _nodes.Count;
+      var idLength = node.Id.Value?.Length ?? 0;
 
-    if (index != 0)
-      Volatile.Write(ref _cache[index & _cacheMask], new CacheEntry(index, node));
+      _vectors.Add(new VectorPart { Id = node.Id, Vector = node.Vector, MaxLevel = node.MaxLevel });
+      _adjacency.Add(new AdjacencyPart(_options)
+      {
+        EntryPointer = node.PositionId,
+        IsDeleted = node.IsDeleted,
+        Connections = node.Connections
+      });
+
+      var (position, _) = _vectors.GetItemLocation(index);
+      node.MappedDimensions = node.VectorDimensions;
+      node.MappedFloatOffset = FloatOffsetOf(position, idLength);
+      node.MappedVectors = _mapped;
+
+      _nodes.Add(node);
+
+      // The staging float[] is dropped once a remap covers the new record.
+      if (node.MappedDimensions > 0)
+      {
+        _staged.Add(node);
+        if (_staged.Count >= StageLimit)
+          ReleaseStagedVectors();
+      }
+    }
+  }
+
+  // Requires the lock.
+  private void ReleaseStagedVectors()
+  {
+    _mapped.Remap();
+    var mappedLength = _mapped.MappedLength;
+
+    var kept = 0;
+    for (var i = 0; i < _staged.Count; i++)
+    {
+      var node = _staged[i];
+      if (node.MappedFloatOffset + (long)node.MappedDimensions * sizeof(float) <= mappedLength)
+        node.ReleaseRamVector();
+      else
+        _staged[kept++] = node;
+    }
+
+    _staged.RemoveRange(kept, _staged.Count - kept);
   }
 
   public IndexNode this[int index]
   {
-    get
-    {
-      // Slot 0 is the entrypoint pointer and is read only on (re)load: it is
-      // deliberately kept out of the hot cache.
-      if (index != 0)
-      {
-        var cached = Volatile.Read(ref _cache[index & _cacheMask]);
-        if (cached is not null && cached.Index == index)
-          return cached.Value;
-      }
-
-      var vector = _vectors[index];
-      var adjacency = _adjacency[index];
-
-      var node = new IndexNode(_options)
-      {
-        PositionId = index == 0 ? adjacency.EntryPointer : index,
-        Id = vector.Id,
-        Vector = vector.Vector,
-        MaxLevel = vector.MaxLevel,
-        IsDeleted = adjacency.IsDeleted,
-        Connections = adjacency.Connections
-      };
-
-      if (index != 0)
-        Volatile.Write(ref _cache[index & _cacheMask], new CacheEntry(index, node));
-
-      return node;
-    }
+    get => _nodes[index];
     set
     {
       if (value is null) throw new ArgumentNullException(nameof(value));
 
-      // Only the mutable half is persisted: the vector was written by Add and
-      // never changes. Slot 0 stores just the entrypoint pointer — the
-      // entrypoint's own adjacency lives at its own index.
-      _adjacency[index] = new AdjacencyPart(_options)
+      lock (this)
       {
-        EntryPointer = value.PositionId,
-        IsDeleted = index != 0 && value.IsDeleted,
-        Connections = index == 0 ? Array.Empty<IList<int>>() : value.Connections
-      };
+        if (index == 0)
+        {
+          // Slot 0 stores just the entrypoint pointer — the entrypoint's own
+          // adjacency lives at its own index. Keep the canonical slot-0 view
+          // aligned so reloads resolve nodes[nodes[0].PositionId].
+          _nodes[0].PositionId = value.PositionId;
+          _adjacency[0] = new AdjacencyPart(_options)
+          {
+            EntryPointer = value.PositionId,
+            IsDeleted = false,
+            Connections = Array.Empty<IList<int>>()
+          };
+          return;
+        }
 
-      if (index != 0)
-        Volatile.Write(ref _cache[index & _cacheMask], new CacheEntry(index, value));
+        _nodes[index] = value;
+        _adjacency[index] = new AdjacencyPart(_options)
+        {
+          EntryPointer = value.PositionId,
+          IsDeleted = value.IsDeleted,
+          Connections = value.Connections
+        };
+      }
     }
   }
 
   public void Flush()
   {
+    lock (this)
+      ReleaseStagedVectors();
+
     _vectors.Flush();
     _adjacency.Flush();
   }
@@ -312,27 +382,32 @@ internal sealed class SplitNodeList : IList<IndexNode>
   {
     await _vectors.DisposeAsync();
     await _adjacency.DisposeAsync();
+    _mapped.Dispose();
   }
 
   public void ShrinkDb()
   {
-    // Vectors are append-only and adjacency updates are in-place, so the only
-    // dead space comes from crash-recovery clamping: usually a no-op.
-    _vectors.ShrinkDb();
-    _adjacency.ShrinkDb();
+    // Deliberately a no-op: vectors are append-only and adjacency updates are
+    // in-place, so there is no dead space to reclaim — and compacting the
+    // vector file would move records and invalidate the mapped offsets.
   }
 
   public void Clear()
   {
-    _vectors.Clear();
-    _adjacency.Clear();
-    Array.Clear(_cache);
+    lock (this)
+    {
+      _vectors.Clear();
+      _adjacency.Clear();
+      _nodes.Clear();
+      _staged.Clear();
+    }
   }
 
   public IEnumerator<IndexNode> GetEnumerator()
   {
-    for (var i = 0; i < Count; i++)
-      yield return this[i];
+    var count = _nodes.Count;
+    for (var i = 0; i < count; i++)
+      yield return _nodes[i];
   }
 
   IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();

@@ -222,7 +222,7 @@ public class SmallWorldIndexer : IIndexer
       // The initial slot-0 placeholder has an empty vector (distance = MaxValue):
       // promote the first real node to entrypoint so the placeholder never
       // becomes part of the graph.
-      if (graph.entrypoint is null || graph.entrypoint.Vector.Length == 0)
+      if (graph.entrypoint is null || graph.entrypoint.VectorDimensions == 0)
       {
         AssignEntryPoint(collection, graph, newNode);
         return;
@@ -321,7 +321,7 @@ public class SmallWorldIndexer : IIndexer
     for (var i = 1; i < graph.nodes.Count; i++)
     {
       var node = graph.nodes[i];
-      if (node.IsDeleted || node.Vector.Length == 0) continue;
+      if (node.IsDeleted || node.VectorDimensions == 0) continue;
       if (best is null || node.MaxLevel > best.MaxLevel) best = node;
     }
 
@@ -336,7 +336,7 @@ public class SmallWorldIndexer : IIndexer
       return [];
 
     var graph = GetGraphForCollection(collection);
-    if (graph.entrypoint is null || graph.entrypoint.Vector.Length == 0) // empty graph (placeholder only)
+    if (graph.entrypoint is null || graph.entrypoint.VectorDimensions == 0) // empty graph (placeholder only)
       return [];
 
     var destination = CreateQueryNode(queryVector);
@@ -440,7 +440,7 @@ public class SmallWorldIndexer : IIndexer
   {
     var graph = GetGraphForCollection(collection);
     var entrypoint = graph.entrypoint;
-    if (entrypoint is null || entrypoint.Vector.Length == 0) return []; // empty graph (placeholder only)
+    if (entrypoint is null || entrypoint.VectorDimensions == 0) return []; // empty graph (placeholder only)
 
     var bestPeer = entrypoint;
     for (int level = entrypoint.MaxLevel; level > 0; --level)
@@ -564,10 +564,12 @@ public class SmallWorldIndexer : IIndexer
 
   private static float DefaultDistance(IndexNode left, IndexNode right)
   {
-    if (left.Vector is null || right.Vector is null || left.Vector.Length == 0 || right.Vector.Length == 0)
+    if (left.VectorDimensions == 0 || right.VectorDimensions == 0)
       return float.MaxValue;
 
-    return CosineDistance.SIMDForUnits(left.Vector, right.Vector);
+    // VectorSpan is zero-copy: RAM for fresh/query nodes, the memory-mapped
+    // vector file for persisted ones — no deserialization on the hot path.
+    return CosineDistance.SIMDForUnits(left.VectorSpan, right.VectorSpan);
   }
 
   private static string SanitizeCollectionName(string collection)

@@ -15,7 +15,58 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
   public VectorKey Id { get; set; }
   public bool IsDeleted { get; set; }
   public int MaxLevel { get; set; }
-  public float[] Vector { get; set; } = [];
+
+  private float[] _vector = [];
+
+  // Disk-backed nodes read their vector straight from the mapped vector file:
+  // no deserialization, no float[] per access. _vector doubles as the staging
+  // copy for freshly inserted nodes until a remap covers their offset.
+  internal MappedVectorFile MappedVectors;
+  internal long MappedFloatOffset;
+  internal int MappedDimensions;
+
+  /// <summary>
+  /// The vector as a span, without materializing it: RAM copy when present,
+  /// otherwise zero-copy from the mapped vector file. Use this (or
+  /// <see cref="VectorDimensions"/>) on hot paths instead of <see cref="Vector"/>.
+  /// </summary>
+  public ReadOnlySpan<float> VectorSpan
+  {
+    get
+    {
+      var vector = _vector;
+      if (vector.Length > 0 || MappedVectors is null) return vector;
+      return MappedVectors.Floats(MappedFloatOffset, MappedDimensions);
+    }
+  }
+
+  public int VectorDimensions
+  {
+    get
+    {
+      var vector = _vector;
+      if (vector.Length > 0 || MappedVectors is null) return vector.Length;
+      return MappedDimensions;
+    }
+  }
+
+  /// <summary>
+  /// Materialized vector. For mapped nodes the getter COPIES from the map:
+  /// cold paths only (serialization, migration, custom distance functions).
+  /// </summary>
+  public float[] Vector
+  {
+    get
+    {
+      var vector = _vector;
+      if (vector.Length > 0 || MappedVectors is null) return vector;
+      return VectorSpan.ToArray();
+    }
+    set => _vector = value ?? [];
+  }
+
+  /// <summary>Drops the RAM staging copy once the mapping covers the offset.</summary>
+  internal void ReleaseRamVector() => _vector = [];
 
   public IList<IList<int>> Connections { get; set; } = Array.Empty<IList<int>>();
   public TravelingCosts TravelingCosts { get; private set; }
