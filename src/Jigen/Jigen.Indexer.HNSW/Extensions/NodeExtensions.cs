@@ -8,10 +8,7 @@ namespace Jigen.Indexer.Extensions;
 public static class NodeExtensions
 {
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
-  public static int GetM( int m, int level)
-  {
-    return level == 0 ? 2 * m : m;
-  }
+  public static int GetM(int m, int level) => level == 0 ? 2 * m : m;
 
   [MethodImpl(MethodImplOptions.AggressiveInlining | MethodImplOptions.AggressiveOptimization)]
   public static void AddNewNode(this IList<IndexNode> nodes, IndexNode node)
@@ -52,13 +49,10 @@ public static class NodeExtensions
   private static void NormalizeInPlace(Span<float> vector)
   {
     if (vector.Length == 0) return;
-
     var norm = TensorPrimitives.Norm(vector);
     if (norm <= 0) return;
-
     TensorPrimitives.Divide(vector, norm, vector);
   }
-
 
   public static void AddConnection(this IndexNode item, IndexNode newNeighbour, int level, SmallWorldIndexer smallworld, string collection)
   {
@@ -70,88 +64,93 @@ public static class NodeExtensions
     }
 
     levelNeighbours.Add(newNeighbour.PositionId);
+
     if (levelNeighbours.Count > GetM(smallworld.Options.M, level))
     {
-      item.Connections[level] = smallworld.SelectBestForConnecting(
-          item, item.GetConnections(level, smallworld, collection).ToList(),
-          smallworld, collection).Select(i => i.PositionId)
-        .ToList();
+      // Collect current connections without LINQ/ToList allocation via IEnumerable
+      var graph = smallworld.GetGraphForCollection(collection);
+      var currentConns = new List<IndexNode>();
+      foreach (var conn in item.GetConnections(level, graph))
+        currentConns.Add(conn);
+
+      var best = smallworld.SelectBestForConnecting(item, currentConns, level, smallworld, collection);
+
+      var newIds = new List<int>(best.Count);
+      foreach (var bc in best) newIds.Add(bc.PositionId);
+      item.Connections[level] = newIds;
     }
   }
 
-  public static IList<IndexNode> SelectBestForConnectingAlg3(this IndexNode item, IList<IndexNode> candidates, SmallWorldIndexer smallworld, string collection)
+  public static IList<IndexNode> SelectBestForConnectingAlg3(
+    this IndexNode item,
+    IList<IndexNode> candidates,
+    int level,
+    SmallWorldIndexer smallworld,
+    string collection)
   {
-    /*
-     * q ← this
-     * return M nearest elements from C to q
-     */
-
+    // Return M nearest elements from candidates to item (Algorithm 3).
+    // M is a property of the layer being wired, not of the item's top level.
+    int maxM = GetM(smallworld.Options.M, level);
     IComparer<IndexNode> fartherIsLess = item.TravelingCosts.Reverse();
     var candidatesHeap = new BinaryHeap<IndexNode>(candidates, fartherIsLess);
 
-    var result = new List<IndexNode>(GetM(smallworld.Options.M, item.MaxLevel) + 1);
-    while (candidatesHeap.Buffer.Any() && result.Count < GetM(smallworld.Options.M, item.MaxLevel))
-    {
+    var result = new List<IndexNode>(maxM + 1);
+    while (!candidatesHeap.IsEmpty && result.Count < maxM)
       result.Add(candidatesHeap.Pop());
-    }
 
     return result;
   }
 
-
-  public static IList<IndexNode> SelectBestForConnectingAlg4(this IndexNode item, IList<IndexNode> candidates,  SmallWorldIndexer smallworld, string collection)
+  public static IList<IndexNode> SelectBestForConnectingAlg4(
+    this IndexNode item,
+    IList<IndexNode> candidates,
+    int level,
+    SmallWorldIndexer smallworld,
+    string collection)
   {
     /*
-     * q ← this
-     * R ← ∅    // result
-     * W ← C    // working queue for the candidates
-     * if expandCandidates  // expand candidates
-     *   for each e ∈ C
-     *     for each eadj ∈ neighbourhood(e) at layer lc
-     *       if eadj ∉ W
-     *         W ← W ⋃ eadj
-     *
-     * Wd ← ∅ // queue for the discarded candidates
-     * while │W│ gt 0 and │R│ lt M
-     *   e ← extract nearest element from W to q
-     *   if e is closer to q compared to any element from R
-     *     R ← R ⋃ e
-     *   else
-     *     Wd ← Wd ⋃ e
-     *
-     * if keepPrunedConnections // add some of the discarded connections from Wd
-     *   while │Wd│ gt 0 and │R│ lt M
-     *   R ← R ⋃ extract nearest element from Wd to q
-     *
+     * R ← ∅        result
+     * W ← C        working queue
+     * if expandCandidates: expand W with neighbours of C
+     * Wd ← ∅       discarded
+     * while │W│ > 0 and │R│ < M
+     *   e ← extract nearest from W
+     *   if e closer to q than any element of R → R ← R ∪ e
+     *   else → Wd ← Wd ∪ e
+     * if keepPrunedConnections: fill R from Wd until │R│ = M
      * return R
      */
 
+    int maxM = GetM(smallworld.Options.M, level);
     IComparer<IndexNode> closerIsLess = item.TravelingCosts;
     IComparer<IndexNode> fartherIsLess = closerIsLess.Reverse();
 
-    var resultHeap = new BinaryHeap<IndexNode>(new List<IndexNode>(GetM(smallworld.Options.M, item.MaxLevel) + 1), closerIsLess);
+    var resultHeap    = new BinaryHeap<IndexNode>(closerIsLess, maxM + 1);
     var candidatesHeap = new BinaryHeap<IndexNode>(candidates, fartherIsLess);
 
-    // expand candidates option is enabled
     if (smallworld.Options.ExpandBestSelection)
     {
-      var candidatesIds = new HashSet<int>(candidates.Select(c => c.PositionId));
-      foreach (var neighbour in item.GetConnections(item.MaxLevel, smallworld, collection))
+      // Add neighbours of existing candidates not already in the working set.
+      var graph = smallworld.GetGraphForCollection(collection);
+      var candidatesIds = new HashSet<int>(candidates.Count);
+      foreach (var c in candidates) candidatesIds.Add(c.PositionId);
+
+      foreach (var neighbour in item.GetConnections(level, graph))
       {
-        if (candidatesIds.Contains(neighbour.PositionId)) continue;
-        candidatesHeap.Push(neighbour);
-        candidatesIds.Add(neighbour.PositionId);
+        if (candidatesIds.Add(neighbour.PositionId))
+          candidatesHeap.Push(neighbour);
       }
     }
 
-    // main stage of moving candidates to result
-    var discardedHeap = new BinaryHeap<IndexNode>(new List<IndexNode>(candidatesHeap.Buffer.Count), fartherIsLess);
-    while (candidatesHeap.Buffer.Any() && resultHeap.Buffer.Count < GetM(smallworld.Options.M, item.MaxLevel))
-    {
-      var candidate = candidatesHeap.Pop();
-      var farestResult = resultHeap.Buffer.FirstOrDefault();
+    var discardedHeap = new BinaryHeap<IndexNode>(fartherIsLess, candidatesHeap.Count);
 
-      if (farestResult == null || Tools.DLt(item.TravelingCosts.From(candidate), item.TravelingCosts.From(farestResult)))
+    while (!candidatesHeap.IsEmpty && resultHeap.Count < maxM)
+    {
+      var candidate    = candidatesHeap.Pop();
+      var farestResult = resultHeap.IsEmpty ? null : resultHeap.Peek();
+
+      if (farestResult is null
+          || Tools.DLt(item.TravelingCosts.From(candidate), item.TravelingCosts.From(farestResult)))
       {
         resultHeap.Push(candidate);
       }
@@ -161,26 +160,47 @@ public static class NodeExtensions
       }
     }
 
-    // keep pruned option is enabled
-    if (!smallworld.Options.KeepPrunedConnections) return resultHeap.Buffer;
+    if (!smallworld.Options.KeepPrunedConnections)
+      return resultHeap.ToList();
 
-    while (discardedHeap.Buffer.Any() && resultHeap.Buffer.Count < GetM(smallworld.Options.M, item.MaxLevel))
+    while (!discardedHeap.IsEmpty && resultHeap.Count < maxM)
       resultHeap.Push(discardedHeap.Pop());
 
-
-    return resultHeap.Buffer;
+    return resultHeap.ToList();
   }
 
-
-  public static IEnumerable<IndexNode> GetConnections(this IndexNode node, int level, SmallWorldIndexer smallworld, string collection)
+  /// <summary>
+  /// Iterates the live (non-deleted) connections of <paramref name="node"/> at the given level.
+  /// Uses the public API (passes through SmallWorldIndexer) — kept for external callers.
+  /// </summary>
+  public static IEnumerable<IndexNode> GetConnections(
+    this IndexNode node,
+    int level,
+    SmallWorldIndexer smallworld,
+    string collection)
   {
     var graph = smallworld.GetGraphForCollection(collection);
+    return node.GetConnections(level, graph);
+  }
 
+  /// <summary>
+  /// Fast internal overload: accepts the already-fetched graph tuple to avoid
+  /// the extra dictionary lookup per call inside hot loops.
+  /// </summary>
+  internal static IEnumerable<IndexNode> GetConnections(
+    this IndexNode node,
+    int level,
+    (IndexNode ep, IList<IndexNode> nodes) graph)
+  {
     if (level >= node.Connections.Count) yield break;
-    foreach (var idx in node.Connections[level])
+
+    // Indexed access instead of an enumerator: a search running concurrently
+    // with an insert must not hit the List version check.
+    var connections = node.Connections[level];
+    for (var i = 0; i < connections.Count; i++)
     {
-      if (smallworld.IsDeleted(collection, idx)) continue;
-      yield return graph.nodes[idx];
+      var n = graph.nodes[connections[i]];
+      if (!n.IsDeleted) yield return n;
     }
   }
 }

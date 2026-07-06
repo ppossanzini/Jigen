@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using Jigen.DataStructures;
 using Jigen.Filtering;
@@ -9,15 +10,14 @@ using MessagePack.Resolvers;
 
 namespace Jigen.Indexer;
 
-internal delegate IList<IndexNode> SelectForConnectingDelegate(IndexNode item, IList<IndexNode> candidates,  SmallWorldIndexer smallworld, string collection);
+internal delegate IList<IndexNode> SelectForConnectingDelegate(IndexNode item, IList<IndexNode> candidates, int level, SmallWorldIndexer smallworld, string collection);
 
 public class SmallWorldIndexer : IIndexer
 {
   internal SmallWorldOptions Options { get; init; }
 
-  
-  
-  private readonly Dictionary<string, (IndexNode entrypoint, IList<IndexNode> nodes)> _collectionGraphs = new();
+  private readonly ConcurrentDictionary<string, (IndexNode entrypoint, IList<IndexNode> nodes)> _collectionGraphs = new();
+  private readonly Lock _graphCreationLock = new();
 
   internal readonly SelectForConnectingDelegate SelectBestForConnecting = null;
 
@@ -39,8 +39,10 @@ public class SmallWorldIndexer : IIndexer
   {
     if (_collectionGraphs.TryGetValue(collection, out var item)) return item;
 
-    lock(_collectionGraphs)
+    lock (_graphCreationLock)
     {
+      if (_collectionGraphs.TryGetValue(collection, out item)) return item;
+
       if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
       var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
 
@@ -66,10 +68,13 @@ public class SmallWorldIndexer : IIndexer
     }
   }
 
-  private void AssignEntryPoint((IndexNode entrypoint, IList<IndexNode> nodes) entry, IndexNode newNode)
+  private void AssignEntryPoint(string collection, (IndexNode entrypoint, IList<IndexNode> nodes) entry, IndexNode newNode)
   {
-    entry.entrypoint = newNode;
+    // Slot 0 stores the entrypoint pointer (resolved via PositionId on reload).
+    // The dictionary value must be replaced too: tuples are value types, so
+    // mutating the local copy would leave the cached entrypoint stale.
     entry.nodes[0] = newNode;
+    _collectionGraphs[collection] = (newNode, entry.nodes);
   }
 
   public void AddToIndex(VectorEntry entry, bool  waitForIndexing = false)
@@ -87,49 +92,78 @@ public class SmallWorldIndexer : IIndexer
     var graph = GetGraphForCollection(collection);
     var newNode = entry.ToNode(Options);
 
-    graph.nodes.AddNewNode(newNode);
-
-    if (graph.entrypoint == null)
+    // Graph construction mutates shared adjacency lists: inserts must be
+    // serialized per collection (the nodes list reference is stable).
+    lock (graph.nodes)
     {
-      AssignEntryPoint(graph, newNode);
-      return;
-    }
+      graph = GetGraphForCollection(collection); // refresh entrypoint under lock
 
-    var bestPeer = graph.entrypoint;
-    for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
-      bestPeer = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level).Single();
+      graph.nodes.AddNewNode(newNode);
 
-    for (var level = Math.Min(newNode.MaxLevel, graph.entrypoint.MaxLevel); level >= 0; --level)
-    {
-      var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
-      var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, this, collection);
-
-      foreach (var newNeighbour in bestNeighbours)
+      // The initial slot-0 placeholder has an empty vector (distance = MaxValue):
+      // promote the first real node to entrypoint so the placeholder never
+      // becomes part of the graph.
+      if (graph.entrypoint is null || graph.entrypoint.Vector.Length == 0)
       {
-        newNode.AddConnection(newNeighbour, level, this, collection);
-        newNeighbour.AddConnection(newNode, level, this, collection);
-        graph.nodes[newNeighbour.PositionId] = newNeighbour;
-
-        // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
-        if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
-          bestPeer = newNeighbour;
+        AssignEntryPoint(collection, graph, newNode);
+        return;
       }
+
+      var bestPeer = graph.entrypoint;
+      for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
+        bestPeer = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level).Single();
+
+      // Graph nodes live for the lifetime of the index: distance caches filled
+      // during this insert must be released once done or they leak per node.
+      var touched = new HashSet<IndexNode>();
+
+      for (var level = Math.Min(newNode.MaxLevel, graph.entrypoint.MaxLevel); level >= 0; --level)
+      {
+        var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
+        var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, level, this, collection);
+
+        foreach (var newNeighbour in bestNeighbours)
+        {
+          newNode.AddConnection(newNeighbour, level, this, collection);
+          newNeighbour.AddConnection(newNode, level, this, collection);
+          graph.nodes[newNeighbour.PositionId] = newNeighbour;
+          touched.Add(newNeighbour);
+
+          // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
+          if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
+            bestPeer = newNeighbour;
+        }
+      }
+
+      // Persist the newly constructed adjacency lists for the inserted node.
+      graph.nodes[newNode.PositionId] = newNode;
+
+      newNode.TravelingCosts.ClearCache();
+      foreach (var neighbour in touched)
+        neighbour.TravelingCosts.ClearCache();
+
+      // zoom out to the highest level
+      if (newNode.MaxLevel > graph.entrypoint.MaxLevel)
+        AssignEntryPoint(collection, graph, newNode);
     }
-
-    // Persist the newly constructed adjacency lists for the inserted node.
-    graph.nodes[newNode.PositionId] = newNode;
-
-    // zoom out to the highest level
-    if (newNode.MaxLevel > graph.entrypoint.MaxLevel)
-      AssignEntryPoint(graph, newNode);
   }
 
   public void RemoveFromIndex(string collection, byte[] key)
   {
-    if (string.IsNullOrWhiteSpace(collection) || key is null)
+    if (string.IsNullOrWhiteSpace(collection) || key is null) return;
+
+    var graph = GetGraphForCollection(collection);
+    lock (graph.nodes)
     {
-      var graph = GetGraphForCollection(collection);
-      graph.nodes.Where(i => i.Id.Value.SequenceEqual(key)).ToList().ForEach(i => i.IsDeleted = true);
+      // Skip slot 0: it aliases the entrypoint node, which is re-visited at its own PositionId.
+      for (var i = 1; i < graph.nodes.Count; i++)
+      {
+        var node = graph.nodes[i];
+        if (node.IsDeleted || node.Id.Value is null || !node.Id.Value.SequenceEqual(key)) continue;
+
+        node.IsDeleted = true;
+        graph.nodes[i] = node; // write back so storage-backed lists persist the flag
+      }
     }
   }
 
@@ -140,7 +174,7 @@ public class SmallWorldIndexer : IIndexer
       return [];
 
     var graph = GetGraphForCollection(collection);
-    if (graph.entrypoint == null)
+    if (graph.entrypoint is null || graph.entrypoint.Vector.Length == 0) // empty graph (placeholder only)
       return [];
 
     var destination = CreateQueryNode(queryVector);
@@ -243,7 +277,7 @@ public class SmallWorldIndexer : IIndexer
   {
     var graph = GetGraphForCollection(collection);
     var entrypoint = graph.entrypoint;
-    if (entrypoint == null) return [];
+    if (entrypoint is null || entrypoint.Vector.Length == 0) return []; // empty graph (placeholder only)
 
     var bestPeer = entrypoint;
     for (int level = entrypoint.MaxLevel; level > 0; --level)
@@ -262,28 +296,16 @@ public class SmallWorldIndexer : IIndexer
 
   public Task FlushAsync()
   {
-    List<IList<IndexNode>> toFlush;
-    lock (_collectionGraphs)
-    {
-      toFlush = _collectionGraphs.Values.Select(g => g.nodes).ToList();
-    }
-
-    foreach (var nodes in toFlush)
-      (nodes as StoredList<IndexNode, SmallWorldOptions>)?.Flush();
+    foreach (var graph in _collectionGraphs.Values)
+      (graph.nodes as StoredList<IndexNode, SmallWorldOptions>)?.Flush();
 
     return Task.CompletedTask;
   }
 
   public Task ShrinkAsync()
   {
-    List<IList<IndexNode>> toShrink;
-    lock (_collectionGraphs)
-    {
-      toShrink = _collectionGraphs.Values.Select(g => g.nodes).ToList();
-    }
-
-    foreach (var nodes in toShrink)
-      (nodes as StoredList<IndexNode, SmallWorldOptions>)?.ShrinkDb();
+    foreach (var graph in _collectionGraphs.Values)
+      (graph.nodes as StoredList<IndexNode, SmallWorldOptions>)?.ShrinkDb();
 
     return Task.CompletedTask;
   }

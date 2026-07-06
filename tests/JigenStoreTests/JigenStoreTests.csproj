@@ -32,7 +32,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Jigen\Jigen.Indexer.HNSW.optimized\Jigen.Indexer.HNSW.optimized.csproj" />
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Indexer.HNSW\Jigen.Indexer.HNSW.csproj" />
     <ProjectReference Include="..\..\src\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj" />
     <ProjectReference Include="..\..\src\Jigen\Jigen.Store\Jigen.Store.csproj" />
   </ItemGroup>

@@ -4,64 +4,34 @@ namespace Jigen.Indexer.Extensions;
 
 public static class Tools
 {
-  /// <summary>
-  /// Distance is Lower Than.
-  /// </summary>
-  /// <param name="x">Left argument.</param>
-  /// <param name="y">Right argument.</param>
-  /// <returns>True if x &lt; y.</returns>
+  /// <summary>Distance is Lower Than.</summary>
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
-  public static bool DLt(float x, float y)
-  {
-    return x.CompareTo(y) < 0;
-  }
+  public static bool DLt(float x, float y) => x < y;
 
-  /// <summary>
-  /// Distance is Greater Than.
-  /// </summary>
-  /// <param name="x">Left argument.</param>
-  /// <param name="y">Right argument.</param>
-  /// <returns>True if x &gt; y.</returns>
+  /// <summary>Distance is Greater Than.</summary>
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
-  public static bool DGt(float x, float y)
-  {
-    return x.CompareTo(y) > 0;
-  }
+  public static bool DGt(float x, float y) => x > y;
 
-
-  /// <summary>
-  /// Distances are Equal.
-  /// </summary>
-  /// <param name="x">Left argument.</param>
-  /// <param name="y">Right argument.</param>
-  /// <returns>True if x == y.</returns>
-  public static bool DEq(float x, float y)
-  {
-    return x.CompareTo(y) == 0;
-  }
+  /// <summary>Distances are Equal.</summary>
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public static bool DEq(float x, float y) => x == y;
 
   /// <summary>
-  /// Runs breadth first search.
+  /// Runs breadth first search starting from <paramref name="entryPoint"/> at the given layer level.
   /// </summary>
-  /// <param name="entryPoint">The entry point.</param>
-  /// <param name="level">The level of the graph where to run BFS.</param>
-  /// <param name="visitAction">The action to perform on each node.</param>
   internal static void BFS(IndexNode entryPoint, int level, Action<IndexNode> visitAction, SmallWorldIndexer smallworld, string collection)
   {
     var visitedIds = new HashSet<int>();
     var expansionQueue = new Queue<IndexNode>(new[] { entryPoint });
 
-    while (expansionQueue.Any())
+    while (expansionQueue.Count > 0)
     {
       var currentNode = expansionQueue.Dequeue();
-      if (!visitedIds.Contains(currentNode.PositionId))
+      if (visitedIds.Add(currentNode.PositionId))
       {
         visitAction(currentNode);
-        visitedIds.Add(currentNode.PositionId);
         foreach (var neighbour in currentNode.GetConnections(level, smallworld, collection))
-        {
           expansionQueue.Enqueue(neighbour);
-        }
       }
     }
   }

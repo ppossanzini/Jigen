@@ -8,64 +8,58 @@
 // Licensed under Apache 2.0
 // </copyright>
 
+// ConcurrentDictionary replaced with plain Dictionary:
+// TravelingCosts is scoped per-operation (one per query node, one per insert node)
+// and is never shared across threads, so ConcurrentDictionary overhead is wasted.
 
-using System.Collections.Concurrent;
+using System.Runtime.CompilerServices;
 
 namespace Jigen.Indexer
 {
   /// <summary>
-  /// Implementation of distance calculation from an arbitrary point to the given destination.
+  /// Calculates and caches distances from arbitrary nodes to a fixed destination node.
+  /// Implements <see cref="IComparer{T}"/> so it can drive heap ordering directly.
   /// </summary>
-  /// <typeparam name="TItem">Type of the points.</typeparam>
-  /// <typeparam name="TDistance">Type of the diatnce.</typeparam>
   public class TravelingCosts(IndexNode destination, SmallWorldOptions options) : IComparer<IndexNode>
   {
-    /// <summary>
-    /// Default distance comaprer.
-    /// </summary>
     private static readonly Comparer<float> DistanceComparer = Comparer<float>.Default;
 
+    // Plain Dictionary: per-operation, single-threaded access only.
+    // ~3-5x faster than ConcurrentDictionary for the hit path.
+    // Lazily allocated: graph nodes never queried as destination pay nothing,
+    // and ClearCache releases the memory once the owning operation completes.
+    private Dictionary<int, float> _cache;
 
     /// <summary>
-    /// Cached values.
+    /// Returns the distance from <paramref name="departure"/> to the destination.
+    /// Results are cached by PositionId for the lifetime of this instance.
     /// </summary>
-    private readonly ConcurrentDictionary<int, float> _cache = new();
-
-
-    /// <summary>
-    /// Calculates distance from the departure to the destination.
-    /// </summary>
-    /// <param name="departure">The point of departure.</param>
-    /// <param name="usecache">Use cached values</param>
-    /// <returns>The distance from the departure to the destination.</returns>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float From(IndexNode departure, bool usecache = true)
     {
-      if (usecache && this._cache.TryGetValue(departure.PositionId, out var result))
-        return result;
+      if (!usecache)
+        return options.DefaultDistanceFunction(departure, destination);
 
-      result = options.DefaultDistanceFunction(departure, destination);
-      
-      if (usecache)
-        this._cache[departure.PositionId] = result;
-        
+      _cache ??= new Dictionary<int, float>();
+      if (_cache.TryGetValue(departure.PositionId, out var cached))
+        return cached;
+
+      var result = options.DefaultDistanceFunction(departure, destination);
+      _cache[departure.PositionId] = result;
       return result;
     }
 
     /// <summary>
-    /// Compares 2 points by the distance from the destination.
+    /// Drops the cached distances. Called when the operation that was filling the
+    /// cache completes (e.g. a node insert): graph nodes live for the lifetime of
+    /// the index and would otherwise retain hundreds of stale entries each.
     /// </summary>
-    /// <param name="x">Left point.</param>
-    /// <param name="y">Right point.</param>
-    /// <returns>
-    /// -1 if x is closer to the destination than y;
-    /// 0 if x and y are equally far from the destination;
-    /// 1 if x is farther from the destination than y.
-    /// </returns>
+    public void ClearCache() => _cache = null;
+
+    /// <summary>
+    /// Compares two nodes by their distance to the destination (closer = smaller).
+    /// </summary>
     public int Compare(IndexNode x, IndexNode y)
-    {
-      var fromX = this.From(x);
-      var fromY = this.From(y);
-      return DistanceComparer.Compare(fromX, fromY);
-    }
+      => DistanceComparer.Compare(From(x), From(y));
   }
 }

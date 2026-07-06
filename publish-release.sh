@@ -1,5 +1,5 @@
 
-Version="${VARIABLE:-1.1.0}"
+Version="${VARIABLE:-1.1.1}"
 
 dotnet publish src/Server/Jigen/Jigen.csproj -o publish/server
 dotnet publish src/Server/Jigen/Jigen-AllInOne.csproj -o publish/all-in-one-server
@@ -22,7 +22,7 @@ podman build . -t ppossanzini/jigendb-all-in-one:latest -t ppossanzini/jigendb-a
 cd ../../publish/embeddings
 podman build . -t ppossanzini/jigen-embeddings:latest -t ppossanzini/jigen-embeddings:$Version
 
-podman login
+podman login docker.io
 podman push ppossanzini/jigendb:latest
 podman push ppossanzini/jigendb:$Version
 podman push ppossanzini/jigendb-all-in-one:latest

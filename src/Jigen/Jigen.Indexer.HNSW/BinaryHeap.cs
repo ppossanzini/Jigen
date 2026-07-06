@@ -1,144 +1,142 @@
-﻿// <copyright file="BinaryHeap.cs" company="Microsoft">
+// <copyright file="BinaryHeap.cs" company="Microsoft">
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 // </copyright>
 
+// Rewritten for zero-allocation hot path: T[] backing store, no IList<T> dispatch,
+// no LINQ. SiftUp/SiftDown use direct array indexing with ref-swap.
+
+using System.Runtime.CompilerServices;
+
 namespace Jigen.Indexer
 {
   /// <summary>
-  /// Binary heap wrapper around the <see cref="IList{T}"/>
-  /// It's a max-heap implementation i.e. the maximum element is always on top.
-  /// But the order of elements can be customized by providing <see cref="IComparer{T}"/> instance.
+  /// Binary max-heap backed by a plain array.
+  /// The maximum element is always at index 0 (top).
+  /// Order is customizable via <see cref="IComparer{T}"/>.
   /// </summary>
-  /// <typeparam name="T">The type of the items in the source list.</typeparam>
   public class BinaryHeap<T>
   {
-    /// <summary>
-    /// Initializes a new instance of the <see cref="BinaryHeap{T}"/> class.
-    /// </summary>
-    /// <param name="buffer">The buffer to store heap items.</param>
-    public BinaryHeap(IList<T> buffer)
-      : this(buffer, Comparer<T>.Default)
+    private T[] _buffer;
+    private int _count;
+
+    /// <summary>Creates an empty heap with the given initial capacity.</summary>
+    public BinaryHeap(IComparer<T> comparer, int initialCapacity = 8)
     {
+      Comparer = comparer ?? Comparer<T>.Default;
+      _buffer = new T[Math.Max(initialCapacity, 4)];
     }
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="BinaryHeap{T}"/> class.
+    /// Creates a heap from an existing list (elements are copied and heapified).
+    /// The source list is not modified.
     /// </summary>
-    /// <param name="buffer">The buffer to store heap items.</param>
-    /// <param name="comparer">The comparer which defines order of items.</param>
-    public BinaryHeap(IList<T> buffer, IComparer<T> comparer)
+    public BinaryHeap(IList<T> source, IComparer<T> comparer)
     {
-      if (buffer == null)
+      Comparer = comparer ?? Comparer<T>.Default;
+      _count = source.Count;
+      if (_count > 0)
       {
-        throw new ArgumentNullException(nameof(buffer));
+        _buffer = new T[_count];
+        for (int i = 0; i < _count; i++) _buffer[i] = source[i];
+        for (int i = 1; i < _count; i++) SiftUp(i);
       }
-
-      this.Buffer = buffer;
-      this.Comparer = comparer;
-      for (int i = 1; i < this.Buffer.Count; ++i)
+      else
       {
-        this.SiftUp(i);
+        _buffer = new T[4];
       }
     }
 
-    /// <summary>
-    /// Gets the heap comparer.
-    /// </summary>
-    public IComparer<T> Comparer { get; private set; }
+    public IComparer<T> Comparer { get; }
 
-    /// <summary>
-    /// Gets the buffer of the heap.
-    /// </summary>
-    public IList<T> Buffer { get; private set; }
+    /// <summary>Number of elements currently in the heap.</summary>
+    public int Count => _count;
 
-    /// <summary>
-    /// Pushes item to the heap.
-    /// </summary>
-    /// <param name="item">The item to push.</param>
+    /// <summary>True when the heap contains no elements.</summary>
+    public bool IsEmpty => _count == 0;
+
+    /// <summary>Returns the top (maximum) element without removing it.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public T Peek() => _buffer[0];
+
+    /// <summary>Pushes an item onto the heap.</summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Push(T item)
     {
-      this.Buffer.Add(item);
-      this.SiftUp(this.Buffer.Count - 1);
+      if (_count == _buffer.Length) Grow();
+      _buffer[_count] = item;
+      SiftUp(_count);
+      _count++;
     }
 
-    /// <summary>
-    /// Pops the item from the heap.
-    /// </summary>
-    /// <returns>The popped item.</returns>
+    /// <summary>Removes and returns the top (maximum) element.</summary>
     public T Pop()
     {
-      if (this.Buffer.Any())
+      if (_count == 0) throw new InvalidOperationException("Heap is empty");
+
+      var result = _buffer[0];
+      _count--;
+      if (_count > 0)
       {
-        var result = this.Buffer.First();
-
-        this.Buffer[0] = this.Buffer.Last();
-        this.Buffer.RemoveAt(this.Buffer.Count - 1);
-        this.SiftDown(0);
-
-        return result;
+        _buffer[0] = _buffer[_count];
+        _buffer[_count] = default!;
+        SiftDown(0);
+      }
+      else
+      {
+        _buffer[0] = default!;
       }
 
-      throw new InvalidOperationException("Heap is empty");
+      return result;
     }
 
     /// <summary>
-    /// Restores the heap property starting from i'th position down to the bottom
-    /// given that the downstream items fulfill the rule.
+    /// Returns a new <see cref="List{T}"/> containing all heap elements
+    /// in their current (heap) order.
     /// </summary>
-    /// <param name="i">The position of item where heap property is violated.</param>
+    public List<T> ToList()
+    {
+      var list = new List<T>(_count);
+      for (int i = 0; i < _count; i++) list.Add(_buffer[i]);
+      return list;
+    }
+
+    private void Grow()
+    {
+      var newBuffer = new T[_buffer.Length * 2];
+      Array.Copy(_buffer, newBuffer, _count);
+      _buffer = newBuffer;
+    }
+
     private void SiftDown(int i)
     {
-      while (i < this.Buffer.Count)
+      while (true)
       {
-        int l = (2 * i) + 1;
+        int l = (i << 1) + 1;
+        if (l >= _count) break;
         int r = l + 1;
-        if (l >= this.Buffer.Count)
-        {
-          break;
-        }
-
-        int m = r < this.Buffer.Count && this.Comparer.Compare(this.Buffer[l], this.Buffer[r]) < 0 ? r : l;
-        if (this.Comparer.Compare(this.Buffer[m], this.Buffer[i]) <= 0)
-        {
-          break;
-        }
-
-        this.Swap(i, m);
+        int m = r < _count && Comparer.Compare(_buffer[l], _buffer[r]) < 0 ? r : l;
+        if (Comparer.Compare(_buffer[m], _buffer[i]) <= 0) break;
+        Swap(i, m);
         i = m;
       }
     }
 
-    /// <summary>
-    /// Restores the heap property starting from i'th position up to the head
-    /// given that the upstream items fulfill the rule.
-    /// </summary>
-    /// <param name="i">The position of item where heap property is violated.</param>
     private void SiftUp(int i)
     {
       while (i > 0)
       {
-        int p = (i - 1) / 2;
-        if (this.Comparer.Compare(this.Buffer[i], this.Buffer[p]) <= 0)
-        {
-          break;
-        }
-
-        this.Swap(i, p);
+        int p = (i - 1) >> 1;
+        if (Comparer.Compare(_buffer[i], _buffer[p]) <= 0) break;
+        Swap(i, p);
         i = p;
       }
     }
 
-    /// <summary>
-    /// Swaps items with the specified indicies.
-    /// </summary>
-    /// <param name="i">The first index.</param>
-    /// <param name="j">The second index.</param>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void Swap(int i, int j)
     {
-      var temp = this.Buffer[i];
-      this.Buffer[i] = this.Buffer[j];
-      this.Buffer[j] = temp;
+      (_buffer[i], _buffer[j]) = (_buffer[j], _buffer[i]);
     }
   }
 }
