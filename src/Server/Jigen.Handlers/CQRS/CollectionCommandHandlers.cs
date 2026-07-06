@@ -105,17 +105,11 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
       });
   }
 
-  public Task Handle(Clear request, CancellationToken cancellationToken)
+  public async Task Handle(Clear request, CancellationToken cancellationToken)
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    if (store.GetCollectionIndexOf(request.Collection, out var index))
-    {
-      index.Clear();
-      store.SaveIndexChanges();
-    }
-
-    return Task.CompletedTask;
+    await store.ClearContent(request.Collection);
   }
 
   public Task<int> Handle(Count request, CancellationToken cancellationToken)

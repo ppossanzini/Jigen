@@ -61,20 +61,23 @@ public class Writer
 
   private void WriterJob()
   {
-    while (_running)
+    // Keep processing after Stop() until the queue is drained: items accepted
+    // by AppendContent must reach the files even when Close follows immediately.
+    while (_running || !_store.IngestionQueue.IsEmpty)
     {
-      _waiter.WaitOne(TimeSpan.FromMilliseconds(200));
-      if (!_running) break;
-
       if (_store.IngestionQueue.IsEmpty)
       {
         _writingCompleted.Set();
+        _waiter.WaitOne(TimeSpan.FromMilliseconds(200));
         continue;
       }
 
-      try
+      // The whole batch (content/embedding writes AND index appends) runs
+      // inside _ioLock so that anyone holding the lock (flusher, ShrinkAsync)
+      // observes a consistent state: no content bytes without their index entry.
+      lock (_ioLock)
       {
-        lock (_ioLock)
+        try
         {
           while (_store.IngestionQueue.TryDequeue(out var entry))
           {
@@ -95,28 +98,36 @@ public class Writer
               Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
             }, waitForIndexing: true);
           }
+        }
+        finally
+        {
+          _store.EmbeddingFileStream.Flush(false);
+          _store.ContentFileStream.Flush(false);
 
-          ;
+          _store.EnableReading();
+
+          while (TempIndex.TryDequeue(out var indexData))
+            _store.AppendIndex(indexData);
+
+          _store.IndexFileStream.Flush(false);
         }
       }
-      finally
-      {
-        _store.EmbeddingFileStream.Flush(false);
-        _store.ContentFileStream.Flush(false);
 
-        _store.EnableReading();
-
-        while (TempIndex.TryDequeue(out var indexData))
-          _store.AppendIndex(indexData);
-        
-        _store.IndexFileStream.Flush(false);
-
-        if (_store.IngestionQueue.IsEmpty)
-          _writingCompleted.Set();
-      }
+      if (_store.IngestionQueue.IsEmpty)
+        _writingCompleted.Set();
     }
 
     _writingCompleted.Set();
+  }
+
+  /// <summary>
+  /// Runs an action while holding the writer's I/O lock: the writer thread and
+  /// the flusher cannot touch the store files for the duration of the action.
+  /// </summary>
+  internal void RunExclusive(Action action)
+  {
+    lock (_ioLock)
+      action();
   }
 
   public void Stop()

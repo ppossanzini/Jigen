@@ -51,7 +51,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     _flushTask = Task.Run(() => FlushLoopAsync(_cts.Token));
   }
 
-  private unsafe void InitializeStore()
+  private void InitializeStore()
   {
     if (_data is null) throw new ArgumentNullException(nameof(_data));
 
@@ -60,9 +60,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       _header.Count = 0;
       _header.TombStonedCount = 0;
       _header.NextItemPosition = StoredListHeader.Size;
-      // Write header without allocation: unsafe pointer → ReadOnlySpan
-      fixed (StoredListHeader* p = &_header)
-        RandomAccess.Write(_data.SafeFileHandle!, new ReadOnlySpan<byte>(p, StoredListHeader.Size), 0);
+      WriteHeader();
     }
     else
     {
@@ -71,6 +69,13 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       RandomAccess.Read(_data.SafeFileHandle!, buffer, 0);
       _header = MemoryMarshal.Cast<byte, StoredListHeader>(buffer)[0];
     }
+  }
+
+  // Write header without allocation: unsafe pointer → ReadOnlySpan
+  internal unsafe void WriteHeader()
+  {
+    fixed (StoredListHeader* p = &_header)
+      RandomAccess.Write(_data.SafeFileHandle!, new ReadOnlySpan<byte>(p, StoredListHeader.Size), 0);
   }
 
   private void ReadIndex()
@@ -161,23 +166,28 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
     for (int i = 0; i < initialCount; i++)
     {
-      ItemIndex ii;
+      byte[] buffer;
+      int length;
+
       _itemsIndexLock.EnterReadLock();
       try
       {
         if (i >= _itemsIndex.Count) break;
-        ii = _itemsIndex[i];
+        var ii = _itemsIndex[i];
+
+        length = ii.Length;
+        buffer = ArrayPool<byte>.Shared.Rent(length);
+        // File read inside the lock: ShrinkDb can move records concurrently.
+        RandomAccess.Read(_data!.SafeFileHandle!, buffer.AsSpan(0, length), ii.Position);
       }
       finally
       {
         _itemsIndexLock.ExitReadLock();
       }
 
-      var buffer = ArrayPool<byte>.Shared.Rent(ii.Length);
       try
       {
-        RandomAccess.Read(_data!.SafeFileHandle!, buffer.AsSpan(0, ii.Length), ii.Position);
-        yield return T.Deserialize(buffer.AsMemory(0, ii.Length), _itemOptions);
+        yield return T.Deserialize(buffer.AsMemory(0, length), _itemOptions);
       }
       finally
       {
@@ -196,11 +206,16 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     if (item is null) return;
     var buffer = item.Serialize();
 
-    var position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
-    RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
+    // Position reservation and file write must happen under the write lock:
+    // ShrinkDb moves records and truncates the file while holding it, so an
+    // unprotected write could land past the truncation point and be lost.
     _itemsIndexLock.EnterWriteLock();
     try
     {
+      var position = _header.NextItemPosition;
+      _header.NextItemPosition += buffer.Length;
+      RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
+
       int newIndex = _itemsIndex.Count;
       _itemsIndex.Add(new ItemIndex()
       {
@@ -209,7 +224,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         MaxLength = buffer.Length,
         Hash = XxHash64.HashToUInt64(buffer.Span)
       });
-      Interlocked.Increment(ref _header.Count);
+      _header.Count++;
 
       // Populate cache for the newly added item
       Volatile.Write(ref _readCache[newIndex & ReadCacheMask], new ReadCacheEntry(newIndex, item));
@@ -292,8 +307,8 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       // Removal shifts every following index: the whole cache is stale.
       InvalidateCache();
       _itemsIndex.RemoveAt(index);
-      Interlocked.Increment(ref _header.TombStonedCount);
-      Interlocked.Decrement(ref _header.Count);
+      _header.TombStonedCount++;
+      _header.Count--;
     }
     finally
     {
@@ -326,12 +341,14 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     if (item is null) return;
     if (index < 0 || index > _itemsIndex.Count) throw new ArgumentOutOfRangeException(nameof(index));
     var buffer = item.Serialize();
-    var position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
-    RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
 
     _itemsIndexLock.EnterWriteLock();
     try
     {
+      var position = _header.NextItemPosition;
+      _header.NextItemPosition += buffer.Length;
+      RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
+
       _itemsIndex.Insert(index, new ItemIndex()
       {
         Position = position,
@@ -339,7 +356,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         Length = buffer.Length,
         Hash = XxHash64.HashToUInt64(buffer.Span)
       });
-      Interlocked.Increment(ref _header.Count);
+      _header.Count++;
       // Invalidate all cache after insert (indices shift)
       InvalidateCache();
     }
@@ -357,8 +374,8 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     {
       InvalidateCache();
       _itemsIndex.RemoveAt(index);
-      Interlocked.Increment(ref _header.TombStonedCount);
-      Interlocked.Decrement(ref _header.Count);
+      _header.TombStonedCount++;
+      _header.Count--;
     }
     finally
     {
@@ -376,52 +393,57 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       if (cached is not null && cached.Index == index)
         return cached.Value;
 
-      ItemIndex ii;
+      T result;
       _itemsIndexLock.EnterReadLock();
       try
       {
-        ii = _itemsIndex[index];
+        var ii = _itemsIndex[index];
+        var buffer = ArrayPool<byte>.Shared.Rent(ii.Length);
+        try
+        {
+          // The file read must stay inside the lock: ShrinkDb moves records
+          // and truncates the file while holding the write lock.
+          RandomAccess.Read(_data!.SafeFileHandle!, buffer.AsSpan(0, ii.Length), ii.Position);
+          result = T.Deserialize(buffer.AsMemory(0, ii.Length), _itemOptions);
+        }
+        finally
+        {
+          ArrayPool<byte>.Shared.Return(buffer);
+        }
       }
       finally
       {
         _itemsIndexLock.ExitReadLock();
       }
 
-      var buffer = ArrayPool<byte>.Shared.Rent(ii.Length);
-      try
-      {
-        RandomAccess.Read(_data!.SafeFileHandle!, buffer.AsSpan(0, ii.Length), ii.Position);
-        var result = T.Deserialize(buffer.AsMemory(0, ii.Length), _itemOptions);
-
-        // Populate cache
-        Volatile.Write(ref _readCache[slot], new ReadCacheEntry(index, result));
-
-        return result;
-      }
-      finally
-      {
-        ArrayPool<byte>.Shared.Return(buffer);
-      }
+      // Populate cache
+      Volatile.Write(ref _readCache[slot], new ReadCacheEntry(index, result));
+      return result;
     }
     set
     {
       if (value is null) throw new ArgumentNullException(nameof(value), "Value cannot be null");
 
-      var ii = _itemsIndex[index];
       var buffer = value.Serialize();
 
-      long position = ii.Position;
-      if (buffer.Length > ii.MaxLength)
-      {
-        position = Interlocked.Add(ref _header.NextItemPosition, buffer.Length) - buffer.Length;
-        Interlocked.Increment(ref _header.TombStonedCount);
-      }
-
-      RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
-
+      // The whole operation runs under the write lock: reading the ItemIndex,
+      // deciding whether to reuse the slot and writing the file must be atomic
+      // w.r.t. ShrinkDb, which reassigns positions and truncates the file.
       _itemsIndexLock.EnterWriteLock();
       try
       {
+        var ii = _itemsIndex[index];
+
+        long position = ii.Position;
+        if (buffer.Length > ii.MaxLength)
+        {
+          position = _header.NextItemPosition;
+          _header.NextItemPosition += buffer.Length;
+          _header.TombStonedCount++;
+        }
+
+        RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
+
         _itemsIndex[index] = new ItemIndex()
         {
           Position = position,

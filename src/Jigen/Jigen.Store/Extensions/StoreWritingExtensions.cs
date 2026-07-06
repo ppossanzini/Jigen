@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Text;
 using Jigen.DataStructures;
@@ -11,26 +12,27 @@ public static class StoreWritingExtensions
     this Store store,
     (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize) item)
   {
-    if (!store.PositionIndex.ContainsKey(item.collectioname))
-      store.PositionIndex[item.collectioname] = new Dictionary<byte[], (long, long, int, long)>(ByteArrayEqualityComparer.Instance);
-
-    store.PositionIndex[item.collectioname][item.id] = (item.contentposition, item.embeddingposition, item.dimensions, item.contentsize);
-
     lock (store.IndexAppendLock)
+    {
+      var collectionIndex = store.PositionIndex.GetOrAdd(item.collectioname,
+        _ => new ConcurrentDictionary<byte[], (long, long, int, long)>(ByteArrayEqualityComparer.Instance));
+
+      // Overwrites leave the previous record unreachable: account it as dead space.
+      if (collectionIndex.TryGetValue(item.id, out var old))
+      {
+        if (old.Item1 > 0 && old.Item1 != item.contentposition)
+          store.DeadContentBytes += Store.ContentRecordSize(item.id.Length, old.Item4);
+        if (old.Item2 > 0 && old.Item2 != item.embeddingposition)
+          store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(item.id.Length, old.Item3);
+      }
+
+      collectionIndex[item.id] = (item.contentposition, item.embeddingposition, item.dimensions, item.contentsize);
+
       WriteIndexRecord(store.IndexFileStream, item.id, item.collectioname, item.contentposition, item.embeddingposition, item.dimensions, item.contentsize);
+    }
   }
 
-  /// <summary>
-  /// Appends a tombstone record to the index log so the deletion survives a restart:
-  /// LoadIndex replays the log and removes the key when it meets the tombstone.
-  /// </summary>
-  internal static void AppendIndexTombstone(this Store store, string collection, byte[] id)
-  {
-    lock (store.IndexAppendLock)
-      WriteIndexRecord(store.IndexFileStream, id, collection, Store.IndexTombstone, Store.IndexTombstone, 0, 0);
-  }
-
-  private static void WriteIndexRecord(FileStream file, byte[] id, string collection, long contentposition, long embeddingposition, int dimensions, long contentsize)
+  internal static void WriteIndexRecord(FileStream file, byte[] id, string collection, long contentposition, long embeddingposition, int dimensions, long contentsize)
   {
     file.Seek(0, SeekOrigin.End);
     file.WriteInt32Le(id.Length);
@@ -59,16 +61,68 @@ public static class StoreWritingExtensions
 
   public static async Task<bool> DeleteContent(this Store store, string collection, byte[] key)
   {
-    var result = store.PositionIndex.TryGetValue(collection, out var index) &&
-                 index.Remove(key);
+    bool result = false;
+
+    lock (store.IndexAppendLock)
+    {
+      if (store.PositionIndex.TryGetValue(collection, out var index) &&
+          index.TryRemove(key, out var old))
+      {
+        if (old.contentposition > 0)
+          store.DeadContentBytes += Store.ContentRecordSize(key.Length, old.size);
+        if (old.embeddingsposition > 0)
+          store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(key.Length, old.dimensions);
+
+        // Tombstone record: LoadIndex replays the log and removes the key,
+        // so the deletion survives a restart.
+        WriteIndexRecord(store.IndexFileStream, key, collection, Store.IndexTombstone, Store.IndexTombstone, 0, 0);
+        result = true;
+      }
+    }
 
     if (result)
     {
-      store.AppendIndexTombstone(collection, key);
       store.Options.Indexer?.RemoveFromIndex(collection, key);
       await store.SaveIndexChanges();
     }
+
     return result;
+  }
+
+  /// <summary>
+  /// Deletes every entry of a collection, persisting the deletions as tombstone
+  /// records so they survive a restart. Returns the number of entries removed.
+  /// </summary>
+  public static async Task<int> ClearContent(this Store store, string collection)
+  {
+    var removedKeys = new List<byte[]>();
+
+    lock (store.IndexAppendLock)
+    {
+      if (store.PositionIndex.TryRemove(collection, out var index))
+      {
+        foreach (var (key, old) in index)
+        {
+          if (old.contentposition > 0)
+            store.DeadContentBytes += Store.ContentRecordSize(key.Length, old.size);
+          if (old.embeddingsposition > 0)
+            store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(key.Length, old.dimensions);
+
+          WriteIndexRecord(store.IndexFileStream, key, collection, Store.IndexTombstone, Store.IndexTombstone, 0, 0);
+          removedKeys.Add(key);
+        }
+      }
+    }
+
+    if (removedKeys.Count > 0)
+    {
+      foreach (var key in removedKeys)
+        store.Options.Indexer?.RemoveFromIndex(collection, key);
+
+      await store.SaveIndexChanges();
+    }
+
+    return removedKeys.Count;
   }
 
   internal static (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)

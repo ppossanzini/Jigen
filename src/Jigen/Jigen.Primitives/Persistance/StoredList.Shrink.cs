@@ -12,9 +12,12 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       int count = _itemsIndex.Count;
       if (count == 0)
       {
+        _header.Count = 0;
         _header.TombStonedCount = 0;
         _header.NextItemPosition = StoredListHeader.Size;
         _data.SetLength(StoredListHeader.Size);
+        _dataindex.SetLength(0);
+        WriteHeader();
         return;
       }
 
@@ -68,6 +71,14 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
       // Invalidate read cache after compaction (positions changed)
       InvalidateCache();
+
+      // Index and header must be rewritten while still holding the write lock:
+      // a concurrent Add could otherwise mutate _itemsIndex while WriteIndex
+      // reads its span. Truncate the index file too: removals leave stale
+      // trailing records beyond the live count.
+      WriteIndex();
+      _dataindex.SetLength((long)count * ItemIndex.Size);
+      WriteHeader();
     }
     finally
     {
@@ -76,7 +87,6 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     }
 
     _data.Flush(true);
-    WriteIndex();
     _dataindex.Flush(true);
   }
 }

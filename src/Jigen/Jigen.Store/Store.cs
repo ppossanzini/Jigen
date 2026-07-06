@@ -38,7 +38,21 @@ public partial class Store : IStore, IDisposable
   // thread (AppendIndex) and from caller threads (DeleteContent tombstones).
   internal readonly Lock IndexAppendLock = new();
 
-  internal Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
+  // Bytes made unreachable by deletes and overwrites; reclaimed by ShrinkAsync.
+  // Mutated only under IndexAppendLock.
+  internal long DeadContentBytes;
+  internal long DeadEmbeddingBytes;
+
+  // On-disk record layouts (see StoreWritingExtensions.AppendContent):
+  // content:    [id length][id][content length][content bytes]
+  // embeddings: [id length][id][dimensions * float]
+  internal static long ContentRecordSize(int idLength, long contentSize) => 2 * sizeof(int) + idLength + contentSize;
+  internal static long EmbeddingRecordSize(int idLength, int dimensions) => sizeof(int) + idLength + (long)dimensions * sizeof(float);
+
+  // Concurrent on both levels: mutations happen under IndexAppendLock (writer
+  // thread, deletes, shrink) but lookups and enumerations come lock-free from
+  // reader threads (GetContent, searches, collections).
+  internal ConcurrentDictionary<string, ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
 
   internal readonly Writer Writer;
 
@@ -98,15 +112,15 @@ public partial class Store : IStore, IDisposable
     var oldembeddings = _embeddingsData;
 
     if (this.ContentFileStream.Length > 0)
-      _contentData = MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
-        null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
+      Volatile.Write(ref _contentData, MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
+        null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false));
 
     if (this.EmbeddingFileStream.Length > 0)
-      _embeddingsData = MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
-        null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false);
+      Volatile.Write(ref _embeddingsData, MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
+        null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false));
 
-    oldcontent?.Dispose();
-    oldembeddings?.Dispose();
+    if (!ReferenceEquals(oldcontent, _contentData)) oldcontent?.Dispose();
+    if (!ReferenceEquals(oldembeddings, _embeddingsData)) oldembeddings?.Dispose();
   }
 
   public Task SaveIndexChanges()
@@ -125,30 +139,63 @@ public partial class Store : IStore, IDisposable
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
     this.IndexFileStream.Flush(true);
+
+    if (Options.AutoShrink && NeedsShrink)
+      await ShrinkAsync();
   }
 
   public MemoryMappedViewAccessor GetContentAccessor(long offset, long size)
   {
-    return _contentData.CreateViewAccessor(offset, size, MemoryMappedFileAccess.Read);
+    while (true)
+    {
+      var data = Volatile.Read(ref _contentData);
+      try
+      {
+        return data.CreateViewAccessor(offset, size, MemoryMappedFileAccess.Read);
+      }
+      catch (ObjectDisposedException) when (!ReferenceEquals(data, Volatile.Read(ref _contentData)))
+      {
+        // The mapping was swapped by EnableReading (writer batch or shrink)
+        // between the read and the accessor creation: retry on the new one.
+        // If the store is closed the reference is unchanged and the exception
+        // propagates to the caller.
+      }
+    }
   }
 
   public MemoryMappedViewAccessor GetEmbeddingAccessor(long offset, long size)
   {
-    return _embeddingsData.CreateViewAccessor(offset, size, MemoryMappedFileAccess.Read);
+    while (true)
+    {
+      var data = Volatile.Read(ref _embeddingsData);
+      try
+      {
+        return data.CreateViewAccessor(offset, size, MemoryMappedFileAccess.Read);
+      }
+      catch (ObjectDisposedException) when (!ReferenceEquals(data, Volatile.Read(ref _embeddingsData)))
+      {
+      }
+    }
   }
 
-  public bool GetCollectionIndexOf(string collection, out Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)> index)
+  public bool GetCollectionIndexOf(string collection, out IReadOnlyDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)> index)
   {
-    return PositionIndex.TryGetValue(collection, out index);
+    var found = PositionIndex.TryGetValue(collection, out var collectionIndex);
+    index = collectionIndex;
+    return found;
   }
 
   public long ContentSize => ContentFileStream.Length;
 
+  private int _closed;
+
   public async Task Close()
   {
-    if (!_contentData.SafeMemoryMappedFileHandle.IsClosed) _contentData.SafeMemoryMappedFileHandle.Close();
-    if (!_embeddingsData.SafeMemoryMappedFileHandle.IsClosed) _embeddingsData.SafeMemoryMappedFileHandle.Close();
+    // Idempotent: Close followed by Dispose (or double Close) must not throw.
+    if (Interlocked.Exchange(ref _closed, 1) == 1) return;
 
+    // Stop the writer FIRST: it drains the ingestion queue, and its final
+    // batch still needs the streams and recreates the read mappings.
     Writer.Stop();
 
     if (Options.Indexer is not null)
@@ -157,6 +204,9 @@ public partial class Store : IStore, IDisposable
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
     this.IndexFileStream.Flush(true);
+
+    if (_contentData is not null && !_contentData.SafeMemoryMappedFileHandle.IsClosed) _contentData.SafeMemoryMappedFileHandle.Close();
+    if (_embeddingsData is not null && !_embeddingsData.SafeMemoryMappedFileHandle.IsClosed) _embeddingsData.SafeMemoryMappedFileHandle.Close();
 
     this.ContentFileStream.Close();
     this.EmbeddingFileStream.Close();
@@ -205,6 +255,7 @@ public partial class Store : IStore, IDisposable
 
   public void Dispose()
   {
+    Close().GetAwaiter().GetResult();
   }
 
   #endregion

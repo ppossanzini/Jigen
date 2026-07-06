@@ -44,11 +44,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
   public void Clear()
   {
-    if (store.PositionIndex.TryGetValue(CollectionName, out var index))
-    {
-      index.Clear();
-      store.SaveIndexChanges();
-    }
+    store.ClearContent(CollectionName).GetAwaiter().GetResult();
   }
 
   public bool Contains(KeyValuePair<VectorKey, VectorEntry<T>> item)
@@ -64,11 +60,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
   public bool Remove(KeyValuePair<VectorKey, VectorEntry<T>> item)
   {
-    var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-                 index.Remove(item.Key.Value);
-
-    if (result) store.SaveIndexChanges().GetAwaiter().GetResult();
-    return result;
+    return store.DeleteContent(CollectionName, item.Key.Value).GetAwaiter().GetResult();
   }
 
   public int Count => store.PositionIndex.TryGetValue(CollectionName, out var index) ? index.Count : 0;
@@ -93,11 +85,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
 
   public bool Remove(VectorKey key)
   {
-    var result = store.PositionIndex.TryGetValue(CollectionName, out var index) &&
-                 index.Remove(key.Value);
-
-    if (result) store.SaveIndexChanges();
-    return result;
+    return store.DeleteContent(CollectionName, key.Value).GetAwaiter().GetResult();
   }
 
   public bool TryGetValue(VectorKey key, out VectorEntry<T> value)

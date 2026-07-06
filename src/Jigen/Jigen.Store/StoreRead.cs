@@ -51,18 +51,40 @@ public partial class Store
       // Tombstone record: the entry was deleted after this point of the log.
       if (contentPosition == IndexTombstone && embeddingsPosition == IndexTombstone)
       {
-        if (PositionIndex.TryGetValue(collectionName, out var collectionIndex))
-          collectionIndex.Remove(id);
+        if (PositionIndex.TryGetValue(collectionName, out var collectionIndex) &&
+            collectionIndex.TryRemove(id, out var removed))
+        {
+          if (removed.contentposition > 0)
+            DeadContentBytes += ContentRecordSize(id.Length, removed.size);
+          if (removed.embeddingsposition > 0)
+            DeadEmbeddingBytes += EmbeddingRecordSize(id.Length, removed.dimensions);
+        }
         continue;
       }
 
       if (!PositionIndex.TryGetValue(collectionName, out var index))
       {
-        index = new Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance);
-        PositionIndex.Add(collectionName, index);
+        index = new ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance);
+        PositionIndex[collectionName] = index;
       }
+
+      // A record replacing an existing entry supersedes the old positions:
+      // account them as dead space, like AppendIndex does at runtime.
+      if (index.TryGetValue(id, out var old))
+      {
+        if (old.contentposition > 0 && old.contentposition != contentPosition)
+          DeadContentBytes += ContentRecordSize(id.Length, old.size);
+        if (old.embeddingsposition > 0 && old.embeddingsposition != embeddingsPosition)
+          DeadEmbeddingBytes += EmbeddingRecordSize(id.Length, old.dimensions);
+      }
+
       index[id] = (contentPosition, embeddingsPosition, dimensions, size);
     }
+
+    // Collections fully emptied by tombstones would otherwise survive the
+    // replay as empty dictionaries and reappear in GetCollections.
+    foreach (var emptyCollection in PositionIndex.Where(kv => kv.Value.IsEmpty).Select(kv => kv.Key).ToList())
+      PositionIndex.TryRemove(emptyCollection, out _);
   }
 
   public bool TryGetContent(string collection, byte[] id, out byte[] content)

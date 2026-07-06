@@ -25,23 +25,29 @@ public class TestCircularMemoryQueue
 
     int consumedCount = 0;
 
-    var consumerTasks = Enumerable.Range(0, consumers).Select(_ => Task.Run(() =>
+    // LongRunning → dedicated threads: the test must not depend on thread-pool
+    // injection speed when running in parallel with other stress tests.
+    var consumerTasks = Enumerable.Range(0, consumers).Select(_ => Task.Factory.StartNew(() =>
     {
       while (Volatile.Read(ref consumedCount) < totalItems)
       {
-        if (!queue.TryDequeue(out var item)) continue;
+        if (!queue.TryDequeue(out var item))
+        {
+          Thread.Yield();
+          continue;
+        }
 
         Assert.NotNull(item);
         Interlocked.Increment(ref consumed[item.Producer][item.Value]);
         Interlocked.Increment(ref consumedCount);
       }
-    })).ToArray();
+    }, TaskCreationOptions.LongRunning)).ToArray();
 
-    var producerTasks = Enumerable.Range(0, producers).Select(p => Task.Run(() =>
+    var producerTasks = Enumerable.Range(0, producers).Select(p => Task.Factory.StartNew(() =>
     {
       for (int i = 0; i < itemsPerProducer; i++)
         queue.Enqueue(new Item(p, i));
-    })).ToArray();
+    }, TaskCreationOptions.LongRunning)).ToArray();
 
     await Task.WhenAll(producerTasks);
     await Task.WhenAll(consumerTasks).WaitAsync(TimeSpan.FromSeconds(60));

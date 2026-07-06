@@ -14,7 +14,16 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     {
       while (await _flushTimer.WaitForNextTickAsync(ct))
       {
-        Flush();
+        try
+        {
+          Flush();
+        }
+        catch
+        {
+          // A transient I/O failure must not kill the loop: without it the
+          // periodic flushes stop silently and durability degrades unnoticed.
+          // The flush is retried on the next tick.
+        }
       }
     }
     catch (OperationCanceledException)
@@ -22,17 +31,14 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     }
   }
 
-  public unsafe void Flush()
+  public void Flush()
   {
     _itemsIndexLock.EnterReadLock();
     try
     {
       // WriteIndex() uses CollectionsMarshal.AsSpan → single I/O for all indices
       WriteIndex();
-
-      // Write header without byte[] allocation: unsafe pointer → ReadOnlySpan
-      fixed (StoredListHeader* p = &_header)
-        RandomAccess.Write(_data.SafeFileHandle!, new ReadOnlySpan<byte>(p, StoredListHeader.Size), 0);
+      WriteHeader();
     }
     finally
     {
