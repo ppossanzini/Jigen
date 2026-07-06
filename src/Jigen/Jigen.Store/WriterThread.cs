@@ -20,6 +20,19 @@ public class Writer
 
   private Queue<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)> TempIndex = new();
 
+  // Last failure recorded by the background writer or the indexer. The writer
+  // runs on a raw thread: an exception must never escape it (it would kill the
+  // whole process) nor break its loop (a stalled writer blocks producers on a
+  // full queue and hangs Stop()). Failures are recorded here instead and
+  // surfaced by Store.SaveChangesAsync.
+  private Exception _lastError;
+
+  internal Exception LastError => Volatile.Read(ref _lastError);
+
+  internal Exception TakePendingError() => Interlocked.Exchange(ref _lastError, null);
+
+  private void RecordError(Exception ex) => Volatile.Write(ref _lastError, ex);
+
   public Task WaitForWritingCompleted
   {
     get
@@ -74,9 +87,17 @@ public class Writer
 
       lock (_ioLock)
       {
-        _store.EmbeddingFileStream.Flush(false);
-        _store.ContentFileStream.Flush(false);
-        _store.IndexFileStream.Flush(false);
+        try
+        {
+          _store.EmbeddingFileStream.Flush(false);
+          _store.ContentFileStream.Flush(false);
+          _store.IndexFileStream.Flush(false);
+        }
+        catch
+        {
+          // Transient I/O failure: retried on the next tick. The flusher
+          // thread must survive, like the writer.
+        }
       }
     }
   }
@@ -97,42 +118,60 @@ public class Writer
       // The whole batch (content/embedding writes AND index appends) runs
       // inside _ioLock so that anyone holding the lock (flusher, ShrinkAsync)
       // observes a consistent state: no content bytes without their index entry.
-      lock (_ioLock)
+      try
       {
-        try
+        lock (_ioLock)
         {
-          while (_store.IngestionQueue.TryDequeue(out var entry))
+          try
           {
-            var result = _store.AppendContent(
-              entry.Id,
-              entry.CollectionName,
-              entry.Content,
-              entry.Embedding);
-
-            // Cannot immediatly update search index till the file are committed
-            TempIndex.Enqueue(result);
-
-            // waitForIndexing: the writer thread is already sequential; the default
-            // fire-and-forget path runs inserts concurrently on the thread pool and
-            // HNSW graph construction is not safe under concurrent inserts.
-            _store.Options.Indexer?.AddToIndex(new VectorEntry()
+            while (_store.IngestionQueue.TryDequeue(out var entry))
             {
-              Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
-            }, waitForIndexing: true);
+              var result = _store.AppendContent(
+                entry.Id,
+                entry.CollectionName,
+                entry.Content,
+                entry.Embedding);
+
+              // Cannot immediatly update search index till the file are committed
+              TempIndex.Enqueue(result);
+
+              try
+              {
+                // waitForIndexing: the writer thread is already sequential; the default
+                // fire-and-forget path runs inserts concurrently on the thread pool and
+                // HNSW graph construction is not safe under concurrent inserts.
+                _store.Options.Indexer?.AddToIndex(new VectorEntry()
+                {
+                  Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
+                }, waitForIndexing: true);
+              }
+              catch (Exception ex)
+              {
+                // The entry is persisted in the store (its index record is in
+                // TempIndex); only the vector index missed it. Keep the batch going.
+                RecordError(ex);
+              }
+            }
+          }
+          finally
+          {
+            _store.EmbeddingFileStream.Flush(false);
+            _store.ContentFileStream.Flush(false);
+
+            _store.EnableReading();
+
+            while (TempIndex.TryDequeue(out var indexData))
+              _store.AppendIndex(indexData);
+
+            _store.IndexFileStream.Flush(false);
           }
         }
-        finally
-        {
-          _store.EmbeddingFileStream.Flush(false);
-          _store.ContentFileStream.Flush(false);
-
-          _store.EnableReading();
-
-          while (TempIndex.TryDequeue(out var indexData))
-            _store.AppendIndex(indexData);
-
-          _store.IndexFileStream.Flush(false);
-        }
+      }
+      catch (Exception ex)
+      {
+        // Disk full, I/O failure, a poison entry: the batch is lost but the
+        // writer keeps draining the queue. Never let an exception escape.
+        RecordError(ex);
       }
 
       if (_store.IngestionQueue.IsEmpty)

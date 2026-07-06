@@ -31,15 +31,33 @@ public partial class Store
     var stream = this.IndexFileStream;
     if (stream.Length == 0) return;
 
-    const int EntrySize = sizeof(long) * 4;
+    // Fixed-size part of a record after the two variable-length fields.
+    const int FixedTailSize = 2 * sizeof(long) + sizeof(int) + sizeof(long);
+    // Ids and collection names are keys: a length beyond this is torn/garbage
+    // data, not a legitimate record (and would otherwise drive a huge alloc).
+    const int MaxFieldLength = 64 * 1024;
+
+    long fileLength = stream.Length;
+    long recordStart = 0;
+    var torn = false;
 
     stream.Seek(0, SeekOrigin.Begin);
     using var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true);
-    while (stream.Position + EntrySize <= stream.Length)
+    while (stream.Position < fileLength)
     {
+      // A crash while appending can tear the last record: every length is
+      // validated against what the file actually holds, and the first
+      // inconsistent record marks the log tail as unreadable.
+      recordStart = stream.Position;
+
+      if (recordStart + sizeof(int) > fileLength) { torn = true; break; }
       var idsize = reader.ReadInt32();
+      if (idsize <= 0 || idsize > MaxFieldLength || stream.Position + idsize + sizeof(int) > fileLength) { torn = true; break; }
       var id = reader.ReadBytes(idsize);
+
       var collectionNameLength = reader.ReadInt32();
+      if (collectionNameLength <= 0 || collectionNameLength > MaxFieldLength ||
+          stream.Position + collectionNameLength + FixedTailSize > fileLength) { torn = true; break; }
       var buffer = new Span<byte>(new byte[collectionNameLength]);
       stream.ReadExactly(buffer);
       var collectionName = Encoding.UTF8.GetString(buffer);
@@ -47,6 +65,13 @@ public partial class Store
       var embeddingsPosition = reader.ReadInt64();
       var dimensions = reader.ReadInt32();
       var size = reader.ReadInt64();
+
+      // Positions must land inside their files (tombstones excepted):
+      // out-of-range values mean the record bytes are garbage.
+      if (!(contentPosition == IndexTombstone && embeddingsPosition == IndexTombstone) &&
+          (contentPosition < 0 || contentPosition > ContentFileStream.Length ||
+           embeddingsPosition < 0 || embeddingsPosition > EmbeddingFileStream.Length ||
+           dimensions < 0 || size < 0)) { torn = true; break; }
 
       // Tombstone record: the entry was deleted after this point of the log.
       if (contentPosition == IndexTombstone && embeddingsPosition == IndexTombstone)
@@ -79,6 +104,15 @@ public partial class Store
       }
 
       index[id] = (contentPosition, embeddingsPosition, dimensions, size);
+    }
+
+    if (torn)
+    {
+      // Everything from the first invalid byte on is unreadable: drop the tail
+      // so the next append starts from a clean record boundary. The records
+      // before it were already applied above.
+      stream.SetLength(recordStart);
+      stream.Flush(true);
     }
 
     // Collections fully emptied by tombstones would otherwise survive the

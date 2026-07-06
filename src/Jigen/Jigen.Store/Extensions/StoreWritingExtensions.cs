@@ -34,16 +34,45 @@ public static class StoreWritingExtensions
 
   internal static void WriteIndexRecord(FileStream file, byte[] id, string collection, long contentposition, long embeddingposition, int dimensions, long contentsize)
   {
-    file.Seek(0, SeekOrigin.End);
-    file.WriteInt32Le(id.Length);
-    file.Write(id, 0, id.Length);
-    var nameAsBytes = Encoding.UTF8.GetBytes(collection);
-    file.WriteInt32Le(nameAsBytes.Length);
-    file.Write(nameAsBytes, 0, nameAsBytes.Length);
-    file.WriteInt64Le(contentposition);
-    file.WriteInt64Le(embeddingposition);
-    file.WriteInt32Le(dimensions);
-    file.WriteInt64Le(contentsize);
+    // The record is assembled in a buffer and written with a single Write:
+    // seven separate writes left a wide window for a crash to interleave
+    // partial fields. A crash can still tear the single write, but only into
+    // a short tail that LoadIndex detects and truncates.
+    var nameByteCount = Encoding.UTF8.GetByteCount(collection);
+    var size = 2 * sizeof(int) + id.Length + nameByteCount + 2 * sizeof(long) + sizeof(int) + sizeof(long);
+
+    byte[] rented = null;
+    Span<byte> buffer = size <= 512
+      ? stackalloc byte[size]
+      : (rented = System.Buffers.ArrayPool<byte>.Shared.Rent(size)).AsSpan(0, size);
+
+    try
+    {
+      var offset = 0;
+      BinaryPrimitives.WriteInt32LittleEndian(buffer.Slice(offset), id.Length);
+      offset += sizeof(int);
+      id.CopyTo(buffer.Slice(offset));
+      offset += id.Length;
+      BinaryPrimitives.WriteInt32LittleEndian(buffer.Slice(offset), nameByteCount);
+      offset += sizeof(int);
+      Encoding.UTF8.GetBytes(collection, buffer.Slice(offset));
+      offset += nameByteCount;
+      BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(offset), contentposition);
+      offset += sizeof(long);
+      BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(offset), embeddingposition);
+      offset += sizeof(long);
+      BinaryPrimitives.WriteInt32LittleEndian(buffer.Slice(offset), dimensions);
+      offset += sizeof(int);
+      BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(offset), contentsize);
+
+      file.Seek(0, SeekOrigin.End);
+      file.Write(buffer);
+    }
+    finally
+    {
+      if (rented != null)
+        System.Buffers.ArrayPool<byte>.Shared.Return(rented);
+    }
   }
 
 

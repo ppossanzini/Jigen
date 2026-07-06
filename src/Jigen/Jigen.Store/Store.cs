@@ -129,16 +129,29 @@ public partial class Store : IStore, IDisposable
     return Task.CompletedTask;
   }
 
+  /// <summary>
+  /// Last failure recorded by the background writer or the indexer, if any.
+  /// Set when a queued entry could not be persisted or indexed; cleared and
+  /// rethrown by the next <see cref="SaveChangesAsync"/>.
+  /// </summary>
+  public Exception IngestionError => Writer.LastError;
+
   public async Task SaveChangesAsync(CancellationToken? cancellationToken = null)
   {
     await Writer.WaitForWritingCompleted;
-    
+
     if (Options.Indexer is not null)
       await Options.Indexer.FlushAsync();
 
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
     this.IndexFileStream.Flush(true);
+
+    // Fail loud: entries accepted by AppendContent that the background writer
+    // could not persist or index would otherwise be lost silently.
+    var pendingError = Writer.TakePendingError();
+    if (pendingError is not null)
+      throw new IOException("One or more queued entries failed during background ingestion. See the inner exception for the last failure.", pendingError);
 
     if (Options.AutoShrink && NeedsShrink)
       await ShrinkAsync();
