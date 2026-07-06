@@ -1,4 +1,5 @@
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 // ReSharper disable MemberCanBePrivate.Global
 
@@ -22,7 +23,7 @@ namespace Jigen.PerformancePrimitives;
 /// and avoiding reading threads go ahead of writing threads.
 /// </summary>
 /// <typeparam name="T"></typeparam>
-public class CircularMemoryQueue<T> 
+public class CircularMemoryQueue<T>
 where T : class
 {
   private readonly Memory<T> _buffer;
@@ -67,7 +68,7 @@ where T : class
     try
     {
       var position = (int)((Interlocked.Increment(ref _tail) - 1) & _capacityMask);
-      Volatile.Write(ref _buffer.Span[position], item);
+      PublishToSlot(position, item);
     }
     finally
     {
@@ -82,7 +83,7 @@ where T : class
     try
     {
       var position = (int)((Interlocked.Increment(ref _tail) - 1) & _capacityMask);
-      Volatile.Write(ref _buffer.Span[position], item);
+      PublishToSlot(position, item);
     }
     finally
     {
@@ -98,10 +99,7 @@ where T : class
     try
     {
       var position = (int)((Interlocked.Increment(ref _head) - 1) & _capacityMask);
-      var result = Volatile.Read(ref _buffer.Span[position]);
-      Volatile.Write(ref _buffer.Span[position], default!);
-      
-      return result;
+      return TakeFromSlot(position);
     }
     finally
     {
@@ -118,8 +116,7 @@ where T : class
     try
     {
       var position = (int)((Interlocked.Increment(ref _head) - 1) & _capacityMask);
-      result = Volatile.Read(ref _buffer.Span[position]);
-      Volatile.Write(ref _buffer.Span[position], default!);
+      result = TakeFromSlot(position);
       return true;
     }
     finally
@@ -128,9 +125,38 @@ where T : class
     }
   }
 
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  private void PublishToSlot(int position, T item)
+  {
+    // The consumer that owned this slot on the previous lap may not have
+    // taken its item yet (preempted after our _freeSlots permit was released
+    // by another consumer): wait for the slot to be emptied before reusing it.
+    var spinner = new SpinWait();
+    while (Volatile.Read(ref _buffer.Span[position]) is not null)
+      spinner.SpinOnce();
+
+    Volatile.Write(ref _buffer.Span[position], item);
+  }
+
+  [MethodImpl(MethodImplOptions.AggressiveInlining)
+    private T TakeFromSlot(int position)
+  {
+    // The producer that reserved this slot may not have published yet
+    // (preempted between the _tail reservation and the write, while another
+    // producer released _availableItems): wait for the item to appear.
+    // Exchange takes and clears the slot atomically, so a delayed consumer
+    // can never clobber an item written by the next-lap producer.
+    var spinner = new SpinWait();
+    T result;
+    while ((result = Interlocked.Exchange(ref _buffer.Span[position], null)) is null)
+      spinner.SpinOnce();
+
+    return result;
+  }
+
   public T Peek()
   {
-    var position = (int)(Interlocked.Read(ref _head)  & _capacityMask);
+    var position = (int)(Interlocked.Read(ref _head) & _capacityMask);
     return Volatile.Read(ref _buffer.Span[position]);
   }
 }
