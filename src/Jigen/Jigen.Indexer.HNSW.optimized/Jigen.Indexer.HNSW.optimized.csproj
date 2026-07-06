@@ -5,6 +5,7 @@
     <RootNamespace>Jigen.Indexer</RootNamespace>
     <Description>HNSW indexer for Jigen.Store</Description>
     <Authors>Paolo Possanzini</Authors>
+    <PackageName>Jigen.Indexer.HNSW</PackageName>
     <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/ppossanzini/Jigen</PackageProjectUrl>
     <RepositoryUrl>https://github.com/ppossanzini/Jigen</RepositoryUrl>
