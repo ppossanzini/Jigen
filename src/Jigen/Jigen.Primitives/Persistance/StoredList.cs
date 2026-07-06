@@ -24,10 +24,18 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
   // Direct-mapped read cache: avoids repeated file I/O + deserialization
   // for the same index (critical for HNSW graph traversal).
+  // Each slot holds an immutable (index, value) pair swapped with a single
+  // reference write, so readers can never observe a key paired with another
+  // entry's value.
   private const int ReadCacheSlots = 512;
   private const int ReadCacheMask = ReadCacheSlots - 1;
-  private readonly T[] _cacheValues = new T[ReadCacheSlots];
-  private readonly int[] _cacheKeys = new int[ReadCacheSlots];
+  private readonly ReadCacheEntry[] _readCache = new ReadCacheEntry[ReadCacheSlots];
+
+  private sealed class ReadCacheEntry(int index, T value)
+  {
+    public readonly int Index = index;
+    public readonly T Value = value;
+  }
 
   public StoredList(StoreListOptions options, TOptions itemOptions)
   {
@@ -35,8 +43,6 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     _itemOptions = itemOptions;
     _data = new FileStream(options.FilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
     _dataindex = new FileStream($"{options.FilePath}.index", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite, 4096, FileOptions.RandomAccess);
-
-    Array.Fill(_cacheKeys, -1);
 
     InitializeStore();
     ReadIndex();
@@ -72,6 +78,18 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     if (_header.Count <= 0) return;
 
     int count = _header.Count;
+
+    // A crash between the data write and the index flush can leave the header
+    // claiming more entries than the index file actually holds: clamp to what exists.
+    long storedEntries = _dataindex.Length / ItemIndex.Size;
+    if (count > storedEntries) count = (int)storedEntries;
+
+    if (count <= 0)
+    {
+      _header.Count = 0;
+      return;
+    }
+
     int totalBytes = count * ItemIndex.Size;
 
     // Batch read: single I/O call instead of N individual reads
@@ -80,14 +98,29 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     {
       RandomAccess.Read(_dataindex.SafeFileHandle!, rentedBuffer.AsSpan(0, totalBytes), 0);
       var indices = MemoryMarshal.Cast<byte, ItemIndex>(rentedBuffer.AsSpan(0, totalBytes));
+      long dataLength = _data.Length;
       _itemsIndex.EnsureCapacity(count);
       for (int i = 0; i < count; i++)
-        _itemsIndex.Add(indices[i]);
+      {
+        var entry = indices[i];
+        // Entries past a torn write reference data that never reached the file
+        // (zeroed/garbage records fail the Position check): stop at the first invalid one.
+        if (entry.Position < StoredListHeader.Size ||
+            entry.Length < 0 ||
+            entry.MaxLength < entry.Length ||
+            entry.Position > dataLength - entry.MaxLength)
+          break;
+
+        _itemsIndex.Add(entry);
+      }
     }
     finally
     {
       ArrayPool<byte>.Shared.Return(rentedBuffer);
     }
+
+    // Persist the corrected count on the next Flush.
+    _header.Count = _itemsIndex.Count;
   }
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -111,13 +144,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   private void InvalidateCache()
   {
-    Array.Fill(_cacheKeys, -1);
-  }
-
-  [MethodImpl(MethodImplOptions.AggressiveInlining)]
-  private void InvalidateCacheSlot(int index)
-  {
-    _cacheKeys[index & ReadCacheMask] = -1;
+    Array.Clear(_readCache);
   }
 
   public IEnumerator<T> GetEnumerator()
@@ -185,9 +212,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       Interlocked.Increment(ref _header.Count);
 
       // Populate cache for the newly added item
-      int slot = newIndex & ReadCacheMask;
-      _cacheValues[slot] = item;
-      _cacheKeys[slot] = newIndex;
+      Volatile.Write(ref _readCache[newIndex & ReadCacheMask], new ReadCacheEntry(newIndex, item));
     }
     finally
     {
@@ -264,7 +289,8 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       var index = _itemsIndex.FindIndex(i => i.Hash == hash);
       if (index == -1) return false;
 
-      InvalidateCacheSlot(index);
+      // Removal shifts every following index: the whole cache is stale.
+      InvalidateCache();
       _itemsIndex.RemoveAt(index);
       Interlocked.Increment(ref _header.TombStonedCount);
       Interlocked.Decrement(ref _header.Count);
@@ -346,11 +372,9 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     {
       // Direct-mapped cache check (lock-free read path)
       int slot = index & ReadCacheMask;
-      if (Volatile.Read(ref _cacheKeys[slot]) == index)
-      {
-        T cached = _cacheValues[slot];
-        if (cached is not null) return cached;
-      }
+      var cached = Volatile.Read(ref _readCache[slot]);
+      if (cached is not null && cached.Index == index)
+        return cached.Value;
 
       ItemIndex ii;
       _itemsIndexLock.EnterReadLock();
@@ -370,8 +394,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         var result = T.Deserialize(buffer.AsMemory(0, ii.Length), _itemOptions);
 
         // Populate cache
-        _cacheValues[slot] = result;
-        Volatile.Write(ref _cacheKeys[slot], index);
+        Volatile.Write(ref _readCache[slot], new ReadCacheEntry(index, result));
 
         return result;
       }
@@ -413,9 +436,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       }
 
       // Update cache with the new value
-      int slot = index & ReadCacheMask;
-      _cacheValues[slot] = value;
-      Volatile.Write(ref _cacheKeys[slot], index);
+      Volatile.Write(ref _readCache[index & ReadCacheMask], new ReadCacheEntry(index, value));
     }
   }
 }
