@@ -49,6 +49,10 @@ public static class NodeExtensions
       MaxLevel = maxLevel, Id = item.Id, Vector = vector
     };
 
+    // SQ8 graphs compare quantized payloads on both sides.
+    if (options.Quantization == VectorQuantization.SQ8)
+      node.RamQuantized = Sq8.Quantize(vector);
+
     for (int level = 0; level <= maxLevel; ++level)
       node.Connections[level] = new List<int>(GetM(options.M, level));
 

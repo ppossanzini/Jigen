@@ -229,6 +229,7 @@ public partial class Store : IStore, IDisposable
   public async Task SaveChangesAsync(CancellationToken? cancellationToken = null)
   {
     await Writer.WaitForWritingCompleted;
+    await Writer.WaitForIndexingCompleted;
 
     if (Options.Indexer is not null)
       await Options.Indexer.FlushAsync();

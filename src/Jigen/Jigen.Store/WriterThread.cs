@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text;
 using Jigen.DataStructures;
 using Jigen.Extensions;
@@ -10,6 +11,15 @@ public class Writer
 
   private readonly Thread _writingThread;
   private readonly Thread _flusher;
+
+  // Indexing pipeline: the writer persists and hands entries to these
+  // workers, so file appends are never throttled by graph construction.
+  // Entries are routed by collection: ordering within a collection is
+  // preserved, different collections index in parallel.
+  private readonly Thread[] _indexWorkers;
+  private readonly BlockingCollection<VectorEntry>[] _indexQueues;
+  private long _indexPending;
+  private readonly ManualResetEvent _indexingCompleted = new(true);
 
   private readonly AutoResetEvent _waiter = new(false);
   private readonly ManualResetEvent _writingCompleted = new(true);
@@ -44,32 +54,99 @@ public class Writer
     {
       // Fast path: no writes in flight, nothing to wait for.
       if (Interlocked.Read(ref _pending) == 0 && _writingCompleted.WaitOne(0)) return Task.CompletedTask;
-
-      // Bridge the event to a Task via the thread pool's shared wait threads:
-      // unlike Task.Run(() => WaitOne()), no pool thread is blocked per caller.
-      var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
-      var registration = ThreadPool.RegisterWaitForSingleObject(
-        _writingCompleted,
-        static (state, _) => ((TaskCompletionSource)state!).TrySetResult(),
-        tcs, Timeout.Infinite, executeOnlyOnce: true);
-
-      tcs.Task.ContinueWith(
-        static (_, state) => ((RegisteredWaitHandle)state!).Unregister(null),
-        registration, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
-
-      return tcs.Task;
+      return WaitAsync(_writingCompleted);
     }
+  }
+
+  /// <summary>Completes when every entry handed to the indexing pipeline has
+  /// been processed. Await after <see cref="WaitForWritingCompleted"/> for
+  /// "persisted AND searchable" semantics.</summary>
+  public Task WaitForIndexingCompleted
+  {
+    get
+    {
+      if (Interlocked.Read(ref _indexPending) == 0 && _indexingCompleted.WaitOne(0)) return Task.CompletedTask;
+      return WaitAsync(_indexingCompleted);
+    }
+  }
+
+  private static Task WaitAsync(WaitHandle handle)
+  {
+    // Bridge the event to a Task via the thread pool's shared wait threads:
+    // unlike Task.Run(() => WaitOne()), no pool thread is blocked per caller.
+    var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    var registration = ThreadPool.RegisterWaitForSingleObject(
+      handle,
+      static (state, _) => ((TaskCompletionSource)state!).TrySetResult(),
+      tcs, Timeout.Infinite, executeOnlyOnce: true);
+
+    tcs.Task.ContinueWith(
+      static (_, state) => ((RegisteredWaitHandle)state!).Unregister(null),
+      registration, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+    return tcs.Task;
   }
 
   public Writer(Store store)
   {
     _store = store;
+
+    var workers = Math.Max(1, store.Options.IndexerWorkers);
+    _indexQueues = new BlockingCollection<VectorEntry>[workers];
+    _indexWorkers = new Thread[workers];
+    for (var i = 0; i < workers; i++)
+    {
+      // Bounded: a slow index stage must push back on the writer (and, through
+      // the full ingestion queue, on producers) instead of ballooning memory.
+      var queue = new BlockingCollection<VectorEntry>(boundedCapacity: 16384);
+      _indexQueues[i] = queue;
+      _indexWorkers[i] = new Thread(() => IndexJob(queue)) { IsBackground = true };
+      _indexWorkers[i].Start();
+    }
+
     _writingThread = new Thread(WriterJob) { IsBackground = true };
     _writingThread.Start();
 
     _flusher = new Thread(FlushJob) { IsBackground = true };
     _flusher.Start();
+  }
+
+  private void EnqueueForIndexing(VectorEntry entry)
+  {
+    if (_store.Options.Indexer is null) return;
+
+    if (Interlocked.Increment(ref _indexPending) == 1)
+      _indexingCompleted.Reset();
+
+    var slot = _indexQueues.Length == 1
+      ? 0
+      : (int)((uint)StringComparer.Ordinal.GetHashCode(entry.CollectionName ?? string.Empty) % (uint)_indexQueues.Length);
+    _indexQueues[slot].Add(entry);
+  }
+
+  private void IndexJob(BlockingCollection<VectorEntry> queue)
+  {
+    foreach (var entry in queue.GetConsumingEnumerable())
+    {
+      try
+      {
+        // waitForIndexing: this worker is the sequential lane for its
+        // collections; the fire-and-forget path would break that ordering.
+        _store.Options.Indexer?.AddToIndex(entry, waitForIndexing: true);
+      }
+      catch (Exception ex)
+      {
+        // The entry is persisted in the store; only the vector index missed
+        // it. Record and keep the pipeline alive.
+        RecordError(ex);
+      }
+      finally
+      {
+        if (Interlocked.Decrement(ref _indexPending) == 0)
+          _indexingCompleted.Set();
+      }
+    }
   }
 
   internal void SignalNewData()
@@ -147,22 +224,12 @@ public class Writer
                 // Cannot immediatly update search index till the file are committed
                 TempIndex.Enqueue(result);
 
-                try
+                // Pipeline: graph construction happens on the index workers,
+                // so the writer is never throttled by it.
+                EnqueueForIndexing(new VectorEntry()
                 {
-                  // waitForIndexing: the writer thread is already sequential; the default
-                  // fire-and-forget path runs inserts concurrently on the thread pool and
-                  // HNSW graph construction is not safe under concurrent inserts.
-                  _store.Options.Indexer?.AddToIndex(new VectorEntry()
-                  {
-                    Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
-                  }, waitForIndexing: true);
-                }
-                catch (Exception ex)
-                {
-                  // The entry is persisted in the store (its index record is in
-                  // TempIndex); only the vector index missed it. Keep the batch going.
-                  RecordError(ex);
-                }
+                  Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
+                });
               }
               finally
               {
@@ -218,7 +285,15 @@ public class Writer
     _waiter.Set();
     _flushWake.Set();
 
+    // Order matters: the writer drains the ingestion queue INTO the index
+    // queues, so it must stop first; then the workers drain what remains.
     _writingThread.Join();
+
+    foreach (var queue in _indexQueues)
+      queue.CompleteAdding();
+    foreach (var worker in _indexWorkers)
+      worker.Join();
+
     _flusher.Join();
   }
 }

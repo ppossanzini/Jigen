@@ -16,29 +16,41 @@ namespace Jigen.Indexer;
 /// </summary>
 internal sealed class VectorPart : IStorableItem<VectorPart, SmallWorldOptions>
 {
-  private const byte SerializationVersion = 1;
+  // Version 1: float payload. Version 2: SQ8 payload (sbyte per component).
+  // Same header, so the mapped-read path only branches on the payload stride.
+  internal const byte FloatVersion = 1;
+  internal const byte Sq8Version = 2;
 
   public VectorKey Id { get; init; }
   public float[] Vector { get; init; } = [];
+  public sbyte[] QuantizedVector { get; init; }
   public int MaxLevel { get; init; }
 
   public ReadOnlyMemory<byte> Serialize()
   {
     var id = Id.Value ?? [];
-    var size = 1 + sizeof(int) + id.Length + sizeof(int) + sizeof(int) + Vector.Length * sizeof(float);
+    var quantized = QuantizedVector;
+    var components = quantized?.Length ?? Vector.Length;
+    var payloadBytes = quantized is not null ? components : components * sizeof(float);
+
+    var size = 1 + sizeof(int) + id.Length + sizeof(int) + sizeof(int) + payloadBytes;
     var buffer = new byte[size];
 
     var offset = 0;
-    buffer[offset++] = SerializationVersion;
+    buffer[offset++] = quantized is not null ? Sq8Version : FloatVersion;
     BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset), id.Length);
     offset += sizeof(int);
     id.CopyTo(buffer.AsSpan(offset));
     offset += id.Length;
     BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset), MaxLevel);
     offset += sizeof(int);
-    BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset), Vector.Length);
+    BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset), components);
     offset += sizeof(int);
-    MemoryMarshal.AsBytes(Vector.AsSpan()).CopyTo(buffer.AsSpan(offset));
+
+    if (quantized is not null)
+      MemoryMarshal.AsBytes<sbyte>(quantized).CopyTo(buffer.AsSpan(offset));
+    else
+      MemoryMarshal.AsBytes(Vector.AsSpan()).CopyTo(buffer.AsSpan(offset));
 
     return buffer;
   }
@@ -49,7 +61,7 @@ internal sealed class VectorPart : IStorableItem<VectorPart, SmallWorldOptions>
     var offset = 0;
 
     var version = span.ReadByte(ref offset);
-    if (version != SerializationVersion)
+    if (version != FloatVersion && version != Sq8Version)
       throw new InvalidDataException($"Unsupported VectorPart serialization version: {version}");
 
     var idLength = span.ReadLEInt32(ref offset);
@@ -60,13 +72,20 @@ internal sealed class VectorPart : IStorableItem<VectorPart, SmallWorldOptions>
 
     var maxLevel = span.ReadLEInt32(ref offset);
 
-    var vectorLength = span.ReadLEInt32(ref offset);
-    var vectorBytes = checked(vectorLength * sizeof(float));
-    if (vectorLength < 0 || offset + vectorBytes > span.Length)
+    var components = span.ReadLEInt32(ref offset);
+    var payloadBytes = checked(components * (version == Sq8Version ? 1 : sizeof(float)));
+    if (components < 0 || offset + payloadBytes > span.Length)
       throw new InvalidDataException("Invalid vector length in serialized VectorPart payload.");
-    var vector = vectorLength == 0
+
+    if (version == Sq8Version)
+    {
+      var quantized = MemoryMarshal.Cast<byte, sbyte>(span.Slice(offset, payloadBytes)).ToArray();
+      return new VectorPart { Id = id, QuantizedVector = quantized, MaxLevel = maxLevel };
+    }
+
+    var vector = components == 0
       ? []
-      : MemoryMarshal.Cast<byte, float>(span.Slice(offset, vectorBytes)).ToArray();
+      : MemoryMarshal.Cast<byte, float>(span.Slice(offset, payloadBytes)).ToArray();
 
     return new VectorPart { Id = id, Vector = vector, MaxLevel = maxLevel };
   }
@@ -246,11 +265,12 @@ internal sealed class SplitNodeList : IList<IndexNode>
       var adjacency = _adjacency[i];
       var (position, length) = _vectors.GetItemLocation(i);
 
-      // Only the record HEADER is read (id and vector location): the floats
-      // stay untouched on disk until a distance needs them through the map.
+      // Only the record HEADER is read (id and vector location): the payload
+      // stays untouched on disk until a distance needs it through the map.
       var version = _mapped.Bytes(position, 1)[0];
-      if (version != 1)
+      if (version != VectorPart.FloatVersion && version != VectorPart.Sq8Version)
         throw new InvalidDataException($"Unsupported VectorPart serialization version: {version}");
+      var quantized = version == VectorPart.Sq8Version;
 
       var idLength = BinaryPrimitives.ReadInt32LittleEndian(_mapped.Bytes(position + 1, sizeof(int)));
       if (idLength < 0 || 1 + 3 * sizeof(int) + idLength > length)
@@ -260,7 +280,7 @@ internal sealed class SplitNodeList : IList<IndexNode>
       var afterId = position + 1 + sizeof(int) + idLength;
       var maxLevel = BinaryPrimitives.ReadInt32LittleEndian(_mapped.Bytes(afterId, sizeof(int)));
       var dimensions = BinaryPrimitives.ReadInt32LittleEndian(_mapped.Bytes(afterId + sizeof(int), sizeof(int)));
-      if (dimensions < 0 || 1 + 3 * sizeof(int) + idLength + (long)dimensions * sizeof(float) > length)
+      if (dimensions < 0 || 1 + 3 * sizeof(int) + idLength + (long)dimensions * (quantized ? 1 : sizeof(float)) > length)
         throw new InvalidDataException("Invalid vector length in vector record header.");
 
       _nodes.Add(new IndexNode(_options)
@@ -272,7 +292,8 @@ internal sealed class SplitNodeList : IList<IndexNode>
         Connections = adjacency.Connections,
         MappedVectors = _mapped,
         MappedFloatOffset = afterId + 2 * sizeof(int),
-        MappedDimensions = dimensions
+        MappedDimensions = dimensions,
+        MappedQuantized = quantized
       });
     }
   }
@@ -289,8 +310,15 @@ internal sealed class SplitNodeList : IList<IndexNode>
     {
       var index = _nodes.Count;
       var idLength = node.Id.Value?.Length ?? 0;
+      var quantized = node.RamQuantized;
 
-      _vectors.Add(new VectorPart { Id = node.Id, Vector = node.Vector, MaxLevel = node.MaxLevel });
+      _vectors.Add(new VectorPart
+      {
+        Id = node.Id,
+        Vector = quantized is null ? node.Vector : [],
+        QuantizedVector = quantized,
+        MaxLevel = node.MaxLevel
+      });
       _adjacency.Add(new AdjacencyPart(_options)
       {
         EntryPointer = node.PositionId,
@@ -299,13 +327,14 @@ internal sealed class SplitNodeList : IList<IndexNode>
       });
 
       var (position, _) = _vectors.GetItemLocation(index);
-      node.MappedDimensions = node.VectorDimensions;
+      node.MappedDimensions = quantized?.Length ?? node.VectorDimensions;
+      node.MappedQuantized = quantized is not null;
       node.MappedFloatOffset = FloatOffsetOf(position, idLength);
       node.MappedVectors = _mapped;
 
       _nodes.Add(node);
 
-      // The staging float[] is dropped once a remap covers the new record.
+      // The staging copies are dropped once a remap covers the new record.
       if (node.MappedDimensions > 0)
       {
         _staged.Add(node);
@@ -325,7 +354,8 @@ internal sealed class SplitNodeList : IList<IndexNode>
     for (var i = 0; i < _staged.Count; i++)
     {
       var node = _staged[i];
-      if (node.MappedFloatOffset + (long)node.MappedDimensions * sizeof(float) <= mappedLength)
+      var payloadBytes = (long)node.MappedDimensions * (node.MappedQuantized ? 1 : sizeof(float));
+      if (node.MappedFloatOffset + payloadBytes <= mappedLength)
         node.ReleaseRamVector();
       else
         _staged[kept++] = node;

@@ -2,6 +2,20 @@ using Jigen.Indexer.Extensions;
 
 namespace Jigen.Indexer;
 
+public enum VectorQuantization
+{
+  None = 0,
+
+  /// <summary>
+  /// Scalar 8-bit quantization of the GRAPH vectors (components ∈ [-1,1]
+  /// after normalization, scale 127): 4× smaller vector file and cheaper
+  /// distances, at a small recall cost that <see cref="SmallWorldOptions.ExactRerank"/>
+  /// recovers by rescoring results with the store's full-precision embeddings.
+  /// Store embeddings are NOT touched. Applies to newly written records.
+  /// </summary>
+  SQ8 = 1
+}
+
 public class SmallWorldOptions( int M = 10)
 {
   public SmallWorldOptions(int m, int efConstruction, int efSearch, string storagePath) : this()
@@ -71,6 +85,15 @@ public class SmallWorldOptions( int M = 10)
   /// See 'keepPrunedConnections' parameter in the article.
   /// </summary>
   public bool KeepPrunedConnections { get; set; } = true;
+
+  /// <summary>Quantization of the graph-side vectors. See <see cref="VectorQuantization"/>.</summary>
+  public VectorQuantization Quantization { get; set; } = VectorQuantization.None;
+
+  /// <summary>
+  /// With <see cref="VectorQuantization.SQ8"/>: rescore search results with
+  /// the store's full-precision embeddings before ranking (default true).
+  /// </summary>
+  public bool ExactRerank { get; set; } = true;
 
   /// <summary>
   /// Slots of the in-memory node cache of a disk-backed graph (rounded up to

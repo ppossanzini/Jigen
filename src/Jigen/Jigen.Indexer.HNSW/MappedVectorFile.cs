@@ -78,6 +78,13 @@ internal sealed unsafe class MappedVectorFile : IDisposable
     return new ReadOnlySpan<byte>(view.Pointer + byteOffset, count);
   }
 
+  /// <summary>SQ8 payload at an absolute byte offset.</summary>
+  public ReadOnlySpan<sbyte> SBytes(long byteOffset, int count)
+  {
+    var view = Volatile.Read(ref _current);
+    return new ReadOnlySpan<sbyte>(view.Pointer + byteOffset, count);
+  }
+
   /// <summary>Drops every view. Only safe when no reader can still hold spans
   /// (the owning store is being closed).</summary>
   public void Dispose()

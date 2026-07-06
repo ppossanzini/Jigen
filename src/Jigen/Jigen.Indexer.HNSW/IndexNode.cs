@@ -25,6 +25,23 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
   internal long MappedFloatOffset;
   internal int MappedDimensions;
 
+  // SQ8 graphs: the payload is sbyte per component. RamQuantized is the
+  // staging (and query-node) copy, MappedQuantized marks a v2 disk record.
+  internal sbyte[] RamQuantized;
+  internal bool MappedQuantized;
+
+  public bool IsQuantized => RamQuantized is not null || MappedQuantized;
+
+  internal ReadOnlySpan<sbyte> QuantizedSpan
+  {
+    get
+    {
+      var quantized = RamQuantized;
+      if (quantized is not null) return quantized;
+      return MappedVectors.SBytes(MappedFloatOffset, MappedDimensions);
+    }
+  }
+
   /// <summary>
   /// The vector as a span, without materializing it: RAM copy when present,
   /// otherwise zero-copy from the mapped vector file. Use this (or
@@ -51,8 +68,9 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
   }
 
   /// <summary>
-  /// Materialized vector. For mapped nodes the getter COPIES from the map:
-  /// cold paths only (serialization, migration, custom distance functions).
+  /// Materialized vector. For mapped nodes the getter COPIES from the map
+  /// (dequantizing SQ8 payloads): cold paths only (serialization, migration,
+  /// custom distance functions).
   /// </summary>
   public float[] Vector
   {
@@ -60,13 +78,27 @@ public class IndexNode : IStorableItem<IndexNode, SmallWorldOptions>
     {
       var vector = _vector;
       if (vector.Length > 0 || MappedVectors is null) return vector;
+
+      if (MappedQuantized)
+      {
+        var quantized = QuantizedSpan;
+        var floats = new float[quantized.Length];
+        for (var i = 0; i < quantized.Length; i++)
+          floats[i] = quantized[i] / Sq8.Scale;
+        return floats;
+      }
+
       return VectorSpan.ToArray();
     }
     set => _vector = value ?? [];
   }
 
-  /// <summary>Drops the RAM staging copy once the mapping covers the offset.</summary>
-  internal void ReleaseRamVector() => _vector = [];
+  /// <summary>Drops the RAM staging copies once the mapping covers the offset.</summary>
+  internal void ReleaseRamVector()
+  {
+    _vector = [];
+    if (MappedQuantized) RamQuantized = null;
+  }
 
   public IList<IList<int>> Connections { get; set; } = Array.Empty<IList<int>>();
   public TravelingCosts TravelingCosts { get; private set; }

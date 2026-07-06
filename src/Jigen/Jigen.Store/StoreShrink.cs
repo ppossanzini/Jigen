@@ -41,6 +41,7 @@ public partial class Store
       // Drain the ingestion queue, then take the writer's I/O lock so no batch
       // can run during compaction, and the index lock so deletes are blocked too.
       await Writer.WaitForWritingCompleted;
+      await Writer.WaitForIndexingCompleted;
 
       Writer.RunExclusive(() =>
       {

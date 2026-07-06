@@ -346,6 +346,10 @@ public class SmallWorldIndexer : IIndexer
     // VectorKey compares and hashes the raw bytes: no Base64 allocation per result.
     var resultsByKey = new Dictionary<VectorKey, (VectorEntry entry, float score)>(neighbours.Count);
 
+    // With SQ8 the graph scores are approximate: rescore the (few) candidates
+    // with the store's full-precision embeddings before the final ranking.
+    var exactRerank = Options.Quantization == VectorQuantization.SQ8 && Options.ExactRerank;
+
     foreach (var node in neighbours)
     {
       var nodeKey = node.Id;
@@ -356,6 +360,13 @@ public class SmallWorldIndexer : IIndexer
         var content = store.GetContent(collection, node.Id.Value);
         if (content is null) continue;
         if (contentFilter != null && !MatchesFilter(content, contentFilter)) continue;
+
+        if (exactRerank)
+        {
+          var embedding = store.GetEmbedding(collection, node.Id.Value);
+          if (embedding is { Length: > 0 })
+            score = TensorPrimitives.CosineSimilarity(queryVector, embedding);
+        }
 
         resultsByKey[nodeKey] = (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
       }
@@ -567,6 +578,18 @@ public class SmallWorldIndexer : IIndexer
     if (left.VectorDimensions == 0 || right.VectorDimensions == 0)
       return float.MaxValue;
 
+    if (left.IsQuantized)
+    {
+      if (right.IsQuantized)
+        return 1f - Sq8.Dot(left.QuantizedSpan, right.QuantizedSpan) * Sq8.InverseSquaredScale;
+
+      // Mixed float/SQ8 records (graph quantized mid-life): compatibility path.
+      return 1f - Sq8.MixedDot(right.VectorSpan, left.QuantizedSpan);
+    }
+
+    if (right.IsQuantized)
+      return 1f - Sq8.MixedDot(left.VectorSpan, right.QuantizedSpan);
+
     // VectorSpan is zero-copy: RAM for fresh/query nodes, the memory-mapped
     // vector file for persisted ones — no deserialization on the hot path.
     return CosineDistance.SIMDForUnits(left.VectorSpan, right.VectorSpan);
@@ -585,13 +608,18 @@ public class SmallWorldIndexer : IIndexer
     queryVector.CopyTo(vector, 0);
     NormalizeInPlace(vector);
 
-    return new IndexNode(Options)
+    var node = new IndexNode(Options)
     {
       Id = new VectorKey { Value = Array.Empty<byte>() },
       MaxLevel = 0,
       Connections = Array.Empty<IList<int>>(),
       Vector = vector
     };
+
+    if (Options.Quantization == VectorQuantization.SQ8)
+      node.RamQuantized = Sq8.Quantize(vector);
+
+    return node;
   }
 
   private static void NormalizeInPlace(Span<float> vector)

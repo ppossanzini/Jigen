@@ -91,9 +91,10 @@ public static class StoreWritingExtensions
   public static async Task<bool> DeleteContent(this Store store, string collection, byte[] key)
   {
     // Appends travel through the ingestion queue while deletes run inline:
-    // drain the queue first, so "append X, then delete X" cannot resurrect X
-    // when the writer processes the still-queued append after this delete.
+    // drain BOTH stages first, so "append X, then delete X" cannot resurrect
+    // X in the store (writer) or in the graph (index workers).
     await store.Writer.WaitForWritingCompleted;
+    await store.Writer.WaitForIndexingCompleted;
 
     bool result = false;
 
@@ -117,7 +118,8 @@ public static class StoreWritingExtensions
     if (result)
     {
       store.Options.Indexer?.RemoveFromIndex(collection, key);
-      await store.SaveIndexChanges();
+      // Group commit: no per-delete fsync. The tombstone becomes durable at
+      // the next SaveChangesAsync/Close, exactly like appended entries.
     }
 
     return result;
@@ -130,8 +132,9 @@ public static class StoreWritingExtensions
   public static async Task<int> ClearContent(this Store store, string collection)
   {
     // Same ordering guarantee as DeleteContent: queued appends must land
-    // before the clear, or they would resurrect after it.
+    // (and index) before the clear, or they would resurrect after it.
     await store.Writer.WaitForWritingCompleted;
+    await store.Writer.WaitForIndexingCompleted;
 
     var removedKeys = new List<byte[]>();
 
@@ -157,7 +160,9 @@ public static class StoreWritingExtensions
       foreach (var key in removedKeys)
         store.Options.Indexer?.RemoveFromIndex(collection, key);
 
-      await store.SaveIndexChanges();
+      // Push the tombstone burst to the OS without fsync: durability comes
+      // with the next SaveChangesAsync/Close (group commit).
+      store.IndexFileStream.Flush(false);
     }
 
     return removedKeys.Count;
