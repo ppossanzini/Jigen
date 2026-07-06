@@ -59,6 +59,35 @@ public partial class Store : IStore, IDisposable
   internal string ContentFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.ContentSuffix}.jigen");
   internal string IndexFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.index.jigen");
   internal string EmbeddingsFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.EmbeddingSuffix}.jigen");
+  internal string LockFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.lock.jigen");
+
+  // Held exclusively for the Store lifetime: the data files themselves are
+  // opened with FileShare.ReadWrite (the read mappings need it), so without
+  // this a second Store on the same path would silently corrupt the files.
+  private FileStream _databaseLock;
+
+  // True when the previous run did not delete the lock file: Close removes it
+  // on clean shutdown, a crash leaves it behind (the OS only releases the
+  // handle), so its survival marks the on-disk state as possibly inconsistent.
+  private bool _uncleanShutdown;
+
+  /// <summary>True when this database was not closed cleanly by the previous process.</summary>
+  public bool WasUncleanShutdown => _uncleanShutdown;
+
+  private void AcquireDatabaseLock()
+  {
+    _uncleanShutdown = File.Exists(LockFullFileName);
+
+    try
+    {
+      _databaseLock = new FileStream(LockFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+    }
+    catch (IOException ex)
+    {
+      throw new IOException(
+        $"The database '{Options.DataBaseName}' at '{Options.DataBasePath}' is already open in another Store instance or process.", ex);
+    }
+  }
 
   public IEnumerable<string> GetFileNames()
   {
@@ -88,15 +117,45 @@ public partial class Store : IStore, IDisposable
   public Store(StoreOptions options)
   {
     this.Options = options;
-    EnsureFileCreated();
+    AcquireDatabaseLock();
 
-    EnableWriting();
-    EnableReading();
+    try
+    {
+      EnsureFileCreated();
 
-    this.LoadIndex();
-    this.ReadHeader();
+      EnableWriting();
+      EnableReading();
 
-    Writer = new Writer(this);
+      this.LoadIndex();
+      this.ReadHeader();
+
+      Writer = new Writer(this);
+
+      if (_uncleanShutdown && options.ReconcileOnUncleanShutdown)
+        ReconcileIndexAsync().GetAwaiter().GetResult();
+    }
+    catch
+    {
+      // Release the exclusive lock so a retry in the same process can open the
+      // database. The file itself stays: the state is still possibly dirty.
+      _databaseLock?.Dispose();
+      throw;
+    }
+  }
+
+  /// <summary>
+  /// Reconciles the vector index with the store content: entries whose index
+  /// updates were lost (e.g. in a crash before the index flushed) are
+  /// re-indexed from their persisted embeddings, and index entries whose key
+  /// no longer exists in the store are dropped. Runs automatically on open
+  /// after an unclean shutdown (see <see cref="StoreOptions.ReconcileOnUncleanShutdown"/>).
+  /// </summary>
+  public async Task ReconcileIndexAsync()
+  {
+    if (Options.Indexer is null) return;
+
+    await Options.Indexer.ReconcileAsync(this);
+    await Options.Indexer.FlushAsync();
   }
 
   internal void EnableWriting()
@@ -211,8 +270,10 @@ public partial class Store : IStore, IDisposable
     // batch still needs the streams and recreates the read mappings.
     Writer.Stop();
 
+    // CloseAsync flushes AND releases the index storage (file handles, flush
+    // loops), which would otherwise outlive the store.
     if (Options.Indexer is not null)
-      await Options.Indexer.FlushAsync();
+      await Options.Indexer.CloseAsync();
 
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
@@ -224,6 +285,18 @@ public partial class Store : IStore, IDisposable
     this.ContentFileStream.Close();
     this.EmbeddingFileStream.Close();
     this.IndexFileStream.Close();
+
+    // Clean shutdown: release the exclusive lock and remove the file, which
+    // doubles as the crash marker (its survival triggers reconciliation).
+    _databaseLock?.Dispose();
+    try
+    {
+      File.Delete(LockFullFileName);
+    }
+    catch
+    {
+      // Leaving the file behind only costs a spurious reconcile on next open.
+    }
   }
 
   #region Private methods

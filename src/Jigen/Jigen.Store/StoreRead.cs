@@ -157,4 +157,39 @@ public partial class Store
     RandomAccess.Read(this.ContentFileStream.SafeFileHandle, buffer, item.contentposition + 2 * sizeof(int) + id.Length);
     return buffer;
   }
+
+  public float[] GetEmbedding(string collection, byte[] id)
+  {
+    if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
+          out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
+
+    if (item.embeddingposition <= 0 || item.dimensions <= 0) return null;
+
+    // Record layout: [id length][id][dimensions * float] (see AppendContent).
+    int headerSize = sizeof(int) + id.Length;
+    byte[] rented = null;
+    Span<byte> headerBuffer = headerSize <= 512
+      ? stackalloc byte[headerSize]
+      : (rented = System.Buffers.ArrayPool<byte>.Shared.Rent(headerSize)).AsSpan(0, headerSize);
+
+    try
+    {
+      RandomAccess.Read(this.EmbeddingFileStream.SafeFileHandle, headerBuffer, item.embeddingposition);
+
+      var idsize = BitConverter.ToInt32(headerBuffer.Slice(0, sizeof(int)));
+      // A torn record (crash between the embedding write and the index flush)
+      // must not abort callers like ReconcileIndexAsync: report it as absent.
+      if (idsize != id.Length || !headerBuffer.Slice(sizeof(int), id.Length).SequenceEqual(id))
+        return null;
+    }
+    finally
+    {
+      if (rented != null)
+        System.Buffers.ArrayPool<byte>.Shared.Return(rented);
+    }
+
+    var vector = new float[item.dimensions];
+    RandomAccess.Read(this.EmbeddingFileStream.SafeFileHandle, MemoryMarshal.AsBytes(vector.AsSpan()), item.embeddingposition + sizeof(int) + id.Length);
+    return vector;
+  }
 }

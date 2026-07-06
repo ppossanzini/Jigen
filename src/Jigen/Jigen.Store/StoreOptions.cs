@@ -22,4 +22,11 @@ public class StoreOptions
 
   /// <summary>Minimum dead/total ratio of the data files before a shrink is worthwhile.</summary>
   public double ShrinkFragmentationThreshold { get; set; } = 0.4;
+
+  /// <summary>
+  /// When true (default), opening a database that was not closed cleanly
+  /// (crash, kill) reconciles the vector index with the store content,
+  /// restoring index entries whose updates were lost. See <see cref="Store.ReconcileIndexAsync"/>.
+  /// </summary>
+  public bool ReconcileOnUncleanShutdown { get; set; } = true;
 }

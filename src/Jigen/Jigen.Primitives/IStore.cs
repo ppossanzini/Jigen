@@ -12,6 +12,7 @@ public interface IStore
 
   bool TryGetContent(string collection, byte[] id, out byte[] content);
   byte[] GetContent(string collection, byte[] id);
+  float[] GetEmbedding(string collection, byte[] id);
 
   long ContentSize { get; }
 

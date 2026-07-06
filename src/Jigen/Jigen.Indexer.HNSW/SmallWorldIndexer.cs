@@ -302,12 +302,81 @@ public class SmallWorldIndexer : IIndexer
     return Task.CompletedTask;
   }
 
+  /// <summary>
+  /// Aligns every collection graph with the store: nodes whose key no longer
+  /// exists in the store are marked deleted, and store entries missing from
+  /// the graph (index updates lost in a crash: the graph flushes on its own
+  /// cadence) are re-indexed from their persisted embeddings.
+  /// </summary>
+  public Task ReconcileAsync(IStore store)
+  {
+    if (store is null) return Task.CompletedTask;
+
+    foreach (var collection in store.GetCollections())
+    {
+      if (!store.GetCollectionIndexOf(collection, out var index) || index is null) continue;
+
+      var graph = GetGraphForCollection(collection);
+      lock (graph.nodes)
+      {
+        graph = GetGraphForCollection(collection);
+
+        // Graph → store: collect live keys, dropping nodes the store no longer knows.
+        // Slot 0 aliases the entrypoint, which is re-visited at its own PositionId.
+        var liveKeys = new HashSet<VectorKey>();
+        for (var i = 1; i < graph.nodes.Count; i++)
+        {
+          var node = graph.nodes[i];
+          if (node.IsDeleted || node.Id.Value is null || node.Id.Value.Length == 0) continue;
+
+          if (!index.ContainsKey(node.Id.Value))
+          {
+            node.IsDeleted = true;
+            graph.nodes[i] = node; // write back so storage-backed lists persist the flag
+            continue;
+          }
+
+          liveKeys.Add(node.Id);
+        }
+
+        // Store → graph: re-index entries whose insert never reached the graph.
+        foreach (var kv in index)
+        {
+          if (kv.Value.embeddingsposition <= 0) continue; // content-only entry
+          if (liveKeys.Contains(new VectorKey { Value = kv.Key })) continue;
+
+          var embedding = store.GetEmbedding(collection, kv.Key);
+          if (embedding is null || embedding.Length == 0) continue;
+
+          AddToIndex(new VectorEntry { Id = kv.Key, CollectionName = collection, Embedding = embedding });
+        }
+      }
+    }
+
+    return Task.CompletedTask;
+  }
+
   public Task ShrinkAsync()
   {
     foreach (var graph in _collectionGraphs.Values)
       (graph.nodes as StoredList<IndexNode, SmallWorldOptions>)?.ShrinkDb();
 
     return Task.CompletedTask;
+  }
+
+  /// <summary>
+  /// Flushes and releases every collection graph: without this the storage
+  /// files stay open (with their flush loops running) after the store closes.
+  /// The indexer stays usable: a later access reloads the graph from disk.
+  /// </summary>
+  public async Task CloseAsync()
+  {
+    foreach (var key in _collectionGraphs.Keys.ToList())
+    {
+      if (_collectionGraphs.TryRemove(key, out var graph) &&
+          graph.nodes is StoredList<IndexNode, SmallWorldOptions> stored)
+        await stored.DisposeAsync();
+    }
   }
 
   private static float DefaultDistance(IndexNode left, IndexNode right)

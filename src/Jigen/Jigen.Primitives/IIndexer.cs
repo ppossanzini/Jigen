@@ -13,4 +13,18 @@ public interface IIndexer
 
   Task FlushAsync() => Task.CompletedTask;
   Task ShrinkAsync() => Task.CompletedTask;
+
+  /// <summary>
+  /// Flushes and releases every resource held by the index (file handles,
+  /// background flush loops). Called by the owning store on Close.
+  /// </summary>
+  Task CloseAsync() => Task.CompletedTask;
+
+  /// <summary>
+  /// Aligns the index with the store content after a possible divergence
+  /// (e.g. index updates lost in a crash): re-indexes store entries missing
+  /// from the index and drops indexed entries no longer in the store.
+  /// No-op for indexers that read the store directly.
+  /// </summary>
+  Task ReconcileAsync(IStore store) => Task.CompletedTask;
 }
