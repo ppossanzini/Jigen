@@ -20,6 +20,13 @@ public partial class Store : IStore, IDisposable
   private MemoryMappedFile _contentData;
   private MemoryMappedFile _embeddingsData;
 
+  // Extent covered by the current mappings: appends within it are visible
+  // through the shared page cache, so a remap is needed only when a read
+  // targets bytes past the mapped length (instead of once per writer batch).
+  private long _contentMappedLength;
+  private long _embeddingsMappedLength;
+  private readonly Lock _remapLock = new();
+
   // FileStream only for writings. 
   internal FileStream ContentFileStream;
   internal FileStream EmbeddingFileStream;
@@ -170,16 +177,40 @@ public partial class Store : IStore, IDisposable
     var oldcontent = _contentData;
     var oldembeddings = _embeddingsData;
 
-    if (this.ContentFileStream.Length > 0)
+    // Lengths captured BEFORE mapping: the file can only grow, so a mapping
+    // created later covers at least this much (understating is the safe side).
+    var contentLength = this.ContentFileStream.Length;
+    if (contentLength > 0)
+    {
       Volatile.Write(ref _contentData, MemoryMappedFile.CreateFromFile(File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
         null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false));
+      Volatile.Write(ref _contentMappedLength, contentLength);
+    }
 
-    if (this.EmbeddingFileStream.Length > 0)
+    var embeddingsLength = this.EmbeddingFileStream.Length;
+    if (embeddingsLength > 0)
+    {
       Volatile.Write(ref _embeddingsData, MemoryMappedFile.CreateFromFile(File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite),
         null, 0, MemoryMappedFileAccess.Read, HandleInheritability.None, false));
+      Volatile.Write(ref _embeddingsMappedLength, embeddingsLength);
+    }
 
     if (!ReferenceEquals(oldcontent, _contentData)) oldcontent?.Dispose();
     if (!ReferenceEquals(oldembeddings, _embeddingsData)) oldembeddings?.Dispose();
+  }
+
+  private void EnsureMapped(long requiredLength, ref MemoryMappedFile mapping, ref long mappedLength)
+  {
+    if (Volatile.Read(ref mappedLength) >= requiredLength && Volatile.Read(ref mapping) is not null)
+      return;
+
+    lock (_remapLock)
+    {
+      if (Volatile.Read(ref mappedLength) >= requiredLength && Volatile.Read(ref mapping) is not null)
+        return;
+
+      EnableReading();
+    }
   }
 
   public Task SaveIndexChanges()
@@ -218,6 +249,10 @@ public partial class Store : IStore, IDisposable
 
   public MemoryMappedViewAccessor GetContentAccessor(long offset, long size)
   {
+    // size == 0 means "map to end of file": the mapping must cover the
+    // current file length.
+    EnsureMapped(size == 0 ? ContentFileStream.Length : offset + size, ref _contentData, ref _contentMappedLength);
+
     while (true)
     {
       var data = Volatile.Read(ref _contentData);
@@ -237,6 +272,8 @@ public partial class Store : IStore, IDisposable
 
   public MemoryMappedViewAccessor GetEmbeddingAccessor(long offset, long size)
   {
+    EnsureMapped(size == 0 ? EmbeddingFileStream.Length : offset + size, ref _embeddingsData, ref _embeddingsMappedLength);
+
     while (true)
     {
       var data = Volatile.Read(ref _embeddingsData);

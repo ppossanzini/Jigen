@@ -33,16 +33,36 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
   public void Flush()
   {
-    _itemsIndexLock.EnterReadLock();
+    // Upgradeable read: concurrent with plain readers, exclusive against
+    // writers AND other flushes (the dirty bookkeeping is consumed here).
+    _itemsIndexLock.EnterUpgradeableReadLock();
     try
     {
-      // WriteIndex() uses CollectionsMarshal.AsSpan → single I/O for all indices
-      WriteIndex();
+      var count = _itemsIndex.Count;
+
+      // Incremental flush: entries below the watermark are on disk already;
+      // rewrite only the in-place updates and append the new tail. Fall back
+      // to one full write when the dirty set makes scattered writes costlier.
+      if (_dirtyIndexes.Count > 1024 || (long)_dirtyIndexes.Count * 4 > count)
+      {
+        WriteIndex();
+      }
+      else
+      {
+        foreach (var index in _dirtyIndexes)
+          if (index < count)
+            WriteIndexAt(index);
+
+        WriteIndexRange(_flushedCount, count);
+      }
+
+      _dirtyIndexes.Clear();
+      _flushedCount = count;
       WriteHeader();
     }
     finally
     {
-      _itemsIndexLock.ExitReadLock();
+      _itemsIndexLock.ExitUpgradeableReadLock();
     }
     _data.Flush(flushToDisk: true);
     _dataindex.Flush(flushToDisk: true);

@@ -33,12 +33,17 @@ public class Writer
 
   private void RecordError(Exception ex) => Volatile.Write(ref _lastError, ex);
 
+  // Entries accepted but not yet processed by the writer. Gates the kernel
+  // transitions of SignalNewData to the empty→busy edge instead of paying a
+  // Reset per enqueued item.
+  private long _pending;
+
   public Task WaitForWritingCompleted
   {
     get
     {
       // Fast path: no writes in flight, nothing to wait for.
-      if (_writingCompleted.WaitOne(0)) return Task.CompletedTask;
+      if (Interlocked.Read(ref _pending) == 0 && _writingCompleted.WaitOne(0)) return Task.CompletedTask;
 
       // Bridge the event to a Task via the thread pool's shared wait threads:
       // unlike Task.Run(() => WaitOne()), no pool thread is blocked per caller.
@@ -69,7 +74,12 @@ public class Writer
 
   internal void SignalNewData()
   {
-    _writingCompleted.Reset();
+    // Reset is a kernel transition: pay it only when the queue turns from
+    // empty to busy. The waiter Set stays unconditional (AutoResetEvent set
+    // on an already-set event is cheap) so the writer never oversleeps.
+    if (Interlocked.Increment(ref _pending) == 1)
+      _writingCompleted.Reset();
+
     _waiter.Set();
   }
 
@@ -126,30 +136,38 @@ public class Writer
           {
             while (_store.IngestionQueue.TryDequeue(out var entry))
             {
-              var result = _store.AppendContent(
-                entry.Id,
-                entry.CollectionName,
-                entry.Content,
-                entry.Embedding);
-
-              // Cannot immediatly update search index till the file are committed
-              TempIndex.Enqueue(result);
-
               try
               {
-                // waitForIndexing: the writer thread is already sequential; the default
-                // fire-and-forget path runs inserts concurrently on the thread pool and
-                // HNSW graph construction is not safe under concurrent inserts.
-                _store.Options.Indexer?.AddToIndex(new VectorEntry()
+                var result = _store.AppendContent(
+                  entry.Id,
+                  entry.CollectionName,
+                  entry.Content,
+                  entry.Embedding);
+
+                // Cannot immediatly update search index till the file are committed
+                TempIndex.Enqueue(result);
+
+                try
                 {
-                  Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
-                }, waitForIndexing: true);
+                  // waitForIndexing: the writer thread is already sequential; the default
+                  // fire-and-forget path runs inserts concurrently on the thread pool and
+                  // HNSW graph construction is not safe under concurrent inserts.
+                  _store.Options.Indexer?.AddToIndex(new VectorEntry()
+                  {
+                    Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
+                  }, waitForIndexing: true);
+                }
+                catch (Exception ex)
+                {
+                  // The entry is persisted in the store (its index record is in
+                  // TempIndex); only the vector index missed it. Keep the batch going.
+                  RecordError(ex);
+                }
               }
-              catch (Exception ex)
+              finally
               {
-                // The entry is persisted in the store (its index record is in
-                // TempIndex); only the vector index missed it. Keep the batch going.
-                RecordError(ex);
+                // The entry left the queue for good (even on failure).
+                Interlocked.Decrement(ref _pending);
               }
             }
           }
@@ -158,7 +176,9 @@ public class Writer
             _store.EmbeddingFileStream.Flush(false);
             _store.ContentFileStream.Flush(false);
 
-            _store.EnableReading();
+            // No EnableReading here: recreating the memory mappings per batch
+            // cost an mmap per write burst. Readers remap on demand when they
+            // target bytes past the mapped extent (Store.EnsureMapped).
 
             while (TempIndex.TryDequeue(out var indexData))
               _store.AppendIndex(indexData);

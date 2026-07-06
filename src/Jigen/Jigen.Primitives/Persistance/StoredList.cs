@@ -20,7 +20,15 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   private FileStream _data;
   private FileStream _dataindex;
   private readonly List<ItemIndex> _itemsIndex = new();
-  private readonly ReaderWriterLockSlim _itemsIndexLock = new(LockRecursionPolicy.SupportsRecursion);
+  // NoRecursion: no code path re-enters the lock (the upgradeable→write
+  // transition in IndexOf is an upgrade, not a recursion) and it is cheaper.
+  private readonly ReaderWriterLockSlim _itemsIndexLock = new(LockRecursionPolicy.NoRecursion);
+
+  // Incremental flush bookkeeping (mutated under the write lock, consumed
+  // under the upgradeable lock in Flush): entries [0.._flushedCount) are on
+  // disk; in-place updates below the watermark are tracked individually.
+  private int _flushedCount;
+  private readonly HashSet<int> _dirtyIndexes = new();
 
   // Direct-mapped read cache: avoids repeated file I/O + deserialization
   // for the same index (critical for HNSW graph traversal).
@@ -179,8 +187,10 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       ArrayPool<byte>.Shared.Return(rentedBuffer);
     }
 
-    // Persist the corrected count on the next Flush.
+    // Persist the corrected count on the next Flush. Everything loaded came
+    // from disk: the flush watermark starts there.
     _header.Count = _itemsIndex.Count;
+    _flushedCount = _itemsIndex.Count;
   }
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -199,6 +209,14 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     var span = CollectionsMarshal.AsSpan(_itemsIndex);
     ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(span);
     RandomAccess.Write(_dataindex.SafeFileHandle!, bytes, 0);
+  }
+
+  private void WriteIndexRange(int from, int count)
+  {
+    if (count <= from) return;
+    var span = CollectionsMarshal.AsSpan(_itemsIndex).Slice(from, count - from);
+    ReadOnlySpan<byte> bytes = MemoryMarshal.AsBytes(span);
+    RandomAccess.Write(_dataindex.SafeFileHandle!, bytes, (long)from * ItemIndex.Size);
   }
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -308,6 +326,8 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       _itemsIndex.Clear();
       InvalidateCache();
       _hashToIndices = null;
+      _flushedCount = 0;
+      _dirtyIndexes.Clear();
     }
     finally
     {
@@ -358,12 +378,14 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       if (index == -1) return false;
 
       // Removal shifts every following index: read cache and hash index
-      // are both stale.
+      // are both stale, and the index file needs a full rewrite.
       InvalidateCache();
       _hashToIndices = null;
       _itemsIndex.RemoveAt(index);
       _header.TombStonedCount++;
       _header.Count--;
+      _flushedCount = 0;
+      _dirtyIndexes.Clear();
     }
     finally
     {
@@ -429,9 +451,12 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         Hash = XxHash64.HashToUInt64(buffer.Span)
       });
       _header.Count++;
-      // Indices shift: read cache and hash index are both stale
+      // Indices shift: read cache and hash index are both stale,
+      // and the whole index needs rewriting on the next flush.
       InvalidateCache();
       _hashToIndices = null;
+      _flushedCount = 0;
+      _dirtyIndexes.Clear();
     }
     finally
     {
@@ -450,6 +475,8 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       _itemsIndex.RemoveAt(index);
       _header.TombStonedCount++;
       _header.Count--;
+      _flushedCount = 0;
+      _dirtyIndexes.Clear();
     }
     finally
     {
@@ -534,6 +561,10 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
             oldIndices.Remove(index);
           AddToHashIndex(_hashToIndices, newHash, index);
         }
+
+        // Updated below the flush watermark: only this entry needs rewriting.
+        if (index < _flushedCount)
+          _dirtyIndexes.Add(index);
       }
       finally
       {

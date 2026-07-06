@@ -248,8 +248,8 @@ public class SmallWorldIndexer : IIndexer
 
         foreach (var newNeighbour in bestNeighbours)
         {
-          newNode.AddConnection(newNeighbour, level, this, collection);
-          newNeighbour.AddConnection(newNode, level, this, collection);
+          newNode.AddConnection(newNeighbour, level, this, collection, graph);
+          newNeighbour.AddConnection(newNode, level, this, collection, graph);
           graph.nodes[newNeighbour.PositionId] = newNeighbour;
           touched.Add(newNeighbour);
 
@@ -343,11 +343,12 @@ public class SmallWorldIndexer : IIndexer
     var searchTop = Math.Max(top, Options.SearchPruning);
     var neighbours = this.KNearest(collection, destination, searchTop);
 
-    var resultsByKey = new Dictionary<string, (VectorEntry entry, float score)>(StringComparer.Ordinal);
+    // VectorKey compares and hashes the raw bytes: no Base64 allocation per result.
+    var resultsByKey = new Dictionary<VectorKey, (VectorEntry entry, float score)>(neighbours.Count);
 
     foreach (var node in neighbours)
     {
-      var nodeKey = Convert.ToBase64String(node.Id.Value);
+      var nodeKey = node.Id;
       var score = 1f - destination.TravelingCosts.From(node, usecache: false);
 
       if (!resultsByKey.TryGetValue(nodeKey, out var existing) || score > existing.score)

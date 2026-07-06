@@ -18,6 +18,8 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         _data.SetLength(StoredListHeader.Size);
         _dataindex.SetLength(0);
         WriteHeader();
+        _flushedCount = 0;
+        _dirtyIndexes.Clear();
         return;
       }
 
@@ -79,6 +81,10 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       WriteIndex();
       _dataindex.SetLength((long)count * ItemIndex.Size);
       WriteHeader();
+
+      // Everything is on disk: reset the incremental-flush bookkeeping.
+      _flushedCount = count;
+      _dirtyIndexes.Clear();
     }
     finally
     {

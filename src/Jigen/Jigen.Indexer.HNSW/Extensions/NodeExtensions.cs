@@ -65,6 +65,16 @@ public static class NodeExtensions
 
   public static void AddConnection(this IndexNode item, IndexNode newNeighbour, int level, SmallWorldIndexer smallworld, string collection)
   {
+    item.AddConnection(newNeighbour, level, smallworld, collection, smallworld.GetGraphForCollection(collection));
+  }
+
+  /// <summary>
+  /// Fast overload for hot loops: takes the already-fetched graph tuple to
+  /// skip a dictionary lookup per connection add.
+  /// </summary>
+  internal static void AddConnection(this IndexNode item, IndexNode newNeighbour, int level, SmallWorldIndexer smallworld, string collection,
+    (IndexNode entrypoint, IList<IndexNode> nodes) graph)
+  {
     var levelNeighbours = item.Connections[level];
     if (levelNeighbours is int[] or null)
     {
@@ -77,7 +87,6 @@ public static class NodeExtensions
     if (levelNeighbours.Count > GetM(smallworld.Options.M, level))
     {
       // Collect current connections without LINQ/ToList allocation via IEnumerable
-      var graph = smallworld.GetGraphForCollection(collection);
       var currentConns = new List<IndexNode>();
       foreach (var conn in item.GetConnections(level, graph))
         currentConns.Add(conn);
