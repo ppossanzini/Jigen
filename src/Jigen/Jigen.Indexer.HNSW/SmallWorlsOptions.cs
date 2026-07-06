@@ -71,4 +71,13 @@ public class SmallWorldOptions( int M = 10)
   /// See 'keepPrunedConnections' parameter in the article.
   /// </summary>
   public bool KeepPrunedConnections { get; set; } = true;
+
+  /// <summary>
+  /// Slots of the in-memory node cache of a disk-backed graph (rounded up to
+  /// a power of two). Every graph hop reads a node: a miss costs two file
+  /// reads plus deserialization, so size this close to the expected node
+  /// count of hot collections. A fully warm cache costs roughly
+  /// slots × (vector + adjacency lists) of memory.
+  /// </summary>
+  public int NodeCacheSize { get; set; } = 65536;
 }

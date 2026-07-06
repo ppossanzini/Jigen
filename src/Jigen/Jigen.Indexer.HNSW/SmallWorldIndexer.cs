@@ -19,6 +19,45 @@ public class SmallWorldIndexer : IIndexer
   private readonly ConcurrentDictionary<string, (IndexNode entrypoint, IList<IndexNode> nodes)> _collectionGraphs = new();
   private readonly Lock _graphCreationLock = new();
 
+  // Pool of epoch-stamped visited sets for SEARCH-LAYER traversals: renting
+  // one is O(1) (an epoch bump) versus clearing nodeCount bytes per level.
+  private readonly ConcurrentBag<VisitedSet> _visitedPool = new();
+
+  internal VisitedSet RentVisitedSet(int minSize)
+  {
+    if (!_visitedPool.TryTake(out var set)) set = new VisitedSet();
+    set.Prepare(minSize);
+    return set;
+  }
+
+  internal void ReturnVisitedSet(VisitedSet set) => _visitedPool.Add(set);
+
+  // Key → node positions, built lazily on the first delete: without it every
+  // RemoveFromIndex scans (and, for disk graphs, deserializes) the whole node
+  // list. Duplicate keys are possible (an overwrite inserts a new node), hence
+  // the list. Accessed only under lock(graph.nodes), so plain Dictionary.
+  private readonly ConcurrentDictionary<string, Dictionary<VectorKey, List<int>>> _keyIndexes = new();
+
+  // Requires lock(graph.nodes).
+  private Dictionary<VectorKey, List<int>> GetKeyIndex(string collection, (IndexNode entrypoint, IList<IndexNode> nodes) graph)
+  {
+    if (_keyIndexes.TryGetValue(collection, out var map)) return map;
+
+    map = new Dictionary<VectorKey, List<int>>(graph.nodes.Count);
+    for (var i = 1; i < graph.nodes.Count; i++)
+    {
+      var node = graph.nodes[i];
+      if (node.IsDeleted || node.Id.Value is null || node.Id.Value.Length == 0) continue;
+
+      if (!map.TryGetValue(node.Id, out var positions))
+        map[node.Id] = positions = new List<int>(1);
+      positions.Add(i);
+    }
+
+    _keyIndexes[collection] = map;
+    return map;
+  }
+
   internal readonly SelectForConnectingDelegate SelectBestForConnecting = null;
 
 
@@ -50,11 +89,7 @@ public class SmallWorldIndexer : IIndexer
       if (Options.InMemory)
         nodes  = new List<IndexNode>();
       else
-        nodes = new StoredList<IndexNode, SmallWorldOptions>(new StoreListOptions()
-        {
-          FilePath = filePath,
-          FlushInterval = TimeSpan.FromMinutes(1)
-        }, Options);
+        nodes = OpenDiskGraph(filePath);
 
       if (!nodes.Any())
       {
@@ -66,6 +101,82 @@ public class SmallWorldIndexer : IIndexer
       _collectionGraphs[collection] = item;
       return item;
     }
+  }
+
+  /// <summary>
+  /// Opens (or migrates) the split disk storage of a collection graph:
+  /// immutable vectors in {name}.hnsw.vec, in-place adjacency records in
+  /// {name}.hnsw.adj. A single-file legacy graph at {name}.hnsw is converted
+  /// once and then removed; an interrupted migration restarts from scratch
+  /// (the legacy file is only deleted after a successful flush).
+  /// </summary>
+  private SplitNodeList OpenDiskGraph(string legacyPath)
+  {
+    var flushInterval = TimeSpan.FromMinutes(1);
+    var nodes = new SplitNodeList($"{legacyPath}.vec", $"{legacyPath}.adj", Options, flushInterval);
+
+    if (!File.Exists(legacyPath)) return nodes;
+
+    var legacy = new StoredList<IndexNode, SmallWorldOptions>(
+      new StoreListOptions { FilePath = legacyPath, FlushInterval = flushInterval }, Options);
+    try
+    {
+      if (legacy.Count > 0)
+      {
+        if (nodes.Count != 0) nodes.Clear(); // interrupted previous migration
+
+        var entryPointer = 0;
+        for (var i = 0; i < legacy.Count; i++)
+        {
+          IndexNode node;
+          try
+          {
+            node = legacy[i];
+          }
+          catch (Exception)
+          {
+            // Corrupt legacy record: the slot must survive (indexes are
+            // adjacency targets) but as a deleted placeholder; the store
+            // reconciliation can re-add the entry from its embedding.
+            node = new IndexNode(Options)
+            {
+              PositionId = i, IsDeleted = true, Id = new VectorKey { Value = [] },
+              Vector = [], MaxLevel = 0, Connections = Array.Empty<IList<int>>()
+            };
+          }
+
+          if (i == 0)
+          {
+            // Legacy slot 0 is a full copy of the entrypoint; the new format
+            // stores a placeholder plus the pointer, written below.
+            entryPointer = node.PositionId;
+            nodes.Add(new IndexNode(Options)
+            {
+              PositionId = 0, Id = new VectorKey { Value = [] },
+              Vector = [], MaxLevel = 0, Connections = Array.Empty<IList<int>>()
+            });
+            continue;
+          }
+
+          node.PositionId = i;
+          nodes.Add(node);
+        }
+
+        if (entryPointer > 0 && entryPointer < nodes.Count)
+          nodes[0] = new IndexNode(Options) { PositionId = entryPointer, Id = new VectorKey { Value = [] } };
+
+        nodes.Flush();
+      }
+    }
+    finally
+    {
+      legacy.DisposeAsync().GetAwaiter().GetResult();
+    }
+
+    File.Delete(legacyPath);
+    if (File.Exists($"{legacyPath}.index")) File.Delete($"{legacyPath}.index");
+
+    return nodes;
   }
 
   private void AssignEntryPoint(string collection, (IndexNode entrypoint, IList<IndexNode> nodes) entry, IndexNode newNode)
@@ -99,6 +210,14 @@ public class SmallWorldIndexer : IIndexer
       graph = GetGraphForCollection(collection); // refresh entrypoint under lock
 
       graph.nodes.AddNewNode(newNode);
+
+      // Keep the delete lookup aligned if it was already built.
+      if (_keyIndexes.TryGetValue(collection, out var keyIndex))
+      {
+        if (!keyIndex.TryGetValue(newNode.Id, out var positions))
+          keyIndex[newNode.Id] = positions = new List<int>(1);
+        positions.Add(newNode.PositionId);
+      }
 
       // The initial slot-0 placeholder has an empty vector (distance = MaxValue):
       // promote the first real node to entrypoint so the placeholder never
@@ -163,13 +282,17 @@ public class SmallWorldIndexer : IIndexer
     {
       graph = GetGraphForCollection(collection); // refresh entrypoint under lock
 
+      // O(1) lookup instead of scanning (and deserializing) every node; the
+      // list covers duplicate keys left by overwrites.
+      var keyIndex = GetKeyIndex(collection, graph);
+      if (!keyIndex.Remove(new VectorKey { Value = key }, out var positions)) return;
+
       var entrypointDeleted = false;
 
-      // Skip slot 0: it aliases the entrypoint node, which is re-visited at its own PositionId.
-      for (var i = 1; i < graph.nodes.Count; i++)
+      foreach (var i in positions)
       {
         var node = graph.nodes[i];
-        if (node.IsDeleted || node.Id.Value is null || !node.Id.Value.SequenceEqual(key)) continue;
+        if (node.IsDeleted) continue;
 
         node.IsDeleted = true;
         graph.nodes[i] = node; // write back so storage-backed lists persist the flag
@@ -339,7 +462,7 @@ public class SmallWorldIndexer : IIndexer
   public Task FlushAsync()
   {
     foreach (var graph in _collectionGraphs.Values)
-      (graph.nodes as StoredList<IndexNode, SmallWorldOptions>)?.Flush();
+      (graph.nodes as SplitNodeList)?.Flush();
 
     return Task.CompletedTask;
   }
@@ -362,6 +485,10 @@ public class SmallWorldIndexer : IIndexer
       lock (graph.nodes)
       {
         graph = GetGraphForCollection(collection);
+
+        // Reconciliation flips deletion flags and re-adds nodes in bulk: drop
+        // the delete lookup and let it rebuild lazily on the next delete.
+        _keyIndexes.TryRemove(collection, out _);
 
         // Graph → store: collect live keys, dropping nodes the store no longer knows.
         // Slot 0 aliases the entrypoint, which is re-visited at its own PositionId.
@@ -412,7 +539,7 @@ public class SmallWorldIndexer : IIndexer
   public Task ShrinkAsync()
   {
     foreach (var graph in _collectionGraphs.Values)
-      (graph.nodes as StoredList<IndexNode, SmallWorldOptions>)?.ShrinkDb();
+      (graph.nodes as SplitNodeList)?.ShrinkDb();
 
     return Task.CompletedTask;
   }
@@ -427,9 +554,11 @@ public class SmallWorldIndexer : IIndexer
     foreach (var key in _collectionGraphs.Keys.ToList())
     {
       if (_collectionGraphs.TryRemove(key, out var graph) &&
-          graph.nodes is StoredList<IndexNode, SmallWorldOptions> stored)
+          graph.nodes is SplitNodeList stored)
         await stored.DisposeAsync();
     }
+
+    _keyIndexes.Clear();
   }
 
   private static float DefaultDistance(IndexNode left, IndexNode right)

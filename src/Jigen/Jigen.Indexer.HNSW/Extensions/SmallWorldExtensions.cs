@@ -1,12 +1,11 @@
 // SEARCH-LAYER hot-path optimizations:
 //  - BinaryHeap<T> now uses a T[] backing store: no IList dispatch, no virtual calls.
-//  - Visited set: HashSet<int> replaced with an ArrayPool<bool> direct-indexed array.
-//    bool[] lookup is O(1) with a single branch vs HashSet hash+bucket traversal.
+//  - Visited set: pooled epoch-stamped int[] (VisitedSet) — starting a traversal
+//    is a counter bump instead of clearing nodeCount bytes per level.
 //  - GetConnections overload that takes the pre-fetched graph to avoid repeated
 //    internal dictionary lookups per neighbour.
 //  - All LINQ calls (.Any(), .First()) eliminated from the hot loop.
 
-using System.Buffers;
 using Jigen.DataStructures;
 
 namespace Jigen.Indexer.Extensions;
@@ -63,12 +62,10 @@ public static class SmallWorldExtensions
     var graph     = smallworld.GetGraphForCollection(collection);
     int nodeCount = graph.nodes.Count;
 
-    // Visited array from pool: direct bool[] indexing beats HashSet for dense integer keys.
-    // We rent at least nodeCount+1 to handle any node that was freshly inserted.
-    int visitedSize = Math.Max(nodeCount + 1, 1);
-    bool[] visitedArr = ArrayPool<bool>.Shared.Rent(visitedSize);
-    visitedArr.AsSpan(0, visitedSize).Clear();
-    visitedArr[entryPoint.PositionId] = true;
+    // Epoch-stamped visited set from the indexer pool: starting a traversal
+    // is a counter bump, not an O(nodeCount) clear per level per operation.
+    var visited = smallworld.RentVisitedSet(nodeCount + 1);
+    visited.TryVisit(entryPoint.PositionId);
 
     try
     {
@@ -86,14 +83,9 @@ public static class SmallWorldExtensions
 
         foreach (var neighbour in toExpand.GetConnections(level, graph))
         {
-          int nid = neighbour.PositionId;
-
-          // Bounds-safe: nodes inserted concurrently may have PositionId >= visitedSize.
-          // Those nodes are not yet fully wired and can safely be skipped.
-          if ((uint)nid >= (uint)visitedSize || visitedArr[nid])
+          // Already seen, or inserted concurrently (not fully wired): skip.
+          if (!visited.TryVisit(neighbour.PositionId))
             continue;
-
-          visitedArr[nid] = true;
 
           if (resultHeap.Count < k
               || Tools.DLt(travelingCosts.From(neighbour), travelingCosts.From(resultHeap.Peek())))
@@ -113,7 +105,7 @@ public static class SmallWorldExtensions
     }
     finally
     {
-      ArrayPool<bool>.Shared.Return(visitedArr);
+      smallworld.ReturnVisitedSet(visited);
     }
 
     return resultHeap.ToList();
