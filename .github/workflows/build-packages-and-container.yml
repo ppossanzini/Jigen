@@ -33,7 +33,7 @@ jobs:
         run: dotnet restore Jigen.sln
 
       - name: Build
-        run: dotnet build Jigen.sln --configuration Release --no-restore
+        run: dotnet build Jigen.sln --configuration Release --no-restore /m:1
 
       - name: Use Tag Version For NuGet
         if: startsWith(github.ref, 'refs/tags/v')
