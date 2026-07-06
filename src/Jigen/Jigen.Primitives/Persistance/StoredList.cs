@@ -37,6 +37,61 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     public readonly T Value = value;
   }
 
+  // Lazy hash → indices lookup for Contains/IndexOf/Remove: built on first
+  // use (append-only workloads never pay for it), invalidated whenever indices
+  // shift (Insert/RemoveAt/Remove). Hash matches are always confirmed by
+  // comparing the stored bytes, so hash collisions cannot match a wrong item.
+  private Dictionary<ulong, List<int>> _hashToIndices;
+
+  // Requires the write lock.
+  private void EnsureHashIndex()
+  {
+    if (_hashToIndices is not null) return;
+
+    var map = new Dictionary<ulong, List<int>>(_itemsIndex.Count);
+    for (int i = 0; i < _itemsIndex.Count; i++)
+      AddToHashIndex(map, _itemsIndex[i].Hash, i);
+    _hashToIndices = map;
+  }
+
+  private static void AddToHashIndex(Dictionary<ulong, List<int>> map, ulong hash, int index)
+  {
+    if (!map.TryGetValue(hash, out var indices))
+      map[hash] = indices = new List<int>(1);
+    indices.Add(index);
+  }
+
+  // Requires at least the read lock. Confirms a hash match against the bytes
+  // actually stored on disk.
+  private bool MatchesStoredBytes(int index, ReadOnlyMemory<byte> buffer)
+  {
+    var ii = _itemsIndex[index];
+    if (ii.Length != buffer.Length) return false;
+
+    var rented = ArrayPool<byte>.Shared.Rent(ii.Length);
+    try
+    {
+      RandomAccess.Read(_data!.SafeFileHandle!, rented.AsSpan(0, ii.Length), ii.Position);
+      return rented.AsSpan(0, ii.Length).SequenceEqual(buffer.Span);
+    }
+    finally
+    {
+      ArrayPool<byte>.Shared.Return(rented);
+    }
+  }
+
+  // Requires at least the read lock and a built hash index.
+  private int FindVerifiedIndex(ReadOnlyMemory<byte> buffer, ulong hash)
+  {
+    if (!_hashToIndices!.TryGetValue(hash, out var candidates)) return -1;
+
+    foreach (var index in candidates)
+      if (MatchesStoredBytes(index, buffer))
+        return index;
+
+    return -1;
+  }
+
   public StoredList(StoreListOptions options, TOptions itemOptions)
   {
     _options = options;
@@ -217,14 +272,19 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
       RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
 
       int newIndex = _itemsIndex.Count;
+      var hash = XxHash64.HashToUInt64(buffer.Span);
       _itemsIndex.Add(new ItemIndex()
       {
         Position = position,
         Length = buffer.Length,
         MaxLength = buffer.Length,
-        Hash = XxHash64.HashToUInt64(buffer.Span)
+        Hash = hash
       });
       _header.Count++;
+
+      // Appends do not shift indices: the hash index stays valid, just extend it.
+      if (_hashToIndices is not null)
+        AddToHashIndex(_hashToIndices, hash, newIndex);
 
       // Populate cache for the newly added item
       Volatile.Write(ref _readCache[newIndex & ReadCacheMask], new ReadCacheEntry(newIndex, item));
@@ -247,6 +307,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     {
       _itemsIndex.Clear();
       InvalidateCache();
+      _hashToIndices = null;
     }
     finally
     {
@@ -258,17 +319,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
   public bool Contains(T item)
   {
-    var hash = XxHash64.HashToUInt64(item.Serialize().Span);
-    _itemsIndexLock.EnterReadLock();
-    try
-    {
-      var index = _itemsIndex.FindIndex(i => i.Hash == hash);
-      return index != -1;
-    }
-    finally
-    {
-      _itemsIndexLock.ExitReadLock();
-    }
+    return IndexOf(item) != -1;
   }
 
   public void CopyTo(T[] array, int arrayIndex)
@@ -296,16 +347,20 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   public bool Remove(T item)
   {
     if (item is null) return false;
-    var hash = XxHash64.HashToUInt64(item.Serialize().Span);
+    var buffer = item.Serialize();
+    var hash = XxHash64.HashToUInt64(buffer.Span);
 
     _itemsIndexLock.EnterWriteLock();
     try
     {
-      var index = _itemsIndex.FindIndex(i => i.Hash == hash);
+      EnsureHashIndex();
+      var index = FindVerifiedIndex(buffer, hash);
       if (index == -1) return false;
 
-      // Removal shifts every following index: the whole cache is stale.
+      // Removal shifts every following index: read cache and hash index
+      // are both stale.
       InvalidateCache();
+      _hashToIndices = null;
       _itemsIndex.RemoveAt(index);
       _header.TombStonedCount++;
       _header.Count--;
@@ -324,15 +379,32 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   public int IndexOf(T item)
   {
     if (item is null) return -1;
-    var hash = XxHash64.HashToUInt64(item.Serialize().Span);
-    _itemsIndexLock.EnterReadLock();
+    var buffer = item.Serialize();
+    var hash = XxHash64.HashToUInt64(buffer.Span);
+
+    // Upgradeable: concurrent with plain readers; upgrades to write only for
+    // the one-off lazy build of the hash index.
+    _itemsIndexLock.EnterUpgradeableReadLock();
     try
     {
-      return _itemsIndex.FindIndex(i => i.Hash == hash);
+      if (_hashToIndices is null)
+      {
+        _itemsIndexLock.EnterWriteLock();
+        try
+        {
+          EnsureHashIndex();
+        }
+        finally
+        {
+          _itemsIndexLock.ExitWriteLock();
+        }
+      }
+
+      return FindVerifiedIndex(buffer, hash);
     }
     finally
     {
-      _itemsIndexLock.ExitReadLock();
+      _itemsIndexLock.ExitUpgradeableReadLock();
     }
   }
 
@@ -357,8 +429,9 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         Hash = XxHash64.HashToUInt64(buffer.Span)
       });
       _header.Count++;
-      // Invalidate all cache after insert (indices shift)
+      // Indices shift: read cache and hash index are both stale
       InvalidateCache();
+      _hashToIndices = null;
     }
     finally
     {
@@ -373,6 +446,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     try
     {
       InvalidateCache();
+      _hashToIndices = null;
       _itemsIndex.RemoveAt(index);
       _header.TombStonedCount++;
       _header.Count--;
@@ -444,13 +518,22 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
         RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
 
+        var newHash = XxHash64.HashToUInt64(buffer.Span);
         _itemsIndex[index] = new ItemIndex()
         {
           Position = position,
           Length = buffer.Length,
           MaxLength = Math.Max(buffer.Length, ii.MaxLength),
-          Hash = XxHash64.HashToUInt64(buffer.Span)
+          Hash = newHash
         };
+
+        // No index shift, but this entry's hash changed: move it in the map.
+        if (_hashToIndices is not null && ii.Hash != newHash)
+        {
+          if (_hashToIndices.TryGetValue(ii.Hash, out var oldIndices))
+            oldIndices.Remove(index);
+          AddToHashIndex(_hashToIndices, newHash, index);
+        }
       }
       finally
       {

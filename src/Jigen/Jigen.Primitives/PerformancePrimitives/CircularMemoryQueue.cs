@@ -26,7 +26,10 @@ namespace Jigen.PerformancePrimitives;
 public class CircularMemoryQueue<T>
 where T : class
 {
-  private readonly Memory<T> _buffer;
+  // Plain array, not Memory<T>: every Memory<T>.Span access performs a type
+  // check on the wrapped object and constructs a new Span — ~2x the cost of a
+  // direct array access, paid inside the spin loops.
+  private readonly T[] _buffer;
 
   private long _tail;
   private long _head;
@@ -128,14 +131,14 @@ where T : class
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   private void PublishToSlot(int position, T item)
   {
-    // The consumer that owned this slot on the previous lap may not have
-    // taken its item yet (preempted after our _freeSlots permit was released
-    // by another consumer): wait for the slot to be emptied before reusing it.
+    // The slot may still hold the previous lap's item (its consumer was
+    // preempted), and because semaphore permits are fungible TWO producers one
+    // lap apart can even target the same slot concurrently. A check-then-write
+    // would let the second overwrite the first (lost item, stuck consumer):
+    // the CAS claims the slot atomically only when it is actually empty.
     var spinner = new SpinWait();
-    while (Volatile.Read(ref _buffer.Span[position]) is not null)
+    while (Interlocked.CompareExchange(ref _buffer[position], item, null) is not null)
       spinner.SpinOnce();
-
-    Volatile.Write(ref _buffer.Span[position], item);
   }
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -148,7 +151,7 @@ where T : class
     // can never clobber an item written by the next-lap producer.
     var spinner = new SpinWait();
     T result;
-    while ((result = Interlocked.Exchange(ref _buffer.Span[position], null)) is null)
+    while ((result = Interlocked.Exchange(ref _buffer[position], null)) is null)
       spinner.SpinOnce();
 
     return result;
@@ -157,6 +160,6 @@ where T : class
   public T Peek()
   {
     var position = (int)(Interlocked.Read(ref _head) & _capacityMask);
-    return Volatile.Read(ref _buffer.Span[position]);
+    return Volatile.Read(ref _buffer[position]);
   }
 }

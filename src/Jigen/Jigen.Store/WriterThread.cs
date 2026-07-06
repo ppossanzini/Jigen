@@ -20,7 +20,29 @@ public class Writer
 
   private Queue<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)> TempIndex = new();
 
-  public Task WaitForWritingCompleted => Task.Run(() => _writingCompleted.WaitOne());
+  public Task WaitForWritingCompleted
+  {
+    get
+    {
+      // Fast path: no writes in flight, nothing to wait for.
+      if (_writingCompleted.WaitOne(0)) return Task.CompletedTask;
+
+      // Bridge the event to a Task via the thread pool's shared wait threads:
+      // unlike Task.Run(() => WaitOne()), no pool thread is blocked per caller.
+      var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+      var registration = ThreadPool.RegisterWaitForSingleObject(
+        _writingCompleted,
+        static (state, _) => ((TaskCompletionSource)state!).TrySetResult(),
+        tcs, Timeout.Infinite, executeOnlyOnce: true);
+
+      tcs.Task.ContinueWith(
+        static (_, state) => ((RegisteredWaitHandle)state!).Unregister(null),
+        registration, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+      return tcs.Task;
+    }
+  }
 
   public Writer(Store store)
   {

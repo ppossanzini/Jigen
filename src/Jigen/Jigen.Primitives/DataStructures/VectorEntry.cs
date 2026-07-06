@@ -31,6 +31,18 @@ public record struct VectorKey
 {
   public byte[] Value { get; init; }
 
+  // The compiler-generated equality would compare Value by reference
+  // (EqualityComparer<byte[]>.Default): two keys built from the same source
+  // would never be equal. Compare and hash the bytes instead.
+  public readonly bool Equals(VectorKey other)
+  {
+    if (Value is null) return other.Value is null;
+    return other.Value is not null && Value.AsSpan().SequenceEqual(other.Value);
+  }
+
+  public readonly override int GetHashCode() =>
+    Value is null ? 0 : unchecked((int)System.IO.Hashing.XxHash32.HashToUInt32(Value));
+
   public static VectorKey From(ulong value)
   {
     return new VectorKey { Value = BitConverter.GetBytes(value) };
