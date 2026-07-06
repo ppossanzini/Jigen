@@ -179,7 +179,10 @@ public static class NodeExtensions
   }
 
   /// <summary>
-  /// Iterates the live (non-deleted) connections of <paramref name="node"/> at the given level.
+  /// Iterates the connections of <paramref name="node"/> at the given level,
+  /// deleted nodes included: they stay navigable (they bridge their former
+  /// neighbourhoods, so skipping them fragments the graph as deletes pile up)
+  /// and are filtered from search RESULTS instead (see KNearestAtLevel).
   /// Uses the public API (passes through SmallWorldIndexer) — kept for external callers.
   /// </summary>
   public static IEnumerable<IndexNode> GetConnections(
@@ -214,8 +217,9 @@ public static class NodeExtensions
       // skip dangling ids instead of throwing on the whole search/insert.
       if ((uint)id >= (uint)graph.nodes.Count) continue;
 
-      var n = graph.nodes[id];
-      if (!n.IsDeleted) yield return n;
+      // Deleted nodes are yielded on purpose: traversal must pass through
+      // them or the graph fragments; callers filter them from results.
+      yield return graph.nodes[id];
     }
   }
 }

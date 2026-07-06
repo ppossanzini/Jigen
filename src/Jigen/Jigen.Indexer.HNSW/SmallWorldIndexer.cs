@@ -111,7 +111,12 @@ public class SmallWorldIndexer : IIndexer
 
       var bestPeer = graph.entrypoint;
       for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
-        bestPeer = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level).Single();
+      {
+        // A level can hold no live node (heavy deletions): keep descending
+        // from the current peer instead of failing the insert.
+        var nearest = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level);
+        if (nearest.Count > 0) bestPeer = nearest[0];
+      }
 
       // Graph nodes live for the lifetime of the index: distance caches filled
       // during this insert must be released once done or they leak per node.
@@ -142,8 +147,9 @@ public class SmallWorldIndexer : IIndexer
       foreach (var neighbour in touched)
         neighbour.TravelingCosts.ClearCache();
 
-      // zoom out to the highest level
-      if (newNode.MaxLevel > graph.entrypoint.MaxLevel)
+      // zoom out to the highest level; a deleted entrypoint (legacy graph, or
+      // every node deleted) is also replaced, so searches restart from a live node
+      if (newNode.MaxLevel > graph.entrypoint.MaxLevel || graph.entrypoint.IsDeleted)
         AssignEntryPoint(collection, graph, newNode);
     }
   }
@@ -155,6 +161,10 @@ public class SmallWorldIndexer : IIndexer
     var graph = GetGraphForCollection(collection);
     lock (graph.nodes)
     {
+      graph = GetGraphForCollection(collection); // refresh entrypoint under lock
+
+      var entrypointDeleted = false;
+
       // Skip slot 0: it aliases the entrypoint node, which is re-visited at its own PositionId.
       for (var i = 1; i < graph.nodes.Count; i++)
       {
@@ -163,8 +173,37 @@ public class SmallWorldIndexer : IIndexer
 
         node.IsDeleted = true;
         graph.nodes[i] = node; // write back so storage-backed lists persist the flag
+
+        if (graph.entrypoint is not null && node.PositionId == graph.entrypoint.PositionId)
+          entrypointDeleted = true;
+      }
+
+      if (entrypointDeleted)
+      {
+        // The cached entrypoint may be a different instance than the one just
+        // written back (storage-backed lists deserialize fresh objects): flag
+        // it too, so searches never return it while a replacement is picked.
+        graph.entrypoint.IsDeleted = true;
+        ReassignEntryPoint(collection, graph);
       }
     }
+  }
+
+  // Requires the graph lock. Promotes the highest-level live node to
+  // entrypoint; with no live node left the deleted entrypoint stays as a
+  // navigation-only anchor (searches filter deleted nodes from results).
+  private void ReassignEntryPoint(string collection, (IndexNode entrypoint, IList<IndexNode> nodes) graph)
+  {
+    IndexNode best = null;
+    for (var i = 1; i < graph.nodes.Count; i++)
+    {
+      var node = graph.nodes[i];
+      if (node.IsDeleted || node.Vector.Length == 0) continue;
+      if (best is null || node.MaxLevel > best.MaxLevel) best = node;
+    }
+
+    if (best is not null)
+      AssignEntryPoint(collection, graph, best);
   }
 
   public IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top,
@@ -282,7 +321,10 @@ public class SmallWorldIndexer : IIndexer
     var bestPeer = entrypoint;
     for (int level = entrypoint.MaxLevel; level > 0; --level)
     {
-      bestPeer = this.KNearestAtLevel(collection, bestPeer, destination, 1, level).Single();
+      // A level can hold no live node (heavy deletions): keep descending
+      // from the current peer.
+      var nearest = this.KNearestAtLevel(collection, bestPeer, destination, 1, level);
+      if (nearest.Count > 0) bestPeer = nearest[0];
     }
 
     return this.KNearestAtLevel(collection, bestPeer, destination, k, 0);
@@ -324,6 +366,7 @@ public class SmallWorldIndexer : IIndexer
         // Graph → store: collect live keys, dropping nodes the store no longer knows.
         // Slot 0 aliases the entrypoint, which is re-visited at its own PositionId.
         var liveKeys = new HashSet<VectorKey>();
+        var entrypointDeleted = false;
         for (var i = 1; i < graph.nodes.Count; i++)
         {
           var node = graph.nodes[i];
@@ -333,10 +376,20 @@ public class SmallWorldIndexer : IIndexer
           {
             node.IsDeleted = true;
             graph.nodes[i] = node; // write back so storage-backed lists persist the flag
+
+            if (graph.entrypoint is not null && node.PositionId == graph.entrypoint.PositionId)
+              entrypointDeleted = true;
             continue;
           }
 
           liveKeys.Add(node.Id);
+        }
+
+        if (entrypointDeleted)
+        {
+          graph.entrypoint.IsDeleted = true;
+          ReassignEntryPoint(collection, graph);
+          graph = GetGraphForCollection(collection); // pick up the new entrypoint
         }
 
         // Store → graph: re-index entries whose insert never reached the graph.

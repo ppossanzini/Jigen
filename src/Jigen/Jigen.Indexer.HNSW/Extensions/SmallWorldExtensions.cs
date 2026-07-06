@@ -51,7 +51,11 @@ public static class SmallWorldExtensions
     //        expansion (max-heap with reversed comparator → Peek() = nearest).
     var resultHeap    = new BinaryHeap<IndexNode>(travelingCosts, k + 1);
     var expansionHeap = new BinaryHeap<IndexNode>(fartherIsLess, 16);
-    resultHeap.Push(entryPoint);
+
+    // Deleted nodes stay navigable (their links bridge the graph) but must
+    // never surface in the result window.
+    if (!entryPoint.IsDeleted)
+      resultHeap.Push(entryPoint);
     expansionHeap.Push(entryPoint);
 
     // Pre-fetch graph once; also used by the inner GetConnections overload to skip
@@ -70,10 +74,14 @@ public static class SmallWorldExtensions
     {
       while (!expansionHeap.IsEmpty)
       {
-        var toExpand      = expansionHeap.Pop();
-        var farthestResult = resultHeap.Peek();
+        var toExpand = expansionHeap.Pop();
 
-        if (Tools.DGt(travelingCosts.From(toExpand), travelingCosts.From(farthestResult)))
+        // Stop only once the result window is full: with deletions the window
+        // can be short of k while nearer live nodes are still reachable
+        // through deleted ones. Without deletions this matches the canonical
+        // break (candidates are always accepted into the window while |W| < ef).
+        if (resultHeap.Count >= k
+            && Tools.DGt(travelingCosts.From(toExpand), travelingCosts.From(resultHeap.Peek())))
           break; // every remaining candidate is farther than the worst result
 
         foreach (var neighbour in toExpand.GetConnections(level, graph))
@@ -87,14 +95,18 @@ public static class SmallWorldExtensions
 
           visitedArr[nid] = true;
 
-          farthestResult = resultHeap.Peek();
           if (resultHeap.Count < k
-              || Tools.DLt(travelingCosts.From(neighbour), travelingCosts.From(farthestResult)))
+              || Tools.DLt(travelingCosts.From(neighbour), travelingCosts.From(resultHeap.Peek())))
           {
             expansionHeap.Push(neighbour);
-            resultHeap.Push(neighbour);
-            if (resultHeap.Count > k)
-              resultHeap.Pop();
+
+            // Deleted nodes are expanded but never returned.
+            if (!neighbour.IsDeleted)
+            {
+              resultHeap.Push(neighbour);
+              if (resultHeap.Count > k)
+                resultHeap.Pop();
+            }
           }
         }
       }
