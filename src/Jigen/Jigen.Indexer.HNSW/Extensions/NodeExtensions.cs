@@ -21,10 +21,19 @@ public static class NodeExtensions
     }
   }
 
-  [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public static int GetMaxLevel(SmallWorldOptions options)
   {
-    var r = -Math.Log(options.generator.NextDouble()) * (1 / options.LevelLambda);
+    // Random is not thread-safe: inserts are serialized per collection, but
+    // different collections (and fire-and-forget AddToIndex) reach this from
+    // multiple threads, and a torn Random silently degenerates to returning 0.
+    double sample;
+    lock (options.generator)
+      sample = options.generator.NextDouble();
+
+    // 1 - sample ∈ (0, 1]: NextDouble can return exactly 0, and -log(0) = +∞
+    // would turn into a negative level after the int cast.
+    // Level = floor(-ln(unif) * mL), mL = LevelLambda = 1/ln(M) (article, sec. 4).
+    var r = -Math.Log(1.0 - sample) * options.LevelLambda;
     return (int)r;
   }
 
@@ -199,7 +208,13 @@ public static class NodeExtensions
     var connections = node.Connections[level];
     for (var i = 0; i < connections.Count; i++)
     {
-      var n = graph.nodes[connections[i]];
+      var id = connections[i];
+      // A crash can leave a persisted graph with fewer nodes than its
+      // adjacency lists reference (the store clamps a torn tail on load):
+      // skip dangling ids instead of throwing on the whole search/insert.
+      if ((uint)id >= (uint)graph.nodes.Count) continue;
+
+      var n = graph.nodes[id];
       if (!n.IsDeleted) yield return n;
     }
   }

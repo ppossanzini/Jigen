@@ -24,7 +24,8 @@ public static class VectorsExtensions
 
   public static void DeQuantize(this ReadOnlySpan<sbyte> vector, Span<float> destination)
   {
+    // Inverse of Quantize: components were scaled by 127, not 127².
     for (int i = 0; i < vector.Length; i++)
-      destination[i] = vector[i] / (127.0f * 127.0f);
+      destination[i] = vector[i] / 127.0f;
   }
 }

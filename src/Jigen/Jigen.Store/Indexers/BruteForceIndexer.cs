@@ -85,13 +85,14 @@ public class BruteForceIndexer : IIndexer
       if (contentFilter != null && !MatchesFilter(content, contentFilter))
         continue;
 
-       yield return (new VectorEntry
+      yield return (new VectorEntry
       {
         Id = candidate.Id,
         CollectionName = collection,
         Content = content
       }, candidate.Score);
 
+      count++;
       if (count >= top)
         break;
     }
