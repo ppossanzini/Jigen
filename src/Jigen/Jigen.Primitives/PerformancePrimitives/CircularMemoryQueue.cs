@@ -138,8 +138,8 @@ where T : class
     Volatile.Write(ref _buffer.Span[position], item);
   }
 
-  [MethodImpl(MethodImplOptions.AggressiveInlining)
-    private T TakeFromSlot(int position)
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  private T TakeFromSlot(int position)
   {
     // The producer that reserved this slot may not have published yet
     // (preempted between the _tail reservation and the write, while another

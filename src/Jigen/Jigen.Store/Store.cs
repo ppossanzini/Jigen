@@ -30,6 +30,14 @@ public partial class Store : IStore, IDisposable
   public readonly StoreOptions Options;
   internal readonly StoreHeader VectorStoreHeader = new();
 
+  // Sentinel for index-log records marking a deletion: real positions are
+  // always >= header size, so -1 can never appear in a live record.
+  internal const long IndexTombstone = -1;
+
+  // Serializes appends to IndexFileStream: they come both from the Writer
+  // thread (AppendIndex) and from caller threads (DeleteContent tombstones).
+  internal readonly Lock IndexAppendLock = new();
+
   internal Dictionary<string, Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
 
   internal readonly Writer Writer;
@@ -103,6 +111,7 @@ public partial class Store : IStore, IDisposable
 
   public Task SaveIndexChanges()
   {
+    this.IndexFileStream.Flush(true);
     return Task.CompletedTask;
   }
 

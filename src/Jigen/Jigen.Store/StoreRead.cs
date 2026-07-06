@@ -48,6 +48,14 @@ public partial class Store
       var dimensions = reader.ReadInt32();
       var size = reader.ReadInt64();
 
+      // Tombstone record: the entry was deleted after this point of the log.
+      if (contentPosition == IndexTombstone && embeddingsPosition == IndexTombstone)
+      {
+        if (PositionIndex.TryGetValue(collectionName, out var collectionIndex))
+          collectionIndex.Remove(id);
+        continue;
+      }
+
       if (!PositionIndex.TryGetValue(collectionName, out var index))
       {
         index = new Dictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance);

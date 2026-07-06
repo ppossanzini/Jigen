@@ -16,18 +16,32 @@ public static class StoreWritingExtensions
 
     store.PositionIndex[item.collectioname][item.id] = (item.contentposition, item.embeddingposition, item.dimensions, item.contentsize);
 
-    var file = store.IndexFileStream;
+    lock (store.IndexAppendLock)
+      WriteIndexRecord(store.IndexFileStream, item.id, item.collectioname, item.contentposition, item.embeddingposition, item.dimensions, item.contentsize);
+  }
 
+  /// <summary>
+  /// Appends a tombstone record to the index log so the deletion survives a restart:
+  /// LoadIndex replays the log and removes the key when it meets the tombstone.
+  /// </summary>
+  internal static void AppendIndexTombstone(this Store store, string collection, byte[] id)
+  {
+    lock (store.IndexAppendLock)
+      WriteIndexRecord(store.IndexFileStream, id, collection, Store.IndexTombstone, Store.IndexTombstone, 0, 0);
+  }
+
+  private static void WriteIndexRecord(FileStream file, byte[] id, string collection, long contentposition, long embeddingposition, int dimensions, long contentsize)
+  {
     file.Seek(0, SeekOrigin.End);
-    file.WriteInt32Le(item.id.Length);
-    file.Write(item.id, 0, item.id.Length);
-    var nameAsBytes = Encoding.UTF8.GetBytes(item.collectioname);
+    file.WriteInt32Le(id.Length);
+    file.Write(id, 0, id.Length);
+    var nameAsBytes = Encoding.UTF8.GetBytes(collection);
     file.WriteInt32Le(nameAsBytes.Length);
     file.Write(nameAsBytes, 0, nameAsBytes.Length);
-    file.WriteInt64Le(item.contentposition);
-    file.WriteInt64Le(item.embeddingposition);
-    file.WriteInt32Le(item.dimensions);
-    file.WriteInt64Le(item.contentsize);
+    file.WriteInt64Le(contentposition);
+    file.WriteInt64Le(embeddingposition);
+    file.WriteInt32Le(dimensions);
+    file.WriteInt64Le(contentsize);
   }
 
 
@@ -50,7 +64,8 @@ public static class StoreWritingExtensions
 
     if (result)
     {
-      store.Options.Indexer.RemoveFromIndex(collection, key);
+      store.AppendIndexTombstone(collection, key);
+      store.Options.Indexer?.RemoveFromIndex(collection, key);
       await store.SaveIndexChanges();
     }
     return result;
