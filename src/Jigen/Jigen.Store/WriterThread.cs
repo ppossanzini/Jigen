@@ -87,10 +87,13 @@ public class Writer
             // Cannot immediatly update search index till the file are committed
             TempIndex.Enqueue(result);
 
+            // waitForIndexing: the writer thread is already sequential; the default
+            // fire-and-forget path runs inserts concurrently on the thread pool and
+            // HNSW graph construction is not safe under concurrent inserts.
             _store.Options.Indexer?.AddToIndex(new VectorEntry()
             {
               Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
-            });
+            }, waitForIndexing: true);
           }
 
           ;

@@ -73,7 +73,7 @@ public static class NodeExtensions
       foreach (var conn in item.GetConnections(level, graph))
         currentConns.Add(conn);
 
-      var best = smallworld.SelectBestForConnecting(item, currentConns, smallworld, collection);
+      var best = smallworld.SelectBestForConnecting(item, currentConns, level, smallworld, collection);
 
       var newIds = new List<int>(best.Count);
       foreach (var bc in best) newIds.Add(bc.PositionId);
@@ -84,11 +84,13 @@ public static class NodeExtensions
   public static IList<IndexNode> SelectBestForConnectingAlg3(
     this IndexNode item,
     IList<IndexNode> candidates,
+    int level,
     SmallWorldIndexer smallworld,
     string collection)
   {
     // Return M nearest elements from candidates to item (Algorithm 3).
-    int maxM = GetM(smallworld.Options.M, item.MaxLevel);
+    // M is a property of the layer being wired, not of the item's top level.
+    int maxM = GetM(smallworld.Options.M, level);
     IComparer<IndexNode> fartherIsLess = item.TravelingCosts.Reverse();
     var candidatesHeap = new BinaryHeap<IndexNode>(candidates, fartherIsLess);
 
@@ -102,6 +104,7 @@ public static class NodeExtensions
   public static IList<IndexNode> SelectBestForConnectingAlg4(
     this IndexNode item,
     IList<IndexNode> candidates,
+    int level,
     SmallWorldIndexer smallworld,
     string collection)
   {
@@ -118,7 +121,7 @@ public static class NodeExtensions
      * return R
      */
 
-    int maxM = GetM(smallworld.Options.M, item.MaxLevel);
+    int maxM = GetM(smallworld.Options.M, level);
     IComparer<IndexNode> closerIsLess = item.TravelingCosts;
     IComparer<IndexNode> fartherIsLess = closerIsLess.Reverse();
 
@@ -132,7 +135,7 @@ public static class NodeExtensions
       var candidatesIds = new HashSet<int>(candidates.Count);
       foreach (var c in candidates) candidatesIds.Add(c.PositionId);
 
-      foreach (var neighbour in item.GetConnections(item.MaxLevel, graph))
+      foreach (var neighbour in item.GetConnections(level, graph))
       {
         if (candidatesIds.Add(neighbour.PositionId))
           candidatesHeap.Push(neighbour);
@@ -190,9 +193,13 @@ public static class NodeExtensions
     (IndexNode ep, IList<IndexNode> nodes) graph)
   {
     if (level >= node.Connections.Count) yield break;
-    foreach (var idx in node.Connections[level])
+
+    // Indexed access instead of an enumerator: a search running concurrently
+    // with an insert must not hit the List version check.
+    var connections = node.Connections[level];
+    for (var i = 0; i < connections.Count; i++)
     {
-      var n = graph.nodes[idx];
+      var n = graph.nodes[connections[i]];
       if (!n.IsDeleted) yield return n;
     }
   }
