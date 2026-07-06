@@ -113,6 +113,10 @@ public class SmallWorldIndexer : IIndexer
       for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
         bestPeer = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level).Single();
 
+      // Graph nodes live for the lifetime of the index: distance caches filled
+      // during this insert must be released once done or they leak per node.
+      var touched = new HashSet<IndexNode>();
+
       for (var level = Math.Min(newNode.MaxLevel, graph.entrypoint.MaxLevel); level >= 0; --level)
       {
         var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
@@ -123,6 +127,7 @@ public class SmallWorldIndexer : IIndexer
           newNode.AddConnection(newNeighbour, level, this, collection);
           newNeighbour.AddConnection(newNode, level, this, collection);
           graph.nodes[newNeighbour.PositionId] = newNeighbour;
+          touched.Add(newNeighbour);
 
           // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
           if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
@@ -132,6 +137,10 @@ public class SmallWorldIndexer : IIndexer
 
       // Persist the newly constructed adjacency lists for the inserted node.
       graph.nodes[newNode.PositionId] = newNode;
+
+      newNode.TravelingCosts.ClearCache();
+      foreach (var neighbour in touched)
+        neighbour.TravelingCosts.ClearCache();
 
       // zoom out to the highest level
       if (newNode.MaxLevel > graph.entrypoint.MaxLevel)

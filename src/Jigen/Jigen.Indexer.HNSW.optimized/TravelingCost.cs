@@ -26,7 +26,9 @@ namespace Jigen.Indexer
 
     // Plain Dictionary: per-operation, single-threaded access only.
     // ~3-5x faster than ConcurrentDictionary for the hit path.
-    private readonly Dictionary<int, float> _cache = new();
+    // Lazily allocated: graph nodes never queried as destination pay nothing,
+    // and ClearCache releases the memory once the owning operation completes.
+    private Dictionary<int, float> _cache;
 
     /// <summary>
     /// Returns the distance from <paramref name="departure"/> to the destination.
@@ -35,16 +37,24 @@ namespace Jigen.Indexer
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float From(IndexNode departure, bool usecache = true)
     {
-      if (usecache && _cache.TryGetValue(departure.PositionId, out var cached))
+      if (!usecache)
+        return options.DefaultDistanceFunction(departure, destination);
+
+      _cache ??= new Dictionary<int, float>();
+      if (_cache.TryGetValue(departure.PositionId, out var cached))
         return cached;
 
       var result = options.DefaultDistanceFunction(departure, destination);
-
-      if (usecache)
-        _cache[departure.PositionId] = result;
-
+      _cache[departure.PositionId] = result;
       return result;
     }
+
+    /// <summary>
+    /// Drops the cached distances. Called when the operation that was filling the
+    /// cache completes (e.g. a node insert): graph nodes live for the lifetime of
+    /// the index and would otherwise retain hundreds of stale entries each.
+    /// </summary>
+    public void ClearCache() => _cache = null;
 
     /// <summary>
     /// Compares two nodes by their distance to the destination (closer = smaller).
