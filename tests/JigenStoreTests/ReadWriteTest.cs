@@ -27,17 +27,17 @@ public class ReadWriteTest : IDisposable
         new (m : 16, efConstruction : 200, efSearch : 50, storagePath : "/data/jigendb/hnsw"))
     });
 
-    // _embeddingGenerator = new(
-    //   "/data/onnx/multi-lingual/tokenizer.onnx",
-    //   "/data/onnx/multi-lingual/model.onnx",
-    //   null,
-    //   new EmbeddingGeneratorOptions(){});
-    
     _embeddingGenerator = new(
-      "/data/onnx/nomic-embed-text-v1.5/tokenizer.onnx",
-      "/data/onnx/nomic-embed-text-v1.5/model.onnx",
+      "/data/onnx/multi-lingual/tokenizer.onnx",
+      "/data/onnx/multi-lingual/model.onnx",
       null,
       new EmbeddingGeneratorOptions(){});
+    
+    // _embeddingGenerator = new(
+    //   "/data/onnx/nomic-embed-text-v1.5/tokenizer.onnx",
+    //   "/data/onnx/nomic-embed-text-v1.5/model.onnx",
+    //   null,
+    //   new EmbeddingGeneratorOptions(){});
   }
 
   public void Dispose()
