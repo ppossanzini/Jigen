@@ -22,12 +22,19 @@ public class DatabaseCommandHandlers(
   {
     logger.LogInformation("Creating database: " + request.Name);
 
-    if (manager.ActiveDatabases.Keys.Contains(request.Name))
+    if (manager.ActiveDatabases.ContainsKey(request.Name))
       throw new Exception("Database already exists");
 
     // Create the database and init its state. The manager factory keeps the
     // options (indexer included) identical between creation and reopen.
-    manager.ActiveDatabases.Add(request.Name, manager.OpenStore(request.Name));
+    var store = manager.OpenStore(request.Name);
+    if (!manager.ActiveDatabases.TryAdd(request.Name, store))
+    {
+      // A concurrent create won the race: release our instance (and its
+      // exclusive lock file) before failing.
+      await store.Close();
+      throw new Exception("Database already exists");
+    }
 
     // Save DbInfo in master DB.
     var info = NormalizeInfo(master.System[SystemDB.BASEINFO]);
@@ -65,12 +72,11 @@ public class DatabaseCommandHandlers(
     master.System[SystemDB.BASEINFO] = info;
     await master.SaveChangesAsync();
 
-    // Close the database
-    if (manager.ActiveDatabases.ContainsKey(request.Name))
+    // Close the database (TryRemove: atomic against concurrent deletes)
+    if (manager.ActiveDatabases.TryRemove(request.Name, out var removedStore))
     {
-      await manager.ActiveDatabases[request.Name].Close();
-      var filenames = manager.ActiveDatabases[request.Name].GetFileNames();
-      manager.ActiveDatabases.Remove(request.Name);
+      await removedStore.Close();
+      var filenames = removedStore.GetFileNames();
 
       if (request.DeleteDatabaseFiles)
       {

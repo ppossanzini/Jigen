@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Jigen.Indexer;
 using Microsoft.Extensions.Options;
 
@@ -15,7 +16,9 @@ public class DatabasesManager
     Init();
   }
 
-  public Dictionary<string, Store> ActiveDatabases { get; init; } = new();
+  // Concurrent: request handlers read it while CreateDatabase/DeleteDatabase
+  // mutate it, under a parallel host.
+  public ConcurrentDictionary<string, Store> ActiveDatabases { get; init; } = new();
 
   /// <summary>
   /// Single factory for database stores: creation (CreateDatabase) and reopen
@@ -57,7 +60,7 @@ public class DatabasesManager
     {
       if (ActiveDatabases.ContainsKey(db))
         continue;
-      ActiveDatabases.Add(db, OpenStore(db));
+      ActiveDatabases.TryAdd(db, OpenStore(db));
     }
   }
 }
