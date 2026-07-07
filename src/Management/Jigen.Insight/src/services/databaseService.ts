@@ -74,6 +74,26 @@ class DatabaseService extends BaseRestService {
     return response.data
   }
 
+  async getCollectionGraph(
+    databaseName: string,
+    collection: string,
+    options: { dimensions: number; limit: number; level?: number | null },
+  ): Promise<server.database.CollectionGraph> {
+    const params: Record<string, number> = {
+      dimensions: options.dimensions,
+      limit: options.limit,
+    }
+    if (options.level !== null && options.level !== undefined) {
+      params.level = options.level
+    }
+
+    const response = await this.api.get<server.database.CollectionGraph>(
+      `/database/${encodeURIComponent(databaseName)}/collections/${encodeURIComponent(collection)}/graph`,
+      { params },
+    )
+    return response.data
+  }
+
   async getServerStatusHistory(window = '1h'): Promise<server.metrics.ServerStatusHistory> {
     const response = await this.api.get<server.metrics.ServerStatusHistory>(
       `/metric/server-status/${encodeURIComponent(window)}`,

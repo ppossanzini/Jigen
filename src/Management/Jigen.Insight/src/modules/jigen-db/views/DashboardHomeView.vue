@@ -93,6 +93,7 @@
               <span>{{ t('dashboard.elementsCount') }}: {{ row.totalElementsCount }}</span>
               <span>{{ t('dashboard.contentSize') }}: {{ formatBytes(row.contentSizeBytes) }}</span>
               <span>{{ t('dashboard.vectorSize') }}: {{ formatBytes(row.vectorSizeBytes) }}</span>
+              <span>{{ t('dashboard.indexSize') }}: {{ formatBytes(row.indexSizeBytes) }}</span>
             </div>
           </div>
         </div>

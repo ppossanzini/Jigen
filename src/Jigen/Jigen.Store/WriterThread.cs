@@ -119,7 +119,7 @@ public class Writer
   {
     if (_store.Options.Indexer is null) return;
 
-    if (Interlocked.Increment(ref _indexPending) == 1)
+    if (Interlocked.Increment(ref _indexPending) > 0)
       _indexingCompleted.Reset();
 
     // Round-robin: graph construction is safe under concurrent inserts (per-
@@ -161,7 +161,7 @@ public class Writer
     // Reset is a kernel transition: pay it only when the queue turns from
     // empty to busy. The waiter Set stays unconditional (AutoResetEvent set
     // on an already-set event is cheap) so the writer never oversleeps.
-    if (Interlocked.Increment(ref _pending) == 1)
+    if (Interlocked.Increment(ref _pending) > 0)
       _writingCompleted.Reset();
 
     _waiter.Set();

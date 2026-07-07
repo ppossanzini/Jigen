@@ -38,6 +38,12 @@ const router = createRouter({
           meta: { title: 'Semantic Search | Jigen DB' },
         },
         {
+          path: 'graph-explorer',
+          name: 'graph-explorer',
+          component: () => import('@/modules/jigen-db/views/GraphExplorerView.vue'),
+          meta: { title: 'Graph Explorer | Jigen DB' },
+        },
+        {
           path: 'database-management',
           name: 'database-management',
           component: () => import('@/modules/jigen-db/views/DatabaseManagementView.vue'),

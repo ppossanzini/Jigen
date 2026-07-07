@@ -24,6 +24,7 @@ namespace Jigen.Metrics.Core.Dto
     public int TotalElementsCount { get; set; }
     public long ContentSizeBytes { get; set; }
     public long VectorSizeBytes { get; set; }
+    public long IndexSizeBytes { get; set; }
     public required IEnumerable<CollectionStatus> Collections { get; set; }
   }
 
@@ -34,5 +35,10 @@ namespace Jigen.Metrics.Core.Dto
     public int Dimensions { get; set; }
     public long ContentSizeBytes { get; set; }
     public long VectorSizeBytes { get; set; }
+    public long IndexSizeBytes { get; set; }
+    public int DeletedCount { get; set; }
+    public int MaxLevel { get; set; }
+    public double AverageDegree { get; set; }
+    public string? Quantization { get; set; }
   }
 }

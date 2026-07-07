@@ -36,6 +36,7 @@ export default defineComponent({
     const navItems = computed<SidebarItem[]>(() => [
       { key: 'home', label: t('nav.home'), iconClass: 'ti ti-home', routeName: 'dashboard-home' },
       { key: 'search', label: t('nav.search'), iconClass: 'ti ti-search', routeName: 'semantic-search' },
+      { key: 'graph', label: t('nav.graphExplorer'), iconClass: 'ti ti-topology-star-3', routeName: 'graph-explorer' },
       { key: 'indexes', label: t('nav.indexes'), iconClass: 'ti ti-database', routeName: 'database-management' },
       { key: 'pipelines', label: t('nav.pipelines'), iconClass: 'ti ti-adjustments-horizontal', routeName: 'coming-soon' },
       { key: 'datasets', label: t('nav.datasets'), iconClass: 'ti ti-folder', routeName: 'coming-soon' },
@@ -64,6 +65,7 @@ export default defineComponent({
       (routeName) => {
         if (routeName === 'dashboard-home') navigationStore.setActiveNav('home')
         if (routeName === 'semantic-search') navigationStore.setActiveNav('search')
+        if (routeName === 'graph-explorer') navigationStore.setActiveNav('graph')
         if (routeName === 'database-management') navigationStore.setActiveNav('indexes')
         if (routeName === 'security-users') navigationStore.setActiveNav('security-users')
         if (routeName === 'security-roles') navigationStore.setActiveNav('security-roles')

@@ -5,6 +5,7 @@ export interface SidebarItem {
   routeName?:
     | 'dashboard-home'
     | 'semantic-search'
+    | 'graph-explorer'
     | 'database-management'
     | 'security-users'
     | 'security-roles'
