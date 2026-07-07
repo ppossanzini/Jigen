@@ -1,24 +1,73 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Jigen.Handlers.Model;
 
 /// <summary>
-/// Closes every open store on graceful shutdown. Without this the exclusive
-/// lock files survive the process, so every server restart would look like a
-/// crash (WasUncleanShutdown) and trigger a full index reconciliation of every
-/// database — and the final flushes would be skipped.
+/// Store lifecycle for the server:
+/// - periodic durability checkpoint: SaveChangesAsync on every open database
+///   (appends and deletes are group-committed — without this nothing would
+///   fsync until shutdown) which also surfaces background ingestion errors;
+/// - graceful shutdown: closes every store, releasing the exclusive lock
+///   files so the next start is not treated as crash recovery.
 /// </summary>
 public class StoreLifecycleService(
   DatabasesManager manager,
   SystemDB master,
-  ILogger<StoreLifecycleService> logger) : IHostedService
+  IOptions<JigenServerSettings> settings,
+  ILogger<StoreLifecycleService> logger) : BackgroundService
 {
-  public Task StartAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-
-  public async Task StopAsync(CancellationToken cancellationToken)
+  protected override async Task ExecuteAsync(CancellationToken stoppingToken)
   {
-    foreach (var (name, store) in manager.ActiveDatabases)
+    var interval = settings.Value.CheckpointIntervalSeconds;
+    if (interval <= 0) return; // checkpoints disabled
+
+    using var timer = new PeriodicTimer(TimeSpan.FromSeconds(interval));
+
+    try
+    {
+      while (await timer.WaitForNextTickAsync(stoppingToken))
+        await CheckpointAsync(stoppingToken);
+    }
+    catch (OperationCanceledException)
+    {
+      // shutting down
+    }
+  }
+
+  private async Task CheckpointAsync(CancellationToken cancellationToken)
+  {
+    // Snapshot: databases can be created/deleted while we iterate.
+    foreach (var (name, store) in manager.ActiveDatabases.ToArray())
+    {
+      try
+      {
+        await store.SaveChangesAsync(cancellationToken);
+      }
+      catch (IOException ex)
+      {
+        // Background writer/indexer failure: this is the ONLY place the
+        // server observes it — losing this log means losing data silently.
+        logger.LogError(ex, "Database {Database}: background ingestion error surfaced at checkpoint", name);
+      }
+      catch (ObjectDisposedException)
+      {
+        // The database was closed/deleted between the snapshot and the flush.
+      }
+      catch (Exception ex)
+      {
+        logger.LogError(ex, "Database {Database}: checkpoint failed", name);
+      }
+    }
+  }
+
+  public override async Task StopAsync(CancellationToken cancellationToken)
+  {
+    // Stop the checkpoint loop first.
+    await base.StopAsync(cancellationToken);
+
+    foreach (var (name, store) in manager.ActiveDatabases.ToArray())
     {
       try
       {
