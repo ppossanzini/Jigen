@@ -22,11 +22,15 @@ public class DatabasesManager
   /// (Init) MUST use the same options, or a freshly created database would run
   /// on a different indexer until the next restart.
   /// </summary>
+  /// <summary>
+  /// Per-database graph folder: with a shared one, same-named collections of
+  /// different databases would map to the SAME graph files.
+  /// </summary>
+  public string GraphFolderFor(string name) => Path.Combine(_settings.DataFolderPath, "hnsw", name);
+
   public Store OpenStore(string name)
   {
-    // Per-database graph folder: with a shared one, same-named collections of
-    // different databases would map to the SAME graph files.
-    var hnswPath = Path.Combine(_settings.DataFolderPath, "hnsw", name);
+    var hnswPath = GraphFolderFor(name);
     var graphIsNew = !Directory.Exists(hnswPath);
 
     var store = new Store(new StoreOptions

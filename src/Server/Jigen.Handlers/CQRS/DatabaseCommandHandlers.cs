@@ -87,6 +87,21 @@ public class DatabaseCommandHandlers(
               throw;
             }
         }
+
+        // The graph lives in its own per-database folder: leaving it behind
+        // would make a re-created database with the same name reload the OLD
+        // graph (ghost results until a reconcile).
+        var graphFolder = manager.GraphFolderFor(request.Name);
+        if (Directory.Exists(graphFolder))
+          try
+          {
+            Directory.Delete(graphFolder, recursive: true);
+          }
+          catch (Exception ex)
+          {
+            logger.LogError("Error deleting database graph folder: " + graphFolder + " - " + ex.Message);
+            throw;
+          }
       }
     }
 
