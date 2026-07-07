@@ -1,4 +1,3 @@
-using System.Reflection;
 using System.Runtime.ExceptionServices;
 using System.Text;
 using Grpc.Core;
@@ -79,19 +78,58 @@ public class GrpcClientExceptionInterceptor : Interceptor
     {
       return;
     }
-    
 
-    // Convert exception from byte[] to  string
-    string exceptionString = Encoding.UTF8.GetString(exp.Trailers.GetValueBytes("exception-bin"));
+    var payloadString = Encoding.UTF8.GetString(exp.Trailers.GetValueBytes("exception-bin"));
 
-    // Convert string to exception
-    Exception exception = JsonConvert.DeserializeObject<Exception>(exceptionString, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+    // Safe payload: type name + messages. NEVER a typed deserialization of
+    // remote data (the previous TypeNameHandling.Auto round-trip was a
+    // textbook gadget-injection surface).
+    ServerExceptionPayload payload = null;
+    try
+    {
+      payload = JsonConvert.DeserializeObject<ServerExceptionPayload>(payloadString);
+    }
+    catch (JsonException)
+    {
+      // Unknown wire format: keep the original RpcException.
+    }
 
-    // Required to keep the original stacktrace (https://stackoverflow.com/questions/66707139/how-to-throw-a-deserialized-exception)
-    exception.GetType().GetField("_remoteStackTraceString", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(exception, exception.StackTrace);
+    if (string.IsNullOrEmpty(payload?.Message))
+      return;
 
-    // Throw the original exception
-    ExceptionDispatchInfo.Capture(exception).Throw();
+    ExceptionDispatchInfo.Capture(RecreateException(payload)).Throw();
+  }
+
+  private static Exception RecreateException(ServerExceptionPayload payload)
+  {
+    var message = string.IsNullOrEmpty(payload.Detail)
+      ? payload.Message
+      : $"{payload.Message} ({payload.Detail})";
+
+    // Best effort: rebuild the ORIGINAL exception type so callers can still
+    // `catch (ArgumentException)` etc. — but only through the (string
+    // message) constructor, never by populating members from remote data.
+    try
+    {
+      var type = string.IsNullOrEmpty(payload.Type) ? null : Type.GetType(payload.Type);
+      if (type is not null && typeof(Exception).IsAssignableFrom(type) &&
+          Activator.CreateInstance(type, message) is Exception rebuilt)
+        return rebuilt;
+    }
+    catch
+    {
+      // No suitable (string) constructor or unknown type: fall through.
+    }
+
+    return new JigenServerException(payload.Type, message);
+  }
+
+  /// <summary>Wire format of the "exception-bin" trailer (mirrored in the server interceptor).</summary>
+  private sealed class ServerExceptionPayload
+  {
+    public string Type { get; set; }
+    public string Message { get; set; }
+    public string Detail { get; set; }
   }
 
   private async Task<TResponse> TreatResponseUnique<TResponse>(Task<TResponse> resposta)

@@ -61,8 +61,15 @@ public class GrpcServerExceptionInterceptor : Interceptor
 
   private RpcException TreatException(Exception exp)
   {
-    // Convert exp to Json
-    string exception = JsonConvert.SerializeObject(exp, new JsonSerializerSettings { TypeNameHandling = TypeNameHandling.Auto });
+    // Safe payload only (type name + messages): serializing the WHOLE
+    // exception leaked stack traces and internals to every client, and forced
+    // the client into a typed deserialization of remote data.
+    string exception = JsonConvert.SerializeObject(new ServerExceptionPayload
+    {
+      Type = exp.GetType().FullName,
+      Message = exp.Message,
+      Detail = exp.InnerException?.Message
+    });
 
     // Convert Json to byte[]
     byte[] exceptionByteArray = Encoding.UTF8.GetBytes(exception);
@@ -73,7 +80,14 @@ public class GrpcServerExceptionInterceptor : Interceptor
       { "exception-bin", exceptionByteArray }
     };
 
-    // New RpcException with original exception
-    return new RpcException(new Status(StatusCode.Internal, "Error"), metadata);
+    return new RpcException(new Status(StatusCode.Internal, exp.Message), metadata);
+  }
+
+  /// <summary>Wire format of the "exception-bin" trailer (mirrored in the client interceptor).</summary>
+  private sealed class ServerExceptionPayload
+  {
+    public string Type { get; set; }
+    public string Message { get; set; }
+    public string Detail { get; set; }
   }
 }
