@@ -203,15 +203,19 @@ public class SmallWorldIndexer : IIndexer
     var graph = GetGraphForCollection(collection);
     var newNode = entry.ToNode(Options);
 
-    // Graph construction mutates shared adjacency lists: inserts must be
-    // serialized per collection (the nodes list reference is stable).
+    // hnswlib-style concurrency: the graph lock covers only node allocation
+    // and entrypoint changes; adjacency wiring takes per-node locks, so
+    // inserts into the same collection run in parallel.
+    // Lock order everywhere: graph.nodes → node → storage. Never node → graph.
+    IndexNode entrypoint;
     lock (graph.nodes)
     {
       graph = GetGraphForCollection(collection); // refresh entrypoint under lock
 
       graph.nodes.AddNewNode(newNode);
 
-      // Keep the delete lookup aligned if it was already built.
+      // Keep the delete lookup aligned if it was already built (the map is
+      // only ever touched under the graph lock).
       if (_keyIndexes.TryGetValue(collection, out var keyIndex))
       {
         if (!keyIndex.TryGetValue(newNode.Id, out var positions))
@@ -228,48 +232,68 @@ public class SmallWorldIndexer : IIndexer
         return;
       }
 
-      var bestPeer = graph.entrypoint;
-      for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
+      entrypoint = graph.entrypoint;
+    }
+
+    // ---- concurrent wiring phase (no graph lock held) ----------------------
+
+    var bestPeer = entrypoint;
+    for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
+    {
+      // A level can hold no live node (heavy deletions): keep descending
+      // from the current peer instead of failing the insert.
+      var nearest = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level);
+      if (nearest.Count > 0) bestPeer = nearest[0];
+    }
+
+    for (var level = Math.Min(newNode.MaxLevel, entrypoint.MaxLevel); level >= 0; --level)
+    {
+      var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
+      var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, level, this, collection);
+
+      foreach (var newNeighbour in bestNeighbours)
       {
-        // A level can hold no live node (heavy deletions): keep descending
-        // from the current peer instead of failing the insert.
-        var nearest = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level);
-        if (nearest.Count > 0) bestPeer = nearest[0];
-      }
-
-      // Graph nodes live for the lifetime of the index: distance caches filled
-      // during this insert must be released once done or they leak per node.
-      var touched = new HashSet<IndexNode>();
-
-      for (var level = Math.Min(newNode.MaxLevel, graph.entrypoint.MaxLevel); level >= 0; --level)
-      {
-        var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
-        var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, level, this, collection);
-
-        foreach (var newNeighbour in bestNeighbours)
+        // Per-node locks: adjacency mutation, pruning (which uses the node's
+        // TravelingCosts cache) and the write-through persist must be atomic
+        // per node, but two inserts touching DIFFERENT nodes proceed in parallel.
+        lock (newNode)
         {
           newNode.AddConnection(newNeighbour, level, this, collection, graph);
+        }
+
+        lock (newNeighbour)
+        {
           newNeighbour.AddConnection(newNode, level, this, collection, graph);
           graph.nodes[newNeighbour.PositionId] = newNeighbour;
-          touched.Add(newNeighbour);
-
-          // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
-          if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
-            bestPeer = newNeighbour;
         }
+
+        // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
+        if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
+          bestPeer = newNeighbour;
       }
+    }
 
-      // Persist the newly constructed adjacency lists for the inserted node.
+    // Persist the newly constructed adjacency lists for the inserted node.
+    lock (newNode)
+    {
       graph.nodes[newNode.PositionId] = newNode;
+    }
 
-      newNode.TravelingCosts.ClearCache();
-      foreach (var neighbour in touched)
-        neighbour.TravelingCosts.ClearCache();
+    // Only the owner thread fills newNode's distance cache (prunes use local
+    // TravelingCosts instances), so this release needs no lock — but it must
+    // happen: graph nodes live forever and the cache would leak per insert.
+    newNode.TravelingCosts.ClearCache();
 
-      // zoom out to the highest level; a deleted entrypoint (legacy graph, or
-      // every node deleted) is also replaced, so searches restart from a live node
-      if (newNode.MaxLevel > graph.entrypoint.MaxLevel || graph.entrypoint.IsDeleted)
-        AssignEntryPoint(collection, graph, newNode);
+    // zoom out to the highest level; a deleted entrypoint (legacy graph, or
+    // every node deleted) is also replaced, so searches restart from a live node
+    if (newNode.MaxLevel > entrypoint.MaxLevel || entrypoint.IsDeleted)
+    {
+      lock (graph.nodes)
+      {
+        graph = GetGraphForCollection(collection); // the entrypoint may have moved meanwhile
+        if (newNode.MaxLevel > graph.entrypoint.MaxLevel || graph.entrypoint.IsDeleted)
+          AssignEntryPoint(collection, graph, newNode);
+      }
     }
   }
 
@@ -294,8 +318,13 @@ public class SmallWorldIndexer : IIndexer
         var node = graph.nodes[i];
         if (node.IsDeleted) continue;
 
-        node.IsDeleted = true;
-        graph.nodes[i] = node; // write back so storage-backed lists persist the flag
+        // Node lock: a concurrent insert may be persisting this node's
+        // adjacency right now (lock order graph → node, like everywhere).
+        lock (node)
+        {
+          node.IsDeleted = true;
+          graph.nodes[i] = node; // write back so storage-backed lists persist the flag
+        }
 
         if (graph.entrypoint is not null && node.PositionId == graph.entrypoint.PositionId)
           entrypointDeleted = true;
@@ -513,8 +542,11 @@ public class SmallWorldIndexer : IIndexer
 
           if (!index.ContainsKey(node.Id.Value))
           {
-            node.IsDeleted = true;
-            graph.nodes[i] = node; // write back so storage-backed lists persist the flag
+            lock (node)
+            {
+              node.IsDeleted = true;
+              graph.nodes[i] = node; // write back so storage-backed lists persist the flag
+            }
 
             if (graph.entrypoint is not null && node.PositionId == graph.entrypoint.PositionId)
               entrypointDeleted = true;

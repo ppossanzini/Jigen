@@ -16,6 +16,8 @@ using Jigen.Indexers;
 var n = args.Length > 0 && int.TryParse(args[0], out var argN) ? argN : 10_000;
 var dim = args.Length > 1 && int.TryParse(args[1], out var argD) ? argD : 128;
 var sq8 = args.Contains("sq8", StringComparer.OrdinalIgnoreCase);
+var workersArg = args.FirstOrDefault(a => a.StartsWith("w") && int.TryParse(a.AsSpan(1), out _));
+var workers = workersArg is null ? (int?)null : int.Parse(workersArg.AsSpan(1));
 
 const int SearchQueries = 500;
 const int RecallQueries = 100;
@@ -29,6 +31,7 @@ StoreOptions OptionsFor() => new()
 {
   DataBasePath = root,
   DataBaseName = "bench",
+  IndexerWorkers = workers ?? Math.Clamp(Environment.ProcessorCount / 2, 1, 8),
   Indexer = new SmallWorldIndexer(new SmallWorldOptions
   {
     M = 16,
@@ -40,7 +43,7 @@ StoreOptions OptionsFor() => new()
   })
 };
 
-Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}");
+Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, workers={workers?.ToString() ?? "auto"}");
 Console.WriteLine(new string('-', 64));
 
 try

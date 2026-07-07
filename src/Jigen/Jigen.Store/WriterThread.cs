@@ -14,8 +14,9 @@ public class Writer
 
   // Indexing pipeline: the writer persists and hands entries to these
   // workers, so file appends are never throttled by graph construction.
-  // Entries are routed by collection: ordering within a collection is
-  // preserved, different collections index in parallel.
+  // Entries are distributed round-robin: the HNSW indexer supports
+  // concurrent inserts (per-node locking), so even one collection scales
+  // across all workers.
   private readonly Thread[] _indexWorkers;
   private readonly BlockingCollection<VectorEntry>[] _indexQueues;
   private long _indexPending;
@@ -112,6 +113,8 @@ public class Writer
     _flusher.Start();
   }
 
+  private long _routeCounter;
+
   private void EnqueueForIndexing(VectorEntry entry)
   {
     if (_store.Options.Indexer is null) return;
@@ -119,9 +122,13 @@ public class Writer
     if (Interlocked.Increment(ref _indexPending) == 1)
       _indexingCompleted.Reset();
 
+    // Round-robin: graph construction is safe under concurrent inserts (per-
+    // node locking in the indexer), so even a single collection spreads over
+    // every worker. Append→delete ordering is preserved by the pipeline drain
+    // in DeleteContent; same-key concurrent appends were never ordered.
     var slot = _indexQueues.Length == 1
       ? 0
-      : (int)((uint)StringComparer.Ordinal.GetHashCode(entry.CollectionName ?? string.Empty) % (uint)_indexQueues.Length);
+      : (int)((ulong)Interlocked.Increment(ref _routeCounter) % (ulong)_indexQueues.Length);
     _indexQueues[slot].Add(entry);
   }
 

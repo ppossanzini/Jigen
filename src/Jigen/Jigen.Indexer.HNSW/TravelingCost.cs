@@ -40,12 +40,15 @@ namespace Jigen.Indexer
       if (!usecache)
         return options.DefaultDistanceFunction(departure, destination);
 
-      _cache ??= new Dictionary<int, float>();
-      if (_cache.TryGetValue(departure.PositionId, out var cached))
+      // Snapshot the field: a concurrent ClearCache (another insert releasing
+      // this node) must not null it between the ??= and the use. Mutations are
+      // serialized by the owning node's lock; this only guards the swap.
+      var cache = _cache ??= new Dictionary<int, float>();
+      if (cache.TryGetValue(departure.PositionId, out var cached))
         return cached;
 
       var result = options.DefaultDistanceFunction(departure, destination);
-      _cache[departure.PositionId] = result;
+      cache[departure.PositionId] = result;
       return result;
     }
 

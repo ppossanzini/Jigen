@@ -371,31 +371,35 @@ internal sealed class SplitNodeList : IList<IndexNode>
     {
       if (value is null) throw new ArgumentNullException(nameof(value));
 
-      lock (this)
+      // Deliberately NOT lock(this): callers already serialize per node
+      // (inserts/deletes hold the node lock, slot 0 the graph lock — which IS
+      // this instance). Taking lock(this) here would invert the global
+      // node → graph lock order and deadlock against allocations. The
+      // adjacency StoredList has its own internal locking.
+      if (index == 0)
       {
-        if (index == 0)
-        {
-          // Slot 0 stores just the entrypoint pointer — the entrypoint's own
-          // adjacency lives at its own index. Keep the canonical slot-0 view
-          // aligned so reloads resolve nodes[nodes[0].PositionId].
-          _nodes[0].PositionId = value.PositionId;
-          _adjacency[0] = new AdjacencyPart(_options)
-          {
-            EntryPointer = value.PositionId,
-            IsDeleted = false,
-            Connections = Array.Empty<IList<int>>()
-          };
-          return;
-        }
-
-        _nodes[index] = value;
-        _adjacency[index] = new AdjacencyPart(_options)
+        // Slot 0 stores just the entrypoint pointer — the entrypoint's own
+        // adjacency lives at its own index. Keep the canonical slot-0 view
+        // aligned so reloads resolve nodes[nodes[0].PositionId].
+        _nodes[0].PositionId = value.PositionId;
+        _adjacency[0] = new AdjacencyPart(_options)
         {
           EntryPointer = value.PositionId,
-          IsDeleted = value.IsDeleted,
-          Connections = value.Connections
+          IsDeleted = false,
+          Connections = Array.Empty<IList<int>>()
         };
+        return;
       }
+
+      // Canonical instances make this an identity write on the RAM side; the
+      // real effect is the write-through of the adjacency record.
+      _nodes[index] = value;
+      _adjacency[index] = new AdjacencyPart(_options)
+      {
+        EntryPointer = value.PositionId,
+        IsDeleted = value.IsDeleted,
+        Connections = value.Connections
+      };
     }
   }
 

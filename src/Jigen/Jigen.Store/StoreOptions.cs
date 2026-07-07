@@ -24,12 +24,12 @@ public class StoreOptions
   public double ShrinkFragmentationThreshold { get; set; } = 0.4;
 
   /// <summary>
-  /// Background indexing workers. Entries are routed by collection: ordering
-  /// within a collection is preserved, different collections index in
-  /// parallel. Even a single worker pipelines graph construction off the
+  /// Background indexing workers. Entries are distributed round-robin and the
+  /// HNSW graph supports concurrent inserts, so a single collection scales
+  /// across all workers. Even one worker pipelines graph construction off the
   /// writer thread.
   /// </summary>
-  public int IndexerWorkers { get; set; } = Math.Clamp(Environment.ProcessorCount / 2, 1, 4);
+  public int IndexerWorkers { get; set; } = Math.Clamp(Environment.ProcessorCount / 2, 1, 8);
 
   /// <summary>
   /// When true (default), opening a database that was not closed cleanly

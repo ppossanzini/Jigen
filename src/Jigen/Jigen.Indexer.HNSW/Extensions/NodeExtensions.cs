@@ -113,7 +113,12 @@ public static class NodeExtensions
     // Return M nearest elements from candidates to item (Algorithm 3).
     // M is a property of the layer being wired, not of the item's top level.
     int maxM = GetM(smallworld.Options.M, level);
-    IComparer<IndexNode> fartherIsLess = item.TravelingCosts.Reverse();
+
+    // LOCAL TravelingCosts: `item` is a shared graph node and concurrent
+    // inserts prune it under its own lock while its owner compares distances
+    // lock-free — sharing item.TravelingCosts here corrupts its cache.
+    var costs = new TravelingCosts(item, smallworld.Options);
+    IComparer<IndexNode> fartherIsLess = costs.Reverse();
     var candidatesHeap = new BinaryHeap<IndexNode>(candidates, fartherIsLess);
 
     var result = new List<IndexNode>(maxM + 1);
@@ -144,7 +149,11 @@ public static class NodeExtensions
      */
 
     int maxM = GetM(smallworld.Options.M, level);
-    IComparer<IndexNode> closerIsLess = item.TravelingCosts;
+
+    // LOCAL TravelingCosts: see SelectBestForConnectingAlg3 — the shared
+    // node's cache must never be touched from concurrent prunes.
+    var costs = new TravelingCosts(item, smallworld.Options);
+    IComparer<IndexNode> closerIsLess = costs;
     IComparer<IndexNode> fartherIsLess = closerIsLess.Reverse();
 
     var resultHeap    = new BinaryHeap<IndexNode>(closerIsLess, maxM + 1);
@@ -172,7 +181,7 @@ public static class NodeExtensions
       var farestResult = resultHeap.IsEmpty ? null : resultHeap.Peek();
 
       if (farestResult is null
-          || Tools.DLt(item.TravelingCosts.From(candidate), item.TravelingCosts.From(farestResult)))
+          || Tools.DLt(costs.From(candidate), costs.From(farestResult)))
       {
         resultHeap.Push(candidate);
       }
