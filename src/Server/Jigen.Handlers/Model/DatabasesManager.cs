@@ -36,13 +36,24 @@ public class DatabasesManager
     var hnswPath = GraphFolderFor(name);
     var graphIsNew = !Directory.Exists(hnswPath);
 
-    var store = new Store(new StoreOptions
+    var index = _settings.Index ?? new JigenIndexSettings();
+    var storeOptions = new StoreOptions
     {
       DataBaseName = name,
       DataBasePath = _settings.DataFolderPath,
+      ReconcileOnUncleanShutdown = _settings.ReconcileOnUncleanShutdown,
       Indexer = new SmallWorldIndexer(
-        new(m: 16, efConstruction: 200, efSearch: 50, storagePath: hnswPath))
-    });
+        new(m: index.M, efConstruction: index.EfConstruction, efSearch: index.EfSearch, storagePath: hnswPath)
+        {
+          Quantization = index.Sq8Quantization ? VectorQuantization.SQ8 : VectorQuantization.None,
+          ExactRerank = index.ExactRerank
+        })
+    };
+
+    if (_settings.IndexerWorkers > 0)
+      storeOptions.IndexerWorkers = _settings.IndexerWorkers;
+
+    var store = new Store(storeOptions);
 
     // One-time rebuild for databases whose graph does not exist yet while the
     // store has content: graphs from the legacy SHARED hnsw folder, or
