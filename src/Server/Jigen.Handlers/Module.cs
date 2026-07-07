@@ -30,6 +30,10 @@ public class Module : IModule
     services.AddSingleton<IDocumentSerializer>(serviceProvider => MessagePackDocumentSerializer.Instance);
     services.AddScoped<CQRS.DatabaseOwnershipGuard>();
 
+    // Graceful shutdown: closes every store (releasing the exclusive lock
+    // files) so the next start is not treated as crash recovery.
+    services.AddHostedService<Model.StoreLifecycleService>();
+
 
   }
 

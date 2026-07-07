@@ -17,6 +17,35 @@ public class DatabasesManager
 
   public Dictionary<string, Store> ActiveDatabases { get; init; } = new();
 
+  /// <summary>
+  /// Single factory for database stores: creation (CreateDatabase) and reopen
+  /// (Init) MUST use the same options, or a freshly created database would run
+  /// on a different indexer until the next restart.
+  /// </summary>
+  public Store OpenStore(string name)
+  {
+    // Per-database graph folder: with a shared one, same-named collections of
+    // different databases would map to the SAME graph files.
+    var hnswPath = Path.Combine(_settings.DataFolderPath, "hnsw", name);
+    var graphIsNew = !Directory.Exists(hnswPath);
+
+    var store = new Store(new StoreOptions
+    {
+      DataBaseName = name,
+      DataBasePath = _settings.DataFolderPath,
+      Indexer = new SmallWorldIndexer(
+        new(m: 16, efConstruction: 200, efSearch: 50, storagePath: hnswPath))
+    });
+
+    // One-time rebuild for databases whose graph does not exist yet while the
+    // store has content: graphs from the legacy SHARED hnsw folder, or
+    // databases historically created without an indexer.
+    if (graphIsNew && store.GetCollections().Any())
+      store.ReconcileIndexAsync().GetAwaiter().GetResult();
+
+    return store;
+  }
+
   public void Init()
   {
     var dbs = _master.System[SystemDB.BASEINFO].Databases;
@@ -24,13 +53,7 @@ public class DatabasesManager
     {
       if (ActiveDatabases.ContainsKey(db))
         continue;
-      ActiveDatabases.Add(db, new Store(new StoreOptions()
-      {
-        DataBaseName = db,
-        DataBasePath = _settings.DataFolderPath,
-        Indexer = new SmallWorldIndexer(
-          new (m : 16, efConstruction : 200, efSearch : 50, storagePath : Path.Combine(_settings.DataFolderPath, "hnsw")))
-      }));
+      ActiveDatabases.Add(db, OpenStore(db));
     }
   }
 }

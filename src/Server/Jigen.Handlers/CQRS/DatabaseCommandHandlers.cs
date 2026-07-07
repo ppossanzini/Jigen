@@ -12,7 +12,6 @@ public class DatabaseCommandHandlers(
   DatabasesManager manager,
   SystemDB master,
   DatabaseOwnershipGuard ownershipGuard,
-  IOptions<JigenServerSettings> settings,
   ILogger<DatabaseCommandHandlers> logger
 ) :
   Hikyaku.IRequestHandler<Core.Command.database.CreateDatabase>,
@@ -26,11 +25,9 @@ public class DatabaseCommandHandlers(
     if (manager.ActiveDatabases.Keys.Contains(request.Name))
       throw new Exception("Database already exists");
 
-    // Create the database and init its state
-    manager.ActiveDatabases.Add(request.Name, new Store(new StoreOptions()
-    {
-      DataBasePath = settings.Value.DataFolderPath, DataBaseName = request.Name
-    }));
+    // Create the database and init its state. The manager factory keeps the
+    // options (indexer included) identical between creation and reopen.
+    manager.ActiveDatabases.Add(request.Name, manager.OpenStore(request.Name));
 
     // Save DbInfo in master DB.
     var info = NormalizeInfo(master.System[SystemDB.BASEINFO]);
