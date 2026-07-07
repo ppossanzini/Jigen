@@ -1,5 +1,5 @@
 
-Version="${VARIABLE:-1.1.1}"
+Version="${VARIABLE:-1.1.2}"
 
 dotnet publish src/Server/Jigen/Jigen.csproj -o publish/server
 dotnet publish src/Server/Jigen/Jigen-AllInOne.csproj -o publish/all-in-one-server
