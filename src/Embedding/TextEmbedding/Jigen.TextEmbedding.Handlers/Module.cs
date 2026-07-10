@@ -31,7 +31,8 @@ public class Module: IModule
         generatorOptions),
       settings.EmbeddingsMaxConcurrency,
       settings.EmbeddingsQueueCapacity,
-      TimeSpan.FromSeconds(settings.EmbeddingsQueueTimeoutSeconds)));
+      TimeSpan.FromSeconds(settings.EmbeddingsQueueTimeoutSeconds),
+      generatorOptions.MaxBatchSize));
     
   }
 

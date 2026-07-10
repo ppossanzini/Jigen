@@ -24,6 +24,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   private readonly int _chunkSize;
   private readonly int _chunkOverlap;
   private readonly int _headTokens;
+  private readonly int _maxBatchSize;
 
   /// <summary>
   /// Initializes a new instance of the OnnxEmbeddingGenerator class.
@@ -77,6 +78,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     _chunkSize = Math.Clamp(options.ChunkSize, 8, _maxTokens);
     _chunkOverlap = Math.Clamp(options.ChunkOverlap, 0, _chunkSize - 1);
     _headTokens = Math.Clamp(options.HeadTailHeadTokens, 1, _maxTokens - 1);
+    _maxBatchSize = Math.Max(options.MaxBatchSize, 1);
   }
 
   /// <summary>
@@ -86,55 +88,103 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   /// <returns>The embedding vector as a float array.</returns>
   public float[] GenerateEmbedding(string text)
   {
-    if (string.IsNullOrWhiteSpace(text))
-      throw new ArgumentException("Input text cannot be null or empty.", nameof(text));
-
-    var tokenIds = TokenizeToInputIds(text);
-    _logger?.LogDebug("Tokenized text chars={Chars}, tokens={Tokens}", text.Length, tokenIds.Length);
-
-    if (tokenIds.Length == 0)
-      return Array.Empty<float>();
-
-    if (tokenIds.Length <= _maxTokens)
-      return RunModel(tokenIds);
-
-    if (!_useChunking)
-    {
-      var truncated = TruncateHeadTail(tokenIds);
-      _logger?.LogInformation(
-        "Input tokens exceed max tokens. Using head-tail truncation: original={OriginalTokens}, truncated={TruncatedTokens}",
-        tokenIds.Length,
-        truncated.Length);
-      return RunModel(truncated);
-    }
-
-    var chunks = BuildChunks(tokenIds);
-    _logger?.LogInformation(
-      "Input tokens exceed max tokens. Using chunking: original={OriginalTokens}, chunks={ChunkCount}, chunkSize={ChunkSize}, overlap={ChunkOverlap}",
-      tokenIds.Length,
-      chunks.Count,
-      _chunkSize,
-      _chunkOverlap);
-
-    var vectors = new List<(float[] Vector, int Weight)>(chunks.Count);
-    foreach (var chunk in chunks)
-    {
-      var vector = RunModel(chunk);
-      if (vector.Length > 0)
-        vectors.Add((vector, chunk.Length));
-    }
-
-    if (vectors.Count == 0)
-      return Array.Empty<float>();
-
-    if (vectors.Count == 1)
-      return vectors[0].Vector;
-
-    return WeightedAverage(vectors);
+    return GenerateEmbeddings([text])[0];
   }
 
   public float[] GenerateEmbedding(string task, string input) =>
     GenerateEmbedding(!string.IsNullOrWhiteSpace(task) ? $"{task}: {input}" : input);
+
+  /// <summary>
+  /// Generates embeddings for multiple input texts, fusing token sequences
+  /// (texts and chunks of long texts) into batched inference runs.
+  /// </summary>
+  public float[][] GenerateEmbeddings(IReadOnlyList<string> texts)
+  {
+    ArgumentNullException.ThrowIfNull(texts);
+
+    if (texts.Count == 0)
+      return [];
+
+    // Piano: per ogni testo, le sequenze di token da inferire (1 sequenza, oppure i chunk).
+    var sequences = new List<(int TextIndex, long[] Tokens)>(texts.Count);
+
+    for (var i = 0; i < texts.Count; i++)
+    {
+      if (string.IsNullOrWhiteSpace(texts[i]))
+        throw new ArgumentException("Input text cannot be null or empty.", nameof(texts));
+
+      var tokenIds = TokenizeToInputIds(texts[i]);
+      _logger?.LogDebug("Tokenized text chars={Chars}, tokens={Tokens}", texts[i].Length, tokenIds.Length);
+
+      if (tokenIds.Length == 0)
+        continue;
+
+      if (tokenIds.Length <= _maxTokens)
+      {
+        sequences.Add((i, tokenIds));
+      }
+      else if (!_useChunking)
+      {
+        var truncated = TruncateHeadTail(tokenIds);
+        _logger?.LogInformation(
+          "Input tokens exceed max tokens. Using head-tail truncation: original={OriginalTokens}, truncated={TruncatedTokens}",
+          tokenIds.Length,
+          truncated.Length);
+        sequences.Add((i, truncated));
+      }
+      else
+      {
+        var chunks = BuildChunks(tokenIds);
+        _logger?.LogInformation(
+          "Input tokens exceed max tokens. Using chunking: original={OriginalTokens}, chunks={ChunkCount}, chunkSize={ChunkSize}, overlap={ChunkOverlap}",
+          tokenIds.Length,
+          chunks.Count,
+          _chunkSize,
+          _chunkOverlap);
+        foreach (var chunk in chunks)
+          sequences.Add((i, chunk));
+      }
+    }
+
+    // Batch di sequenze contigue per lunghezza, così il padding alla riga più lunga è minimo.
+    var order = Enumerable.Range(0, sequences.Count)
+      .OrderByDescending(s => sequences[s].Tokens.Length)
+      .ToArray();
+
+    var vectorsByText = new List<(float[] Vector, int Weight)>[texts.Count];
+
+    for (var start = 0; start < order.Length; start += _maxBatchSize)
+    {
+      var batchSize = Math.Min(_maxBatchSize, order.Length - start);
+      var batchTokens = new long[batchSize][];
+      for (var j = 0; j < batchSize; j++)
+        batchTokens[j] = sequences[order[start + j]].Tokens;
+
+      var rows = RunModelBatch(batchTokens);
+
+      for (var j = 0; j < batchSize; j++)
+      {
+        if (rows[j].Length == 0)
+          continue;
+
+        var (textIndex, tokens) = sequences[order[start + j]];
+        (vectorsByText[textIndex] ??= []).Add((rows[j], tokens.Length));
+      }
+    }
+
+    var results = new float[texts.Count][];
+    for (var i = 0; i < texts.Count; i++)
+    {
+      results[i] = vectorsByText[i] switch
+      {
+        null or { Count: 0 } => [],
+        { Count: 1 } vectors => vectors[0].Vector,
+        var vectors => WeightedAverage(vectors)
+      };
+    }
+
+    return results;
+  }
 
 
   private long[] TokenizeToInputIds(string text)
@@ -245,11 +295,26 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     return SentencePieceTokenizer.Create(stream, addBeginningOfSentence: true, addEndOfSentence: true, specialTokens: null);
   }
 
-  private float[] RunModel(long[] tokenIds)
+  private float[][] RunModelBatch(IReadOnlyList<long[]> sequences)
   {
-    var inputIdsTensor = new DenseTensor<long>(tokenIds, [1, tokenIds.Length], false);
-    var attentionMaskTensor = new DenseTensor<long>([1, tokenIds.Length]);
-    attentionMaskTensor.Fill(1);
+    var batchSize = sequences.Count;
+    var maxLength = 0;
+    foreach (var tokens in sequences)
+      maxLength = Math.Max(maxLength, tokens.Length);
+
+    // Padding a destra con id 0; l'attention mask esclude il padding dal calcolo.
+    var inputIdsTensor = new DenseTensor<long>([batchSize, maxLength]);
+    var attentionMaskTensor = new DenseTensor<long>([batchSize, maxLength]);
+
+    for (var row = 0; row < batchSize; row++)
+    {
+      var tokens = sequences[row];
+      for (var col = 0; col < tokens.Length; col++)
+      {
+        inputIdsTensor[row, col] = tokens[col];
+        attentionMaskTensor[row, col] = 1;
+      }
+    }
 
     var modelInputs = new List<NamedOnnxValue>
     {
@@ -259,66 +324,89 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 
     if (_requiresTokenTypeIds)
     {
-      var tokenTypeIdsTensor = new DenseTensor<long>([1, tokenIds.Length]);
+      var tokenTypeIdsTensor = new DenseTensor<long>([batchSize, maxLength]);
       tokenTypeIdsTensor.Fill(0);
       modelInputs.Add(NamedOnnxValue.CreateFromTensor("token_type_ids", tokenTypeIdsTensor));
     }
 
+    var tokenCounts = new int[batchSize];
+    for (var row = 0; row < batchSize; row++)
+      tokenCounts[row] = sequences[row].Length;
+
     using var modelResults = _modelSession.Run(modelInputs);
     var results = modelResults.ToList();
-    return ExtractEmbeddingVector(results, tokenIds.Length);
+    return ExtractEmbeddingVectors(results, tokenCounts);
   }
 
-  private float[] ExtractEmbeddingVector(IReadOnlyList<DisposableNamedOnnxValue> results, int tokenCount)
+  private float[][] ExtractEmbeddingVectors(IReadOnlyList<DisposableNamedOnnxValue> results, int[] tokenCounts)
   {
+    var batchSize = tokenCounts.Length;
+
     foreach (var result in results)
     {
       if (!string.Equals(result.Name, "sentence_embedding", StringComparison.OrdinalIgnoreCase))
         continue;
 
-      if (TryExtractRank2Vector(result, out var sentenceEmbedding))
-        return sentenceEmbedding;
+      if (TryExtractRank2Rows(result, batchSize, out var sentenceEmbeddings))
+        return sentenceEmbeddings;
     }
 
     foreach (var result in results)
     {
-      if (TryExtractRank2Vector(result, out var pooled))
+      if (TryExtractRank2Rows(result, batchSize, out var pooled))
         return pooled;
     }
 
     foreach (var result in results)
     {
-      if (TryExtractRank3MeanPooledVector(result, tokenCount, out var meanPooled))
+      if (TryExtractRank3MeanPooledRows(result, tokenCounts, out var meanPooled))
         return meanPooled;
     }
 
-    foreach (var result in results.Reverse())
+    // Ultimo fallback (layout di output sconosciuto): sicuro solo senza batching,
+    // perché non è attribuibile per riga.
+    if (batchSize == 1)
     {
-      try
+      foreach (var result in results.Reverse())
       {
-        return result.AsTensor<float>().ToArray();
-      }
-      catch
-      {
+        try
+        {
+          return [result.AsTensor<float>().ToArray()];
+        }
+        catch
+        {
+        }
       }
     }
 
     _logger?.LogWarning("No float tensor output found in ONNX model results.");
-    return Array.Empty<float>();
+    var empty = new float[batchSize][];
+    for (var i = 0; i < batchSize; i++)
+      empty[i] = Array.Empty<float>();
+    return empty;
   }
 
-  private static bool TryExtractRank2Vector(DisposableNamedOnnxValue output, out float[] vector)
+  private static bool TryExtractRank2Rows(DisposableNamedOnnxValue output, int batchSize, out float[][] rows)
   {
-    vector = null;
+    rows = null;
 
     try
     {
       var tensor = output.AsTensor<float>();
       var dims = tensor.Dimensions;
-      if (dims.Length != 2 || dims[0] != 1 || dims[1] <= 0)
+      if (dims.Length != 2 || dims[0] != batchSize || dims[1] <= 0)
         return false;
 
-      vector = tensor.ToArray();
+      var hiddenSize = (int)dims[1];
+      var values = tensor.ToArray();
+      rows = new float[batchSize][];
+
+      for (var row = 0; row < batchSize; row++)
+      {
+        rows[row] = new float[hiddenSize];
+        Array.Copy(values, row * hiddenSize, rows[row], 0, hiddenSize);
+      }
+
       return true;
     }
     catch
@@ -327,35 +415,42 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     }
   }
 
-  private static bool TryExtractRank3MeanPooledVector(DisposableNamedOnnxValue output, int tokenCount, out float[] vector)
+  private static bool TryExtractRank3MeanPooledRows(DisposableNamedOnnxValue output, int[] tokenCounts, out float[][] rows)
   {
-    vector = null;
+    rows = null;
 
     try
     {
       var tensor = output.AsTensor<float>();
       var dims = tensor.Dimensions;
-      if (dims.Length != 3 || dims[0] != 1 || dims[1] <= 0 || dims[2] <= 0)
+      if (dims.Length != 3 || dims[0] != tokenCounts.Length || dims[1] <= 0 || dims[2] <= 0)
         return false;
 
       var sequenceLength = (int)dims[1];
       var hiddenSize = (int)dims[2];
-      var effectiveTokens = Math.Clamp(tokenCount, 1, sequenceLength);
       var values = tensor.ToArray();
-      var pooled = new float[hiddenSize];
+      rows = new float[tokenCounts.Length][];
 
-      for (var token = 0; token < effectiveTokens; token++)
+      for (var row = 0; row < tokenCounts.Length; row++)
       {
-        var offset = token * hiddenSize;
+        var effectiveTokens = Math.Clamp(tokenCounts[row], 1, sequenceLength);
+        var baseOffset = row * sequenceLength * hiddenSize;
+        var pooled = new float[hiddenSize];
+
+        for (var token = 0; token < effectiveTokens; token++)
+        {
+          var offset = baseOffset + token * hiddenSize;
+          for (var i = 0; i < hiddenSize; i++)
+            pooled[i] += values[offset + i];
+        }
+
+        var divisor = 1f / effectiveTokens;
         for (var i = 0; i < hiddenSize; i++)
-          pooled[i] += values[offset + i];
+          pooled[i] *= divisor;
+
+        rows[row] = pooled;
       }
 
-      var divisor = 1f / effectiveTokens;
-      for (var i = 0; i < hiddenSize; i++)
-        pooled[i] *= divisor;
-
-      vector = pooled;
       return true;
     }
     catch

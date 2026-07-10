@@ -9,6 +9,7 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
   private readonly CancellationTokenSource _stoppingTokenSource = new();
   private readonly Task[] _workers;
   private readonly TimeSpan _enqueueTimeout;
+  private readonly int _maxBatchSize;
 
   private volatile bool _disposed;
 
@@ -16,7 +17,8 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
     IEmbeddingGenerator inner,
     int maxConcurrency,
     int queueCapacity,
-    TimeSpan enqueueTimeout)
+    TimeSpan enqueueTimeout,
+    int maxBatchSize = 1)
   {
     maxConcurrency = Math.Max(maxConcurrency, 1);
     queueCapacity = Math.Max(queueCapacity, 1);
@@ -26,6 +28,7 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
 
     _inner = inner;
     _enqueueTimeout = enqueueTimeout;
+    _maxBatchSize = Math.Max(maxBatchSize, 1);
 
     _queue = Channel.CreateBounded<EmbeddingRequest>(new BoundedChannelOptions(queueCapacity)
     {
@@ -39,7 +42,24 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
       .ToArray();
   }
 
-  public float[] GenerateEmbedding(string input)
+  public float[] GenerateEmbedding(string input) =>
+    Enqueue(input).GetAwaiter().GetResult();
+
+  public float[] GenerateEmbedding(string task, string input) =>
+    GenerateEmbedding(!string.IsNullOrWhiteSpace(task) ? $"{task}: {input}" : input);
+
+  public float[][] GenerateEmbeddings(IReadOnlyList<string> inputs)
+  {
+    ArgumentNullException.ThrowIfNull(inputs);
+
+    var tasks = new Task<float[]>[inputs.Count];
+    for (var i = 0; i < inputs.Count; i++)
+      tasks[i] = Enqueue(inputs[i]);
+
+    return Task.WhenAll(tasks).GetAwaiter().GetResult();
+  }
+
+  private Task<float[]> Enqueue(string input)
   {
     if (_disposed)
       throw new ObjectDisposedException(nameof(QueuedEmbeddingGenerator), "Cannot generate embedding after the generator has been disposed.");
@@ -62,11 +82,8 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
       throw new TimeoutException($"Embedding queue is full. Request enqueue timed out after {_enqueueTimeout.TotalSeconds:0} seconds.");
     }
 
-    return completion.Task.GetAwaiter().GetResult();
+    return completion.Task;
   }
-
-  public float[] GenerateEmbedding(string task, string input) =>
-    GenerateEmbedding(!string.IsNullOrWhiteSpace(task) ? $"{task}: {input}" : input);
 
   public void Dispose()
   {
@@ -91,25 +108,49 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
 
   private async Task ProcessQueueAsync()
   {
+    var batch = new List<EmbeddingRequest>(_maxBatchSize);
+
     try
     {
-      while (true)
+      while (await _queue.Reader.WaitToReadAsync(_stoppingTokenSource.Token))
       {
-        if (await _queue.Reader.WaitToReadAsync(_stoppingTokenSource.Token))
-          if (_queue.Reader.TryRead(out var request))
-            try
-            {
-              var result = _inner.GenerateEmbedding(request.Input);
-              request.Completion.TrySetResult(result);
-            }
-            catch (Exception ex)
-            {
-              request.Completion.TrySetException(ex);
-            }
+        // Coalescenza: drena le richieste già in coda fino a MaxBatchSize
+        // e le fonde in una singola inferenza batched.
+        batch.Clear();
+        while (batch.Count < _maxBatchSize && _queue.Reader.TryRead(out var request))
+          batch.Add(request);
+
+        if (batch.Count == 0)
+          continue;
+
+        try
+        {
+          if (batch.Count == 1)
+          {
+            batch[0].Completion.TrySetResult(_inner.GenerateEmbedding(batch[0].Input));
+          }
+          else
+          {
+            var inputs = new string[batch.Count];
+            for (var i = 0; i < batch.Count; i++)
+              inputs[i] = batch[i].Input;
+
+            var results = _inner.GenerateEmbeddings(inputs);
+            for (var i = 0; i < batch.Count; i++)
+              batch[i].Completion.TrySetResult(results[i]);
+          }
+        }
+        catch (Exception ex)
+        {
+          foreach (var request in batch)
+            request.Completion.TrySetException(ex);
+        }
       }
     }
     catch (OperationCanceledException)
     {
+      foreach (var request in batch)
+        request.Completion.TrySetCanceled();
     }
   }
 

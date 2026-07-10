@@ -14,4 +14,12 @@ public sealed class EmbeddingGeneratorOptions
   /// the CPU when multiple runs execute concurrently.
   /// </summary>
   public int IntraOpNumThreads { get; set; }
+
+  /// <summary>
+  /// Maximum number of token sequences fused into a single ONNX inference run.
+  /// 1 disables batching. On CPU the intra-op parallelism already saturates the
+  /// cores and padding wastes compute on mixed-length inputs, so fusing rarely
+  /// helps; raise this when running on a GPU execution provider.
+  /// </summary>
+  public int MaxBatchSize { get; set; } = 1;
 }
