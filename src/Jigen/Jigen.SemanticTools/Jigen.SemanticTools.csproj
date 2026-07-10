@@ -5,12 +5,21 @@
     <ImplicitUsings>enable</ImplicitUsings>
 
     <RootNamespace>Jigen.SemanticTools</RootNamespace>
+
+    <!-- Native ONNX Runtime flavor: Cpu (default), Gpu (CUDA, linux/win + NVIDIA),
+         DirectML (win), OpenVino (win + Intel GPU/NPU).
+         Select at build time with -p:JigenOnnxRuntimeFlavor=Gpu and enable via
+         GeneratorOptions.ExecutionProvider in the JigenEmbeddings settings. -->
+    <JigenOnnxRuntimeFlavor Condition="'$(JigenOnnxRuntimeFlavor)' == ''">Cpu</JigenOnnxRuntimeFlavor>
   </PropertyGroup>
 
 
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.35.1" />
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.27.0" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.27.0" Condition="'$(JigenOnnxRuntimeFlavor)' == 'Cpu'" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.Gpu" Version="1.27.0" Condition="'$(JigenOnnxRuntimeFlavor)' == 'Gpu'" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" Condition="'$(JigenOnnxRuntimeFlavor)' == 'DirectML'" />
+    <PackageReference Include="Intel.ML.OnnxRuntime.OpenVino" Version="1.24.1" Condition="'$(JigenOnnxRuntimeFlavor)' == 'OpenVino'" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.Extensions" Version="0.14.0"/>
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0"/>
     <PackageReference Include="System.Numerics.Tensors" Version="10.0.9" />
