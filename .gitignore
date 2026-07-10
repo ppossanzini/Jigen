@@ -485,3 +485,5 @@ $RECYCLE.BIN/
 
 *.lscache
 
+
+src/Server/Jigen/App_Data/identity.db
