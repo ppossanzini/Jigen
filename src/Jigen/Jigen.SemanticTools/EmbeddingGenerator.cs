@@ -114,7 +114,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     if (texts.Count == 0)
       return [];
 
-    // Piano: per ogni testo, le sequenze di token da inferire (1 sequenza, oppure i chunk).
+    // Plan: for each text, the token sequences to infer (one sequence, or its chunks).
     var sequences = new List<(int TextIndex, long[] Tokens)>(texts.Count);
 
     for (var i = 0; i < texts.Count; i++)
@@ -155,7 +155,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       }
     }
 
-    // Batch di sequenze contigue per lunghezza, così il padding alla riga più lunga è minimo.
+    // Batch sequences contiguous by length, so padding to the longest row is minimal.
     var order = Enumerable.Range(0, sequences.Count)
       .OrderByDescending(s => sequences[s].Tokens.Length)
       .ToArray();
@@ -372,8 +372,8 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
         return meanPooled;
     }
 
-    // Ultimo fallback (layout di output sconosciuto): sicuro solo senza batching,
-    // perché non è attribuibile per riga.
+    // Last-resort fallback (unknown output layout): only safe without batching,
+    // because it cannot be attributed to individual rows.
     if (batchSize == 1)
     {
       foreach (var result in results.Reverse())

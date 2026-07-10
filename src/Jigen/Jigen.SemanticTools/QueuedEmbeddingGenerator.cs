@@ -97,8 +97,8 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
       }
     }
 
-    // Sblocca subito il chiamante alla cancellazione; il worker scarta le
-    // richieste già cancellate prima di inferirle.
+    // Unblock the caller immediately on cancellation; the worker discards
+    // already-cancelled requests before running inference on them.
     using var cancellationRegistration = cancellationToken.Register(
       static state => ((TaskCompletionSource<float[]>)state).TrySetCanceled(),
       completion);
@@ -135,8 +135,8 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
     {
       while (await _queue.Reader.WaitToReadAsync(_stoppingTokenSource.Token))
       {
-        // Coalescenza: drena le richieste già in coda fino a MaxBatchSize
-        // e le fonde in una singola inferenza batched.
+        // Coalescing: drain the requests already queued up to MaxBatchSize
+        // and fuse them into a single batched inference run.
         batch.Clear();
         while (batch.Count < _maxBatchSize && _queue.Reader.TryRead(out var request))
         {
