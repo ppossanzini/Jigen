@@ -17,13 +17,18 @@ public class Module: IModule
   {
     var settings = configuration.GetSection("JigenEmbeddings").Get<EmbeddingSettings>();
     services.Configure<EmbeddingSettings>(configuration.GetSection("JigenEmbeddings"));
-    
+
+    var generatorOptions = settings.GeneratorOptions ?? new EmbeddingGeneratorOptions();
+    if (generatorOptions.IntraOpNumThreads <= 0)
+      generatorOptions.IntraOpNumThreads =
+        Math.Max(1, Environment.ProcessorCount / Math.Max(settings.EmbeddingsMaxConcurrency, 1));
+
     services.AddSingleton<IEmbeddingGenerator>(_ => new QueuedEmbeddingGenerator(
       new OnnxEmbeddingGenerator(
         settings.TokenizerPath,
         settings.EmbeddingsModelPath,
         _.GetService<ILogger<OnnxEmbeddingGenerator>>(),
-        settings.GeneratorOptions),
+        generatorOptions),
       settings.EmbeddingsMaxConcurrency,
       settings.EmbeddingsQueueCapacity,
       TimeSpan.FromSeconds(settings.EmbeddingsQueueTimeoutSeconds)));

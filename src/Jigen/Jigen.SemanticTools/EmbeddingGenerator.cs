@@ -37,6 +37,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     EmbeddingGeneratorOptions options = null)
   {
     _logger = logger;
+    options ??= new EmbeddingGeneratorOptions();
 
     if (tokenizerPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
     {
@@ -46,7 +47,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     else
     {
       // Initialize tokenizer session with ONNX Extensions
-      var tokenizerOptions = new SessionOptions();
+      using var tokenizerOptions = new SessionOptions { IntraOpNumThreads = 1 };
       tokenizerOptions.RegisterOrtExtensions();
 
       _tokenizerSession = new InferenceSession(tokenizerPath, tokenizerOptions);
@@ -54,10 +55,22 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       _logger?.LogInformation("Loaded tokenizer ONNX from path {TokenizerPath}", tokenizerPath);
     }
 
-    _modelSession = new InferenceSession(modelPath);
+    using var modelSessionOptions = new SessionOptions
+    {
+      GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
+      ExecutionMode = ExecutionMode.ORT_SEQUENTIAL
+    };
+
+    if (options.IntraOpNumThreads > 0)
+      modelSessionOptions.IntraOpNumThreads = options.IntraOpNumThreads;
+
+    _modelSession = new InferenceSession(modelPath, modelSessionOptions);
     _requiresTokenTypeIds = _modelSession.InputMetadata.Keys.Contains("token_type_ids", StringComparer.OrdinalIgnoreCase);
 
-    if (options == null) options = new EmbeddingGeneratorOptions();
+    _logger?.LogInformation(
+      "Loaded embedding model from path {ModelPath} (intraOpThreads={IntraOpThreads})",
+      modelPath,
+      options.IntraOpNumThreads > 0 ? options.IntraOpNumThreads : Environment.ProcessorCount);
 
     _maxTokens = Math.Max(options.MaxTokens, 8);
     _useChunking = options.UseChunking;
