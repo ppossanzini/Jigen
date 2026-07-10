@@ -43,23 +43,32 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
   }
 
   public float[] GenerateEmbedding(string input) =>
-    Enqueue(input).GetAwaiter().GetResult();
+    GenerateEmbeddingAsync(input).GetAwaiter().GetResult();
 
   public float[] GenerateEmbedding(string task, string input) =>
     GenerateEmbedding(!string.IsNullOrWhiteSpace(task) ? $"{task}: {input}" : input);
 
-  public float[][] GenerateEmbeddings(IReadOnlyList<string> inputs)
+  public float[][] GenerateEmbeddings(IReadOnlyList<string> inputs) =>
+    GenerateEmbeddingsAsync(inputs).GetAwaiter().GetResult();
+
+  public Task<float[]> GenerateEmbeddingAsync(string input, CancellationToken cancellationToken = default) =>
+    EnqueueAsync(input, cancellationToken);
+
+  public Task<float[]> GenerateEmbeddingAsync(string task, string input, CancellationToken cancellationToken = default) =>
+    GenerateEmbeddingAsync(!string.IsNullOrWhiteSpace(task) ? $"{task}: {input}" : input, cancellationToken);
+
+  public async Task<float[][]> GenerateEmbeddingsAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken = default)
   {
     ArgumentNullException.ThrowIfNull(inputs);
 
     var tasks = new Task<float[]>[inputs.Count];
     for (var i = 0; i < inputs.Count; i++)
-      tasks[i] = Enqueue(inputs[i]);
+      tasks[i] = EnqueueAsync(inputs[i], cancellationToken);
 
-    return Task.WhenAll(tasks).GetAwaiter().GetResult();
+    return await Task.WhenAll(tasks).ConfigureAwait(false);
   }
 
-  private Task<float[]> Enqueue(string input)
+  private async Task<float[]> EnqueueAsync(string input, CancellationToken cancellationToken)
   {
     if (_disposed)
       throw new ObjectDisposedException(nameof(QueuedEmbeddingGenerator), "Cannot generate embedding after the generator has been disposed.");
@@ -68,21 +77,33 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
       throw new ArgumentException("Input text cannot be null or empty.", nameof(input));
 
     var completion = new TaskCompletionSource<float[]>(TaskCreationOptions.RunContinuationsAsynchronously);
-    var request = new EmbeddingRequest(input, completion);
+    var request = new EmbeddingRequest(input, completion, cancellationToken);
 
-    using var timeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_stoppingTokenSource.Token);
-    timeoutTokenSource.CancelAfter(_enqueueTimeout);
-
-    try
+    using (var timeoutTokenSource = CancellationTokenSource.CreateLinkedTokenSource(_stoppingTokenSource.Token, cancellationToken))
     {
-      _queue.Writer.WriteAsync(request, timeoutTokenSource.Token).AsTask().GetAwaiter().GetResult();
-    }
-    catch (OperationCanceledException) when (!_stoppingTokenSource.IsCancellationRequested)
-    {
-      throw new TimeoutException($"Embedding queue is full. Request enqueue timed out after {_enqueueTimeout.TotalSeconds:0} seconds.");
+      timeoutTokenSource.CancelAfter(_enqueueTimeout);
+
+      try
+      {
+        await _queue.Writer.WriteAsync(request, timeoutTokenSource.Token).ConfigureAwait(false);
+      }
+      catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+      {
+        throw new OperationCanceledException("Embedding request was cancelled.", cancellationToken);
+      }
+      catch (OperationCanceledException) when (!_stoppingTokenSource.IsCancellationRequested)
+      {
+        throw new TimeoutException($"Embedding queue is full. Request enqueue timed out after {_enqueueTimeout.TotalSeconds:0} seconds.");
+      }
     }
 
-    return completion.Task;
+    // Sblocca subito il chiamante alla cancellazione; il worker scarta le
+    // richieste già cancellate prima di inferirle.
+    using var cancellationRegistration = cancellationToken.Register(
+      static state => ((TaskCompletionSource<float[]>)state).TrySetCanceled(),
+      completion);
+
+    return await completion.Task.ConfigureAwait(false);
   }
 
   public void Dispose()
@@ -118,7 +139,12 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
         // e le fonde in una singola inferenza batched.
         batch.Clear();
         while (batch.Count < _maxBatchSize && _queue.Reader.TryRead(out var request))
-          batch.Add(request);
+        {
+          if (request.CancellationToken.IsCancellationRequested)
+            request.Completion.TrySetCanceled(request.CancellationToken);
+          else
+            batch.Add(request);
+        }
 
         if (batch.Count == 0)
           continue;
@@ -154,5 +180,8 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
     }
   }
 
-  private sealed record EmbeddingRequest(string Input, TaskCompletionSource<float[]> Completion);
+  private sealed record EmbeddingRequest(
+    string Input,
+    TaskCompletionSource<float[]> Completion,
+    CancellationToken CancellationToken);
 }

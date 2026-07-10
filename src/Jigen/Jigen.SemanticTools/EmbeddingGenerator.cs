@@ -94,6 +94,15 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   public float[] GenerateEmbedding(string task, string input) =>
     GenerateEmbedding(!string.IsNullOrWhiteSpace(task) ? $"{task}: {input}" : input);
 
+  public Task<float[]> GenerateEmbeddingAsync(string input, CancellationToken cancellationToken = default) =>
+    Task.Run(() => GenerateEmbedding(input), cancellationToken);
+
+  public Task<float[]> GenerateEmbeddingAsync(string task, string input, CancellationToken cancellationToken = default) =>
+    Task.Run(() => GenerateEmbedding(task, input), cancellationToken);
+
+  public Task<float[][]> GenerateEmbeddingsAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken = default) =>
+    Task.Run(() => GenerateEmbeddings(inputs), cancellationToken);
+
   /// <summary>
   /// Generates embeddings for multiple input texts, fusing token sequences
   /// (texts and chunks of long texts) into batched inference runs.

@@ -10,7 +10,6 @@ public class CommandHandlers(IEmbeddingGenerator generator, IOptions<EmbeddingSe
 {
   public Task<float[]> Handle(CalculateEmbeddings request, CancellationToken cancellationToken)
   {
-    return Task.FromResult(
-      generator.GenerateEmbedding(request.Task ?? settings.Value.DefaultTask, request.Sentence));
+    return generator.GenerateEmbeddingAsync(request.Task ?? settings.Value.DefaultTask, request.Sentence, cancellationToken);
   }
 }
