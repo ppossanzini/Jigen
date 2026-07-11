@@ -12,7 +12,7 @@ namespace Jigen.Indexer;
 
 internal delegate IList<IndexNode> SelectForConnectingDelegate(IndexNode item, IList<IndexNode> candidates, int level, SmallWorldIndexer smallworld, string collection);
 
-public class SmallWorldIndexer : IIndexer
+public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
 {
   internal SmallWorldOptions Options { get; init; }
 

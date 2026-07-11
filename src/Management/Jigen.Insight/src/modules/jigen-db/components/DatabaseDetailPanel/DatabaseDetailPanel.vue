@@ -13,6 +13,7 @@
         </li>
         <li><span>{{ $t('databaseManagement.detailsLabels.contentSize') }}</span><strong>{{ formatBytes(details.contentSize ?? 0) }}</strong></li>
         <li><span>{{ $t('databaseManagement.detailsLabels.vectorSize') }}</span><strong>{{ formatBytes(details.vectorSize ?? 0) }}</strong></li>
+        <li><span>{{ $t('databaseManagement.detailsLabels.indexSize') }}</span><strong>{{ formatBytes(details.indexSize ?? 0) }}</strong></li>
         <li><span>{{ $t('databaseManagement.detailsLabels.allocatedContentSize') }}</span><strong>{{ formatBytes(details.allocatedContentSize ?? 0) }}</strong></li>
         <li><span>{{ $t('databaseManagement.detailsLabels.allocatedVectorSize') }}</span><strong>{{ formatBytes(details.allocatedVectorSize ?? 0) }}</strong></li>
         <li><span>{{ $t('databaseManagement.detailsLabels.contentFreeSpace') }}</span><strong>{{ formatBytes(details.contentFreeSpace ?? 0) }}</strong></li>

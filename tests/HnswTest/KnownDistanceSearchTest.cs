@@ -3,6 +3,7 @@ using Jigen.DataStructures;
 using Jigen.Extensions;
 using Jigen.Indexer;
 using Jigen.Indexers;
+using Xunit.Abstractions;
 
 namespace HnswTest;
 
@@ -35,11 +36,16 @@ public class KnownDistanceSearchTest : IAsyncDisposable
 
   private sealed record Sentence(byte[] Id, int Group, double Angle, float[] Embedding, string Text);
 
-  public KnownDistanceSearchTest()
+  private ITestOutputHelper testOutputHelper;
+  
+  public KnownDistanceSearchTest(ITestOutputHelper testOutputHelper)
   {
+    this.testOutputHelper = testOutputHelper;
     _dbRoot = Path.Combine(Path.GetTempPath(), "jigen-tests", Guid.NewGuid().ToString("N"));
     Directory.CreateDirectory(_dbRoot);
 
+    testOutputHelper.WriteLine($"Database root: {_dbRoot}");
+    
     _store = new Store(new StoreOptions
     {
       DataBasePath = _dbRoot,

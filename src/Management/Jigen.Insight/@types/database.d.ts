@@ -2,12 +2,52 @@ declare namespace server {
   namespace database {
     type DatabaseName = string
 
+    interface CollectionIndexInfo {
+      indexSizeBytes?: number | null
+      nodes?: number | null
+      deletedNodes?: number | null
+      maxLevel?: number | null
+      nodesPerLevel?: number[] | null
+      averageDegree?: number | null
+      quantization?: string | null
+    }
+
     interface CollectionInfo {
       name?: string | null
       vectors?: number | null
       dimensions?: number | null
       contentSize?: number | null
       vectorSize?: number | null
+      index?: CollectionIndexInfo | null
+    }
+
+    interface GraphNode {
+      positionId: number
+      key?: string | null
+      maxLevel?: number | null
+      isDeleted?: boolean | null
+      degree?: number | null
+      position?: number[] | null
+    }
+
+    interface GraphEdge {
+      source: number
+      target: number
+      level: number
+    }
+
+    interface CollectionGraph {
+      collection?: string | null
+      dimensions?: number | null
+      totalNodes?: number | null
+      liveNodes?: number | null
+      deletedNodes?: number | null
+      returnedNodes?: number | null
+      maxLevel?: number | null
+      entrypointPositionId?: number | null
+      truncated?: boolean | null
+      nodes: GraphNode[]
+      edges: GraphEdge[]
     }
 
     interface DatabaseUserInfo {
@@ -25,6 +65,7 @@ declare namespace server {
       allocatedVectorSize?: number | null
       contentFreeSpace?: number | null
       vectorFreeSpace?: number | null
+      indexSize?: number | null
       collectionsCount?: number | null
       usersCount?: number | null
       collections?: CollectionInfo[] | null
@@ -73,6 +114,11 @@ declare namespace server {
       dimensions?: number | null
       contentSizeBytes?: number | null
       vectorSizeBytes?: number | null
+      indexSizeBytes?: number | null
+      deletedCount?: number | null
+      maxLevel?: number | null
+      averageDegree?: number | null
+      quantization?: string | null
     }
 
     interface DatabaseStatus {
@@ -82,6 +128,7 @@ declare namespace server {
       totalElementsCount?: number | null
       contentSizeBytes?: number | null
       vectorSizeBytes?: number | null
+      indexSizeBytes?: number | null
       collections: CollectionStatus[]
     }
 

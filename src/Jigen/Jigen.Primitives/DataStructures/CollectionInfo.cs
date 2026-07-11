@@ -7,4 +7,7 @@ public class CollectionInfo
   public int Dimensions { get; set; }
   public long ContentSize { get; set; }
   public long VectorSize { get; set; }
+
+  /// <summary>Vector-index metrics; null when the indexer does not expose them.</summary>
+  public CollectionIndexInfo Index { get; set; }
 }

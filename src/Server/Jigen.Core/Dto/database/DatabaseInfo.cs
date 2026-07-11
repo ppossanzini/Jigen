@@ -9,6 +9,7 @@ public class DatabaseInfo
 
   public long ContentSize => Collections.Sum(c => c.ContentSize);
   public long VectorSize => Collections.Sum(c => c.VectorSize);
+  public long IndexSize => Collections.Sum(c => c.Index?.IndexSizeBytes ?? 0);
 
   public long AllocatedContentSize { get; set; }
   public long AllocatedVectorSize { get; set; }

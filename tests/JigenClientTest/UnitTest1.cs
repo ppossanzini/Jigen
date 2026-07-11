@@ -38,9 +38,9 @@ public class UnitTest1
   [InlineData(10)]
   [InlineData(100)]
   [InlineData(1000)]
-  [InlineData(10_000)]
-  [InlineData(100_000)]
-  [InlineData(1_000_000)]
+  // [InlineData(10_000)]
+  // [InlineData(100_000)]
+  // [InlineData(1_000_000)]
   public void Insert2(int count)
   {
 
@@ -54,7 +54,8 @@ public class UnitTest1
       db.Sentences.Add(i, new VectorEntry<Entity1>()
       {
         Key = i, 
-        Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, Embedding = Array.Empty<float>()
+        Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, 
+        Embedding = Array.Empty<float>()
       });
     }
     

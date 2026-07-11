@@ -1,4 +1,4 @@
-﻿// This Class is from https://github.com/yuniko-software/tokenizer-to-onnx-model sample
+// This Class is from https://github.com/yuniko-software/tokenizer-to-onnx-model sample
 
 using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;

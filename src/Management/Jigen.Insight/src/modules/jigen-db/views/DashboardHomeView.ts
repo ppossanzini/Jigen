@@ -422,6 +422,7 @@ export default defineComponent({
           totalElementsCount: toNumber(entry.totalElementsCount),
           contentSizeBytes: toNumber(entry.contentSizeBytes),
           vectorSizeBytes: toNumber(entry.vectorSizeBytes),
+          indexSizeBytes: toNumber(entry.indexSizeBytes),
         }
       })
     })

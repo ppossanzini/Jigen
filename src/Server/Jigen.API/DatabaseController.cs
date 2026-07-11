@@ -21,13 +21,13 @@ public class DatabaseController(IHikyaku mediator) : ControllerBase
     return Ok();
   }
 
-  [HttpDelete]
+  [HttpDelete()]
   [ProducesResponseType(StatusCodes.Status200OK)]
-  public async Task<IActionResult> Delete(string name, CancellationToken cancellationToken)
+  public async Task<IActionResult> Delete(string name, [FromQuery] bool deletefiles = true, CancellationToken cancellationToken = default)
   {
     await mediator.Send(new Jigen.Core.Command.database.DeleteDatabase()
     {
-      Name = name
+      Name = name, DeleteDatabaseFiles = deletefiles
     }, cancellationToken);
     return Ok();
   }

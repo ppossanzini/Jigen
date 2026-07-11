@@ -158,7 +158,12 @@ public sealed class ServerStatusHistoryService(
           ElementsCount = info.Vectors,
           Dimensions = info.Dimensions,
           ContentSizeBytes = info.ContentSize,
-          VectorSizeBytes = info.VectorSize
+          VectorSizeBytes = info.VectorSize,
+          IndexSizeBytes = info.Index?.IndexSizeBytes ?? 0,
+          DeletedCount = info.Index?.DeletedNodes ?? 0,
+          MaxLevel = info.Index?.MaxLevel ?? 0,
+          AverageDegree = info.Index?.AverageDegree ?? 0,
+          Quantization = info.Index?.Quantization
         };
       })
       .ToArray();
@@ -171,6 +176,7 @@ public sealed class ServerStatusHistoryService(
       TotalElementsCount = collections.Sum(collection => collection.ElementsCount),
       ContentSizeBytes = collections.Sum(collection => collection.ContentSizeBytes),
       VectorSizeBytes = collections.Sum(collection => collection.VectorSizeBytes),
+      IndexSizeBytes = collections.Sum(collection => collection.IndexSizeBytes),
       Collections = collections
     };
   }

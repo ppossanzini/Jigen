@@ -111,7 +111,7 @@ public partial class Store : IStore, IDisposable
   public CollectionInfo GetCollectionInfo(string name)
   {
     if (!PositionIndex.ContainsKey(name)) throw new ArgumentException("Collection not found");
-    return new CollectionInfo()
+    var info = new CollectionInfo()
     {
       Name = name,
       Vectors = PositionIndex[name].Count,
@@ -119,6 +119,11 @@ public partial class Store : IStore, IDisposable
       ContentSize = PositionIndex[name].Values.Sum(i => i.size),
       VectorSize = PositionIndex[name].Values.Sum(i => i.embeddingsposition > 0 ? i.dimensions * sizeof(float) : 0)
     };
+
+    if (Options.Indexer is IExplorableIndex explorable)
+      info.Index = explorable.GetIndexInfo(name);
+
+    return info;
   }
 
   public Store(StoreOptions options)
