@@ -1,0 +1,48 @@
+site_name: Jigen DB
+site_description: Vector database for .NET — in-process engine, server, client, embeddings
+site_url: https://jigen.readthedocs.io
+repo_url: https://github.com/ppossanzini/Jigen
+repo_name: ppossanzini/Jigen
+docs_dir: docs
+
+theme:
+  name: readthedocs
+  highlightjs: true
+  hljs_languages:
+    - csharp
+    - json
+    - yaml
+    - bash
+    - protobuf
+
+markdown_extensions:
+  - admonition
+  - tables
+  - fenced_code
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - In-process engine:
+      - Overview: in-process/overview.md
+      - Getting started: in-process/getting-started.md
+      - Store options: in-process/store-options.md
+      - Collections: in-process/collections.md
+  - Indexes:
+      - Brute force: indexes/brute-force.md
+      - HNSW: indexes/hnsw.md
+  - Embeddings:
+      - Overview: embeddings/overview.md
+      - Configuration: embeddings/configuration.md
+      - Execution providers (CPU/GPU): embeddings/execution-providers.md
+  - Server:
+      - Overview: server/overview.md
+      - Configuration: server/configuration.md
+      - Docker: server/docker.md
+      - REST API: server/rest-api.md
+      - gRPC API: server/grpc-api.md
+  - Client:
+      - Getting started: client/getting-started.md
+      - Usage: client/usage.md
+  - Benchmarks & hardware: benchmarks.md

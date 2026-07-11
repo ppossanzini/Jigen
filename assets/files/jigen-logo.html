@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jigen — Identità visiva</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --accent:#B5E61D;
+    --ink:#15170E;
+    --paper:#F8FAF1;
+    --dark:#111309;
+    --ink-on-dark:#EFF3E2;
+    --muted:#6B6880;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:'Space Grotesk',system-ui,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    line-height:1.55;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:56px 28px 96px}
+  .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+  h1{font-size:clamp(28px,4vw,44px);font-weight:600;letter-spacing:-.02em;margin:10px 0 6px}
+  .lede{max-width:60ch;color:var(--muted);font-size:16px}
+  section{margin-top:64px}
+  h2{font-size:20px;font-weight:600;letter-spacing:-.01em;margin-bottom:6px}
+  .note{color:var(--muted);font-size:14px;max-width:68ch;margin-bottom:20px}
+
+  .duo{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.duo{grid-template-columns:1fr}}
+  .panel{border-radius:18px;display:flex;align-items:center;justify-content:center;min-height:240px;padding:36px;border:1px solid rgba(22,20,31,.08)}
+  .panel.light{background:#fff}
+  .panel.dark{background:var(--dark);border-color:transparent}
+
+  .lockup{display:flex;align-items:center;gap:18px}
+  .word{font-size:44px;font-weight:500;letter-spacing:-.03em}
+  .panel.dark .word{color:var(--ink-on-dark)}
+
+  .sizes{display:flex;align-items:flex-end;gap:36px;flex-wrap:wrap}
+  .sizecell{display:flex;flex-direction:column;align-items:center;gap:10px}
+  .sizecell span{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+
+  .palettes{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+  .pal{border-radius:18px;border:1px solid rgba(22,20,31,.08);overflow:hidden;background:#fff}
+  .pal .chips{display:grid;grid-template-columns:1fr 1fr}
+  .pal .chip{display:flex;align-items:center;justify-content:center;padding:26px 0}
+  .pal .meta{padding:14px 16px 16px}
+  .pal .meta b{display:block;font-size:15px;font-weight:600}
+  .pal .meta code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted)}
+  .pal .meta p{font-size:12.5px;color:var(--muted);margin-top:6px}
+
+  .concept{display:grid;grid-template-columns:220px 1fr;gap:28px;align-items:center}
+  @media(max-width:720px){.concept{grid-template-columns:1fr}}
+  .concept ol{margin-left:18px;color:var(--muted);font-size:14.5px}
+  .concept li{margin-bottom:8px}
+  .concept li b{color:var(--ink)}
+
+  footer{margin-top:72px;font-size:13px;color:var(--muted);border-top:1px solid rgba(22,20,31,.08);padding-top:20px;max-width:70ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">Identità visiva · proposta 01</p>
+  <h1>Jigen — il punto che trova il suo vicino</h1>
+  <p class="lede">«Jigen» (次元) significa <em>dimensione</em>. Il marchio è una <b>j minuscola costruita come un grafo di vettori</b>: i nodi sono i punti indicizzati nello spazio, il puntino della j è il <b>query point</b> — evidenziato a colore e collegato al grafo da un tratteggio, la ricerca del nearest neighbor in corso.</p>
+
+  <!-- ============ CONCEPT ============ -->
+  <section>
+    <div class="concept">
+      <svg viewBox="0 0 96 96" width="200" aria-label="Marchio Jigen">
+        <line x1="60" y1="28" x2="60" y2="34" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 6"/>
+        <polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="60" cy="18" r="8" fill="var(--accent)"/>
+        <circle cx="60" cy="40" r="4.5" fill="var(--ink)"/>
+        <circle cx="60" cy="60" r="4.5" fill="var(--ink)"/>
+        <circle cx="52" cy="73" r="4.5" fill="var(--ink)"/>
+        <circle cx="37" cy="70" r="4.5" fill="var(--ink)"/>
+      </svg>
+      <div>
+        <h2>Come funziona il simbolo</h2>
+        <ol>
+          <li><b>Il puntino della j = il vettore di query.</b> È l'unico elemento a colore: il punto che stai cercando.</li>
+          <li><b>Il tratteggio = la ricerca.</b> Il collegamento punteggiato tra query e grafo racconta la similarity search senza didascalie.</li>
+          <li><b>Nodi + spigoli = l'indice.</b> La struttura richiama i grafi HNSW che i dev di questo settore riconoscono al volo — ma resta leggibile come lettera anche per chi non li conosce.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LOCKUP ============ -->
+  <section>
+    <h2>Logo completo</h2>
+    <p class="note">Marchio + wordmark in <b>Space Grotesk Medium</b>, minuscolo, tracking leggermente negativo: contemporaneo e informale, ma solido. Funziona identico su chiaro e scuro — cambia solo il colore dei nodi.</p>
+    <div class="duo">
+      <div class="panel light">
+        <div class="lockup">
+          <svg viewBox="0 0 96 96" width="72">
+            <line x1="60" y1="28" x2="60" y2="34" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 6"/>
+            <polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="60" cy="18" r="8" fill="var(--accent)"/>
+            <circle cx="60" cy="40" r="4.5" fill="var(--ink)"/>
+            <circle cx="60" cy="60" r="4.5" fill="var(--ink)"/>
+            <circle cx="52" cy="73" r="4.5" fill="var(--ink)"/>
+            <circle cx="37" cy="70" r="4.5" fill="var(--ink)"/>
+          </svg>
+          <span class="word">jigen</span>
+        </div>
+      </div>
+      <div class="panel dark">
+        <div class="lockup">
+          <svg viewBox="0 0 96 96" width="72">
+            <line x1="60" y1="28" x2="60" y2="34" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 6"/>
+            <polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink-on-dark)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="60" cy="18" r="8" fill="var(--accent)"/>
+            <circle cx="60" cy="40" r="4.5" fill="var(--ink-on-dark)"/>
+            <circle cx="60" cy="60" r="4.5" fill="var(--ink-on-dark)"/>
+            <circle cx="52" cy="73" r="4.5" fill="var(--ink-on-dark)"/>
+            <circle cx="37" cy="70" r="4.5" fill="var(--ink-on-dark)"/>
+          </svg>
+          <span class="word">jigen</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ INTEGRATED ============ -->
+  <section>
+    <h2>Variante integrata</h2>
+    <p class="note">Il marchio <em>è</em> la j del nome: una sola parola, un solo elemento da ricordare. Ottima per header di siti e README.</p>
+    <div class="duo">
+      <div class="panel light">
+        <div class="lockup" style="gap:6px">
+          <svg viewBox="18 0 60 96" width="42">
+            <line x1="60" y1="28" x2="60" y2="34" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 6"/>
+            <polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="60" cy="18" r="8" fill="var(--accent)"/>
+            <circle cx="60" cy="40" r="4.5" fill="var(--ink)"/>
+            <circle cx="60" cy="60" r="4.5" fill="var(--ink)"/>
+            <circle cx="52" cy="73" r="4.5" fill="var(--ink)"/>
+            <circle cx="37" cy="70" r="4.5" fill="var(--ink)"/>
+          </svg>
+          <span class="word">igen</span>
+        </div>
+      </div>
+      <div class="panel dark">
+        <div class="lockup" style="gap:6px">
+          <svg viewBox="18 0 60 96" width="42">
+            <line x1="60" y1="28" x2="60" y2="34" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 6"/>
+            <polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink-on-dark)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="60" cy="18" r="8" fill="var(--accent)"/>
+            <circle cx="60" cy="40" r="4.5" fill="var(--ink-on-dark)"/>
+            <circle cx="60" cy="60" r="4.5" fill="var(--ink-on-dark)"/>
+            <circle cx="52" cy="73" r="4.5" fill="var(--ink-on-dark)"/>
+            <circle cx="37" cy="70" r="4.5" fill="var(--ink-on-dark)"/>
+          </svg>
+          <span class="word">igen</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SIZES ============ -->
+  <section>
+    <h2>Test come icona</h2>
+    <p class="note">A 16 px il tratteggio scompare ma la silhouette resta una j punteggiata: perfetta per favicon, app icon e avatar GitHub / Docker Hub.</p>
+    <div class="panel light" style="justify-content:flex-start">
+      <div class="sizes">
+        <div class="sizecell">
+          <svg viewBox="0 0 96 96" width="96"><line x1="60" y1="28" x2="60" y2="34" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 6"/><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="var(--accent)"/><circle cx="60" cy="40" r="4.5" fill="var(--ink)"/><circle cx="60" cy="60" r="4.5" fill="var(--ink)"/><circle cx="52" cy="73" r="4.5" fill="var(--ink)"/><circle cx="37" cy="70" r="4.5" fill="var(--ink)"/></svg>
+          <span>96px</span>
+        </div>
+        <div class="sizecell">
+          <svg viewBox="0 0 96 96" width="48"><line x1="60" y1="28" x2="60" y2="34" stroke="var(--accent)" stroke-width="2.6" stroke-linecap="round" stroke-dasharray="0.1 6"/><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="var(--accent)"/><circle cx="60" cy="40" r="4.5" fill="var(--ink)"/><circle cx="60" cy="60" r="4.5" fill="var(--ink)"/><circle cx="52" cy="73" r="4.5" fill="var(--ink)"/><circle cx="37" cy="70" r="4.5" fill="var(--ink)"/></svg>
+          <span>48px</span>
+        </div>
+        <div class="sizecell">
+          <svg viewBox="0 0 96 96" width="32"><line x1="60" y1="28" x2="60" y2="34" stroke="var(--accent)" stroke-width="3.2" stroke-linecap="round" stroke-dasharray="0.1 6"/><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="9" fill="var(--accent)"/><circle cx="60" cy="40" r="5" fill="var(--ink)"/><circle cx="60" cy="60" r="5" fill="var(--ink)"/><circle cx="52" cy="73" r="5" fill="var(--ink)"/><circle cx="37" cy="70" r="5" fill="var(--ink)"/></svg>
+          <span>32px</span>
+        </div>
+        <div class="sizecell">
+          <svg viewBox="0 0 96 96" width="16"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="var(--ink)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="11" fill="var(--accent)"/><circle cx="60" cy="40" r="6" fill="var(--ink)"/><circle cx="60" cy="60" r="6" fill="var(--ink)"/><circle cx="52" cy="73" r="6" fill="var(--ink)"/><circle cx="37" cy="70" r="6" fill="var(--ink)"/></svg>
+          <span>16px</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PALETTES ============ -->
+  <section>
+    <h2>Quattro direzioni colore</h2>
+    <p class="note">Il sistema è a due soli colori — inchiostro + accento — quindi cambiare palette è un'operazione da una riga. Passa il mouse sulle card per applicarla a tutta la pagina.</p>
+    <div class="palettes">
+
+      <div class="pal" data-accent="#7C5CFF" data-ink="#16141F" data-dark="#131120" data-inkdark="#EDEBF7" data-paper="#F7F6FB">
+        <div class="chips">
+          <div class="chip" style="background:#fff">
+            <svg viewBox="0 0 96 96" width="52"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="#16141F" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="#7C5CFF"/><circle cx="60" cy="40" r="4.5" fill="#16141F"/><circle cx="60" cy="60" r="4.5" fill="#16141F"/><circle cx="52" cy="73" r="4.5" fill="#16141F"/><circle cx="37" cy="70" r="4.5" fill="#16141F"/></svg>
+          </div>
+          <div class="chip" style="background:#131120">
+            <svg viewBox="0 0 96 96" width="52"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="#EDEBF7" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="#7C5CFF"/><circle cx="60" cy="40" r="4.5" fill="#EDEBF7"/><circle cx="60" cy="60" r="4.5" fill="#EDEBF7"/><circle cx="52" cy="73" r="4.5" fill="#EDEBF7"/><circle cx="37" cy="70" r="4.5" fill="#EDEBF7"/></svg>
+          </div>
+        </div>
+        <div class="meta">
+          <b>01 · Ion Violet</b>
+          <code>#7C5CFF · #16141F</code>
+          <p>Il registro "dev infra" per eccellenza: affidabile ma non corporate. La scelta più sicura.</p>
+        </div>
+      </div>
+
+      <div class="pal" data-accent="#00C9A7" data-ink="#0E1B18" data-dark="#0C1614" data-inkdark="#E4F2EE" data-paper="#F3FAF7">
+        <div class="chips">
+          <div class="chip" style="background:#fff">
+            <svg viewBox="0 0 96 96" width="52"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="#0E1B18" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="#00C9A7"/><circle cx="60" cy="40" r="4.5" fill="#0E1B18"/><circle cx="60" cy="60" r="4.5" fill="#0E1B18"/><circle cx="52" cy="73" r="4.5" fill="#0E1B18"/><circle cx="37" cy="70" r="4.5" fill="#0E1B18"/></svg>
+          </div>
+          <div class="chip" style="background:#0C1614">
+            <svg viewBox="0 0 96 96" width="52"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="#E4F2EE" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="#00C9A7"/><circle cx="60" cy="40" r="4.5" fill="#E4F2EE"/><circle cx="60" cy="60" r="4.5" fill="#E4F2EE"/><circle cx="52" cy="73" r="4.5" fill="#E4F2EE"/><circle cx="37" cy="70" r="4.5" fill="#E4F2EE"/></svg>
+          </div>
+        </div>
+        <div class="meta">
+          <b>02 · Plasma Teal</b>
+          <code>#00C9A7 · #0E1B18</code>
+          <p>Fresco e tecnico, richiama velocità e precisione. Si distingue dal viola onnipresente nel settore.</p>
+        </div>
+      </div>
+
+      <div class="pal" data-accent="#B5E61D" data-ink="#15170E" data-dark="#111309" data-inkdark="#EFF3E2" data-paper="#F8FAF1">
+        <div class="chips">
+          <div class="chip" style="background:#fff">
+            <svg viewBox="0 0 96 96" width="52"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="#15170E" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="#B5E61D"/><circle cx="60" cy="40" r="4.5" fill="#15170E"/><circle cx="60" cy="60" r="4.5" fill="#15170E"/><circle cx="52" cy="73" r="4.5" fill="#15170E"/><circle cx="37" cy="70" r="4.5" fill="#15170E"/></svg>
+          </div>
+          <div class="chip" style="background:#111309">
+            <svg viewBox="0 0 96 96" width="52"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="#EFF3E2" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="#B5E61D"/><circle cx="60" cy="40" r="4.5" fill="#EFF3E2"/><circle cx="60" cy="60" r="4.5" fill="#EFF3E2"/><circle cx="52" cy="73" r="4.5" fill="#EFF3E2"/><circle cx="37" cy="70" r="4.5" fill="#EFF3E2"/></svg>
+          </div>
+        </div>
+        <div class="meta">
+          <b>03 · Signal Lime</b>
+          <code>#B5E61D · #15170E</code>
+          <p>Vibe terminale / open source, energico e memorabile. Dà il meglio su sfondo scuro.</p>
+        </div>
+      </div>
+
+      <div class="pal" data-accent="#FF5C39" data-ink="#1F1512" data-dark="#191110" data-inkdark="#F5ECE8" data-paper="#FBF6F3">
+        <div class="chips">
+          <div class="chip" style="background:#fff">
+            <svg viewBox="0 0 96 96" width="52"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="#1F1512" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="#FF5C39"/><circle cx="60" cy="40" r="4.5" fill="#1F1512"/><circle cx="60" cy="60" r="4.5" fill="#1F1512"/><circle cx="52" cy="73" r="4.5" fill="#1F1512"/><circle cx="37" cy="70" r="4.5" fill="#1F1512"/></svg>
+          </div>
+          <div class="chip" style="background:#191110">
+            <svg viewBox="0 0 96 96" width="52"><polyline points="60,40 60,60 52,73 37,70" fill="none" stroke="#F5ECE8" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="60" cy="18" r="8" fill="#FF5C39"/><circle cx="60" cy="40" r="4.5" fill="#F5ECE8"/><circle cx="60" cy="60" r="4.5" fill="#F5ECE8"/><circle cx="52" cy="73" r="4.5" fill="#F5ECE8"/><circle cx="37" cy="70" r="4.5" fill="#F5ECE8"/></svg>
+          </div>
+        </div>
+        <div class="meta">
+          <b>04 · Ember Coral</b>
+          <code>#FF5C39 · #1F1512</code>
+          <p>Caldo e diretto, personalità da developer tool indie. Il query point "brucia" letteralmente.</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <footer>
+    Simbolo geometrico originale, nessuna icona di repertorio. Wordmark: Space Grotesk Medium (alternative: General Sans, Hanken Grotesk). Il sistema usa due colori totali, quindi resta coerente ovunque: favicon, CLI, docs, badge README.
+  </footer>
+</div>
+
+<script>
+  // Hover su una palette = applica i colori a tutta la pagina
+  document.querySelectorAll('.pal').forEach(p => {
+    p.addEventListener('mouseenter', () => {
+      const r = document.documentElement.style;
+      r.setProperty('--accent', p.dataset.accent);
+      r.setProperty('--ink', p.dataset.ink);
+      r.setProperty('--dark', p.dataset.dark);
+      r.setProperty('--ink-on-dark', p.dataset.inkdark);
+      r.setProperty('--paper', p.dataset.paper);
+    });
+  });
+</script>
+</body>
+</html>

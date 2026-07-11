@@ -1,166 +1,141 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/jigen-logo-full-dark.png">
+    <img src="assets/jigen-logo-full.png" alt="Jigen DB" width="320"/>
+  </picture>
+</p>
+
 # Jigen DB
 
-**Jigen DB** is a vector database written from scratch in C#.
-It is a study/research project focused on vector search use cases and implementation trade-offs.
+**Jigen DB** is a vector database written from scratch in C# for the .NET platform.
 
-The goal is to iteratively explore performance strategies, indexing approaches, and practical optimizations.
+Use it **in-process** inside your application — like SQLite, but for vector search — or run it as a **standalone server** with gRPC and REST APIs, typed .NET client, and optional built-in text embedding generation powered by ONNX Runtime.
+
+> Tech stack: **.NET (net8.0 / net10.0)**, **ASP.NET Core**, **gRPC**, **ONNX Runtime**. License: **Apache-2.0**.
+
+## Project Overview and Genesis
+
+This project was born as a research initiative to understand the inner workings of vector databases and to explore how performant a database written in pure C# can be. It also provided a great opportunity to dive deeper into specific C# and .NET runtime internals.
+
+**Architecture & Development**
+
+  - Core Storage & Persistence: Written entirely from scratch by human developer.
+  - HNSW Indexing: Forked from a Microsoft library and heavily optimized/modified to support disk persistence.
+  - Server Architecture: Built using a well-known CQRS pattern, written by human. 
+  - This software has been optimized using Fable.  
+  - AI-Generated UI: The frontend was written completely by AI. Since UI code isn't the focus of this project, a functional, AI-built interface was more than enough.
+  - Testing & Debugging: Handled entirely by a human.
+  - Messaging & IPC (Hikyaku): The communication layer uses Hikyaku, a custom fork of MediatR (v12) developed over several years. It introduces out-of-process capabilities via Kafka and RabbitMQ. (Note: The library was previously named Arbitrer, then Axonflow, and finally rebranded to Hikyaku to avoid naming conflicts on NuGet).
 
 
-> Tech stack: **.NET (net8.0 / net10.0)**, **ASP.NET Core** (hosting), **gRPC**.
 
----
+## Highlights
 
-## Table of contents
+- **In-process engine** (`Jigen.Store`): append-only memory-mapped storage, asynchronous ingestion, crash recovery, exact (brute-force) search out of the box.
+- **HNSW index** (`Jigen.Indexer.HNSW`): disk-backed approximate nearest neighbor graph with concurrent inserts, deletes, optional SQ8 quantization and exact reranking.
+- **Server**: multi-database host with gRPC (port 3223) and REST (port 13223) APIs, per-collection search with content filters, periodic durability checkpoints.
+- **Embeddings**: server-side text embedding generation (ONNX), in-process or scaled out to dedicated worker containers over RabbitMQ; CPU by default, GPU execution providers available.
+- **Typed .NET client** (`Jigen.Client`): dictionary-like collections, LINQ predicates translated to server-side filters.
 
-- [Jigen DB](#jigen-db)
-  - [Table of contents](#table-of-contents)
-  - [Prerequisites](#prerequisites)
-  - [High-level structure](#high-level-structure)
-  - [Running the gRPC server](#running-the-grpc-server)
-  - [Using the client](#using-the-client)
-  - [CORS / gRPC-Web](#cors--grpc-web)
-  - [Tests](#tests)
-  - [Troubleshooting](#troubleshooting)
-    - [HNSW index file (`*.hnsw.index`) is empty](#hnsw-index-file-hnswindex-is-empty)
-    - [HNSW returns fewer results than brute-force](#hnsw-returns-fewer-results-than-brute-force)
-    - [gRPC client cannot connect](#grpc-client-cannot-connect)
-  - [License](#license)
+## Installation
 
----
-
-## Prerequisites
-
-- A .NET SDK compatible with the project targets (net8.0 and/or net10.0)
-- Read/write access to the local database folder used by the server
-- Optional ONNX model files if you want to use server-side embedding generation
-
-Check your installation:
+**NuGet** (in-process):
 
 ```bash
-dotnet --info
+dotnet add package Jigen.Store          # embedded engine (net10.0)
+dotnet add package Jigen.Indexer.HNSW   # ANN index for the engine
 ```
 
-## High-level structure
-
-- **Server**: [src/Server/Jigen](src/Server/Jigen) hosts the app and loads modules.
-- **gRPC module**: [src/Server/Jigen.Grpc](src/Server/Jigen.Grpc) exposes `StoreCollectionService`.
-- **Store engine**: [src/Jigen/Jigen.Store](src/Jigen/Jigen.Store) handles storage, indexing and search.
-- **HNSW indexer**: [src/Jigen/Jigen.Indexer.HNSW](src/Jigen/Jigen.Indexer.HNSW).
-- **Client library**: [src/Client/Jigen.Client](src/Client/Jigen.Client).
-- **Tests**: [tests](tests) with integration/unit suites for store, client and HNSW.
-
-
-## Running the gRPC server
-
-Run the host project:
+**NuGet** (client):
 
 ```bash
-dotnet run --project src/Server/Jigen/Jigen.csproj
+dotnet add package Jigen.Client         # client for the server (net8.0+)
 ```
 
-Default endpoints are configured in `src/Server/Jigen/Program.cs`:
+**Docker** (server):
 
-- `http://localhost:13223` (`Http1AndHttp2`)
-- `http://localhost:3223` (`Http2`, gRPC)
+```bash
+# all-in-one: database + embedding generation in a single container
+docker run -d -p 3223:3223 -p 13223:13223 \
+  -v jigen-data:/data/jigendb -v ./models:/data/onnx \
+  ppossanzini/jigendb-all-in-one
+```
 
-The gRPC service is mapped by the module in [src/Server/Jigen.Grpc/Module.cs](src/Server/Jigen.Grpc/Module.cs).
+Three images are published: `ppossanzini/jigendb` (server only), `ppossanzini/jigendb-all-in-one` (server + embeddings) and `ppossanzini/jigen-embeddings` (embedding worker). See [Docker deployment](docs/server/docker.md).
 
+## Quick taste
 
-## Using the client
+In-process:
 
-The client package is in [src/Client/Jigen.Client](src/Client/Jigen.Client).
+```csharp
+using Jigen;
+using Jigen.DataStructures;
+using Jigen.Extensions;
+using Jigen.Indexer;
 
-Minimal usage pattern:
+using var store = new Store(new StoreOptions
+{
+  DataBasePath = "/data/jigendb",
+  DataBaseName = "demo",
+  Indexer = new SmallWorldIndexer(new SmallWorldOptions(
+    m: 16, efConstruction: 200, efSearch: 64, storagePath: "/data/jigendb/hnsw"))
+});
+
+await store.AppendContent(new VectorEntry
+{
+  Id = Guid.NewGuid().ToByteArray(),
+  CollectionName = "articles",
+  Content = MessagePackDocumentSerializer.Instance.Serialize("hello vectors"),
+  Embedding = embedding                       // float[] from your embedding model
+});
+
+var results = store.Search("articles", queryEmbedding, top: 10);
+await store.SaveChangesAsync();
+```
+
+Client against a server:
 
 ```csharp
 using Jigen.Client;
-using Jigen.Client.BaseTypes;
 
-var ctx = new Context(new ConnectionOptions
-{
-	HostName = "localhost",
-	Port = 3223,
-	TLS = false,
-	DatabaseName = "Test"
-});
+var ctx = new Context(new ConnectionOptions { HostName = "localhost", Port = 3223, DatabaseName = "demo" });
+var articles = new VectorCollection<Article>(ctx);
 
-var collection = new VectorCollection<MyDocument>(ctx);
-
-collection.Add(1, new VectorEntry<MyDocument>
-{
-	Key = 1,
-	Content = new MyDocument { Id = Guid.NewGuid(), Text = "hello" },
-	Embedding = Array.Empty<float>()
-});
+articles.Add(Guid.NewGuid(), new Article { Title = "..." }, sentence: "text embedded by the server");
+var hits = articles.Search("query text", x => x.Category == "news", top: 5);
 ```
 
-For a concrete wrapper pattern, see [tests/JigenClientTest/Model/DB.cs](tests/JigenClientTest/Model/DB.cs) and [tests/JigenClientTest/UnitTest1.cs](tests/JigenClientTest/UnitTest1.cs).
+## Documentation
 
+Full documentation lives in [`docs/`](docs/index.md) (also buildable with MkDocs / Read the Docs).
 
-## CORS / gRPC-Web
+| Section | Contents |
+|---|---|
+| [In-process engine](docs/in-process/overview.md) | [Getting started](docs/in-process/getting-started.md) · [Store options](docs/in-process/store-options.md) · [Collections](docs/in-process/collections.md) |
+| [Indexes](docs/indexes/hnsw.md) | [Brute force](docs/indexes/brute-force.md) · [HNSW](docs/indexes/hnsw.md) |
+| [Embeddings](docs/embeddings/overview.md) | [Configuration](docs/embeddings/configuration.md) · [Execution providers (CPU/GPU)](docs/embeddings/execution-providers.md) |
+| [Server](docs/server/overview.md) | [Configuration](docs/server/configuration.md) · [Docker](docs/server/docker.md) · [REST API](docs/server/rest-api.md) · [gRPC API](docs/server/grpc-api.md) |
+| [Client](docs/client/getting-started.md) | [Usage](docs/client/usage.md) |
+| [Benchmarks & hardware](docs/benchmarks.md) | Current numbers, supported and upcoming CPU/GPU technologies |
 
-- General server CORS is configured in [src/Server/Jigen/Program.cs](src/Server/Jigen/Program.cs).
-- gRPC-specific CORS policy is configured in [src/Server/Jigen.Grpc/Module.cs](src/Server/Jigen.Grpc/Module.cs).
+The server also ships a web administration UI (Jigen Insight) served on port 13223; it is not covered by this documentation yet.
 
-Current status:
-
-- Native gRPC is enabled (`MapGrpcService<Server>()`).
-- gRPC-Web mapping is currently commented out in the module:
-  - `.EnableGrpcWeb()`
-  - `.RequireCors(JigenGrpcCorsDefaultPolicy)`
-
-If you need browser gRPC-Web clients, enable those lines and verify CORS policy for your frontend origin.
-
-
-## Tests
-
-Run all tests:
+## Building from source
 
 ```bash
-dotnet test Jigen.sln
+dotnet build Jigen.sln -m:1        # -m:1 required (StaticWebAssets breaks parallel builds)
+dotnet run --project src/Server/Jigen/Jigen.csproj
 ```
 
-Run focused suites:
+Tests:
 
 ```bash
-dotnet test tests/HnswTest/HnswTest.csproj
 dotnet test tests/JigenStoreTests/JigenStoreTests.csproj
-dotnet test tests/JigenClientTest/JigenClientTest.csproj
+dotnet test tests/HnswTest/HnswTest.csproj
 dotnet test tests/PrimitiveTests/PrimitiveTests.csproj
+# tests/JigenClientTest requires a running server on localhost:3223
 ```
-
-
-## Troubleshooting
-
-### HNSW index file (`*.hnsw.index`) is empty
-
-If the `*.hnsw.index` file appears empty and HNSW returns no results after restart, ensure your app calls:
-
-1. `SaveChangesAsync()`
-2. `Close()`
-
-Recent fixes added an explicit indexer flush during store close, so `StoredList` header/index are persisted before process exit.
-
-### HNSW returns fewer results than brute-force
-
-This is expected in principle because HNSW is ANN (approximate nearest neighbors), but large gaps usually indicate:
-
-- too-low `EfSearch`
-- insufficient `EfConstruction`
-- graph quality issues (construction/traversal bugs)
-
-Tune `EfSearch` and `EfConstruction` in `SmallWorldOptions` first.
-
-### gRPC client cannot connect
-
-Check:
-
-1. server is running
-2. client uses `http://localhost:5001` for HTTP/2 gRPC
-3. firewall/port blocks are not present
-
 
 ## License
 
-See [LICENSE.txt](LICENSE.txt).
-
+Apache-2.0 — see [LICENSE.txt](LICENSE.txt).
