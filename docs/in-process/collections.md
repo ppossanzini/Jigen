@@ -149,7 +149,7 @@ The filter is evaluated against the document's MessagePack payload converted to 
 
 - Only equality (`==`) comparisons are translated; relational operators (`<`, `>`, `!=`), string operations (`Contains`, `StartsWith`), and arbitrary method calls are not supported by the expression translator.
 - Property paths are limited to member-access chains (`x.Prop`, `x.Nested.Prop`); the right-hand side of a comparison must be a constant or a captured local/field/property, not another document property.
-- Without a filter, brute-force search picks the top-k directly from ranked scores; with a filter, both the brute-force and HNSW indexers rank/traverse candidates first and then apply the filter, backfilling until `top` matching results are found or candidates are exhausted — so a highly selective filter over a large collection costs more than an unfiltered search.
+- Without a filter, brute-force search picks the top-k directly from ranked scores; with a filter, the brute-force indexer ranks candidates first and then applies the filter, while the HNSW indexer evaluates the filter *during* graph traversal (ACORN-1 style): non-matching nodes stay navigable but never enter the result window, and the traversal keeps expanding — bounded by `FilteredSearchExpansionFactor × ef` node visits — until it collects `top` matches. Either way, a highly selective filter over a large collection costs more than an unfiltered search.
 
 ## See also
 

@@ -39,8 +39,9 @@ var store = new Store(new StoreOptions
 | `InMemory` | `bool` | `false` | Keeps the graph entirely in memory instead of the disk-backed storage below (no persistence across restarts). |
 | `Quantization` | `VectorQuantization` (`None` \| `SQ8`) | `None` | Scalar 8-bit quantization of the graph-side vectors. See [SQ8 quantization](#sq8-quantization). |
 | `ExactRerank` | `bool` | `true` | With `SQ8`, rescores the final candidates using the store's full-precision embeddings before ranking. |
+| `FilteredSearchExpansionFactor` | `int` | `20` | With a metadata filter, the filter is evaluated during level-0 traversal (ACORN-1 style): rejected nodes stay navigable but never enter the result window. This caps the expansion at `factor × ef` node visits, so a filter matching few or no documents degrades to a bounded partial scan instead of visiting the whole graph. Ignored without a filter. |
 | `NodeCacheSize` | `int` | `65536` | Currently unused (kept for compatibility): graph nodes are resident in memory with vectors served from the memory-mapped `.vec` file, so there is no node cache to size. |
-| `generator` | `Random` | `new Random()` | Random source used for level assignment. Set a seeded `Random` for deterministic graph construction (useful in tests/benchmarks). |
+| `generator` | `Random` | `Random.Shared` | Random source used for level assignment. The default `Random.Shared` is sampled lock-free; setting a custom instance (e.g. seeded for deterministic graph construction in tests/benchmarks) re-enables a lock around it, since `Random` itself is not thread-safe. |
 
 The server (`JigenServer:Index` configuration) applies its own defaults (`M: 16`, `EfConstruction: 200`, `EfSearch: 50`, ...) to every database it opens — see [Server configuration](../server/configuration.md).
 
