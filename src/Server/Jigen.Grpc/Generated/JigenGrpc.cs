@@ -54,6 +54,8 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.RawContentResult> __Marshaller_jigen_RawContentResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.RawContentResult.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingResponse> __Marshaller_jigen_EmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.Document> __Marshaller_jigen_Document = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.Document.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.Result> __Marshaller_jigen_Result = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.Result.Parser));
@@ -76,8 +78,6 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingRequest> __Marshaller_jigen_EmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
-    static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingResponse> __Marshaller_jigen_EmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingResponse.Parser));
-    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchRequest> __Marshaller_jigen_EmbeddingBatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
@@ -97,6 +97,14 @@ namespace Jigen.Proto {
         "GetContent",
         __Marshaller_jigen_ItemKey,
         __Marshaller_jigen_RawContentResult);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.EmbeddingResponse> __Method_GetEmbedding = new grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.EmbeddingResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetEmbedding",
+        __Marshaller_jigen_ItemKey,
+        __Marshaller_jigen_EmbeddingResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.Document, global::Jigen.Proto.Result> __Method_SetDocument = new grpc::Method<global::Jigen.Proto.Document, global::Jigen.Proto.Result>(
@@ -232,6 +240,19 @@ namespace Jigen.Proto {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
+      /// <summary>
+      /// Stored full-precision embedding of a key. Empty Embeddings when the key
+      /// does not exist or the entry was stored without a vector.
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.EmbeddingResponse> GetEmbedding(global::Jigen.Proto.ItemKey request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> SetDocument(global::Jigen.Proto.Document request, grpc::ServerCallContext context)
       {
@@ -342,6 +363,7 @@ namespace Jigen.Proto {
       return grpc::ServerServiceDefinition.CreateBuilder()
           .AddMethod(__Method_ListCollections, serviceImpl.ListCollections)
           .AddMethod(__Method_GetContent, serviceImpl.GetContent)
+          .AddMethod(__Method_GetEmbedding, serviceImpl.GetEmbedding)
           .AddMethod(__Method_SetDocument, serviceImpl.SetDocument)
           .AddMethod(__Method_SetVector, serviceImpl.SetVector)
           .AddMethod(__Method_SetVectors, serviceImpl.SetVectors)
@@ -367,6 +389,7 @@ namespace Jigen.Proto {
     {
       serviceBinder.AddMethod(__Method_ListCollections, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.ListCollectionResult>(serviceImpl.ListCollections));
       serviceBinder.AddMethod(__Method_GetContent, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ItemKey, global::Jigen.Proto.RawContentResult>(serviceImpl.GetContent));
+      serviceBinder.AddMethod(__Method_GetEmbedding, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ItemKey, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.GetEmbedding));
       serviceBinder.AddMethod(__Method_SetDocument, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.Document, global::Jigen.Proto.Result>(serviceImpl.SetDocument));
       serviceBinder.AddMethod(__Method_SetVector, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.Vector, global::Jigen.Proto.Result>(serviceImpl.SetVector));
       serviceBinder.AddMethod(__Method_SetVectors, serviceImpl == null ? null : new grpc::ClientStreamingServerMethod<global::Jigen.Proto.Vector, global::Jigen.Proto.IngestResult>(serviceImpl.SetVectors));

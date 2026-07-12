@@ -87,6 +87,15 @@ The predicate is a LINQ expression tree; it is translated client-side into the g
 
 `Search(sentence, ...)` always requires the server to have an embedding module; `Search(embeddings, top)` never does.
 
+### By example (embedding of an existing document)
+
+`GetEmbedding`/`GetEmbeddingAsync` read back the stored full-precision vector of a key (null when the key is missing or the entry has no vector) — which makes "more like this" a two-liner without an embedding module:
+
+```csharp
+var vector = await articles.GetEmbeddingAsync(42);
+var similar = await articles.SearchAsync(vector, top: 10);
+```
+
 ### Per-query tuning
 
 Every `Search`/`SearchAsync` overload accepts an optional `SearchOptions`:

@@ -362,6 +362,26 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     };
   }
 
+  /// <summary>
+  /// Reads the stored full-precision embedding of a key, or null when the key
+  /// does not exist or the entry was stored without a vector. Useful for
+  /// "more like this" searches: <c>Search(GetEmbedding(key), top)</c>.
+  /// </summary>
+  public float[] GetEmbedding(VectorKey key)
+  {
+    var result = store.ServiceClient.GetEmbedding(ToItemKey(key));
+    return result.Embeddings.Count > 0 ? result.Embeddings.ToArray() : null;
+  }
+
+  /// <summary>
+  /// Async counterpart of <see cref="GetEmbedding"/>.
+  /// </summary>
+  public async Task<float[]> GetEmbeddingAsync(VectorKey key, CancellationToken cancellationToken = default)
+  {
+    var result = await store.ServiceClient.GetEmbeddingAsync(ToItemKey(key), cancellationToken: cancellationToken).ConfigureAwait(false);
+    return result.Embeddings.Count > 0 ? result.Embeddings.ToArray() : null;
+  }
+
   public VectorEntry<T> this[VectorKey key]
   {
     get => TryGetValue(key, out var result) ? result : null;

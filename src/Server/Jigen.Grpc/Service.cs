@@ -61,6 +61,22 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
     return new RawContentResult() { Content = result is null ? ByteString.Empty : ByteString.CopyFrom(result) };
   }
 
+  public override async Task<EmbeddingResponse> GetEmbedding(ItemKey request, ServerCallContext context)
+  {
+    var result = await mediator.Send(new Core.Query.collections.GetEmbedding()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Key = request.Key.ToByteArray()
+    });
+
+    // Missing key or vector-less entry: empty Embeddings, like GetContent.
+    var response = new EmbeddingResponse();
+    if (result is { Length: > 0 })
+      response.Embeddings.AddRange(result);
+    return response;
+  }
+
   public override async Task<ListCollectionResult> ListCollections(CollectionKey request, ServerCallContext context)
   {
     var result = await mediator.Send(new Core.Query.collections.ListCollections() { Database = request.Database });

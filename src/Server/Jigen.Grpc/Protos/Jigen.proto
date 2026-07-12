@@ -6,6 +6,9 @@ option csharp_namespace = "Jigen.Proto";
 service StoreCollectionService {
   rpc ListCollections (CollectionKey) returns (ListCollectionResult);
   rpc GetContent (ItemKey) returns (RawContentResult);
+  // Stored full-precision embedding of a key. Empty Embeddings when the key
+  // does not exist or the entry was stored without a vector.
+  rpc GetEmbedding (ItemKey) returns (EmbeddingResponse);
   rpc SetDocument (Document) returns (Result);
   rpc SetVector (Vector) returns (Result);
   // Bulk ingestion: one call, many entries. Avoids the per-item round trip of

@@ -9,48 +9,13 @@ public class PropertyEqualsFilter : IFilterExpression
 
   public bool Matches(JsonElement document)
   {
-    var element = GetElementByPath(document, PropertyPath);
+    var element = JsonFilterHelpers.GetElementByPath(document, PropertyPath);
     if (!element.HasValue) return false;
 
-    return CompareValues(element.Value, Value);
+    return JsonFilterHelpers.CompareValues(element.Value, Value);
   }
 
   public string ToDebugString() => $"{PropertyPath} == {Value}";
-
-  private static bool CompareValues(JsonElement element, object value)
-  {
-    if (value == null)
-      return element.ValueKind == JsonValueKind.Null;
-
-    return value switch
-    {
-      string s => element.GetString() == s,
-      int i => element.TryGetInt32(out var ei) && ei == i,
-      long l => element.TryGetInt64(out var el) && el == l,
-      double d => element.TryGetDouble(out var ed) && ed == d,
-      bool b => element.GetBoolean() == b,
-      _ => false
-    };
-  }
-
-  private static JsonElement? GetElementByPath(JsonElement document, string path)
-  {
-    var parts = path.Split('.');
-    JsonElement current = document;
-
-    foreach (var part in parts)
-    {
-      if (current.ValueKind != JsonValueKind.Object)
-        return null;
-
-      if (!current.TryGetProperty(part, out var next))
-        return null;
-
-      current = next;
-    }
-
-    return current;
-  }
 }
 
 public class PropertyCollectionAnyFilter : IFilterExpression
@@ -60,7 +25,7 @@ public class PropertyCollectionAnyFilter : IFilterExpression
 
   public bool Matches(JsonElement document)
   {
-    var element = GetElementByPath(document, PropertyPath);
+    var element = JsonFilterHelpers.GetElementByPath(document, PropertyPath);
     if (!element.HasValue) return false;
 
     if (element.Value.ValueKind != JsonValueKind.Array)
@@ -68,7 +33,7 @@ public class PropertyCollectionAnyFilter : IFilterExpression
 
     foreach (var item in element.Value.EnumerateArray())
     {
-      if (CompareValues(item, Value))
+      if (JsonFilterHelpers.CompareValues(item, Value))
         return true;
     }
 
@@ -76,24 +41,30 @@ public class PropertyCollectionAnyFilter : IFilterExpression
   }
 
   public string ToDebugString() => $"{PropertyPath}.Any(x => x == {Value})";
+}
 
-  private static bool CompareValues(JsonElement element, object value)
+internal static class JsonFilterHelpers
+{
+  internal static bool CompareValues(JsonElement element, object value)
   {
     if (value == null)
       return element.ValueKind == JsonValueKind.Null;
 
+    // Every accessor is gated on the ValueKind: GetString/GetBoolean/TryGetInt32
+    // THROW on a mismatched kind, and an exception here would abort the whole
+    // filter tree instead of reporting a non-matching leaf.
     return value switch
     {
-      string s => element.GetString() == s,
-      int i => element.TryGetInt32(out var ei) && ei == i,
-      long l => element.TryGetInt64(out var el) && el == l,
-      double d => element.TryGetDouble(out var ed) && ed == d,
-      bool b => element.GetBoolean() == b,
+      string s => element.ValueKind == JsonValueKind.String && element.GetString() == s,
+      int i => element.ValueKind == JsonValueKind.Number && element.TryGetInt32(out var ei) && ei == i,
+      long l => element.ValueKind == JsonValueKind.Number && element.TryGetInt64(out var el) && el == l,
+      double d => element.ValueKind == JsonValueKind.Number && element.TryGetDouble(out var ed) && ed == d,
+      bool b => (element.ValueKind == JsonValueKind.True || element.ValueKind == JsonValueKind.False) && element.GetBoolean() == b,
       _ => false
     };
   }
 
-  private static JsonElement? GetElementByPath(JsonElement document, string path)
+  internal static JsonElement? GetElementByPath(JsonElement document, string path)
   {
     var parts = path.Split('.');
     JsonElement current = document;

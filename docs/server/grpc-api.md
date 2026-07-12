@@ -10,6 +10,7 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 |---|---|---|---|
 | `ListCollections` | `CollectionKey` | `ListCollectionResult` | List collection names in a database. |
 | `GetContent` | `ItemKey` | `RawContentResult` | Get the raw serialized content for a key. |
+| `GetEmbedding` | `ItemKey` | `EmbeddingResponse` | Get the stored full-precision embedding of a key (empty when the key is missing or the entry has no vector). |
 | `SetDocument` | `Document` | `Result` | Insert/update a document from a raw `Sentence`; the server computes the embedding via its embedding module. |
 | `SetVector` | `Vector` | `Result` | Insert/update a document with a precomputed embedding. |
 | `SetVectors` | `stream Vector` | `IngestResult` | Bulk insert with precomputed embeddings over a single client-streaming call: one round trip for the whole batch. |

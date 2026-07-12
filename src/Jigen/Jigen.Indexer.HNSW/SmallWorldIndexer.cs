@@ -442,19 +442,7 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
 
   private static bool MatchesFilter(ReadOnlyMemory<byte> serializedContent, IFilterExpression filter)
   {
-    if (filter == null) return true;
-
-    try
-    {
-      var json = MessagePackSerializer.ConvertToJson(serializedContent,
-        MessagePackSerializerOptions.Standard.WithResolver(ContractlessStandardResolver.Instance));
-      using var doc = JsonDocument.Parse(json);
-      return filter.Matches(doc.RootElement);
-    }
-    catch
-    {
-      return false;
-    }
+    return MessagePackFilterEvaluator.Matches(serializedContent, filter);
   }
 
   /// <summary>

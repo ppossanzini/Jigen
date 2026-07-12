@@ -40,15 +40,49 @@ var count = articles.Count;
 foreach (var kv in articles) { /* key, VectorEntry<T> */ }
 ```
 
-`Add`/indexer-set calls go through `Store.AppendContent` and complete synchronously from the caller's point of view (they block on the async ingestion call) — see the durability model in [Store options](store-options.md#durability-model) for what "written" guarantees at that point.
+`Add`/indexer-set calls go through `Store.AppendContent` and complete synchronously from the caller's point of view (they block on the async ingestion call) — see the durability model in [Store options](store-options.md#durability-model) for what "written" guarantees at that point. Every mutation also has an async counterpart (`AddAsync`, `RemoveAsync`, `ClearAsync`) that awaits the same call without blocking a thread.
+
+### Searching
+
+`VectorCollection<T>` searches its own collection directly — the same shape the gRPC client exposes:
+
+```csharp
+// nearest neighbours by query vector, with an optional predicate and
+// per-query HNSW beam width (efSearch, 0 = index default)
+List<VectorSearchResult<T>> hits = articles.Search(queryVector, top: 10);
+var news = articles.Search(queryVector, top: 10, predicate: a => a.Category == "news", efSearch: 200);
+
+// by sentence: requires SentenceEmbedder in the options
+var results = articles.Search("vector databases in .NET", top: 10);
+
+// read back the stored full-precision embedding of a key (null when absent)
+float[] embedding = articles.GetEmbedding(key);
+```
+
+The predicate is translated to the serialized-level filter AST and evaluated without deserializing the documents, like `DocumentCollection<T>.Search`.
+
+The sentence-based `Add(key, content, sentence)` / `Search(sentence, ...)` overloads use `VectorCollectionOptions<T>.SentenceEmbedder` to turn text into a vector; wire it to an embedding generator and they throw a clear `InvalidOperationException` when it is missing:
+
+```csharp
+using var generator = new OnnxEmbeddingGenerator(tokenizerPath, modelPath);
+var articles = new VectorCollection<Article>(store, new VectorCollectionOptions<Article>
+{
+  Name = "articles",
+  SentenceEmbedder = sentence => generator.GenerateEmbedding(sentence)
+});
+
+articles.Add(42, new Article { Title = "Hello" }, sentence: "Jigen is a vector database");
+var hits = articles.Search("vector databases", top: 5);
+```
 
 ### VectorCollectionOptions\<T\>
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `Dimensions` | `int` | `1536` | Expected embedding size. Informational for the collection; not enforced by the collection wrapper itself. |
-| `Name` | `string` | `typeof(T).Namespace + "." + typeof(T).Name` | Collection name in the underlying store. |
+| `Name` | `string` | `typeof(T).Namespace + "." + typeof(T).Name` | Collection name in the underlying store. Note: the `store.VectorCollection<T>()` factory without a name uses the SHORT type name instead (`typeof(T).Name`). |
 | `DocumentSerializer` | `IDocumentSerializer` | `MessagePackDocumentSerializer.Instance` | Serializes/deserializes `T` to/from the content payload. |
+| `SentenceEmbedder` | `Func<string, float[]>` | `null` | Turns a sentence into an embedding for the sentence-based `Add`/`Search` overloads. |
 
 ```csharp
 var articles = new VectorCollection<Article>(store, new VectorCollectionOptions<Article>

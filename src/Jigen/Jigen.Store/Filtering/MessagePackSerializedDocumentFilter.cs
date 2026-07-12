@@ -40,18 +40,7 @@ public class MessagePackSerializedDocumentFilter : ISerializedDocumentFilter
 
   public bool MatchesFilter(ReadOnlyMemory<byte> serializedData, IFilterExpression filter)
   {
-    if (filter == null) return true;
-
-    try
-    {
-      var json = MessagePackSerializer.ConvertToJson(serializedData, _serializerOptions);
-      using var doc = JsonDocument.Parse(json);
-      return filter.Matches(doc.RootElement);
-    }
-    catch
-    {
-      return false;
-    }
+    return MessagePackFilterEvaluator.Matches(serializedData, filter);
   }
 
   public T DeserializeIfMatches<T>(ReadOnlyMemory<byte> serializedData, IFilterExpression filter) where T : class, new()
