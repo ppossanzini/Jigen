@@ -14,9 +14,6 @@ const activeTab = ref<'users' | 'roles' | 'apps'>('users');
 
 <template>
   <div class="h-full flex-col gap-16px">
-    <NCard :bordered="false" size="small" class="card-wrapper">
-      <span class="text-16px font-600">{{ $t('page.security.title') }}</span>
-    </NCard>
 
     <NCard :bordered="false" size="small" class="card-wrapper min-h-0 flex-1" content-class="h-full min-h-0 flex-col">
       <NTabs

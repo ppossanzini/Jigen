@@ -1,5 +1,5 @@
 {
   "api": {
-    "baseUrl": "/api"
+    "baseUrl": "//localhost:13223/api"
   }
 }

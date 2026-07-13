@@ -101,54 +101,54 @@ const hasNodes = computed(() => Boolean(snapshot.value?.nodes?.length));
 
 <template>
   <div class="h-full flex-col gap-16px">
-    <NCard :bordered="false" size="small" class="card-wrapper">
-      <div class="flex-col gap-12px">
-        <span class="text-16px font-600">{{ $t('page.graph-explorer.title') }}</span>
-        <div class="grid grid-cols-1 gap-12px md:grid-cols-2 xl:grid-cols-5">
-          <NFormItem :label="$t('page.graph-explorer.controls.database')" :show-feedback="false">
-            <NSelect
-              :value="databaseStore.current || null"
-              :options="databaseOptions"
-              :loading="databaseStore.loading"
-              :placeholder="$t('page.graph-explorer.controls.databasePlaceholder')"
-              @update:value="(value: string) => databaseStore.setCurrent(value)"
+    <NCard :bordered="false" size="small" :title="$t('page.graph-explorer.title')" class="card-wrapper">
+      <template v-if="snapshot" #header-extra>
+        <GraphStatsStrip :snapshot="snapshot" />
+      </template>
+      <div class="grid grid-cols-1 gap-12px md:grid-cols-2 xl:grid-cols-6">
+        <NFormItem :label="$t('page.graph-explorer.controls.database')" :show-feedback="false">
+          <NSelect
+            :value="databaseStore.current || null"
+            :options="databaseOptions"
+            :loading="databaseStore.loading"
+            :placeholder="$t('page.graph-explorer.controls.databasePlaceholder')"
+            @update:value="(value: string) => databaseStore.setCurrent(value)"
+          />
+        </NFormItem>
+        <NFormItem :label="$t('page.graph-explorer.controls.collection')" :show-feedback="false">
+          <NSelect
+            v-model:value="selectedCollection"
+            filterable
+            :options="collectionOptions.map(name => ({ label: name, value: name }))"
+            :placeholder="$t('page.graph-explorer.controls.collectionPlaceholder')"
+          />
+        </NFormItem>
+        <NFormItem :label="$t('page.graph-explorer.controls.dimensions')" :show-feedback="false">
+          <NRadioGroup v-model:value="dimensions">
+            <NRadioButton :value="2">{{ $t('page.graph-explorer.controls.dimensions2d') }}</NRadioButton>
+            <NRadioButton :value="3">{{ $t('page.graph-explorer.controls.dimensions3d') }}</NRadioButton>
+          </NRadioGroup>
+        </NFormItem>
+        <NFormItem :label="$t('page.graph-explorer.controls.limit')" :show-feedback="false">
+          <NInputNumber v-model:value="limit" :min="1" :max="20000" class="w-full" />
+        </NFormItem>
+        <NFormItem :label="$t('page.graph-explorer.controls.level')" :show-feedback="false">
+          <div class="flex-y-center w-full gap-8px">
+            <NInputNumber
+              v-model:value="levelFilter"
+              :min="0"
+              :placeholder="$t('page.graph-explorer.controls.levelPlaceholder')"
+              class="min-w-0 flex-1"
             />
-          </NFormItem>
-          <NFormItem :label="$t('page.graph-explorer.controls.collection')" :show-feedback="false">
-            <NSelect
-              v-model:value="selectedCollection"
-              filterable
-              :options="collectionOptions.map(name => ({ label: name, value: name }))"
-              :placeholder="$t('page.graph-explorer.controls.collectionPlaceholder')"
-            />
-          </NFormItem>
-          <NFormItem :label="$t('page.graph-explorer.controls.dimensions')" :show-feedback="false">
-            <NRadioGroup v-model:value="dimensions">
-              <NRadioButton :value="2">{{ $t('page.graph-explorer.controls.dimensions2d') }}</NRadioButton>
-              <NRadioButton :value="3">{{ $t('page.graph-explorer.controls.dimensions3d') }}</NRadioButton>
-            </NRadioGroup>
-          </NFormItem>
-          <NFormItem :label="$t('page.graph-explorer.controls.limit')" :show-feedback="false">
-            <NInputNumber v-model:value="limit" :min="1" :max="20000" class="w-full" />
-          </NFormItem>
-          <NFormItem :label="$t('page.graph-explorer.controls.level')" :show-feedback="false">
-            <div class="flex-y-center w-full gap-8px">
-              <NInputNumber
-                v-model:value="levelFilter"
-                :min="0"
-                :placeholder="$t('page.graph-explorer.controls.levelPlaceholder')"
-                class="min-w-0 flex-1"
-              />
-              <NButton v-if="levelFilter !== null" quaternary size="small" @click="levelFilter = null">
-                {{ $t('page.graph-explorer.controls.levelClear') }}
-              </NButton>
-            </div>
-          </NFormItem>
-        </div>
-
-        <div class="flex justify-end">
+            <NButton v-if="levelFilter !== null" quaternary size="small" @click="levelFilter = null">
+              {{ $t('page.graph-explorer.controls.levelClear') }}
+            </NButton>
+          </div>
+        </NFormItem>
+        <NFormItem :show-feedback="false" label=" ">
           <NButton
             type="primary"
+            class="w-full"
             :loading="loading"
             :disabled="!databaseStore.current || !selectedCollection"
             @click="loadGraph"
@@ -156,12 +156,8 @@ const hasNodes = computed(() => Boolean(snapshot.value?.nodes?.length));
             <template #icon><SvgIcon icon="mdi:graph-outline" /></template>
             {{ $t('page.graph-explorer.controls.load') }}
           </NButton>
-        </div>
+        </NFormItem>
       </div>
-    </NCard>
-
-    <NCard v-if="snapshot" :bordered="false" size="small" class="card-wrapper">
-      <GraphStatsStrip :snapshot="snapshot" />
     </NCard>
 
     <NCard :bordered="false" size="small" class="card-wrapper min-h-0 flex-1" content-class="h-full min-h-0 flex-col">

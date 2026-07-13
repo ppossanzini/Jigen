@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router';
 import { fetchListCollections, fetchSearchCollections } from '@/service/api';
 import type { SearchCollectionsResult } from '@/service/api-types';
 import type { DocumentKeyType } from '@/service/api-types';
+import { useAppStore } from '@/store/modules/app';
 import { useDatabaseStore } from '@/store/modules/database';
 import { decodeKey } from '@/utils/key-codec';
 import { $t } from '@/locales';
@@ -17,8 +18,11 @@ defineOptions({
   name: 'WorkbenchPage'
 });
 
+const appStore = useAppStore();
 const databaseStore = useDatabaseStore();
 const route = useRoute();
+
+const drawerWidth = computed(() => (appStore.isMobile ? '92vw' : '38vw'));
 
 const databaseOptions = computed(() => databaseStore.databases.map(name => ({ label: name, value: name })));
 
@@ -126,6 +130,7 @@ const detailVisible = ref(false);
 const detailRow = ref<ResultRow | null>(null);
 
 // --- document panel prefill from a selected result row ---
+const docDrawerVisible = ref(false);
 const docPresetCollection = ref('');
 const docPresetKey = ref('');
 const docPresetKeyType = ref<DocumentKeyType | undefined>(undefined);
@@ -134,7 +139,7 @@ function openDetail(row: ResultRow) {
   detailRow.value = row;
   detailVisible.value = true;
 
-  // also stage the row in the document panel below, so a click can flow straight into edit/delete
+  // also stage the row in the document drawer, so a click can flow straight into edit/delete
   docPresetCollection.value = row.collection;
   docPresetKey.value = decodeKey(row.key);
   docPresetKeyType.value = undefined;
@@ -163,8 +168,7 @@ onMounted(async () => {
   <div class="h-full flex-col gap-16px">
     <NCard :bordered="false" size="small" class="card-wrapper">
       <div class="flex-col gap-12px">
-        <span class="text-16px font-600">{{ $t('page.workbench.title') }}</span>
-        <div class="grid grid-cols-1 gap-12px md:grid-cols-2 xl:grid-cols-4">
+        <div class="grid grid-cols-1 gap-12px md:grid-cols-2 xl:grid-cols-5">
           <NFormItem :label="$t('page.workbench.query.database')" :show-feedback="false">
             <NSelect
               :value="databaseStore.current || null"
@@ -185,39 +189,42 @@ onMounted(async () => {
           <NFormItem :label="$t('page.workbench.query.top')" :show-feedback="false">
             <NInputNumber v-model:value="topK" :min="1" :max="1000" class="w-full" />
           </NFormItem>
+          <NFormItem :show-feedback="false" label=" ">
+            <NRadioGroup v-model:value="mode">
+              <NRadioButton value="sentence">{{ $t('page.workbench.query.mode.sentence') }}</NRadioButton>
+              <NRadioButton value="embeddings">{{ $t('page.workbench.query.mode.embeddings') }}</NRadioButton>
+            </NRadioGroup>
+          </NFormItem>
         </div>
 
-        <NRadioGroup v-model:value="mode">
-          <NRadioButton value="sentence">{{ $t('page.workbench.query.mode.sentence') }}</NRadioButton>
-          <NRadioButton value="embeddings">{{ $t('page.workbench.query.mode.embeddings') }}</NRadioButton>
-        </NRadioGroup>
+        <div class="flex items-start gap-12px">
+          <NInput
+            v-if="mode === 'sentence'"
+            v-model:value="sentenceInput"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 3 }"
+            :placeholder="$t('page.workbench.query.sentencePlaceholder')"
+            class="flex-1"
+            @keyup.enter.exact="handleSearch"
+          />
+          <NInput
+            v-else
+            v-model:value="embeddingsInput"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 3 }"
+            :placeholder="$t('page.workbench.query.embeddingsPlaceholder')"
+            class="flex-1"
+          />
 
-        <NInput
-          v-if="mode === 'sentence'"
-          v-model:value="sentenceInput"
-          type="textarea"
-          :autosize="{ minRows: 1, maxRows: 3 }"
-          :placeholder="$t('page.workbench.query.sentencePlaceholder')"
-          @keyup.enter.exact="handleSearch"
-        />
-        <NInput
-          v-else
-          v-model:value="embeddingsInput"
-          type="textarea"
-          :autosize="{ minRows: 1, maxRows: 3 }"
-          :placeholder="$t('page.workbench.query.embeddingsPlaceholder')"
-        />
-
-        <NAlert v-if="validationError" type="warning" :show-icon="true" :bordered="false" closable @close="validationError = ''">
-          {{ validationError }}
-        </NAlert>
-
-        <div class="flex justify-end">
           <NButton type="primary" :loading="searching" :disabled="!databaseStore.current" @click="handleSearch">
             <template #icon><SvgIcon icon="mdi:magnify" /></template>
             {{ $t('page.workbench.query.search') }}
           </NButton>
         </div>
+
+        <NAlert v-if="validationError" type="warning" :show-icon="true" :bordered="false" closable @close="validationError = ''">
+          {{ validationError }}
+        </NAlert>
       </div>
     </NCard>
 
@@ -225,7 +232,19 @@ onMounted(async () => {
       <TimingStrip :result="result" />
     </NCard>
 
-    <NCard :bordered="false" size="small" class="card-wrapper min-h-0 flex-1" content-class="h-full min-h-0 flex-col">
+    <NCard
+      :bordered="false"
+      size="small"
+      :title="$t('page.workbench.results.title')"
+      class="card-wrapper min-h-0 flex-1"
+      content-class="h-full min-h-0 flex-col"
+    >
+      <template #header-extra>
+        <NButton size="small" quaternary @click="docDrawerVisible = true">
+          <template #icon><SvgIcon icon="mdi:file-document-edit-outline" /></template>
+          {{ $t('page.workbench.document.title') }}
+        </NButton>
+      </template>
       <NResult
         v-if="searchError"
         status="error"
@@ -242,8 +261,8 @@ onMounted(async () => {
       <ResultsTable v-else :rows="rows" :loading="searching" @select="openDetail" />
     </NCard>
 
-    <NCollapse>
-      <NCollapseItem :title="$t('page.workbench.document.title')" name="document">
+    <NDrawer v-model:show="docDrawerVisible" :width="drawerWidth">
+      <NDrawerContent :title="$t('page.workbench.document.title')" closable>
         <DocumentPanel
           :database="databaseStore.current"
           :collection-options="collectionOptions"
@@ -251,8 +270,8 @@ onMounted(async () => {
           :preset-key="docPresetKey"
           :preset-key-type="docPresetKeyType"
         />
-      </NCollapseItem>
-    </NCollapse>
+      </NDrawerContent>
+    </NDrawer>
 
     <ResultDetailDrawer v-model:visible="detailVisible" :row="detailRow" />
   </div>

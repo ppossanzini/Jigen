@@ -73,9 +73,9 @@ watch([perCollection, chartColors], () => {
 
 <template>
   <div class="flex flex-col gap-16px lg:flex-row">
-    <div class="grid grid-cols-2 min-w-240px gap-12px sm:grid-cols-4 lg:max-w-240px lg:shrink-0 lg:grid-cols-2">
-      <div v-for="stat in stats" :key="stat.label" class="flex-col gap-2px">
-        <span class="text-12px text-gray-500">{{ stat.label }}</span>
+    <div class="flex shrink-0 flex-nowrap items-center gap-16px overflow-x-auto">
+      <div v-for="stat in stats" :key="stat.label" class="flex shrink-0 items-baseline gap-6px">
+        <span class="text-12px text-gray-500">{{ stat.label }}:</span>
         <span class="text-16px font-600">{{ stat.value }}</span>
       </div>
     </div>

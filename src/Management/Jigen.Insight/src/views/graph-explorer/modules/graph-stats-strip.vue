@@ -30,14 +30,14 @@ const truncated = computed(() => Boolean(props.snapshot.truncated));
 </script>
 
 <template>
-  <div class="grid grid-cols-2 gap-12px sm:grid-cols-3 lg:grid-cols-7">
-    <div v-for="stat in stats" :key="stat.label" class="flex-col gap-2px">
-      <span class="text-12px text-gray-500">{{ stat.label }}</span>
+  <div class="flex flex-nowrap items-center gap-16px overflow-x-auto">
+    <div v-for="stat in stats" :key="stat.label" class="flex shrink-0 items-baseline gap-6px">
+      <span class="text-12px text-gray-500">{{ stat.label }}:</span>
       <span class="text-16px font-600">{{ stat.value }}</span>
     </div>
-    <div class="flex-col gap-2px">
-      <span class="text-12px text-gray-500">{{ $t('page.graph-explorer.stats.truncated') }}</span>
-      <NTag :type="truncated ? 'warning' : 'success'" size="small" round class="w-fit">
+    <div class="flex shrink-0 items-baseline gap-6px">
+      <span class="text-12px text-gray-500">{{ $t('page.graph-explorer.stats.truncated') }}:</span>
+      <NTag :type="truncated ? 'warning' : 'success'" size="small" round>
         {{ truncated ? $t('common.yesOrNo.yes') : $t('common.yesOrNo.no') }}
       </NTag>
     </div>
