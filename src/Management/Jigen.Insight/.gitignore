@@ -14,9 +14,14 @@ dist-ssr
 coverage
 *.local
 
+/cypress/videos/
+/cypress/screenshots/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
 .idea
 *.suo
 *.ntvs*
@@ -24,16 +29,8 @@ coverage
 *.sln
 *.sw?
 
-*.tsbuildinfo
+package-lock.json
+yarn.lock
 
-.eslintcache
-
-# Cypress
-/cypress/videos/
-/cypress/screenshots/
-
-# Vitest
-__screenshots__/
-
-# Vite
-*.timestamp-*-*.mjs
+.VSCodeCounter
+src-tauri/target

@@ -1,30 +1,40 @@
-import { createApp } from 'vue'
-import { createPinia } from 'pinia'
-import ElementPlus from 'element-plus'
-import 'element-plus/dist/index.css'
-// if you just want to import css
-import 'element-plus/theme-chalk/dark/css-vars.css'
-import '@tabler/icons-webfont/dist/tabler-icons.min.css'
-import '@fontsource/jetbrains-mono/index.css'
+import { createApp } from 'vue';
+import './plugins/assets';
+import { setupVueRootValidator } from 'vite-plugin-vue-transition-root-validator/client';
+import { setupAppVersionNotification, setupDayjs, setupIconifyOffline, setupLoading, setupNProgress } from './plugins';
+import { setupStore } from './store';
+import { setupRouter } from './router';
+import { setupI18n } from './locales';
+import { loadAppSettings } from './utils/app-settings';
+import App from './App.vue';
 
-import App from './App.vue'
-import router from './router'
-import i18n from './i18n'
-import { loadSettings } from './settings'
-import './assets/styles/global/base.less'
+async function setupApp() {
+  setupLoading();
 
-const bootstrap = async (): Promise<void> => {
-	await loadSettings()
-	document.documentElement.classList.add('dark')
+  // runtime deployment config (API base url) must be resolved before any request is made
+  await loadAppSettings();
 
-	const app = createApp(App)
+  setupNProgress();
 
-	app.use(createPinia())
-	app.use(router)
-	app.use(i18n)
-	app.use(ElementPlus)
+  setupIconifyOffline();
 
-	app.mount('#app')
+  setupDayjs();
+
+  const app = createApp(App);
+
+  setupStore(app);
+
+  await setupRouter(app);
+
+  setupI18n(app);
+
+  setupAppVersionNotification();
+
+  setupVueRootValidator(app, {
+    lang: 'en'
+  });
+
+  app.mount('#app');
 }
 
-void bootstrap()
+setupApp();
