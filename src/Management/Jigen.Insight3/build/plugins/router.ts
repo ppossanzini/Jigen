@@ -19,12 +19,20 @@ export function setupElegantRouter() {
         return `/login/:module(${moduleReg})?`;
       }
 
+      // must match the redirect URI registered for the OpenIddict client exactly
+      // (`JigenIdentity:DefaultClient:RedirectUris` in the server's appsettings.json)
+      if (key === 'auth-callback') {
+        return '/auth/callback';
+      }
+
       return routePath;
     },
     onRouteMetaGen(routeName) {
       const key = routeName as RouteKey;
 
-      const constantRoutes: RouteKey[] = ['login', '403', '404', '500'];
+      const constantRoutes: RouteKey[] = ['login', 'auth-callback', '403', '404', '500'];
+      // transient/exception pages that must never show up as a sidebar entry or menu item
+      const hiddenRoutes: RouteKey[] = ['login', 'auth-callback', 'iframe-page'];
 
       const meta: Partial<RouteMeta> = {
         title: key,
@@ -33,6 +41,10 @@ export function setupElegantRouter() {
 
       if (constantRoutes.includes(key)) {
         meta.constant = true;
+      }
+
+      if (hiddenRoutes.includes(key)) {
+        meta.hideInMenu = true;
       }
 
       return meta;

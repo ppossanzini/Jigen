@@ -42,7 +42,7 @@ public class DatabaseController(IHikyaku mediator) : ControllerBase
     return Ok(result);
   }
 
-  // [Authorize(Policy = "database.admin")]
+  [Authorize(Policy = "database.admin")]
   [HttpGet("{name}/details")]
   [ProducesResponseType(typeof(DatabaseDetails), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetDetails(string name, CancellationToken cancellationToken)
@@ -55,7 +55,7 @@ public class DatabaseController(IHikyaku mediator) : ControllerBase
     return Ok(result);
   }
 
-  // [Authorize(Policy = "database.admin")]
+  [Authorize(Policy = "database.admin")]
   [HttpGet("{name}/users")]
   [ProducesResponseType(typeof(IEnumerable<DatabaseUserInfo>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListUsers(string name, CancellationToken cancellationToken)
@@ -68,7 +68,7 @@ public class DatabaseController(IHikyaku mediator) : ControllerBase
     return Ok(result);
   }
 
-  // [Authorize(Policy = "database.admin")]
+  [Authorize(Policy = "database.admin")]
   [HttpPut("{name}/users")]
   [ProducesResponseType(typeof(IEnumerable<DatabaseUserInfo>), StatusCodes.Status200OK)]
   public async Task<IActionResult> SetUsers(string name, [FromBody] SetDatabaseUsersData request, CancellationToken cancellationToken)

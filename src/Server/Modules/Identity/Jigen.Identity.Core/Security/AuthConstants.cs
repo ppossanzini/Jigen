@@ -26,4 +26,10 @@ public static class AuthConstants
     public const string DatabaseAdmin = "DatabaseAdmin";
     public const string SecurityAdmin = "SecurityAdmin";
   }
+
+  public static class Schemes
+  {
+    /// <summary>Policy scheme forwarding to the Identity cookie or the OpenIddict bearer validation handler.</summary>
+    public const string CookieOrBearer = "Identity.CookieOrBearer";
+  }
 }

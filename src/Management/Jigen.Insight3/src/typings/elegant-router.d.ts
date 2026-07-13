@@ -20,6 +20,7 @@ declare module "@elegant-router/types" {
     "403": "/403";
     "404": "/404";
     "500": "/500";
+    "auth-callback": "/auth/callback";
     "collections": "/collections";
     "databases": "/databases";
     "graph-explorer": "/graph-explorer";
@@ -63,6 +64,7 @@ declare module "@elegant-router/types" {
     | "403"
     | "404"
     | "500"
+    | "auth-callback"
     | "collections"
     | "databases"
     | "graph-explorer"
@@ -91,6 +93,7 @@ declare module "@elegant-router/types" {
     | "403"
     | "404"
     | "500"
+    | "auth-callback"
     | "iframe-page"
     | "login"
     | "collections"

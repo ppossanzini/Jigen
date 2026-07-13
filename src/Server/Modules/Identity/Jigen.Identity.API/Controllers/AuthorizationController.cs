@@ -9,6 +9,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using OpenIddict.Abstractions;
 using OpenIddict.Server.AspNetCore;
+using OpenIddict.Validation.AspNetCore;
 
 namespace Jigen.Identity.API.Controllers;
 
@@ -39,6 +40,14 @@ public class AuthorizationController (
     var principal = await signInManager.CreateUserPrincipalAsync(user);
     principal.SetClaim(OpenIddictConstants.Claims.Subject, await userManager.GetUserIdAsync(user));
     principal.SetClaim(OpenIddictConstants.Claims.PreferredUsername, await userManager.GetUserNameAsync(user));
+
+    // CreateUserPrincipalAsync() adds roles as ClaimTypes.Role (the long XML URI), which
+    // [Authorize(Roles=...)] matches fine for cookie auth. But OpenIddict's access token
+    // validation sets RoleClaimType to the short "role" claim, so without this the same
+    // roles silently fail to round-trip through a bearer token and every role check 403s.
+    var roles = await userManager.GetRolesAsync(user);
+    principal.SetClaims(OpenIddictConstants.Claims.Role, [..roles]);
+
     principal.SetScopes(request.GetScopes());
     principal.SetResources("jigen_api");
 
@@ -90,7 +99,7 @@ public class AuthorizationController (
     return SignIn(principal, OpenIddictServerAspNetCoreDefaults.AuthenticationScheme);
   }
 
-  [Authorize(AuthenticationSchemes = OpenIddictServerAspNetCoreDefaults.AuthenticationScheme)]
+  [Authorize(AuthenticationSchemes = OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme)]
   [HttpGet("~/api/connect/userinfo")]
   [HttpPost("~/api/connect/userinfo")]
   [ProducesResponseType(typeof(Dictionary<string, object>), StatusCodes.Status200OK)]

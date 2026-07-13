@@ -7,8 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using OpenIddict.Server;
+using OpenIddict.Validation.AspNetCore;
+using OpenIddict.Validation.ServerIntegration;
 using SharedTools;
 
 namespace Jigen.Identity;
@@ -19,11 +22,36 @@ public class Module : IModule
   public void ConfigureServices(IServiceCollection services, IConfiguration configuration, IHostEnvironment hostingEnvironment)
   {
     
+    // Business/API requests authenticate with an OpenIddict bearer token; the
+    // ASP.NET Identity cookie is only used by the browser to complete the
+    // initial /connect/authorize step. Route each request to the right
+    // handler based on whether it carries an Authorization: Bearer header.
     services.AddAuthentication(options =>
     {
-      options.DefaultScheme = IdentityConstants.ApplicationScheme;
-      options.DefaultAuthenticateScheme = IdentityConstants.ApplicationScheme;
-      options.DefaultChallengeScheme = IdentityConstants.ApplicationScheme;
+      options.DefaultScheme = AuthConstants.Schemes.CookieOrBearer;
+      options.DefaultAuthenticateScheme = AuthConstants.Schemes.CookieOrBearer;
+      options.DefaultChallengeScheme = AuthConstants.Schemes.CookieOrBearer;
+    })
+    .AddPolicyScheme(AuthConstants.Schemes.CookieOrBearer, "Identity cookie or OpenIddict bearer token", policyOptions =>
+    {
+      policyOptions.ForwardDefaultSelector = context =>
+      {
+        var header = context.Request.Headers.Authorization.ToString();
+        return header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+          ? OpenIddictValidationAspNetCoreDefaults.AuthenticationScheme
+          : IdentityConstants.ApplicationScheme;
+      };
+    });
+
+    // AddIdentity() (Jigen.Identity.Handlers module) also calls AddAuthentication(),
+    // which would otherwise silently reset the default scheme back to the Identity
+    // cookie depending on module load order. PostConfigure always runs after every
+    // Configure<AuthenticationOptions> delegate, so this wins regardless of order.
+    services.PostConfigure<AuthenticationOptions>(options =>
+    {
+      options.DefaultScheme = AuthConstants.Schemes.CookieOrBearer;
+      options.DefaultAuthenticateScheme = AuthConstants.Schemes.CookieOrBearer;
+      options.DefaultChallengeScheme = AuthConstants.Schemes.CookieOrBearer;
     });
 
     services.AddAuthorization(options =>
@@ -71,10 +99,17 @@ public class Module : IModule
 
         string[] modes = ["Random", "FromFile"];
         if (!modes.Contains( configuration["JigenServer:Https:Mode"]))
-          opt.DisableTransportSecurityRequirement(); 
+          opt.DisableTransportSecurityRequirement();
+      })
+      .AddValidation(options =>
+      {
+        // Server and Validation run in the same process, so tokens are
+        // checked via direct in-process calls instead of network introspection.
+        options.UseLocalServer();
+        options.UseAspNetCore();
       });
 
-    
+
 
     services.AddControllers()
       .AddApplicationPart(typeof(Module).Assembly);

@@ -1,6 +1,7 @@
 using Jigen.DataStructures;
 using Hikyaku;
 using Jigen.Core.Dto.collections;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
@@ -8,6 +9,7 @@ namespace Jigen.API;
 
 [ApiController]
 [Route("~/api/database/{dbname}/collections")]
+[Authorize]
 public class CollectionsController(IHikyaku mediator, IDocumentSerializer serializer) : ControllerBase
 {
   [HttpGet]

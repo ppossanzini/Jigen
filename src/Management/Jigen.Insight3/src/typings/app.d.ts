@@ -490,6 +490,12 @@ declare namespace App {
           pwdLogin: {
             title: string;
           };
+          callback: {
+            title: string;
+            signingIn: string;
+            error: string;
+            backToLogin: string;
+          };
         };
         overview: {
           title: string;
@@ -526,18 +532,187 @@ declare namespace App {
         databases: {
           title: string;
           desc: string;
+          table: {
+            name: string;
+            created: string;
+            collections: string;
+            vectors: string;
+            contentSize: string;
+            vectorSize: string;
+            indexSize: string;
+            freeSpace: string;
+            users: string;
+          };
+          actions: {
+            create: string;
+            delete: string;
+          };
+          create: {
+            title: string;
+            nameLabel: string;
+            namePlaceholder: string;
+            nameInvalid: string;
+            submit: string;
+            success: string;
+          };
+          delete: {
+            title: string;
+            warning: string;
+            deleteFilesLabel: string;
+            deleteFilesHint: string;
+            success: string;
+          };
+          detail: {
+            title: string;
+            storageBreakdown: string;
+            collectionsSummary: string;
+            usersTitle: string;
+            usersPlaceholder: string;
+            usersSave: string;
+            usersSaveSuccess: string;
+            noCollections: string;
+          };
+          empty: {
+            noDatabases: string;
+          };
         };
         collections: {
           title: string;
           desc: string;
+          databaseSelector: {
+            label: string;
+            placeholder: string;
+          };
+          table: {
+            name: string;
+            vectors: string;
+            dimensions: string;
+            contentSize: string;
+            vectorSize: string;
+            indexSize: string;
+            maxLevel: string;
+            averageDegree: string;
+            deletedCount: string;
+            quantization: string;
+          };
+          detail: {
+            title: string;
+            indexTitle: string;
+            noIndex: string;
+            openInWorkbench: string;
+            openInGraphExplorer: string;
+          };
+          empty: {
+            noDatabaseSelected: string;
+            noCollections: string;
+            noDatabases: string;
+          };
         };
         workbench: {
           title: string;
           desc: string;
+          query: {
+            database: string;
+            databasePlaceholder: string;
+            collections: string;
+            collectionsPlaceholder: string;
+            mode: {
+              sentence: string;
+              embeddings: string;
+            };
+            sentencePlaceholder: string;
+            embeddingsPlaceholder: string;
+            embeddingsInvalid: string;
+            top: string;
+            search: string;
+            collectionsRequired: string;
+            inputRequired: string;
+          };
+          timing: {
+            title: string;
+            embedding: string;
+            search: string;
+            merge: string;
+            sort: string;
+            perCollection: string;
+          };
+          results: {
+            title: string;
+            score: string;
+            key: string;
+            collection: string;
+            content: string;
+            empty: string;
+            selectPrompt: string;
+          };
+          detail: {
+            title: string;
+            keyType: string;
+          };
+          document: {
+            title: string;
+            collection: string;
+            collectionPlaceholder: string;
+            keyLabel: string;
+            keyPlaceholder: string;
+            keyTypeLabel: string;
+            keyTypeAuto: string;
+            get: string;
+            upsert: string;
+            delete: string;
+            sentenceLabel: string;
+            sentencePlaceholder: string;
+            jsonLabel: string;
+            jsonPlaceholder: string;
+            jsonInvalid: string;
+            getSuccess: string;
+            upsertSuccess: string;
+            deleteSuccess: string;
+            notFound: string;
+          };
         };
         'graph-explorer': {
           title: string;
           desc: string;
+          controls: {
+            database: string;
+            databasePlaceholder: string;
+            collection: string;
+            collectionPlaceholder: string;
+            dimensions: string;
+            dimensions2d: string;
+            dimensions3d: string;
+            limit: string;
+            level: string;
+            levelPlaceholder: string;
+            levelClear: string;
+            load: string;
+          };
+          stats: {
+            total: string;
+            live: string;
+            deleted: string;
+            returned: string;
+            maxLevel: string;
+            entrypoint: string;
+            truncated: string;
+          };
+          chart: {
+            entrypointLabel: string;
+            tooltipKey: string;
+            tooltipPosition: string;
+            tooltipLevel: string;
+            tooltipDegree: string;
+            tooltipDeleted: string;
+            tooltipEdgeLevel: string;
+            legendLevel: string;
+            legendDeleted: string;
+          };
+          empty: {
+            noDatabaseSelected: string;
+            noCollectionSelected: string;
+            noNodes: string;
+          };
         };
         security: {
           title: string;

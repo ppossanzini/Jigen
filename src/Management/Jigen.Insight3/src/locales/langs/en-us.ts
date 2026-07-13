@@ -214,6 +214,7 @@ const local: App.I18n.Schema = {
     404: 'Page Not Found',
     500: 'Server Error',
     'iframe-page': 'Iframe',
+    'auth-callback': 'Signing in',
     overview: 'Overview',
     databases: 'Databases',
     collections: 'Collections',
@@ -234,6 +235,12 @@ const local: App.I18n.Schema = {
       },
       pwdLogin: {
         title: 'Sign in'
+      },
+      callback: {
+        title: 'Signing in',
+        signingIn: 'Completing sign-in, please wait...',
+        error: 'Sign-in could not be completed. Please try again.',
+        backToLogin: 'Back to login'
       }
     },
     overview: {
@@ -270,19 +277,188 @@ const local: App.I18n.Schema = {
     },
     databases: {
       title: 'Databases',
-      desc: 'Browse databases, storage breakdown and assigned users.'
+      desc: 'Browse databases, storage breakdown and assigned users.',
+      table: {
+        name: 'Name',
+        created: 'Created',
+        collections: 'Collections',
+        vectors: 'Vectors',
+        contentSize: 'Content size',
+        vectorSize: 'Vector size',
+        indexSize: 'Index size',
+        freeSpace: 'Free space',
+        users: 'Users'
+      },
+      actions: {
+        create: 'Create database',
+        delete: 'Delete'
+      },
+      create: {
+        title: 'Create database',
+        nameLabel: 'Database name',
+        namePlaceholder: 'e.g. production, staging-eu',
+        nameInvalid: 'Only letters, digits, dot, dash and underscore are allowed (1-64 characters)',
+        submit: 'Create',
+        success: 'Database created'
+      },
+      delete: {
+        title: 'Delete database',
+        warning: 'This permanently removes "{name}" and cannot be undone.',
+        deleteFilesLabel: 'Also delete database files on disk',
+        deleteFilesHint: 'If unchecked, the database is detached but its files remain on disk.',
+        success: 'Database deleted'
+      },
+      detail: {
+        title: 'Database details',
+        storageBreakdown: 'Storage breakdown per collection',
+        collectionsSummary: 'Collections',
+        usersTitle: 'Assigned users',
+        usersPlaceholder: 'Select users with access to this database',
+        usersSave: 'Save users',
+        usersSaveSuccess: 'Users updated',
+        noCollections: 'This database has no collections yet'
+      },
+      empty: {
+        noDatabases: 'No databases yet'
+      }
     },
     collections: {
       title: 'Collections',
-      desc: 'Browse collections and their HNSW index metrics.'
+      desc: 'Browse collections and their HNSW index metrics.',
+      databaseSelector: {
+        label: 'Database',
+        placeholder: 'Select a database'
+      },
+      table: {
+        name: 'Name',
+        vectors: 'Vectors',
+        dimensions: 'Dimensions',
+        contentSize: 'Content size',
+        vectorSize: 'Vector size',
+        indexSize: 'Index size',
+        maxLevel: 'Max level',
+        averageDegree: 'Avg. degree',
+        deletedCount: 'Deleted',
+        quantization: 'Quantization'
+      },
+      detail: {
+        title: 'Collection details',
+        indexTitle: 'Index metrics',
+        noIndex: 'This collection has no vector index metrics yet',
+        openInWorkbench: 'Open in Workbench',
+        openInGraphExplorer: 'Open in Graph Explorer'
+      },
+      empty: {
+        noDatabaseSelected: 'Select a database to see its collections',
+        noCollections: 'This database has no collections yet',
+        noDatabases: 'No databases yet — create one on the Databases page'
+      }
     },
     workbench: {
       title: 'Workbench',
-      desc: 'Search collections and inspect or edit documents.'
+      desc: 'Search collections and inspect or edit documents.',
+      query: {
+        database: 'Database',
+        databasePlaceholder: 'Select a database',
+        collections: 'Collections',
+        collectionsPlaceholder: 'Select one or more collections',
+        mode: {
+          sentence: 'Sentence',
+          embeddings: 'Embeddings'
+        },
+        sentencePlaceholder: 'Enter a sentence to embed and search',
+        embeddingsPlaceholder: 'Comma-separated numbers, e.g. 0.12, -0.5, 0.87',
+        embeddingsInvalid: 'Enter a comma-separated list of numbers',
+        top: 'Top K',
+        search: 'Search',
+        collectionsRequired: 'Select at least one collection',
+        inputRequired: 'Enter a sentence or an embeddings vector'
+      },
+      timing: {
+        title: 'Timing',
+        embedding: 'Embedding',
+        search: 'Search',
+        merge: 'Merge',
+        sort: 'Sort',
+        perCollection: 'Per-collection search time'
+      },
+      results: {
+        title: 'Results',
+        score: 'Score',
+        key: 'Key',
+        collection: 'Collection',
+        content: 'Content',
+        empty: 'No results yet — run a search above',
+        selectPrompt: 'Select a database and at least one collection, then search'
+      },
+      detail: {
+        title: 'Result',
+        keyType: 'Key type'
+      },
+      document: {
+        title: 'Document operations',
+        collection: 'Collection',
+        collectionPlaceholder: 'Select a collection',
+        keyLabel: 'Key',
+        keyPlaceholder: 'Document key',
+        keyTypeLabel: 'Key type',
+        keyTypeAuto: 'Auto',
+        get: 'Get',
+        upsert: 'Upsert',
+        delete: 'Delete',
+        sentenceLabel: 'Sentence (optional, computes the embedding server-side)',
+        sentencePlaceholder: 'Sentence to embed for this document',
+        jsonLabel: 'Content (JSON)',
+        jsonPlaceholder: 'JSON object, e.g. "field": "value"',
+        jsonInvalid: 'Invalid JSON',
+        getSuccess: 'Document loaded',
+        upsertSuccess: 'Document saved',
+        deleteSuccess: 'Document deleted',
+        notFound: 'No document found for this key'
+      }
     },
     'graph-explorer': {
       title: 'Graph Explorer',
-      desc: 'Visualize the HNSW index graph in 2D or 3D.'
+      desc: 'Visualize the HNSW index graph in 2D or 3D.',
+      controls: {
+        database: 'Database',
+        databasePlaceholder: 'Select a database',
+        collection: 'Collection',
+        collectionPlaceholder: 'Select a collection',
+        dimensions: 'View',
+        dimensions2d: '2D',
+        dimensions3d: '3D',
+        limit: 'Node limit',
+        level: 'Level filter',
+        levelPlaceholder: 'All levels',
+        levelClear: 'Clear',
+        load: 'Load graph'
+      },
+      stats: {
+        total: 'Total nodes',
+        live: 'Live nodes',
+        deleted: 'Deleted nodes',
+        returned: 'Returned nodes',
+        maxLevel: 'Max level',
+        entrypoint: 'Entrypoint',
+        truncated: 'Truncated'
+      },
+      chart: {
+        entrypointLabel: 'Entrypoint',
+        tooltipKey: 'Key',
+        tooltipPosition: 'Position ID',
+        tooltipLevel: 'Max level',
+        tooltipDegree: 'Degree',
+        tooltipDeleted: 'Deleted',
+        tooltipEdgeLevel: 'Edge level',
+        legendLevel: 'Level {level}',
+        legendDeleted: 'Deleted'
+      },
+      empty: {
+        noDatabaseSelected: 'Select a database to explore its collections',
+        noCollectionSelected: 'Select a collection to load its index graph',
+        noNodes: 'This collection has no indexed vectors yet — the graph is empty'
+      }
     },
     security: {
       title: 'Security',

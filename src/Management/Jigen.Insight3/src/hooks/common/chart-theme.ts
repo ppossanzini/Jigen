@@ -51,9 +51,29 @@ export function useChartTheme() {
         getPaletteColorByNumber(error, 300)
       ],
       /** Primary brand color (for single-series accents, area gradients) */
-      primary
+      primary,
+      /** Muted error tone for "removed/inactive" states (e.g. deleted graph nodes) */
+      deleted: addColorAlpha(error, 0.55)
     };
   });
+
+  /**
+   * Sequential shades of the primary color, light → dark, for ordinal data (e.g. HNSW levels)
+   * where a single hue graduated by intensity reads better than the categorical palette.
+   *
+   * @param steps Number of shades to produce (at least 1)
+   */
+  function getSequentialShades(steps: number) {
+    const weights: App.Theme.ColorPaletteNumber[] = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+    const count = Math.max(1, steps);
+    const { primary } = themeStore.themeColors;
+
+    return Array.from({ length: count }, (_, index) => {
+      const weightIndex = count === 1 ? weights.length - 1 : Math.round((index / (count - 1)) * (weights.length - 1));
+
+      return getPaletteColorByNumber(primary, weights[weightIndex]);
+    });
+  }
 
   /** Base option fragments to spread into every chart's options factory */
   function getBaseChartOptions() {
@@ -109,6 +129,7 @@ export function useChartTheme() {
     chartColors,
     getBaseChartOptions,
     getTimeAxis,
-    getValueAxis
+    getValueAxis,
+    getSequentialShades
   };
 }

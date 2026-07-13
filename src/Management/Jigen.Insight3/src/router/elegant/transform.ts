@@ -166,6 +166,7 @@ const routeMap: RouteMap = {
   "403": "/403",
   "404": "/404",
   "500": "/500",
+  "auth-callback": "/auth/callback",
   "collections": "/collections",
   "databases": "/databases",
   "graph-explorer": "/graph-explorer",
