@@ -1,0 +1,91 @@
+{
+  "name": "default",
+  "desc": "The default Jigen Insight theme - lime primary, dark by default",
+  "i18nkey": "theme.appearance.preset.default",
+  "version": "1.0.0",
+  "themeScheme": "dark",
+  "grayscale": false,
+  "colourWeakness": false,
+  "recommendColor": false,
+  "themeColor": "#B5E61D",
+  "otherColor": {
+    "info": "#7C5CFF",
+    "success": "#00C9A7",
+    "warning": "#FF5C39",
+    "error": "#F5222D"
+  },
+  "themeRadius": 6,
+  "isInfoFollowPrimary": false,
+  "layout": {
+    "mode": "vertical",
+    "scrollMode": "content"
+  },
+  "page": {
+    "animate": true,
+    "animateMode": "fade-slide"
+  },
+  "header": {
+    "height": 56,
+    "breadcrumb": {
+      "visible": true,
+      "showIcon": true
+    },
+    "multilingual": {
+      "visible": true
+    },
+    "globalSearch": {
+      "visible": true
+    }
+  },
+  "tab": {
+    "visible": true,
+    "cache": true,
+    "height": 44,
+    "mode": "chrome",
+    "closeTabByMiddleClick": false
+  },
+  "fixedHeaderAndTab": true,
+  "sider": {
+    "inverted": false,
+    "width": 220,
+    "collapsedWidth": 64,
+    "mixWidth": 90,
+    "mixCollapsedWidth": 64,
+    "mixChildMenuWidth": 200
+  },
+  "footer": {
+    "visible": true,
+    "fixed": false,
+    "height": 48,
+    "right": true
+  },
+  "watermark": {
+    "visible": false,
+    "text": "Jigen Insight",
+    "enableUserName": false,
+    "enableTime": false,
+    "timeFormat": "YYYY-MM-DD HH:mm"
+  },
+  "tokens": {
+    "light": {
+      "colors": {
+        "container": "rgb(248, 250, 241)",
+        "layout": "rgb(239, 243, 226)",
+        "inverted": "rgb(21, 23, 14)",
+        "base-text": "rgb(21, 23, 14)"
+      },
+      "boxShadow": {
+        "header": "0 1px 2px rgb(21, 23, 14, 0.08)",
+        "sider": "2px 0 8px 0 rgb(21, 23, 14, 0.05)",
+        "tab": "0 1px 2px rgb(21, 23, 14, 0.08)"
+      }
+    },
+    "dark": {
+      "colors": {
+        "container": "rgb(27, 29, 20)",
+        "layout": "rgb(21, 23, 14)",
+        "base-text": "rgb(239, 243, 226)"
+      }
+    }
+  }
+}
