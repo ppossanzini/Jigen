@@ -44,14 +44,15 @@ export function createThemeToken(
   tokens?: App.Theme.ThemeSetting['tokens'],
   recommended = false
 ) {
-  const paletteColors = createThemePaletteColors(colors, recommended);
-
   const { light, dark } = tokens || themeSettings.tokens;
+
+  const lightPaletteColors = createThemePaletteColors({ ...colors, ...light.themeColors }, recommended);
+  const darkPaletteColors = createThemePaletteColors({ ...colors, ...dark?.themeColors }, recommended);
 
   const themeTokens: App.Theme.ThemeTokenCSSVars = {
     colors: {
-      ...paletteColors,
-      nprogress: paletteColors.primary,
+      ...lightPaletteColors,
+      nprogress: lightPaletteColors.primary,
       ...light.colors
     },
     boxShadow: {
@@ -61,11 +62,13 @@ export function createThemeToken(
 
   const darkThemeTokens: App.Theme.ThemeTokenCSSVars = {
     colors: {
-      ...themeTokens.colors,
+      ...darkPaletteColors,
+      nprogress: darkPaletteColors.primary,
+      ...light.colors,
       ...dark?.colors
     },
     boxShadow: {
-      ...themeTokens.boxShadow,
+      ...light.boxShadow,
       ...dark?.boxShadow
     }
   };

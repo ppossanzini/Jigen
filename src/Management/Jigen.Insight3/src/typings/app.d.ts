@@ -172,6 +172,11 @@ declare namespace App {
     interface ThemeSettingToken {
       colors: ThemeSettingTokenColor;
       boxShadow: ThemeSettingTokenBoxShadow;
+      /**
+       * Per-scheme override of the base theme colors (primary/info/success/warning/error), applied
+       * before palette expansion. Lets e.g. `primary` differ between light and dark scheme.
+       */
+      themeColors?: Partial<ThemeColor>;
     }
 
     type ThemeTokenColor = ThemePaletteColor & ThemeSettingTokenColor;

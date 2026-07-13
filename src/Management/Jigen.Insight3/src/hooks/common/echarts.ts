@@ -101,7 +101,7 @@ export function useEcharts<T extends ECOption>(optionsFactory: () => T, hooks: C
       const tokenColors = darkMode.value ? { ...light.colors, ...dark?.colors } : light.colors;
 
       instance.showLoading({
-        color: themeStore.themeColor,
+        color: themeStore.schemeThemeColors.primary,
         textColor: tokenColors['base-text'],
         fontSize: 14,
         maskColor: addColorAlpha(tokenColors.layout ?? tokenColors.container, 0.6)

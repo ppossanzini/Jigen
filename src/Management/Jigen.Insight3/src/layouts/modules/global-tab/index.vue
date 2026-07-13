@@ -214,7 +214,7 @@ init();
             :mode="themeStore.tab.mode"
             :dark-mode="themeStore.darkMode"
             :active="tab.id === tabStore.activeTabId"
-            :active-color="themeStore.themeColor"
+            :active-color="themeStore.schemeThemeColors.primary"
             :closable="!tabStore.isTabRetain(tab.id)"
             @pointerdown="switchTab($event, tab)"
             @mousedown="handleMousedown($event, tab)"

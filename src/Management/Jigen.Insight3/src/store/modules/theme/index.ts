@@ -55,8 +55,15 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
     return colors;
   });
 
+  /** Theme colors adjusted with the per-scheme overrides from `tokens.light/dark.themeColors` */
+  const schemeThemeColors = computed(() => {
+    const { tokens } = settings.value;
+    const overridesForScheme = darkMode.value ? tokens.dark?.themeColors : tokens.light.themeColors;
+    return { ...themeColors.value, ...overridesForScheme };
+  });
+
   /** Naive theme */
-  const naiveTheme = computed(() => getNaiveTheme(themeColors.value, settings.value, naiveThemeOverrides.value));
+  const naiveTheme = computed(() => getNaiveTheme(schemeThemeColors.value, settings.value, naiveThemeOverrides.value));
 
   /**
    * Settings json
@@ -285,6 +292,7 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
     ...toRefs(settings.value),
     darkMode,
     themeColors,
+    schemeThemeColors,
     naiveTheme,
     settingsJson,
     watermarkContent,

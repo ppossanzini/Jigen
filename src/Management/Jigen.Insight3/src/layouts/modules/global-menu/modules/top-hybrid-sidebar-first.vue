@@ -53,7 +53,7 @@ function handleSelectMenu(key: RouteKey) {
         :active-menu-key="activeFirstLevelMenuKey"
         :sider-collapse="appStore.siderCollapse"
         :dark-mode="themeStore.darkMode"
-        :theme-color="themeStore.themeColor"
+        :theme-color="themeStore.schemeThemeColors.primary"
         @select="handleSelectMenu"
         @toggle-sider-collapse="appStore.toggleSiderCollapse"
       />

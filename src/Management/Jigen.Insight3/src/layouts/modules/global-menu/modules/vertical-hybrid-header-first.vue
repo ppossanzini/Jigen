@@ -127,7 +127,7 @@ watch(
         :inverted="inverted"
         :sider-collapse="appStore.siderCollapse"
         :dark-mode="themeStore.darkMode"
-        :theme-color="themeStore.themeColor"
+        :theme-color="themeStore.schemeThemeColors.primary"
         @select="handleSelectMixMenu"
         @toggle-sider-collapse="appStore.toggleSiderCollapse"
       >

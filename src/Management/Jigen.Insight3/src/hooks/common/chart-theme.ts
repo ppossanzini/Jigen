@@ -22,7 +22,7 @@ export function useChartTheme() {
   const chartColors = computed(() => {
     const text = tokens.value['base-text'];
     const container = tokens.value.container;
-    const { primary, info, success, warning, error } = themeStore.themeColors;
+    const { primary, info, success, warning, error } = themeStore.schemeThemeColors;
 
     return {
       /** Primary text (titles, tooltip text) */
@@ -66,7 +66,7 @@ export function useChartTheme() {
   function getSequentialShades(steps: number) {
     const weights: App.Theme.ColorPaletteNumber[] = [100, 200, 300, 400, 500, 600, 700, 800, 900];
     const count = Math.max(1, steps);
-    const { primary } = themeStore.themeColors;
+    const { primary } = themeStore.schemeThemeColors;
 
     return Array.from({ length: count }, (_, index) => {
       const weightIndex = count === 1 ? weights.length - 1 : Math.round((index / (count - 1)) * (weights.length - 1));

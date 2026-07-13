@@ -77,6 +77,11 @@ export const themeSettings: App.Theme.ThemeSetting = {
   },
   tokens: {
     light: {
+      // lime is too pale for text/icons on a light background; use a darker shade of the same hue
+      // (~5.8:1 contrast on white) instead of the raw brand lime used on dark surfaces
+      themeColors: {
+        primary: '#546c0b'
+      },
       colors: {
         container: 'rgb(248, 250, 241)',
         layout: 'rgb(239, 243, 226)',
