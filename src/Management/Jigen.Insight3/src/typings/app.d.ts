@@ -717,6 +717,88 @@ declare namespace App {
         security: {
           title: string;
           desc: string;
+          tabs: {
+            users: string;
+            roles: string;
+            apps: string;
+          };
+          users: {
+            table: {
+              userName: string;
+              id: string;
+            };
+            actions: {
+              create: string;
+              delete: string;
+            };
+            create: {
+              title: string;
+              userNameLabel: string;
+              userNamePlaceholder: string;
+              passwordLabel: string;
+              passwordPlaceholder: string;
+              rolesLabel: string;
+              rolesPlaceholder: string;
+              submit: string;
+              success: string;
+            };
+            delete: {
+              warning: string;
+              success: string;
+            };
+            detail: {
+              title: string;
+              idLabel: string;
+              userNameLabel: string;
+              passwordLabel: string;
+              passwordPlaceholder: string;
+              rolesLabel: string;
+              rolesPlaceholder: string;
+              permissionsLabel: string;
+              noPermissions: string;
+              save: string;
+              saveSuccess: string;
+            };
+            empty: string;
+          };
+          roles: {
+            table: {
+              name: string;
+              id: string;
+            };
+            actions: {
+              create: string;
+              delete: string;
+            };
+            create: {
+              title: string;
+              nameLabel: string;
+              namePlaceholder: string;
+              submit: string;
+              success: string;
+            };
+            delete: {
+              warning: string;
+              success: string;
+            };
+            detail: {
+              title: string;
+              nameLabel: string;
+              save: string;
+              saveSuccess: string;
+              usersTitle: string;
+              noUsers: string;
+            };
+            empty: string;
+          };
+          apps: {
+            desc: string;
+            table: {
+              clientId: string;
+              displayName: string;
+            };
+            empty: string;
+          };
         };
         settings: {
           title: string;

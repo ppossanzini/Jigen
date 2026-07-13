@@ -33,7 +33,8 @@ export default defineConfig(configEnv => {
     },
     server: {
       host: '0.0.0.0',
-      port: 9527,
+      // The OAuth client's redirect URI is registered server-side for this exact port.
+      port: 5173,
       open: true,
       proxy: createViteProxy(viteEnv, enableProxy)
     },

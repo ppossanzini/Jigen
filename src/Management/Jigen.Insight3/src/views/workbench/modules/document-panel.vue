@@ -111,17 +111,25 @@ async function handleUpsert() {
   }
 }
 
-async function handleDelete() {
+function handleDelete() {
   if (!canAct()) return;
 
-  loading.value = true;
-  const { error } = await fetchDeleteDocument(props.database, collection.value, key.value, keyType.value || undefined);
-  loading.value = false;
+  window.$dialog?.warning({
+    title: $t('common.tip'),
+    content: $t('common.confirmDelete'),
+    positiveText: $t('common.confirm'),
+    negativeText: $t('common.cancel'),
+    onPositiveClick: async () => {
+      loading.value = true;
+      const { error } = await fetchDeleteDocument(props.database, collection.value, key.value, keyType.value || undefined);
+      loading.value = false;
 
-  if (!error) {
-    window.$message?.success($t('page.workbench.document.deleteSuccess'));
-    jsonText.value = '';
-  }
+      if (!error) {
+        window.$message?.success($t('page.workbench.document.deleteSuccess'));
+        jsonText.value = '';
+      }
+    }
+  });
 }
 </script>
 

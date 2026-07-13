@@ -462,7 +462,89 @@ const local: App.I18n.Schema = {
     },
     security: {
       title: 'Security',
-      desc: 'Manage users, roles and applications.'
+      desc: 'Manage users, roles and applications.',
+      tabs: {
+        users: 'Users',
+        roles: 'Roles',
+        apps: 'Apps'
+      },
+      users: {
+        table: {
+          userName: 'User name',
+          id: 'Id'
+        },
+        actions: {
+          create: 'Create user',
+          delete: 'Delete'
+        },
+        create: {
+          title: 'Create user',
+          userNameLabel: 'User name',
+          userNamePlaceholder: 'e.g. jane.doe',
+          passwordLabel: 'Password',
+          passwordPlaceholder: 'Initial password',
+          rolesLabel: 'Roles',
+          rolesPlaceholder: 'Assign roles (optional)',
+          submit: 'Create',
+          success: 'User created'
+        },
+        delete: {
+          warning: 'This permanently deletes user "{name}" and cannot be undone.',
+          success: 'User deleted'
+        },
+        detail: {
+          title: 'User details',
+          idLabel: 'Id',
+          userNameLabel: 'User name',
+          passwordLabel: 'New password',
+          passwordPlaceholder: 'Leave blank to keep the current password',
+          rolesLabel: 'Roles',
+          rolesPlaceholder: 'Select roles',
+          permissionsLabel: 'Permissions',
+          noPermissions: 'No permissions granted',
+          save: 'Save changes',
+          saveSuccess: 'User updated'
+        },
+        empty: 'No users yet'
+      },
+      roles: {
+        table: {
+          name: 'Name',
+          id: 'Id'
+        },
+        actions: {
+          create: 'Create role',
+          delete: 'Delete'
+        },
+        create: {
+          title: 'Create role',
+          nameLabel: 'Role name',
+          namePlaceholder: 'e.g. SecurityAdmin',
+          submit: 'Create',
+          success: 'Role created'
+        },
+        delete: {
+          warning: 'This permanently deletes role "{name}" and cannot be undone.',
+          success: 'Role deleted'
+        },
+        detail: {
+          title: 'Role details',
+          nameLabel: 'Role name',
+          save: 'Save changes',
+          saveSuccess: 'Role updated',
+          usersTitle: 'Assigned users',
+          noUsers: 'No users assigned to this role'
+        },
+        empty: 'No roles yet'
+      },
+      apps: {
+        desc: 'Registered OAuth2 / OpenID Connect clients (read-only).',
+        table: {
+          clientId: 'Client Id',
+          displayName: 'Display name'
+        },
+        empty: 'No registered applications'
+      }
     },
     settings: {
       title: 'Settings',
