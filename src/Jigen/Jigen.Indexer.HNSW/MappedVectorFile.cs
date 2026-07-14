@@ -11,6 +11,12 @@ namespace Jigen.Indexer;
 /// the mapping, a new full-length view is published atomically and the old
 /// one is retired but NOT disposed until Dispose: spans handed out from it
 /// stay valid, and both views read the same page-cache pages.
+///
+/// Every Remap() opens a new OS-level mapping and keeps the retired one
+/// alive, so calling it too often on a large, long-lived collection piles
+/// up open views/handles for no benefit — SplitNodeList amortizes this with
+/// a growing remap interval (see its CurrentStageLimit) instead of a fixed
+/// per-insert cadence.
 /// </summary>
 internal sealed unsafe class MappedVectorFile : IDisposable
 {

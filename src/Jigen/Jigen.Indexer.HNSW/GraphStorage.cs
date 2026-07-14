@@ -220,7 +220,19 @@ internal sealed class AdjacencyPart : IStorableItem<AdjacencyPart, SmallWorldOpt
 internal sealed class SplitNodeList : IList<IndexNode>
 {
   // Vectors staged in RAM before a remap makes them readable from the map.
-  private const int StageLimit = 4096;
+  // Remapping is a real OS-level operation (a new MemoryMappedFile + view),
+  // and MappedVectorFile deliberately keeps every retired view mapped for
+  // the collection's lifetime instead of unmapping it under in-flight
+  // readers (see its class doc) — so remapping on a fixed small cadence
+  // forever piles up open views/handles on a large, long-lived collection.
+  // The batch size grows with the graph (like array capacity doubling, see
+  // CurrentStageLimit), keeping the total number of remaps over the
+  // collection's lifetime O(log N) instead of O(N), at the cost of a
+  // larger (but still bounded) transient RAM buffer of staged vectors.
+  private const int StageLimitMin = 4096;
+  private const int StageLimitMax = 65536;
+
+  private int CurrentStageLimit => Math.Min(StageLimitMax, Math.Max(StageLimitMin, _nodes.Count / 8));
 
   private readonly StoredList<VectorPart, SmallWorldOptions> _vectors;
   private readonly StoredList<AdjacencyPart, SmallWorldOptions> _adjacency;
@@ -338,7 +350,7 @@ internal sealed class SplitNodeList : IList<IndexNode>
       if (node.MappedDimensions > 0)
       {
         _staged.Add(node);
-        if (_staged.Count >= StageLimit)
+        if (_staged.Count >= CurrentStageLimit)
           ReleaseStagedVectors();
       }
     }
