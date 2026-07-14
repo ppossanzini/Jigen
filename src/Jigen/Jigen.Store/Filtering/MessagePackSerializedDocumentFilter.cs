@@ -35,6 +35,9 @@ public class MessagePackSerializedDocumentFilter : ISerializedDocumentFilter
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public object ToJsonObject(ReadOnlyMemory<byte> data) => Newtonsoft.Json.JsonConvert.DeserializeObject(ToJson( data));
 
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public ReadOnlyMemory<byte> FromJson(string json) => _baseSerializer.FromJson(json);
+
   public bool MatchesFilter(ReadOnlyMemory<byte> serializedData, IFilterExpression filter)
   {
     if (filter == null) return true;

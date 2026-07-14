@@ -22,6 +22,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Embedding REST endpoints: the handlers live in the optional embedding
+         microservice; with Kaido enabled the requests are dispatched remotely. -->
+    <ProjectReference Include="..\..\Embedding\TextEmbedding\Jigen.TextEmbedding.Api\Jigen.TextEmbedding.Api.csproj" />
     <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>
     <ProjectReference Include="..\Jigen.API\Jigen.API.csproj"/>
     <ProjectReference Include="..\Jigen.Grpc\Jigen.Grpc.csproj"/>

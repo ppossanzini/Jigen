@@ -28,4 +28,7 @@ public class MessagePackDocumentSerializer : IDocumentSerializer
 
   [MethodImpl(MethodImplOptions.AggressiveInlining)]
   public object ToJsonObject(ReadOnlyMemory<byte> data) => Newtonsoft.Json.JsonConvert.DeserializeObject(ToJson(data));
+
+  [MethodImpl(MethodImplOptions.AggressiveInlining)]
+  public ReadOnlyMemory<byte> FromJson(string json) => MessagePackSerializer.ConvertFromJson(json, _serializerOptions);
 }

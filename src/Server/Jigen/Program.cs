@@ -16,12 +16,14 @@ namespace Jigen
       var builder = WebApplication.CreateBuilder(args);
 
       var httpsCertificate = ResolveHttpsCertificate(builder.Configuration);
+      var grpcPort = builder.Configuration.GetValue("JigenServer:GrpcPort", 3223);
+      var httpPort = builder.Configuration.GetValue("JigenServer:HttpPort", 13223);
 
       builder.WebHost.ConfigureKestrel(options =>
       {
-        options.ListenAnyIP(3223, listenOptions => { listenOptions.Protocols = HttpProtocols.Http2; });
+        options.ListenAnyIP(grpcPort, listenOptions => { listenOptions.Protocols = HttpProtocols.Http2; });
 
-        options.ListenAnyIP(13223, listenOptions =>
+        options.ListenAnyIP(httpPort, listenOptions =>
         {
           listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
           if (httpsCertificate != null)
@@ -40,8 +42,8 @@ namespace Jigen
       Configure(app, builder.Environment, builder.Configuration);
 
 
-      app.Logger.LogInformation("Jigen server started on 3223 port for GRPC connections");
-      app.Logger.LogInformation("Jigen server started on 13223 port for HTTP connections");
+      app.Logger.LogInformation("Jigen server started on {GrpcPort} port for GRPC connections", grpcPort);
+      app.Logger.LogInformation("Jigen server started on {HttpPort} port for HTTP connections", httpPort);
       app.Run();
     }
 

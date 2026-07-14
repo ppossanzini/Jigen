@@ -35,7 +35,7 @@ User/database access management is part of the identity module; it is only menti
 | `GET` | `/api/database/{db}/collections/{collection}/documents/{key}/json` | Get the content deserialized to JSON. |
 | `DELETE` | `/api/database/{db}/collections/{collection}/documents/{key}` | Delete a document/vector by key. |
 
-`{key}` accepts a bare string, or is matched as `int`/`guid`/`long` route constraints — the controller converts it to a `VectorKey` accordingly.
+`{key}` is converted to the binary `VectorKey` layout the document was stored with, which depends on the CLR type used at insert time (`int` = 4 bytes, `long` = 8, `guid` = 16, `string` = UTF-8). By default the type is detected from the value (GUID-shaped → `guid`, integer → `long`, anything else → `string`); pass `?keyType=string|int|long|guid` to force a specific layout — e.g. `?keyType=int` to read a document inserted with a 4-byte `int` key, or `?keyType=string` for a key like `"42"` that would otherwise be detected as a number.
 
 ### `SearchCollectionsData` (search request body)
 
