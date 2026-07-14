@@ -100,11 +100,12 @@ public class SmallWorldOptions( int M = 10)
   public bool ExactRerank { get; set; } = true;
 
   /// <summary>
-  /// Slots of the in-memory node cache of a disk-backed graph (rounded up to
-  /// a power of two). Every graph hop reads a node: a miss costs two file
-  /// reads plus deserialization, so size this close to the expected node
-  /// count of hot collections. A fully warm cache costs roughly
-  /// slots × (vector + adjacency lists) of memory.
+  /// Currently unused — kept for API/config compatibility, not wired to any
+  /// code path. <see cref="SplitNodeList"/> keeps every graph node (id,
+  /// level, adjacency, delete flag) canonically resident in RAM by design,
+  /// so indexing never deserializes on a graph hop; only the vectors are
+  /// served from the memory-mapped file, and that mapping is not bounded by
+  /// this setting either. See docs/indexes/hnsw.md.
   /// </summary>
   public int NodeCacheSize { get; set; } = 65536;
 
