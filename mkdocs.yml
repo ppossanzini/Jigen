@@ -45,4 +45,6 @@ nav:
   - Client:
       - Getting started: client/getting-started.md
       - Usage: client/usage.md
+  - Connectors:
+      - Semantic Kernel: connectors/semantic-kernel.md
   - Benchmarks & hardware: benchmarks.md

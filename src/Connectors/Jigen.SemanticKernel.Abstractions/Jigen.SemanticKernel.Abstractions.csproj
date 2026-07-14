@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Jigen.SemanticKernel.Abstractions</RootNamespace>
+    <Description>Shared reflection-based record mapping and VectorStoreCollection base class for the Jigen Semantic Kernel connectors (in-process and gRPC client). Not meant to be referenced directly by application code.</Description>
+    <Authors>Paolo Possanzini</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ppossanzini/Jigen</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ppossanzini/Jigen</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.1.0" />
+  </ItemGroup>
+
+</Project>
