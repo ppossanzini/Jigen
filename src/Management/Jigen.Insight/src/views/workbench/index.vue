@@ -145,13 +145,10 @@ function viewInGraph(collectionName: string) {
     if (item.key) matches.set(item.key, Number(item.score ?? 0));
   }
 
-  const queryEmbedding = (result.value?.queryEmbedding ?? []).map(Number);
-
   graphHighlightStore.stage({
     database: databaseStore.current,
     collection: collectionName,
-    matches,
-    queryEmbedding
+    matches
   });
 
   routerPushByKey('graph-explorer', { query: { db: databaseStore.current, collection: collectionName } });

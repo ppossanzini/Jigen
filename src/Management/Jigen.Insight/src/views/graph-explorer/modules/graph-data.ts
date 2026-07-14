@@ -33,20 +33,11 @@ export interface PreparedEdge {
   width: number;
 }
 
-/** The optional query vector, projected into the same PCA basis as the graph nodes. Synthetic —
- *  never a real graph node, so it's kept out of `nodes`/`edges` and rendered as an extra marker. */
-export interface PreparedQueryPoint {
-  x: number;
-  y: number;
-  z?: number;
-}
-
 export interface PreparedGraph {
   nodes: PreparedNode[];
   edges: PreparedEdge[];
   /** True when a non-empty `matches` map was supplied, i.e. highlighting is active. */
   hasMatches: boolean;
-  queryPoint: PreparedQueryPoint | null;
 }
 
 /**
@@ -154,15 +145,5 @@ export function prepareGraphData(
     });
   }
 
-  const queryPositionRaw = snapshot.queryPosition ?? null;
-  const queryPoint: PreparedQueryPoint | null =
-    queryPositionRaw && queryPositionRaw.length >= 2
-      ? {
-          x: toNum(queryPositionRaw[0]),
-          y: toNum(queryPositionRaw[1]),
-          z: queryPositionRaw.length > 2 ? toNum(queryPositionRaw[2]) : undefined
-        }
-      : null;
-
-  return { nodes, edges, hasMatches, queryPoint };
+  return { nodes, edges, hasMatches };
 }

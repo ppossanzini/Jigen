@@ -715,7 +715,6 @@ declare namespace App {
             tooltipScore: string;
             legendLevel: string;
             legendDeleted: string;
-            queryLabel: string;
           };
           empty: {
             noDatabaseSelected: string;

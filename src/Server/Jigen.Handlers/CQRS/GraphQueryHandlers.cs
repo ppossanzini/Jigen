@@ -25,6 +25,6 @@ public class GraphQueryHandlers(
       });
 
     return Task.FromResult(explorable.GetGraphSnapshot(
-      request.Collection, request.Dimensions, request.Limit, request.Level, request.QueryEmbedding));
+      request.Collection, request.Dimensions, request.Limit, request.Level));
   }
 }

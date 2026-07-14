@@ -455,8 +455,7 @@ const local: App.I18n.Schema = {
         tooltipEdgeLevel: 'Edge level',
         tooltipScore: 'Score',
         legendLevel: 'Level {level}',
-        legendDeleted: 'Deleted',
-        queryLabel: 'Query vector'
+        legendDeleted: 'Deleted'
       },
       empty: {
         noDatabaseSelected: 'Select a database to explore its collections',

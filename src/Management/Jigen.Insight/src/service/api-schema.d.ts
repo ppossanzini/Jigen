@@ -120,38 +120,7 @@ export interface paths {
             };
         };
         put?: never;
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    dbname: string;
-                    collection: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: {
-                content: {
-                    "application/json-patch+json": components["schemas"]["GetCollectionGraphRequest"];
-                    "application/json": components["schemas"]["GetCollectionGraphRequest"];
-                    "text/json": components["schemas"]["GetCollectionGraphRequest"];
-                    "application/*+json": components["schemas"]["GetCollectionGraphRequest"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "text/plain": components["schemas"]["IndexGraphSnapshot"];
-                        "application/json": components["schemas"]["IndexGraphSnapshot"];
-                        "text/json": components["schemas"]["IndexGraphSnapshot"];
-                    };
-                };
-            };
-        };
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2133,15 +2102,6 @@ export interface components {
             payload?: unknown;
             sentence?: null | string;
         };
-        GetCollectionGraphRequest: {
-            /** Format: int32 */
-            dimensions?: number | string;
-            /** Format: int32 */
-            limit?: number | string;
-            /** Format: int32 */
-            level?: null | number | string;
-            queryEmbedding?: null | (number | string)[];
-        };
         IndexGraphEdge: {
             /** Format: int32 */
             source?: number | string;
@@ -2180,8 +2140,6 @@ export interface components {
             truncated?: boolean;
             nodes?: null | components["schemas"]["IndexGraphNode"][];
             edges?: null | components["schemas"]["IndexGraphEdge"][];
-            /** PCA coordinates of the optional query vector, in the same basis as `nodes`; null when no query vector was supplied. */
-            queryPosition?: null | (number | string)[];
         };
         LoginData: {
             userName?: null | string;
@@ -2217,8 +2175,6 @@ export interface components {
             sortingTime?: number | string;
             collectionsResults?: null | components["schemas"]["CollectionSearchResult"][];
             mergedResults?: null | components["schemas"]["CollectionSearchResultItem"][];
-            /** The resolved query vector (raw, or computed from `sentence`); usable to plot the query alongside HNSW graph nodes. */
-            queryEmbedding?: null | (number | string)[];
         };
         ServerStatusHistory: {
             /** Format: date-time */

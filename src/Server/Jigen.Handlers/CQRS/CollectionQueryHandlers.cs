@@ -172,8 +172,7 @@ public class CollectionQueryHandlers(
       MergeTime = mergeTimer.Elapsed.TotalMilliseconds,
       SortingTime = sortingTimer.Elapsed.TotalMilliseconds,
       CollectionsResults = collectionsResults,
-      MergedResults = sortedResults,
-      QueryEmbedding = embeddings
+      MergedResults = sortedResults
     };
   }
 }

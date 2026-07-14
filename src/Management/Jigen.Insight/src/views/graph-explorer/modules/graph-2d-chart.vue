@@ -30,8 +30,6 @@ const { chartColors, getSequentialShades } = useChartTheme();
 
 const maxLevel = computed(() => toNum(props.snapshot.maxLevel));
 
-const QUERY_POINT_ID = '__query__';
-
 // Match highlighting uses a color channel ('success') distinct from the level ramp ('primary')
 // so the two scales stay visually separable, ranked so the best score is the most intense shade.
 const matchShades = computed(() => {
@@ -66,7 +64,7 @@ function edgeTooltip(edge: PreparedEdge) {
 function buildOptions(): ECOption {
   const c = chartColors.value;
   const shades = getSequentialShades(maxLevel.value + 1);
-  const { nodes, edges, hasMatches, queryPoint } = prepared.value;
+  const { nodes, edges, hasMatches } = prepared.value;
 
   const categories = shades.map((color, level) => ({
     name: $t('page.graph-explorer.chart.legendLevel', { level }),
@@ -79,7 +77,7 @@ function buildOptions(): ECOption {
     itemStyle: { color: c.deleted }
   });
 
-  const data: Record<string, unknown>[] = nodes.map(node => ({
+  const data = nodes.map(node => ({
     id: node.id,
     name: node.isEntrypoint ? $t('page.graph-explorer.chart.entrypointLabel') : '',
     x: node.x,
@@ -96,29 +94,6 @@ function buildOptions(): ECOption {
     raw: node
   }));
 
-  // The searched vector itself: a synthetic point (no `raw`, so the click handler below ignores
-  // it) rendered in the same `graph` series with a distinct symbol/color, never from the
-  // sequential match ramp so it always stands out from the ranked result nodes.
-  if (queryPoint) {
-    data.push({
-      id: QUERY_POINT_ID,
-      name: $t('page.graph-explorer.chart.queryLabel'),
-      x: queryPoint.x,
-      y: queryPoint.y,
-      symbolSize: 22,
-      category: -1,
-      itemStyle: {
-        color: c.primary,
-        borderColor: c.text,
-        borderWidth: 3,
-        opacity: 1
-      },
-      symbol: 'diamond',
-      label: { show: true },
-      raw: undefined as unknown as PreparedNode
-    });
-  }
-
   const links = edges.map(edge => ({
     source: edge.sourceId,
     target: edge.targetId,
@@ -131,12 +106,8 @@ function buildOptions(): ECOption {
       backgroundColor: c.tooltipBg,
       borderColor: c.tooltipBorder,
       textStyle: { color: c.text },
-      formatter: (params: { dataType?: string; data: { id?: string; raw?: PreparedNode | PreparedEdge } }) => {
-        if (params.data.id === QUERY_POINT_ID) return $t('page.graph-explorer.chart.queryLabel');
-        if (!params.data.raw) return '';
-
-        return params.dataType === 'edge' ? edgeTooltip(params.data.raw as PreparedEdge) : nodeTooltip(params.data.raw as PreparedNode);
-      }
+      formatter: (params: { dataType?: string; data: { raw: PreparedNode | PreparedEdge } }) =>
+        params.dataType === 'edge' ? edgeTooltip(params.data.raw as PreparedEdge) : nodeTooltip(params.data.raw as PreparedNode)
     },
     legend: {
       type: 'scroll',

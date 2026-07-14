@@ -2,7 +2,6 @@ import type {
   CollectionInfo,
   DocumentKeyType,
   DocumentPayload,
-  GetCollectionGraphRequest,
   IndexGraphSnapshot,
   SearchCollectionsData,
   SearchCollectionsResult
@@ -47,25 +46,6 @@ export function fetchCollectionGraph(
   return request<IndexGraphSnapshot>({
     url: `${collectionsBase(dbname)}/${encodeURIComponent(collection)}/graph`,
     params: options
-  });
-}
-
-/**
- * HNSW index graph snapshot with a query vector projected into the same PCA basis —
- * `POST /api/database/{dbname}/collections/{collection}/graph`
- *
- * Use this instead of {@link fetchCollectionGraph} when highlighting a search result on
- * the graph: a query embedding is a few hundred floats and doesn't belong in a query string.
- */
-export function fetchCollectionGraphWithQuery(
-  dbname: string,
-  collection: string,
-  data: GetCollectionGraphRequest
-) {
-  return request<IndexGraphSnapshot>({
-    url: `${collectionsBase(dbname)}/${encodeURIComponent(collection)}/graph`,
-    method: 'post',
-    data
   });
 }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { fetchCollectionGraph, fetchCollectionGraphWithQuery, fetchListCollections } from '@/service/api';
+import { fetchCollectionGraph, fetchListCollections } from '@/service/api';
 import type { IndexGraphSnapshot } from '@/service/api-types';
 import { useDatabaseStore } from '@/store/modules/database';
 import { useGraphHighlightStore } from '@/store/modules/graph-highlight';
@@ -26,15 +26,12 @@ const databaseOptions = computed(() => databaseStore.databases.map(name => ({ la
 const collectionOptions = ref<string[]>([]);
 const selectedCollection = ref('');
 
-// Highlighting staged by the Workbench ("Visualizza nel grafo"): result keys → score, plus the
-// resolved query embedding to project into the same PCA basis via the POST graph endpoint. Cleared
+// Highlighting staged by the Workbench ("Visualizza nel grafo"): result keys → score. Cleared
 // whenever the database/collection changes since it belongs to one specific collection's results.
 const highlightMatches = ref<Map<string, number> | null>(null);
-const highlightQueryEmbedding = ref<number[] | null>(null);
 
 function clearHighlight() {
   highlightMatches.value = null;
-  highlightQueryEmbedding.value = null;
 }
 
 async function loadCollections() {
@@ -76,18 +73,11 @@ async function loadGraph() {
   hasError.value = false;
   errorMessage.value = '';
 
-  const { data, error } = highlightQueryEmbedding.value
-    ? await fetchCollectionGraphWithQuery(databaseStore.current, selectedCollection.value, {
-        dimensions: dimensions.value,
-        limit: limit.value,
-        level: levelFilter.value ?? undefined,
-        queryEmbedding: highlightQueryEmbedding.value
-      })
-    : await fetchCollectionGraph(databaseStore.current, selectedCollection.value, {
-        dimensions: dimensions.value,
-        limit: limit.value,
-        level: levelFilter.value ?? undefined
-      });
+  const { data, error } = await fetchCollectionGraph(databaseStore.current, selectedCollection.value, {
+    dimensions: dimensions.value,
+    limit: limit.value,
+    level: levelFilter.value ?? undefined
+  });
 
   loading.value = false;
   settled.value = true;
@@ -132,7 +122,6 @@ onMounted(async () => {
     const staged = graphHighlightStore.consume(databaseStore.current, selectedCollection.value);
     if (staged) {
       highlightMatches.value = staged.matches;
-      highlightQueryEmbedding.value = staged.queryEmbedding;
     }
 
     loadGraph();

@@ -10,10 +10,6 @@ public class SearchCollectionsResult
   public double SortingTime { get; set; }
   public IEnumerable<CollectionSearchResult> CollectionsResults { get; set; }
   public IEnumerable<CollectionSearchResultItem> MergedResults { get; set; }
-
-  /// <summary>The resolved query vector (raw, or computed from Sentence via CalculateEmbeddings).
-  /// Exposed so clients can plot the query alongside HNSW graph nodes (Graph Explorer highlight).</summary>
-  public float[] QueryEmbedding { get; set; }
 }
 
 public class CollectionSearchResult

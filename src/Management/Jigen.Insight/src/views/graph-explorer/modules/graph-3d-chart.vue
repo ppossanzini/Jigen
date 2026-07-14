@@ -69,7 +69,7 @@ const EDGE_SAMPLES = 6;
 
 function buildOptions(): ECOption {
   const c = chartColors.value;
-  const { nodes, edges, hasMatches, queryPoint } = prepared.value;
+  const { nodes, edges, hasMatches } = prepared.value;
 
   const axisStyle = {
     axisLine: { lineStyle: { color: c.axisLine } },
@@ -78,7 +78,7 @@ function buildOptions(): ECOption {
     axisPointer: { label: { textStyle: { color: c.text, backgroundColor: c.tooltipBg } } }
   };
 
-  const scatterData: Record<string, unknown>[] = nodes.map(node => ({
+  const scatterData = nodes.map(node => ({
     name: node.isEntrypoint ? $t('page.graph-explorer.chart.entrypointLabel') : node.id,
     value: [node.x, node.y, node.z ?? 0],
     symbolSize: node.symbolSize,
@@ -91,21 +91,6 @@ function buildOptions(): ECOption {
     label: { show: node.isEntrypoint, formatter: () => $t('page.graph-explorer.chart.entrypointLabel') },
     raw: node
   }));
-
-  // The searched vector itself: a synthetic point (no `raw`, so the click handler below ignores
-  // it) in the same scatter3D series with a distinct symbol/color, never from the sequential
-  // match ramp so it always stands out from the ranked result nodes.
-  if (queryPoint) {
-    scatterData.push({
-      name: $t('page.graph-explorer.chart.queryLabel'),
-      value: [queryPoint.x, queryPoint.y, queryPoint.z ?? 0],
-      symbol: 'diamond',
-      symbolSize: 16,
-      itemStyle: { color: c.primary, borderColor: c.text, borderWidth: 2, opacity: 1 },
-      label: { show: true, formatter: () => $t('page.graph-explorer.chart.queryLabel') },
-      isQueryPoint: true
-    });
-  }
 
   const nodeById = new Map(nodes.map(node => [node.id, node]));
 
@@ -136,11 +121,7 @@ function buildOptions(): ECOption {
       backgroundColor: c.tooltipBg,
       borderColor: c.tooltipBorder,
       textStyle: { color: c.text },
-      formatter: (params: { data: { raw?: PreparedNode; isQueryPoint?: boolean } }) => {
-        if (params.data.isQueryPoint) return $t('page.graph-explorer.chart.queryLabel');
-
-        return params.data.raw ? nodeTooltip(params.data.raw) : '';
-      }
+      formatter: (params: { data: { raw?: PreparedNode } }) => (params.data.raw ? nodeTooltip(params.data.raw) : '')
     },
     xAxis3D: { type: 'value', ...axisStyle },
     yAxis3D: { type: 'value', ...axisStyle },

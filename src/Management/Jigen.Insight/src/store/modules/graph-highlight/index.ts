@@ -8,18 +8,16 @@ export interface GraphHighlightPayload {
   collection: string;
   /** Result keys (base64, same format as `IndexGraphNode.key`) → score */
   matches: Map<string, number>;
-  /** The resolved query vector (`SearchCollectionsResult.queryEmbedding`) */
-  queryEmbedding: number[];
 }
 
 /**
  * One-shot handoff from Workbench to Graph Explorer: "show me this search result on the graph".
  *
- * A full result set plus a query embedding (a few hundred floats) doesn't fit in a URL query
- * string, so the Workbench stages it here right before navigating with `db`/`collection` query
- * params (see `graph-explorer/index.vue`'s deep-link handling), and Graph Explorer consumes it
- * once on mount. Consuming clears it, so a page refresh or a direct visit never replays stale
- * highlighting — and it's plain in-memory Pinia state (not persisted), so a reload clears it too.
+ * A full result set doesn't fit in a URL query string, so the Workbench stages it here right
+ * before navigating with `db`/`collection` query params (see `graph-explorer/index.vue`'s
+ * deep-link handling), and Graph Explorer consumes it once on mount. Consuming clears it, so a
+ * page refresh or a direct visit never replays stale highlighting — and it's plain in-memory
+ * Pinia state (not persisted), so a reload clears it too.
  */
 export const useGraphHighlightStore = defineStore(SetupStoreId.GraphHighlight, () => {
   const pending = ref<GraphHighlightPayload | null>(null);
