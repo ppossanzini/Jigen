@@ -23,12 +23,19 @@ public static class NodeExtensions
 
   public static int GetMaxLevel(SmallWorldOptions options)
   {
-    // Random is not thread-safe: inserts are serialized per collection, but
-    // different collections (and fire-and-forget AddToIndex) reach this from
-    // multiple threads, and a torn Random silently degenerates to returning 0.
+    // Random.Shared (the default) fans out to thread-local state internally,
+    // so sampling it concurrently needs no lock. A caller-supplied Random
+    // (e.g. seeded for reproducible tests) is NOT thread-safe: different
+    // collections (and fire-and-forget AddToIndex) can reach this from
+    // multiple threads, and a torn Random silently degenerates to returning
+    // 0, so that path is still locked.
+    var generator = options.generator;
     double sample;
-    lock (options.generator)
-      sample = options.generator.NextDouble();
+    if (ReferenceEquals(generator, Random.Shared))
+      sample = generator.NextDouble();
+    else
+      lock (generator)
+        sample = generator.NextDouble();
 
     // 1 - sample ∈ (0, 1]: NextDouble can return exactly 0, and -log(0) = +∞
     // would turn into a negative level after the int cast.

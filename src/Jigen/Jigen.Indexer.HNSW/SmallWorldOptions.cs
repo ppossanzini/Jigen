@@ -26,7 +26,11 @@ public class SmallWorldOptions( int M = 10)
     StoragePath = storagePath;
   }
 
-  public Random generator { get; set; } = new Random();
+  // Random.Shared: thread-safe (thread-local state internally), so the
+  // default insert path in GetMaxLevel needs no lock. A caller-supplied
+  // Random (e.g. seeded for reproducible tests) is NOT thread-safe and is
+  // still locked there — only the default benefits from the fast path.
+  public Random generator { get; set; } = Random.Shared;
 
   public Func<IndexNode, IndexNode, float> DefaultDistanceFunction { get; internal set; }
 
