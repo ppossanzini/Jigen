@@ -80,7 +80,8 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'graph-explorer',
       i18nKey: 'route.graph-explorer',
       icon: 'mdi:graph-outline',
-      order: 5
+      order: 5,
+      keepAlive: true
     }
   },
   {
@@ -149,7 +150,8 @@ export const generatedRoutes: GeneratedRoute[] = [
       title: 'workbench',
       i18nKey: 'route.workbench',
       icon: 'mdi:database-search-outline',
-      order: 4
+      order: 4,
+      keepAlive: true
     }
   }
 ];

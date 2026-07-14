@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { fetchListCollections, fetchSearchCollections } from '@/service/api';
 import type { SearchCollectionsResult } from '@/service/api-types';
@@ -16,8 +16,10 @@ import type { ResultRow } from './modules/results-table.vue';
 import ResultDetailDrawer from './modules/result-detail-drawer.vue';
 import DocumentPanel from './modules/document-panel.vue';
 
+// Name matches the route name so <KeepAlive :include="routeStore.cacheRoutes"> (see
+// global-content/index.vue) can find and cache this page — see routes.ts's `keepAlive: true`.
 defineOptions({
-  name: 'WorkbenchPage'
+  name: 'workbench'
 });
 
 const appStore = useAppStore();
@@ -174,13 +176,29 @@ function openDetail(row: ResultRow) {
   docPresetKeyType.value = undefined;
 }
 
+// One-time bootstrap: this page is kept alive across navigation (see routes.ts), so onMounted
+// fires only once for its whole lifetime — populate the collections dropdown here if a database
+// is already selected globally. Deep-link query params are handled separately in onActivated
+// below, which (unlike onMounted) fires on every re-entry.
 onMounted(async () => {
   if (!databaseStore.loaded) {
     await databaseStore.loadDatabases();
   }
 
+  if (databaseStore.current) {
+    await loadCollections();
+  }
+});
+
+// Runs on every visit to this page, including the first (right after onMounted — see Vue's
+// KeepAlive docs). With no db/collection in the query string this is a no-op, so navigating away
+// and back (e.g. via the sidebar) leaves the selected database/collections, search input and
+// results exactly as the user left them.
+onActivated(async () => {
   const queryDb = route.query.db;
-  if (typeof queryDb === 'string' && databaseStore.databases.includes(queryDb)) {
+  if (typeof queryDb !== 'string' || !databaseStore.databases.includes(queryDb)) return;
+
+  if (databaseStore.current !== queryDb) {
     databaseStore.setCurrent(queryDb);
   }
 

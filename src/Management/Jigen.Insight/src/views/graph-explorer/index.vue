@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { fetchCollectionGraph, fetchListCollections } from '@/service/api';
 import type { IndexGraphSnapshot } from '@/service/api-types';
@@ -13,8 +13,10 @@ import Graph3DChart from './modules/graph-3d-chart.vue';
 import NodeDetailDrawer from './modules/node-detail-drawer.vue';
 import type { PreparedNode } from './modules/graph-data';
 
+// Name matches the route name so <KeepAlive :include="routeStore.cacheRoutes"> (see
+// global-content/index.vue) can find and cache this page — see routes.ts's `keepAlive: true`.
 defineOptions({
-  name: 'GraphExplorerPage'
+  name: 'graph-explorer'
 });
 
 const databaseStore = useDatabaseStore();
@@ -99,33 +101,47 @@ watch(dimensions, () => {
   }
 });
 
+// One-time bootstrap: this page is kept alive across navigation (see routes.ts), so onMounted
+// fires only once for its whole lifetime — populate the collections dropdown here if a database
+// is already selected globally (e.g. picked earlier in Workbench). Deep-link query params are
+// handled separately in onActivated below, which (unlike onMounted) fires on every re-entry.
 onMounted(async () => {
   if (!databaseStore.loaded) {
     await databaseStore.loadDatabases();
   }
 
+  if (databaseStore.current) {
+    await loadCollections();
+  }
+});
+
+// Runs on every visit to this page, including the first (right after onMounted — see Vue's
+// KeepAlive docs). With no db/collection in the query string this is a no-op, so navigating away
+// and back (e.g. via the sidebar) leaves the database/collection/graph exactly as they were. A
+// fresh deep link (e.g. "Visualizza nel grafo" from Workbench) still applies even on a page that
+// was already visited, since onMounted would otherwise never fire again to pick it up.
+onActivated(async () => {
   const queryDb = route.query.db;
-  const deepLinkedDb = typeof queryDb === 'string' && databaseStore.databases.includes(queryDb);
-  if (deepLinkedDb) {
-    databaseStore.setCurrent(queryDb as string);
+  const queryCollection = route.query.collection;
+
+  if (typeof queryDb !== 'string' || !databaseStore.databases.includes(queryDb)) return;
+
+  if (databaseStore.current !== queryDb) {
+    databaseStore.setCurrent(queryDb);
   }
 
   await loadCollections();
 
-  const queryCollection = route.query.collection;
-  const deepLinkedCollection = typeof queryCollection === 'string' && collectionOptions.value.includes(queryCollection);
-  if (deepLinkedCollection) {
-    selectedCollection.value = queryCollection as string;
+  if (typeof queryCollection !== 'string' || !collectionOptions.value.includes(queryCollection)) return;
+
+  selectedCollection.value = queryCollection;
+
+  const staged = graphHighlightStore.consume(databaseStore.current, selectedCollection.value);
+  if (staged) {
+    highlightMatches.value = staged.matches;
   }
 
-  if (deepLinkedDb && deepLinkedCollection) {
-    const staged = graphHighlightStore.consume(databaseStore.current, selectedCollection.value);
-    if (staged) {
-      highlightMatches.value = staged.matches;
-    }
-
-    loadGraph();
-  }
+  loadGraph();
 });
 
 const hasNodes = computed(() => Boolean(snapshot.value?.nodes?.length));
