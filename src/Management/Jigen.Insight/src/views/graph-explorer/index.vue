@@ -119,7 +119,7 @@ function openNodeDetail(node: PreparedNode) {
 
 <template>
   <div class="h-full flex-col gap-16px">
-    <NCard :bordered="false" size="small" :title="$t('page.graph-explorer.title')" class="card-wrapper">
+    <NCard :bordered="false" size="small" class="card-wrapper">
       <template v-if="snapshot" #header-extra>
         <GraphStatsStrip :snapshot="snapshot" />
       </template>
