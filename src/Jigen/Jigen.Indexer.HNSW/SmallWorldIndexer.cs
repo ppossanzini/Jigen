@@ -376,7 +376,28 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
 
     var destination = CreateQueryNode(queryVector);
     var searchTop = Math.Max(top, efSearch > 0 ? efSearch : Options.SearchPruning);
-    var neighbours = this.KNearest(collection, destination, searchTop);
+
+    // ACORN-1 style filtered search: the metadata filter is evaluated during
+    // graph traversal (see KNearestAtLevel) so the ef-sized result window
+    // fills with candidates that already satisfy it, instead of running an
+    // unfiltered search and post-filtering a fixed window — which starves
+    // `top` under a selective filter even when plenty of matches exist
+    // elsewhere in the graph. Content read during the filter check is cached
+    // so the loop below doesn't hit the store a second time for the same node.
+    Dictionary<VectorKey, byte[]> contentCache = null;
+    Func<IndexNode, bool> accept = null;
+    if (contentFilter != null)
+    {
+      contentCache = new Dictionary<VectorKey, byte[]>();
+      accept = node =>
+      {
+        var content = store.GetContent(collection, node.Id.Value);
+        contentCache[node.Id] = content;
+        return content is not null && MatchesFilter(content, contentFilter);
+      };
+    }
+
+    var neighbours = this.KNearest(collection, destination, searchTop, accept);
 
     // VectorKey compares and hashes the raw bytes: no Base64 allocation per result.
     var resultsByKey = new Dictionary<VectorKey, (VectorEntry entry, float score)>(neighbours.Count);
@@ -392,9 +413,10 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
 
       if (!resultsByKey.TryGetValue(nodeKey, out var existing) || score > existing.score)
       {
-        var content = store.GetContent(collection, node.Id.Value);
+        var content = contentCache != null && contentCache.TryGetValue(nodeKey, out var cached)
+          ? cached
+          : store.GetContent(collection, node.Id.Value);
         if (content is null) continue;
-        if (contentFilter != null && !MatchesFilter(content, contentFilter)) continue;
 
         if (exactRerank)
         {
@@ -470,7 +492,7 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
   /// <param name="destination">The given node to get the nearest neighbourhood for.</param>
   /// <param name="k">The size of the neighbourhood.</param>
   /// <returns>The list of the nearest neighbours.</returns>
-  public IList<IndexNode> KNearest(string collection, IndexNode destination, int k)
+  public IList<IndexNode> KNearest(string collection, IndexNode destination, int k, Func<IndexNode, bool> accept = null)
   {
     var graph = GetGraphForCollection(collection);
     var entrypoint = graph.entrypoint;
@@ -480,12 +502,13 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     for (int level = entrypoint.MaxLevel; level > 0; --level)
     {
       // A level can hold no live node (heavy deletions): keep descending
-      // from the current peer.
+      // from the current peer. Upper-level descent is pure navigation
+      // (picks the next greedy entry point), so it ignores the filter.
       var nearest = this.KNearestAtLevel(collection, bestPeer, destination, 1, level);
       if (nearest.Count > 0) bestPeer = nearest[0];
     }
 
-    return this.KNearestAtLevel(collection, bestPeer, destination, k, 0);
+    return this.KNearestAtLevel(collection, bestPeer, destination, k, 0, accept);
   }
 
   internal bool IsDeleted(string collection, int positionId)

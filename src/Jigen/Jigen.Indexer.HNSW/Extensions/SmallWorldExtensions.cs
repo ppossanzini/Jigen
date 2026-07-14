@@ -15,13 +15,20 @@ public static class SmallWorldExtensions
   /// <summary>
   /// Implementation of SEARCH-LAYER(q, ep, ef, lc) — Article Section 4, Algorithm 2.
   /// </summary>
+  /// <param name="accept">
+  /// Optional ACORN-1-style metadata filter: a candidate must satisfy it to
+  /// enter the result window, but — like a deleted node — is still expanded,
+  /// so filtered-out nodes keep bridging the graph instead of fragmenting it.
+  /// Null runs the plain unfiltered search (construction, level &gt; 0 descent).
+  /// </param>
   public static IList<IndexNode> KNearestAtLevel(
     this SmallWorldIndexer smallworld,
     string collection,
     IndexNode entryPoint,
     IndexNode destination,
     int k,
-    int level)
+    int level,
+    Func<IndexNode, bool> accept = null)
   {
     /*
      * v ← ep
@@ -52,8 +59,12 @@ public static class SmallWorldExtensions
     var expansionHeap = new BinaryHeap<IndexNode>(fartherIsLess, 16);
 
     // Deleted nodes stay navigable (their links bridge the graph) but must
-    // never surface in the result window.
-    if (!entryPoint.IsDeleted)
+    // never surface in the result window — same treatment for nodes the
+    // caller's filter rejects (accept == null accepts everything, the
+    // pre-filter behaviour used by construction and unfiltered search).
+    bool EntersResults(IndexNode node) => !node.IsDeleted && (accept is null || accept(node));
+
+    if (EntersResults(entryPoint))
       resultHeap.Push(entryPoint);
     expansionHeap.Push(entryPoint);
 
@@ -67,19 +78,33 @@ public static class SmallWorldExtensions
     var visited = smallworld.RentVisitedSet(nodeCount + 1);
     visited.TryVisit(entryPoint.PositionId);
 
+    // A selective filter can leave the result window short of k for a long
+    // time (most candidates get rejected by `accept`, not just skipped like
+    // deletions): bound the expansion so a near-always-false filter degrades
+    // to a partial scan instead of visiting the whole graph every query.
+    // Unfiltered searches (accept == null) keep the original, unbounded loop.
+    var expansionBudget = accept is null
+      ? int.MaxValue
+      : Math.Max(k, k * smallworld.Options.FilteredSearchExpansionFactor);
+    var expanded = 0;
+
     try
     {
       while (!expansionHeap.IsEmpty)
       {
         var toExpand = expansionHeap.Pop();
 
-        // Stop only once the result window is full: with deletions the window
-        // can be short of k while nearer live nodes are still reachable
-        // through deleted ones. Without deletions this matches the canonical
-        // break (candidates are always accepted into the window while |W| < ef).
+        // Stop only once the result window is full: with deletions (or a
+        // filter) the window can be short of k while nearer accepted nodes
+        // are still reachable through rejected ones. Without either this
+        // matches the canonical break (candidates are always accepted into
+        // the window while |W| < ef).
         if (resultHeap.Count >= k
             && Tools.DGt(travelingCosts.From(toExpand), travelingCosts.From(resultHeap.Peek())))
           break; // every remaining candidate is farther than the worst result
+
+        if (++expanded > expansionBudget)
+          break; // filtered search budget spent: return what was found so far
 
         foreach (var neighbour in toExpand.GetConnections(level, graph))
         {
@@ -92,8 +117,8 @@ public static class SmallWorldExtensions
           {
             expansionHeap.Push(neighbour);
 
-            // Deleted nodes are expanded but never returned.
-            if (!neighbour.IsDeleted)
+            // Deleted or filtered-out nodes are expanded but never returned.
+            if (EntersResults(neighbour))
             {
               resultHeap.Push(neighbour);
               if (resultHeap.Count > k)

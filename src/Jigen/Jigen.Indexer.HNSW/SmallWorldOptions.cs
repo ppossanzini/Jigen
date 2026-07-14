@@ -103,4 +103,15 @@ public class SmallWorldOptions( int M = 10)
   /// slots × (vector + adjacency lists) of memory.
   /// </summary>
   public int NodeCacheSize { get; set; } = 65536;
+
+  /// <summary>
+  /// Upper bound on nodes expanded during a level-0 search with a metadata
+  /// filter, expressed as a multiple of the requested candidate count (ef).
+  /// A filter is evaluated during traversal (see <see cref="SmallWorldIndexer.Search"/>):
+  /// a selective filter can leave the result window short of ef for a long
+  /// time, so this caps the search to a bounded partial scan instead of
+  /// visiting the whole graph when the filter matches few or no nodes.
+  /// Ignored for unfiltered searches and graph construction.
+  /// </summary>
+  public int FilteredSearchExpansionFactor { get; set; } = 20;
 }
