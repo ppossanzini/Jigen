@@ -12,16 +12,22 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 | `GetContent` | `ItemKey` | `RawContentResult` | Get the raw serialized content for a key. |
 | `SetDocument` | `Document` | `Result` | Insert/update a document from a raw `Sentence`; the server computes the embedding via its embedding module. |
 | `SetVector` | `Vector` | `Result` | Insert/update a document with a precomputed embedding. |
-| `SearchVector` | `SearchVectorRequest` | `SearchVectorResponse` | Search by a precomputed query vector. |
-| `SearchDocument` | `SearchDocumentRequest` | `SearchVectorResponse` | Search by a raw `Sentence`; the server computes the embedding and optionally applies a filter. |
+| `SetVectors` | `stream Vector` | `IngestResult` | Bulk insert with precomputed embeddings over a single client-streaming call: one round trip for the whole batch. |
+| `SetDocuments` | `stream Document` | `IngestResult` | Bulk insert from raw `Sentence`s; the server batches the embedding calculation (windows of 64 sentences per embedding dispatch). |
+| `SearchVector` | `SearchVectorRequest` | `SearchVectorResponse` | Search by a precomputed query vector, optionally with a filter and per-query tuning. |
+| `SearchDocument` | `SearchDocumentRequest` | `SearchVectorResponse` | Search by a raw `Sentence`; the server computes the embedding and optionally applies a filter and per-query tuning. |
 | `DeleteVector` | `ItemKey` | `Result` | Delete a document/vector by key. |
-| `GetAllKeys` | `CollectionKey` | `KeysResult` | List all keys in a collection. |
+| `GetAllKeys` | `CollectionKey` | `KeysResult` | List all keys in a collection (single message — prefer `StreamKeys` on large collections). |
+| `StreamKeys` | `StreamKeysRequest` | `stream KeysResult` | Stream all keys in chunks (default 1000 per message); safe at any collection size. |
 | `Contains` | `ItemKey` | `Result` | Check whether a key exists. |
 | `Clear` | `CollectionKey` | `Result` | Remove all documents from a collection. |
 | `Count` | `CollectionKey` | `CountResult` | Count documents in a collection. |
 | `CalculateEmbeddings` | `EmbeddingRequest` | `EmbeddingResponse` | Compute an embedding for a sentence, optionally with a task prefix. |
+| `CalculateEmbeddingsBatch` | `EmbeddingBatchRequest` | `EmbeddingBatchResponse` | Compute embeddings for many sentences in one call; results keep the input order (blank inputs yield an empty row). |
 
-`SetDocument` and `SearchDocument` require an embedding module reachable from the server process (in-process on the all-in-one image, or remote over RabbitMQ from a `jigendb` server) — see [embeddings overview](../embeddings/overview.md).
+`IngestResult.Accepted` counts the entries accepted into the server's ingestion pipeline; durability follows the server's group-commit policy, exactly like the unary `Set` operations.
+
+`SetDocument`, `SetDocuments` and `SearchDocument` require an embedding module reachable from the server process (in-process on the all-in-one image, or remote over RabbitMQ from a `jigendb` server) — see [embeddings overview](../embeddings/overview.md).
 
 ## Proto excerpts
 
@@ -64,6 +70,8 @@ message SearchVectorRequest {
   string Collection = 2;
   repeated float Embeddings = 3;
   int32 Top = 4;
+  FilterNode Filter = 5;
+  SearchTuning Tuning = 6;
 }
 
 message SearchDocumentRequest {
@@ -72,6 +80,14 @@ message SearchDocumentRequest {
   string Sentence = 3;
   int32 Top = 4;
   FilterNode Filter = 5;
+  SearchTuning Tuning = 6;
+}
+
+// Optional per-query tuning; zero values keep the server defaults.
+message SearchTuning {
+  int32 EfSearch = 1;         // HNSW beam width override (recall vs latency)
+  bool NoContent = 2;         // return keys and scores only
+  optional float MinScore = 3; // drop results below this similarity
 }
 
 message SearchVectorResult {

@@ -361,6 +361,12 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
   public IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top,
     IFilterExpression contentFilter = null)
   {
+    return Search(store, collection, queryVector, top, efSearch: 0, contentFilter);
+  }
+
+  public IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top,
+    int efSearch, IFilterExpression contentFilter = null)
+  {
     if (store is null || string.IsNullOrWhiteSpace(collection) || queryVector is null || queryVector.Length == 0 || top <= 0)
       return [];
 
@@ -369,7 +375,7 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
       return [];
 
     var destination = CreateQueryNode(queryVector);
-    var searchTop = Math.Max(top, Options.SearchPruning);
+    var searchTop = Math.Max(top, efSearch > 0 ? efSearch : Options.SearchPruning);
     var neighbours = this.KNearest(collection, destination, searchTop);
 
     // VectorKey compares and hashes the raw bytes: no Base64 allocation per result.

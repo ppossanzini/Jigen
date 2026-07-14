@@ -76,16 +76,19 @@ public class CollectionQueryHandlers(
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var top = request.Top <= 0 ? 10 : request.Top;
-    var results = store.Search(request.Collection, request.Embeddings, top, request.Filter)
+    var results = store.Search(request.Collection, request.Embeddings, top, request.EfSearch, request.Filter);
+
+    if (request.MinScore.HasValue)
+      results = results.Where(i => i.score >= request.MinScore.Value);
+
+    return Task.FromResult(results
       .Select(i => new SearchVectorResultItem
       {
         Key = i.entry.Id,
-        Content = i.entry.Content.ToArray(),
+        Content = request.NoContent ? null : i.entry.Content.ToArray(),
         Score = i.score
       })
-      .AsEnumerable();
-
-    return Task.FromResult(results);
+      .AsEnumerable());
   }
 
   public async Task<SearchCollectionsResult> Handle(SearchCollections request, CancellationToken cancellationToken)

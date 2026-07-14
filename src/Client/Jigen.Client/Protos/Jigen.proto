@@ -8,15 +8,24 @@ service StoreCollectionService {
   rpc GetContent (ItemKey) returns (RawContentResult);
   rpc SetDocument (Document) returns (Result);
   rpc SetVector (Vector) returns (Result);
+  // Bulk ingestion: one call, many entries. Avoids the per-item round trip of
+  // SetVector/SetDocument; SetDocuments also batches the server-side embedding
+  // calculation of the streamed sentences.
+  rpc SetVectors (stream Vector) returns (IngestResult);
+  rpc SetDocuments (stream Document) returns (IngestResult);
   rpc SearchVector(SearchVectorRequest) returns(SearchVectorResponse);
   rpc SearchDocument(SearchDocumentRequest) returns(SearchVectorResponse);
   rpc DeleteVector(ItemKey) returns(Result);
   rpc GetAllKeys(CollectionKey) returns(KeysResult);
+  // Keys in chunks over a server stream: use instead of GetAllKeys on large
+  // collections, where a single KeysResult would exceed the message size cap.
+  rpc StreamKeys(StreamKeysRequest) returns(stream KeysResult);
   rpc Contains(ItemKey) returns(Result);
   rpc Clear(CollectionKey) returns(Result);
   rpc Count(CollectionKey) returns(CountResult);
 
   rpc CalculateEmbeddings (EmbeddingRequest) returns (EmbeddingResponse);
+  rpc CalculateEmbeddingsBatch (EmbeddingBatchRequest) returns (EmbeddingBatchResponse);
 }
 
 message ItemKey{
@@ -32,6 +41,13 @@ message CollectionKey{
 
 message KeysResult{
   repeated bytes Keys = 1;
+}
+
+message StreamKeysRequest{
+  string Database = 1;
+  string Collection = 2;
+  // Keys per streamed message; 0 = server default (1000).
+  int32 ChunkSize = 3;
 }
 
 message CountResult{
@@ -54,11 +70,26 @@ message Vector {
   repeated float Embeddings = 5;
 }
 
+// Per-query search tuning, shared by SearchVectorRequest and
+// SearchDocumentRequest. Every field is optional: the zero value keeps the
+// server's configured behavior.
+// - EfSearch: HNSW beam width override for this query (recall vs latency);
+//   0 = server default. Ignored by exact (brute force) indexes.
+// - NoContent: return keys and scores only, skipping the content bytes.
+// - MinScore: drop results scoring below this similarity.
+message SearchTuning {
+  int32 EfSearch = 1;
+  bool NoContent = 2;
+  optional float MinScore = 3;
+}
+
 message SearchVectorRequest {
   string Database = 1;
   string Collection = 2;
   repeated float Embeddings = 3;
   int32 Top = 4;
+  FilterNode Filter = 5;
+  SearchTuning Tuning = 6;
 }
 
 message SearchVectorResult {
@@ -77,6 +108,7 @@ message SearchDocumentRequest {
   string Sentence = 3;
   int32 Top = 4;
   FilterNode Filter = 5;
+  SearchTuning Tuning = 6;
 }
 
 message FilterNode {
@@ -119,6 +151,14 @@ message Result {
   string Message = 2;
 }
 
+message IngestResult {
+  bool Success = 1;
+  string Message = 2;
+  // Entries accepted into the ingestion pipeline. Durability follows the
+  // server's group-commit policy, like the unary Set operations.
+  int32 Accepted = 3;
+}
+
 message EmbeddingRequest {
   string Message = 1;
   string Task = 2;
@@ -126,6 +166,17 @@ message EmbeddingRequest {
 
 message EmbeddingResponse {
   repeated float Embeddings = 1;
+}
+
+message EmbeddingBatchRequest {
+  repeated string Messages = 1;
+  string Task = 2;
+}
+
+message EmbeddingBatchResponse {
+  // One entry per input message, same order. An input the model could not
+  // embed yields an entry with an empty Embeddings list.
+  repeated EmbeddingResponse Results = 1;
 }
 
 message ListCollectionResult{

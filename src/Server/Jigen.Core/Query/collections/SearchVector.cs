@@ -10,6 +10,15 @@ public class SearchVector : IRequest<IEnumerable<SearchVectorResultItem>>
   public float[] Embeddings { get; set; }
   public int Top { get; set; }
   public IFilterExpression Filter { get; set; }
+
+  /// <summary>Per-query HNSW beam width; 0 = index default. Ignored by exact indexes.</summary>
+  public int EfSearch { get; set; }
+
+  /// <summary>Return keys and scores only, without the content bytes.</summary>
+  public bool NoContent { get; set; }
+
+  /// <summary>Drop results scoring below this similarity.</summary>
+  public float? MinScore { get; set; }
 }
 
 public class SearchVectorResultItem

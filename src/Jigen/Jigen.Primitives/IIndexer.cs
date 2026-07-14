@@ -11,6 +11,14 @@ public interface IIndexer
   IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top, IFilterExpression contentFilter = null);
   IEnumerable<VectorEntry> Search(IStore store, string collection, IFilterExpression contentFilter = null);
 
+  /// <summary>
+  /// Search with a per-query beam width override (HNSW efSearch: recall vs
+  /// latency). Indexers without a beam (exact scans) ignore it; 0 or negative
+  /// means "use the configured default".
+  /// </summary>
+  IEnumerable<(VectorEntry entry, float score)> Search(IStore store, string collection, float[] queryVector, int top, int efSearch, IFilterExpression contentFilter = null)
+    => Search(store, collection, queryVector, top, contentFilter);
+
   Task FlushAsync() => Task.CompletedTask;
   Task ShrinkAsync() => Task.CompletedTask;
 

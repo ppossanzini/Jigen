@@ -23,6 +23,38 @@ articles.Add(42, article, sentence: "Jigen is a vector database written in C#.")
 
 This calls the gRPC `SetDocument` method, which requires the server to have a reachable embedding module (all-in-one server, or a distributed server with a reachable `jigen-embeddings` worker). See [server overview](../server/overview.md) for the two topologies.
 
+### Bulk insert
+
+`Add` pays one network round trip per entry. For batches, `AddRangeAsync` streams every entry over a single gRPC call and returns the number of entries the server accepted:
+
+```csharp
+// Precomputed embeddings (VectorEntry<T>.Embedding may be null for content-only entries):
+int accepted = await articles.AddRangeAsync(entries); // IEnumerable<KeyValuePair<VectorKey, VectorEntry<Article>>>
+
+// Server-side embeddings: the server batches the embedding calculation
+// (64 sentences per dispatch) instead of embedding one document at a time.
+int accepted = await articles.AddRangeAsync(items);   // IEnumerable<(VectorKey Key, Article Content, string Sentence)>
+```
+
+Entries with a null/empty `Sentence` are stored without a vector. Like the unary inserts, acceptance means the entry entered the server's ingestion pipeline; durability follows the server's group-commit policy.
+
+## Async API
+
+Every remote operation has an async counterpart that never blocks a thread on the network call — prefer these in ASP.NET and other async contexts:
+
+```csharp
+await articles.AddAsync(42, article, sentence);           // or (key, entry) / (key, content, embeddings)
+var entry   = await articles.GetAsync(42);                // null when missing (async TryGetValue)
+var results = await articles.SearchAsync(vector, top: 5); // or (sentence[, predicate], top)
+var found   = await articles.ContainsKeyAsync(42);
+var removed = await articles.RemoveAsync(42);
+var count   = await articles.CountAsync();
+var keys    = await articles.GetKeysAsync();
+await articles.ClearAsync();
+```
+
+All of them take an optional `CancellationToken`. The synchronous methods (`Add`, `Search`, the `IDictionary` surface) remain available and unchanged.
+
 ## Searching
 
 ### By precomputed vector
@@ -51,9 +83,33 @@ var results2 = articles.Search(
   top: 10);
 ```
 
-The predicate is a LINQ expression tree; it is translated client-side into the gRPC filter AST (`FilterNode`/`PropertyEqualsCondition`/`PropertyCollectionAnyCondition`/`LogicalCondition`, see [gRPC API](../server/grpc-api.md)) and evaluated server-side against the stored document. Supported shapes are property equality (`x.Prop == value`), collection membership (`x.Tags.Any(t => t == value)`), and `&&`/`||` combinations of those — the same subset documented for [in-process filtering](../in-process/collections.md).
+The predicate is a LINQ expression tree; it is translated client-side into the gRPC filter AST (`FilterNode`/`PropertyEqualsCondition`/`PropertyCollectionAnyCondition`/`LogicalCondition`, see [gRPC API](../server/grpc-api.md)) and evaluated server-side against the stored document. Supported shapes are property equality (`x.Prop == value`), collection membership (`x.Tags.Any(t => t == value)`), and `&&`/`||` combinations of those — the same subset documented for [in-process filtering](../in-process/collections.md). The same predicate parameter is available on the vector-based `Search(embeddings, predicate, ...)`.
 
 `Search(sentence, ...)` always requires the server to have an embedding module; `Search(embeddings, top)` never does.
+
+### Per-query tuning
+
+Every `Search`/`SearchAsync` overload accepts an optional `SearchOptions`:
+
+```csharp
+var results = await articles.SearchAsync(myFloatVector, top: 10, options: new SearchOptions
+{
+  EfSearch = 200,    // HNSW beam width for THIS query (recall vs latency); 0 = server default
+  NoContent = true,  // keys and scores only: results come back with Content == null
+  MinScore = 0.35f   // drop results below this similarity
+});
+```
+
+`EfSearch` is the knob to recover recall on large collections without changing the server-wide default; it is ignored by exact (brute force) indexes.
+
+### Streaming keys
+
+`Keys`/`GetKeysAsync` return every key in one response, which can exceed the gRPC message limit on large collections. `StreamKeysAsync` streams them in chunks of 1000 (configurable):
+
+```csharp
+await foreach (var key in articles.StreamKeysAsync())
+  Process(key);
+```
 
 ## Dictionary-style access
 
