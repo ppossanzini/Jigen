@@ -76,7 +76,7 @@ public partial class SmallWorldIndexer
     return info;
   }
 
-  public IndexGraphSnapshot GetGraphSnapshot(string collection, int dimensions = 2, int limit = 2000, int? level = null)
+  public IndexGraphSnapshot GetGraphSnapshot(string collection, int dimensions = 2, int limit = 2000, int? level = null, float[] queryVector = null)
   {
     dimensions = Math.Clamp(dimensions, 2, 3);
     limit = Math.Clamp(limit, 1, 20_000);
@@ -173,7 +173,15 @@ public partial class SmallWorldIndexer
     if (sampled.Count == 0) return snapshot;
 
     // --- PCA projection (outside all locks) ---
-    var coords = PcaProjection.Project(sampled.Select(s => s.vector).ToList(), dimensions);
+    // The query vector (if any) rides along as an extra row so it lands in the SAME
+    // basis as the sampled nodes; it is never added to `sampled`/nodes/edges since it
+    // is synthetic, not a real graph node. Its projected row is the last one.
+    var vectors = sampled.Select(s => s.vector).ToList();
+    var hasQueryVector = queryVector is { Length: > 0 };
+    if (hasQueryVector) vectors.Add(queryVector);
+
+    var coords = PcaProjection.Project(vectors, dimensions);
+    if (hasQueryVector) snapshot.QueryPosition = coords[^1];
 
     var positionToIndex = new Dictionary<int, int>(sampled.Count);
     for (var i = 0; i < sampled.Count; i++) positionToIndex[sampled[i].pos] = i;

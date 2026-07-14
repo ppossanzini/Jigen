@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { fetchCollectionGraph, fetchListCollections } from '@/service/api';
+import { fetchCollectionGraph, fetchCollectionGraphWithQuery, fetchListCollections } from '@/service/api';
 import type { IndexGraphSnapshot } from '@/service/api-types';
 import { useDatabaseStore } from '@/store/modules/database';
+import { useGraphHighlightStore } from '@/store/modules/graph-highlight';
 import { toNum } from '@/utils/format';
 import { $t } from '@/locales';
 import GraphStatsStrip from './modules/graph-stats-strip.vue';
@@ -17,6 +18,7 @@ defineOptions({
 });
 
 const databaseStore = useDatabaseStore();
+const graphHighlightStore = useGraphHighlightStore();
 const route = useRoute();
 
 const databaseOptions = computed(() => databaseStore.databases.map(name => ({ label: name, value: name })));
@@ -24,9 +26,21 @@ const databaseOptions = computed(() => databaseStore.databases.map(name => ({ la
 const collectionOptions = ref<string[]>([]);
 const selectedCollection = ref('');
 
+// Highlighting staged by the Workbench ("Visualizza nel grafo"): result keys → score, plus the
+// resolved query embedding to project into the same PCA basis via the POST graph endpoint. Cleared
+// whenever the database/collection changes since it belongs to one specific collection's results.
+const highlightMatches = ref<Map<string, number> | null>(null);
+const highlightQueryEmbedding = ref<number[] | null>(null);
+
+function clearHighlight() {
+  highlightMatches.value = null;
+  highlightQueryEmbedding.value = null;
+}
+
 async function loadCollections() {
   selectedCollection.value = '';
   collectionOptions.value = [];
+  clearHighlight();
 
   if (!databaseStore.current) return;
 
@@ -37,6 +51,13 @@ async function loadCollections() {
 }
 
 watch(() => databaseStore.current, loadCollections);
+
+function selectCollection(value: string) {
+  if (value !== selectedCollection.value) {
+    clearHighlight();
+  }
+  selectedCollection.value = value;
+}
 
 const dimensions = ref<2 | 3>(2);
 const limit = ref(500);
@@ -55,11 +76,18 @@ async function loadGraph() {
   hasError.value = false;
   errorMessage.value = '';
 
-  const { data, error } = await fetchCollectionGraph(databaseStore.current, selectedCollection.value, {
-    dimensions: dimensions.value,
-    limit: limit.value,
-    level: levelFilter.value ?? undefined
-  });
+  const { data, error } = highlightQueryEmbedding.value
+    ? await fetchCollectionGraphWithQuery(databaseStore.current, selectedCollection.value, {
+        dimensions: dimensions.value,
+        limit: limit.value,
+        level: levelFilter.value ?? undefined,
+        queryEmbedding: highlightQueryEmbedding.value
+      })
+    : await fetchCollectionGraph(databaseStore.current, selectedCollection.value, {
+        dimensions: dimensions.value,
+        limit: limit.value,
+        level: levelFilter.value ?? undefined
+      });
 
   loading.value = false;
   settled.value = true;
@@ -101,6 +129,12 @@ onMounted(async () => {
   }
 
   if (deepLinkedDb && deepLinkedCollection) {
+    const staged = graphHighlightStore.consume(databaseStore.current, selectedCollection.value);
+    if (staged) {
+      highlightMatches.value = staged.matches;
+      highlightQueryEmbedding.value = staged.queryEmbedding;
+    }
+
     loadGraph();
   }
 });
@@ -121,7 +155,12 @@ function openNodeDetail(node: PreparedNode) {
   <div class="h-full flex-col gap-16px">
     <NCard :bordered="false" size="small" class="card-wrapper">
       <template v-if="snapshot" #header-extra>
-        <GraphStatsStrip :snapshot="snapshot" />
+        <div class="flex-y-center gap-12px">
+          <NTag v-if="highlightMatches" type="success" round closable @close="clearHighlight">
+            {{ $t('page.graph-explorer.controls.highlightActive', { count: highlightMatches.size }) }}
+          </NTag>
+          <GraphStatsStrip :snapshot="snapshot" />
+        </div>
       </template>
       <div class="grid grid-cols-1 gap-12px md:grid-cols-2 xl:grid-cols-6">
         <NFormItem :label="$t('page.graph-explorer.controls.database')" :show-feedback="false">
@@ -135,10 +174,11 @@ function openNodeDetail(node: PreparedNode) {
         </NFormItem>
         <NFormItem :label="$t('page.graph-explorer.controls.collection')" :show-feedback="false">
           <NSelect
-            v-model:value="selectedCollection"
+            :value="selectedCollection"
             filterable
             :options="collectionOptions.map(name => ({ label: name, value: name }))"
             :placeholder="$t('page.graph-explorer.controls.collectionPlaceholder')"
+            @update:value="selectCollection"
           />
         </NFormItem>
         <NFormItem :label="$t('page.graph-explorer.controls.dimensions')" :show-feedback="false">
@@ -210,8 +250,8 @@ function openNodeDetail(node: PreparedNode) {
         class="flex-1 flex-center"
       />
       <NSpin v-else-if="snapshot" :show="loading" class="min-h-0 flex-1" content-class="h-full">
-        <Graph2DChart v-if="!snapshotIs3d" :snapshot="snapshot" @node-click="openNodeDetail" />
-        <Graph3DChart v-else :snapshot="snapshot" @node-click="openNodeDetail" />
+        <Graph2DChart v-if="!snapshotIs3d" :snapshot="snapshot" :matches="highlightMatches" @node-click="openNodeDetail" />
+        <Graph3DChart v-else :snapshot="snapshot" :matches="highlightMatches" @node-click="openNodeDetail" />
       </NSpin>
     </NCard>
 

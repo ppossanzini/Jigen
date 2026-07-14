@@ -6,6 +6,8 @@ import type { SearchCollectionsResult } from '@/service/api-types';
 import type { DocumentKeyType } from '@/service/api-types';
 import { useAppStore } from '@/store/modules/app';
 import { useDatabaseStore } from '@/store/modules/database';
+import { useGraphHighlightStore } from '@/store/modules/graph-highlight';
+import { useRouterPush } from '@/hooks/common/router';
 import { decodeKey } from '@/utils/key-codec';
 import { $t } from '@/locales';
 import TimingStrip from './modules/timing-strip.vue';
@@ -20,6 +22,8 @@ defineOptions({
 
 const appStore = useAppStore();
 const databaseStore = useDatabaseStore();
+const graphHighlightStore = useGraphHighlightStore();
+const { routerPushByKey } = useRouterPush();
 const route = useRoute();
 
 const drawerWidth = computed(() => (appStore.isMobile ? '92vw' : '38vw'));
@@ -124,6 +128,34 @@ const rows = computed<ResultRow[]>(() => {
 
   return flat.sort((a, b) => b.score - a.score);
 });
+
+// --- "Visualizza nel grafo": hand the current search off to Graph Explorer ---
+const collectionsWithResults = computed(() => (result.value?.collectionsResults ?? []).filter(group => (group.results?.length ?? 0) > 0));
+
+const graphMenuOptions = computed(() =>
+  collectionsWithResults.value.map(group => ({ label: group.collection ?? '', key: group.collection ?? '' }))
+);
+
+function viewInGraph(collectionName: string) {
+  const group = collectionsWithResults.value.find(g => g.collection === collectionName);
+  if (!group || !databaseStore.current) return;
+
+  const matches = new Map<string, number>();
+  for (const item of group.results ?? []) {
+    if (item.key) matches.set(item.key, Number(item.score ?? 0));
+  }
+
+  const queryEmbedding = (result.value?.queryEmbedding ?? []).map(Number);
+
+  graphHighlightStore.stage({
+    database: databaseStore.current,
+    collection: collectionName,
+    matches,
+    queryEmbedding
+  });
+
+  routerPushByKey('graph-explorer', { query: { db: databaseStore.current, collection: collectionName } });
+}
 
 // --- result detail drawer ---
 const detailVisible = ref(false);
@@ -240,10 +272,27 @@ onMounted(async () => {
       content-class="h-full min-h-0 flex-col"
     >
       <template #header-extra>
-        <NButton size="small" quaternary @click="docDrawerVisible = true">
-          <template #icon><SvgIcon icon="mdi:file-document-edit-outline" /></template>
-          {{ $t('page.workbench.document.title') }}
-        </NButton>
+        <div class="flex-y-center gap-8px">
+          <NButton
+            v-if="collectionsWithResults.length === 1"
+            size="small"
+            quaternary
+            @click="viewInGraph(collectionsWithResults[0].collection ?? '')"
+          >
+            <template #icon><SvgIcon icon="mdi:graph-outline" /></template>
+            {{ $t('page.workbench.results.viewInGraph') }}
+          </NButton>
+          <NDropdown v-else-if="collectionsWithResults.length > 1" trigger="click" :options="graphMenuOptions" @select="viewInGraph">
+            <NButton size="small" quaternary>
+              <template #icon><SvgIcon icon="mdi:graph-outline" /></template>
+              {{ $t('page.workbench.results.viewInGraph') }}
+            </NButton>
+          </NDropdown>
+          <NButton size="small" quaternary @click="docDrawerVisible = true">
+            <template #icon><SvgIcon icon="mdi:file-document-edit-outline" /></template>
+            {{ $t('page.workbench.document.title') }}
+          </NButton>
+        </div>
       </template>
       <NResult
         v-if="searchError"

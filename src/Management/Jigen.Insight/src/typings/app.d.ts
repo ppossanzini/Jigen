@@ -649,6 +649,7 @@ declare namespace App {
             content: string;
             empty: string;
             selectPrompt: string;
+            viewInGraph: string;
           };
           detail: {
             title: string;
@@ -692,6 +693,7 @@ declare namespace App {
             levelPlaceholder: string;
             levelClear: string;
             load: string;
+            highlightActive: string;
           };
           stats: {
             total: string;
@@ -710,8 +712,10 @@ declare namespace App {
             tooltipDegree: string;
             tooltipDeleted: string;
             tooltipEdgeLevel: string;
+            tooltipScore: string;
             legendLevel: string;
             legendDeleted: string;
+            queryLabel: string;
           };
           empty: {
             noDatabaseSelected: string;

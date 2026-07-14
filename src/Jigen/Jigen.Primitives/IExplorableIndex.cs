@@ -9,5 +9,5 @@ namespace Jigen;
 public interface IExplorableIndex
 {
   CollectionIndexInfo GetIndexInfo(string collection);
-  IndexGraphSnapshot GetGraphSnapshot(string collection, int dimensions = 2, int limit = 2000, int? level = null);
+  IndexGraphSnapshot GetGraphSnapshot(string collection, int dimensions = 2, int limit = 2000, int? level = null, float[] queryVector = null);
 }

@@ -18,6 +18,8 @@ defineOptions({
 
 interface Props {
   snapshot: IndexGraphSnapshot;
+  /** Search-result keys (base64, same format as `IndexGraphNode.key`) → score, for highlighting */
+  matches?: Map<string, number> | null;
 }
 
 const props = defineProps<Props>();
@@ -28,10 +30,18 @@ const { chartColors, getSequentialShades } = useChartTheme();
 
 const maxLevel = computed(() => toNum(props.snapshot.maxLevel));
 
+// Match highlighting uses a color channel ('success') distinct from the level ramp ('primary')
+// so the two scales stay visually separable, ranked so the best score is the most intense shade.
+const matchShades = computed(() => {
+  const count = props.matches?.size ?? 0;
+
+  return count ? getSequentialShades(count, 'success').reverse() : [];
+});
+
 const prepared = computed(() => {
   const shades = getSequentialShades(maxLevel.value + 1);
 
-  return prepareGraphData(props.snapshot, shades, chartColors.value.deleted);
+  return prepareGraphData(props.snapshot, shades, chartColors.value.deleted, props.matches ?? undefined, matchShades.value);
 });
 
 function nodeTooltip(node: PreparedNode) {
@@ -40,6 +50,7 @@ function nodeTooltip(node: PreparedNode) {
     node.key ? `${$t('page.graph-explorer.chart.tooltipKey')}: ${decodeKey(node.key)}` : '',
     `${$t('page.graph-explorer.chart.tooltipLevel')}: ${node.maxLevel}`,
     `${$t('page.graph-explorer.chart.tooltipDegree')}: ${node.degree}`,
+    node.isMatch ? `${$t('page.graph-explorer.chart.tooltipScore')}: ${node.matchScore?.toFixed(4)}` : '',
     node.isDeleted ? $t('page.graph-explorer.chart.tooltipDeleted') : ''
   ].filter(Boolean);
 
@@ -58,7 +69,7 @@ const EDGE_SAMPLES = 6;
 
 function buildOptions(): ECOption {
   const c = chartColors.value;
-  const { nodes, edges } = prepared.value;
+  const { nodes, edges, hasMatches, queryPoint } = prepared.value;
 
   const axisStyle = {
     axisLine: { lineStyle: { color: c.axisLine } },
@@ -67,19 +78,34 @@ function buildOptions(): ECOption {
     axisPointer: { label: { textStyle: { color: c.text, backgroundColor: c.tooltipBg } } }
   };
 
-  const scatterData = nodes.map(node => ({
+  const scatterData: Record<string, unknown>[] = nodes.map(node => ({
     name: node.isEntrypoint ? $t('page.graph-explorer.chart.entrypointLabel') : node.id,
     value: [node.x, node.y, node.z ?? 0],
     symbolSize: node.symbolSize,
     itemStyle: {
       color: node.color,
-      borderColor: node.isEntrypoint ? c.text : 'transparent',
-      borderWidth: node.isEntrypoint ? 2 : 0,
-      opacity: node.isDeleted ? 0.4 : 0.9
+      borderColor: node.isMatch || node.isEntrypoint ? c.text : 'transparent',
+      borderWidth: node.isMatch ? 1.5 : node.isEntrypoint ? 2 : 0,
+      opacity: node.isDeleted ? 0.4 : hasMatches && !node.isMatch ? 0.2 : 0.9
     },
     label: { show: node.isEntrypoint, formatter: () => $t('page.graph-explorer.chart.entrypointLabel') },
     raw: node
   }));
+
+  // The searched vector itself: a synthetic point (no `raw`, so the click handler below ignores
+  // it) in the same scatter3D series with a distinct symbol/color, never from the sequential
+  // match ramp so it always stands out from the ranked result nodes.
+  if (queryPoint) {
+    scatterData.push({
+      name: $t('page.graph-explorer.chart.queryLabel'),
+      value: [queryPoint.x, queryPoint.y, queryPoint.z ?? 0],
+      symbol: 'diamond',
+      symbolSize: 16,
+      itemStyle: { color: c.primary, borderColor: c.text, borderWidth: 2, opacity: 1 },
+      label: { show: true, formatter: () => $t('page.graph-explorer.chart.queryLabel') },
+      isQueryPoint: true
+    });
+  }
 
   const nodeById = new Map(nodes.map(node => [node.id, node]));
 
@@ -99,7 +125,7 @@ function buildOptions(): ECOption {
           source.y + (target.y - source.y) * t,
           (source.z ?? 0) + ((target.z ?? 0) - (source.z ?? 0)) * t
         ],
-        itemStyle: { color: edge.color, opacity: 0.3 },
+        itemStyle: { color: edge.color, opacity: hasMatches ? 0.12 : 0.3 },
         symbolSize: Math.max(2, edge.width)
       });
     }
@@ -110,7 +136,11 @@ function buildOptions(): ECOption {
       backgroundColor: c.tooltipBg,
       borderColor: c.tooltipBorder,
       textStyle: { color: c.text },
-      formatter: (params: { data: { raw?: PreparedNode } }) => (params.data.raw ? nodeTooltip(params.data.raw) : '')
+      formatter: (params: { data: { raw?: PreparedNode; isQueryPoint?: boolean } }) => {
+        if (params.data.isQueryPoint) return $t('page.graph-explorer.chart.queryLabel');
+
+        return params.data.raw ? nodeTooltip(params.data.raw) : '';
+      }
     },
     xAxis3D: { type: 'value', ...axisStyle },
     yAxis3D: { type: 'value', ...axisStyle },

@@ -37,4 +37,9 @@ public class IndexGraphSnapshot
   public bool Truncated { get; set; }          // true when limit cut the sample
   public IList<IndexGraphNode> Nodes { get; set; } = [];
   public IList<IndexGraphEdge> Edges { get; set; } = [];
+
+  /// <summary>PCA coordinates of the optional query vector, projected in the SAME PCA
+  /// basis as <see cref="Nodes"/> (computed by appending it to the sampled batch before
+  /// projection). Null when no query vector was supplied to GetGraphSnapshot.</summary>
+  public float[] QueryPosition { get; set; }
 }

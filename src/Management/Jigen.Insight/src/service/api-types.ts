@@ -20,6 +20,7 @@ export type DatabaseDetails = components['schemas']['DatabaseDetails'];
 export type DatabaseStatus = components['schemas']['DatabaseStatus'];
 export type DatabaseUserInfo = components['schemas']['DatabaseUserInfo'];
 export type DocumentPayload = components['schemas']['DocumentPayload'];
+export type GetCollectionGraphRequest = components['schemas']['GetCollectionGraphRequest'];
 export type IndexGraphEdge = components['schemas']['IndexGraphEdge'];
 export type IndexGraphNode = components['schemas']['IndexGraphNode'];
 export type IndexGraphSnapshot = components['schemas']['IndexGraphSnapshot'];

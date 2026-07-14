@@ -58,20 +58,24 @@ export function useChartTheme() {
   });
 
   /**
-   * Sequential shades of the primary color, light → dark, for ordinal data (e.g. HNSW levels)
-   * where a single hue graduated by intensity reads better than the categorical palette.
+   * Sequential shades of a scheme color, light → dark, for ordinal data (e.g. HNSW levels, or
+   * search-result rank) where a single hue graduated by intensity reads better than the
+   * categorical palette.
    *
    * @param steps Number of shades to produce (at least 1)
+   * @param colorKey Scheme color to graduate; defaults to `primary` (used for HNSW level shading).
+   *   Pass a different channel (e.g. `success`) for a scale that must stay visually distinct from
+   *   the level scale, such as search-result highlighting drawn over the same chart.
    */
-  function getSequentialShades(steps: number) {
+  function getSequentialShades(steps: number, colorKey: 'primary' | 'info' | 'success' | 'warning' | 'error' = 'primary') {
     const weights: App.Theme.ColorPaletteNumber[] = [100, 200, 300, 400, 500, 600, 700, 800, 900];
     const count = Math.max(1, steps);
-    const { primary } = themeStore.schemeThemeColors;
+    const baseColor = themeStore.schemeThemeColors[colorKey];
 
     return Array.from({ length: count }, (_, index) => {
       const weightIndex = count === 1 ? weights.length - 1 : Math.round((index / (count - 1)) * (weights.length - 1));
 
-      return getPaletteColorByNumber(primary, weights[weightIndex]);
+      return getPaletteColorByNumber(baseColor, weights[weightIndex]);
     });
   }
 

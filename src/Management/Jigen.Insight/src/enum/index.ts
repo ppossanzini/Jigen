@@ -4,5 +4,6 @@ export enum SetupStoreId {
   Auth = 'auth-store',
   Route = 'route-store',
   Tab = 'tab-store',
-  Database = 'database-store'
+  Database = 'database-store',
+  GraphHighlight = 'graph-highlight-store'
 }

@@ -389,7 +389,8 @@ const local: App.I18n.Schema = {
         collection: 'Collection',
         content: 'Content',
         empty: 'No results yet — run a search above',
-        selectPrompt: 'Select a database and at least one collection, then search'
+        selectPrompt: 'Select a database and at least one collection, then search',
+        viewInGraph: 'Visualize in graph'
       },
       detail: {
         title: 'Result',
@@ -432,7 +433,8 @@ const local: App.I18n.Schema = {
         level: 'Level filter',
         levelPlaceholder: 'All levels',
         levelClear: 'Clear',
-        load: 'Load graph'
+        load: 'Load graph',
+        highlightActive: '{count} search results highlighted'
       },
       stats: {
         total: 'Total nodes',
@@ -451,8 +453,10 @@ const local: App.I18n.Schema = {
         tooltipDegree: 'Degree',
         tooltipDeleted: 'Deleted',
         tooltipEdgeLevel: 'Edge level',
+        tooltipScore: 'Score',
         legendLevel: 'Level {level}',
-        legendDeleted: 'Deleted'
+        legendDeleted: 'Deleted',
+        queryLabel: 'Query vector'
       },
       empty: {
         noDatabaseSelected: 'Select a database to explore its collections',

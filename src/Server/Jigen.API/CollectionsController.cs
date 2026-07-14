@@ -54,6 +54,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     return Ok(result);
   }
 
+  [HttpPost("{collection}/graph")]
+  [ProducesResponseType(typeof(IndexGraphSnapshot), StatusCodes.Status200OK)]
+  public async Task<IActionResult> GetCollectionGraphWithQuery(string dbname, string collection,
+    [FromBody] Dto.GetCollectionGraphRequest request, CancellationToken cancellationToken = default)
+  {
+    request ??= new Dto.GetCollectionGraphRequest();
+    var result = await mediator.Send(new Core.Query.collections.GetCollectionGraph
+    {
+      Database = dbname,
+      Collection = collection,
+      Dimensions = request.Dimensions,
+      Limit = request.Limit,
+      Level = request.Level,
+      QueryEmbedding = request.QueryEmbedding
+    }, cancellationToken);
+    return Ok(result);
+  }
+
   [HttpPost("search")]
   [ProducesResponseType(typeof(SearchCollectionsResult), StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
