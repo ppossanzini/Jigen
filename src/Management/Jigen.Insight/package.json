@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "@better-scroll/core": "2.5.1",
+    "@fontsource/jetbrains-mono": "^5.2.8",
     "@iconify/vue": "5.0.1",
     "@sa/axios": "*",
     "@sa/color": "*",

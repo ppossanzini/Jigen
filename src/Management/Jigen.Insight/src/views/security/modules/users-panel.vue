@@ -84,7 +84,7 @@ const columns: DataTableColumns<UserSummary> = [
       h(
         'a',
         {
-          class: 'text-primary dark:text-primary-800 cursor-pointer hover:underline',
+          class: 'text-primary cursor-pointer hover:underline',
           onClick: () => openDetail(row)
         },
         row.userName ?? ''

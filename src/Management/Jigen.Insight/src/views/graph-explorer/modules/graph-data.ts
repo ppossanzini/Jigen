@@ -75,7 +75,7 @@ export function prepareGraphData(snapshot: IndexGraphSnapshot, levelShades: stri
       degree,
       isEntrypoint,
       color: isDeleted ? deletedColor : shadeFor(maxLevel),
-      symbolSize: isEntrypoint ? Math.max(28, 12 + degree) : Math.min(40, 6 + degree * 1.5),
+      symbolSize: (isEntrypoint ? Math.max(28, 12 + degree) : Math.min(40, 6 + degree * 1.5)) * 0.3,
       x: toNum(position[0]),
       y: toNum(position[1]),
       z: position.length > 2 ? toNum(position[2]) : undefined

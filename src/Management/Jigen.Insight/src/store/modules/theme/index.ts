@@ -63,7 +63,9 @@ export const useThemeStore = defineStore(SetupStoreId.Theme, () => {
   });
 
   /** Naive theme */
-  const naiveTheme = computed(() => getNaiveTheme(schemeThemeColors.value, settings.value, naiveThemeOverrides.value));
+  const naiveTheme = computed(() =>
+    getNaiveTheme(schemeThemeColors.value, settings.value, naiveThemeOverrides.value, darkMode.value)
+  );
 
   /**
    * Settings json

@@ -718,6 +718,19 @@ declare namespace App {
             noCollectionSelected: string;
             noNodes: string;
           };
+          detail: {
+            title: string;
+            position: string;
+            key: string;
+            level: string;
+            degree: string;
+            deleted: string;
+            entrypoint: string;
+            content: string;
+            noKey: string;
+            notFound: string;
+            loadFailed: string;
+          };
         };
         security: {
           title: string;

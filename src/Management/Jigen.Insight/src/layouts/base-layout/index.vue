@@ -8,7 +8,7 @@ import GlobalHeader from '../modules/global-header/index.vue';
 import GlobalSider from '../modules/global-sider/index.vue';
 import GlobalTab from '../modules/global-tab/index.vue';
 import GlobalContent from '../modules/global-content/index.vue';
-import GlobalFooter from '../modules/global-footer/index.vue';
+// import GlobalFooter from '../modules/global-footer/index.vue';
 import ThemeDrawer from '../modules/theme-drawer/index.vue';
 import { provideMixMenuContext } from '../modules/global-menu/context';
 
@@ -117,26 +117,14 @@ function getSiderAndCollapsedWidth(isCollapsed: boolean) {
 </script>
 
 <template>
-  <AdminLayout
-    v-model:sider-collapse="appStore.siderCollapse"
-    :mode="layoutMode"
-    :scroll-el-id="LAYOUT_SCROLL_EL_ID"
-    :scroll-mode="themeStore.layout.scrollMode"
-    :is-mobile="appStore.isMobile"
-    :full-content="appStore.fullContent"
-    :fixed-top="themeStore.fixedHeaderAndTab"
-    :header-height="themeStore.header.height"
-    :tab-visible="themeStore.tab.visible"
-    :tab-height="themeStore.tab.height"
-    :content-class="appStore.contentXScrollable ? 'overflow-x-hidden' : ''"
-    :sider-visible="siderVisible"
-    :sider-width="siderWidth"
-    :sider-collapsed-width="siderCollapsedWidth"
-    :footer-visible="themeStore.footer.visible"
-    :footer-height="themeStore.footer.height"
-    :fixed-footer="themeStore.footer.fixed"
-    :right-footer="themeStore.footer.right"
-  >
+  <AdminLayout v-model:sider-collapse="appStore.siderCollapse" :mode="layoutMode" :scroll-el-id="LAYOUT_SCROLL_EL_ID"
+    :scroll-mode="themeStore.layout.scrollMode" :is-mobile="appStore.isMobile" :full-content="appStore.fullContent"
+    :fixed-top="themeStore.fixedHeaderAndTab" :header-height="themeStore.header.height"
+    :tab-visible="themeStore.tab.visible" :tab-height="themeStore.tab.height"
+    :content-class="appStore.contentXScrollable ? 'overflow-x-hidden' : ''" :sider-visible="siderVisible"
+    :sider-width="siderWidth" :sider-collapsed-width="siderCollapsedWidth" :footer-visible="themeStore.footer.visible"
+    :footer-height="themeStore.footer.height" :fixed-footer="themeStore.footer.fixed"
+    :right-footer="themeStore.footer.right">
     <template #header>
       <GlobalHeader v-bind="headerProps" />
     </template>
@@ -149,9 +137,9 @@ function getSiderAndCollapsedWidth(isCollapsed: boolean) {
     <GlobalMenu />
     <GlobalContent />
     <ThemeDrawer />
-    <template #footer>
+    <!-- <template #footer>
       <GlobalFooter />
-    </template>
+    </template> -->
   </AdminLayout>
 </template>
 

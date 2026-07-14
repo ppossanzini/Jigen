@@ -4,10 +4,13 @@ import { useRoute } from 'vue-router';
 import { fetchCollectionGraph, fetchListCollections } from '@/service/api';
 import type { IndexGraphSnapshot } from '@/service/api-types';
 import { useDatabaseStore } from '@/store/modules/database';
+import { toNum } from '@/utils/format';
 import { $t } from '@/locales';
 import GraphStatsStrip from './modules/graph-stats-strip.vue';
 import Graph2DChart from './modules/graph-2d-chart.vue';
 import Graph3DChart from './modules/graph-3d-chart.vue';
+import NodeDetailDrawer from './modules/node-detail-drawer.vue';
+import type { PreparedNode } from './modules/graph-data';
 
 defineOptions({
   name: 'GraphExplorerPage'
@@ -72,6 +75,12 @@ async function loadGraph() {
   snapshot.value = data;
 }
 
+watch(dimensions, () => {
+  if (snapshot.value && databaseStore.current && selectedCollection.value) {
+    loadGraph();
+  }
+});
+
 onMounted(async () => {
   if (!databaseStore.loaded) {
     await databaseStore.loadDatabases();
@@ -97,6 +106,15 @@ onMounted(async () => {
 });
 
 const hasNodes = computed(() => Boolean(snapshot.value?.nodes?.length));
+const snapshotIs3d = computed(() => toNum(snapshot.value?.dimensions) === 3);
+
+const nodeDetailVisible = ref(false);
+const selectedNode = ref<PreparedNode | null>(null);
+
+function openNodeDetail(node: PreparedNode) {
+  selectedNode.value = node;
+  nodeDetailVisible.value = true;
+}
 </script>
 
 <template>
@@ -192,9 +210,16 @@ const hasNodes = computed(() => Boolean(snapshot.value?.nodes?.length));
         class="flex-1 flex-center"
       />
       <NSpin v-else-if="snapshot" :show="loading" class="min-h-0 flex-1" content-class="h-full">
-        <Graph2DChart v-if="dimensions === 2" :snapshot="snapshot" />
-        <Graph3DChart v-else :snapshot="snapshot" />
+        <Graph2DChart v-if="!snapshotIs3d" :snapshot="snapshot" @node-click="openNodeDetail" />
+        <Graph3DChart v-else :snapshot="snapshot" @node-click="openNodeDetail" />
       </NSpin>
     </NCard>
+
+    <NodeDetailDrawer
+      v-model:visible="nodeDetailVisible"
+      :database="databaseStore.current ?? ''"
+      :collection="selectedCollection ?? ''"
+      :node="selectedNode"
+    />
   </div>
 </template>

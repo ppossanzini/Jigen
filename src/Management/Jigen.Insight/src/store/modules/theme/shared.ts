@@ -246,14 +246,26 @@ function getNaiveThemeColors(colors: App.Theme.ThemeColor, recommended = false) 
 export function getNaiveTheme(
   colors: App.Theme.ThemeColor,
   settings: App.Theme.ThemeSetting,
-  overrides?: GlobalThemeOverrides
+  overrides?: GlobalThemeOverrides,
+  darkMode = false
 ) {
   const { primary: colorLoading } = colors;
+
+  const { light, dark } = settings.tokens;
+  const containerColor = darkMode ? (dark?.colors?.container ?? light.colors.container) : light.colors.container;
 
   const theme: GlobalThemeOverrides = {
     common: {
       ...getNaiveThemeColors(colors, settings.recommendColor),
-      borderRadius: `${settings.themeRadius}px`
+      borderRadius: `${settings.themeRadius}px`,
+      cardColor: containerColor,
+      popoverColor: containerColor,
+      modalColor: containerColor,
+
+      fontFamily:
+        "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+      fontFamilyMono:
+        "'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
     },
     LoadingBar: {
       colorLoading

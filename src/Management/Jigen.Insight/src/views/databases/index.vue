@@ -108,7 +108,7 @@ const columns: DataTableColumns<DatabaseDetails> = [
       h(
         'a',
         {
-          class: 'text-primary dark:text-primary-800 cursor-pointer hover:underline',
+          class: 'text-primary cursor-pointer hover:underline',
           onClick: () => openDetail(row.name ?? '')
         },
         row.name ?? ''

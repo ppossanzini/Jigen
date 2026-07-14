@@ -22,6 +22,8 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const emit = defineEmits<{ nodeClick: [node: PreparedNode] }>();
+
 const { chartColors, getSequentialShades } = useChartTheme();
 
 const maxLevel = computed(() => toNum(props.snapshot.maxLevel));
@@ -139,10 +141,19 @@ function buildOptions(): ECOption {
   return options as unknown as ECOption;
 }
 
-const { domRef, updateOptions } = useEcharts(buildOptions);
+const { domRef, chart, updateOptions } = useEcharts(buildOptions);
 
 watch([prepared, chartColors], () => {
   updateOptions((_, factory) => factory());
+});
+
+watch(chart, instance => {
+  instance?.on('click', params => {
+    const raw = (params.data as { raw?: PreparedNode } | undefined)?.raw;
+    if (raw && 'positionId' in raw) {
+      emit('nodeClick', raw);
+    }
+  });
 });
 </script>
 

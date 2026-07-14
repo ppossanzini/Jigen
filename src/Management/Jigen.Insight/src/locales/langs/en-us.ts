@@ -458,6 +458,19 @@ const local: App.I18n.Schema = {
         noDatabaseSelected: 'Select a database to explore its collections',
         noCollectionSelected: 'Select a collection to load its index graph',
         noNodes: 'This collection has no indexed vectors yet — the graph is empty'
+      },
+      detail: {
+        title: 'Document detail',
+        position: 'Position ID',
+        key: 'Key',
+        level: 'Max level',
+        degree: 'Degree',
+        deleted: 'Deleted',
+        entrypoint: 'Entrypoint',
+        content: 'Content',
+        noKey: 'This node has no associated key',
+        notFound: 'Document not found',
+        loadFailed: 'Failed to load the document'
       }
     },
     security: {
