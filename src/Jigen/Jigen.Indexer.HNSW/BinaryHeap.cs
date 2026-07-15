@@ -5,6 +5,10 @@
 
 // Rewritten for zero-allocation hot path: T[] backing store, no IList<T> dispatch,
 // no LINQ. SiftUp/SiftDown use direct array indexing with ref-swap.
+// Comparison<T> drives the ordering: converting IComparer<T>.Compare to a delegate
+// at construction time devirtualizes the interface dispatch. The Comparison<T>
+// constructor / Initialize overload lets the hot path avoid the ReverseComparer
+// wrapper entirely.
 // Poolable: parameterless constructor + Initialize + Clear let the indexer
 // recycle heap instances across SEARCH-LAYER calls without re-allocating buffers.
 
@@ -15,13 +19,16 @@ namespace Jigen.Indexer
   /// <summary>
   /// Binary max-heap backed by a plain array.
   /// The maximum element is always at index 0 (top).
-  /// Order is customizable via <see cref="IComparer{T}"/>.
+  /// Order is driven by a <see cref="Comparison{T}"/> delegate; the
+  /// <see cref="IComparer{T}"/> overloads capture its Compare method
+  /// into a delegate so all comparisons go through a single non-virtual call.
   /// Supports pooling: call <see cref="Initialize"/> to reuse a cleared heap.
   /// </summary>
   public class BinaryHeap<T>
   {
     private T[] _buffer;
     private int _count;
+    private Comparison<T> _comparison;
 
     /// <summary>For pooling: creates an uninitialized heap — call <see cref="Initialize"/> before use.</summary>
     public BinaryHeap() { }
@@ -29,7 +36,16 @@ namespace Jigen.Indexer
     /// <summary>Creates an empty heap with the given initial capacity.</summary>
     public BinaryHeap(IComparer<T> comparer, int initialCapacity = 8)
     {
-      Comparer = comparer ?? Comparer<T>.Default;
+      var c = comparer ?? Comparer<T>.Default;
+      Comparer = c;
+      _comparison = c.Compare; // captures concrete method — devirtualized
+      _buffer = new T[Math.Max(initialCapacity, 4)];
+    }
+
+    /// <summary>Creates an empty heap driven by a <see cref="Comparison{T}"/> delegate.</summary>
+    public BinaryHeap(Comparison<T> comparison, int initialCapacity = 8)
+    {
+      _comparison = comparison ?? Comparer<T>.Default.Compare;
       _buffer = new T[Math.Max(initialCapacity, 4)];
     }
 
@@ -39,7 +55,9 @@ namespace Jigen.Indexer
     /// </summary>
     public BinaryHeap(IList<T> source, IComparer<T> comparer)
     {
-      Comparer = comparer ?? Comparer<T>.Default;
+      var c = comparer ?? Comparer<T>.Default;
+      Comparer = c;
+      _comparison = c.Compare;
       _count = source.Count;
       if (_count > 0)
       {
@@ -53,6 +71,10 @@ namespace Jigen.Indexer
       }
     }
 
+    /// <summary>
+    /// The <see cref="IComparer{T}"/> that was originally passed, if any.
+    /// Null when constructed from a <see cref="Comparison{T}"/> directly.
+    /// </summary>
     public IComparer<T> Comparer { get; private set; }
 
     /// <summary>
@@ -61,11 +83,31 @@ namespace Jigen.Indexer
     /// </summary>
     public void Initialize(IComparer<T> comparer, int minCapacity = 8)
     {
-      Comparer = comparer ?? Comparer<T>.Default;
+      var c = comparer ?? Comparer<T>.Default;
+      Comparer = c;
+      _comparison = c.Compare;
+      EnsureCapacity(minCapacity);
+      _count = 0;
+    }
+
+    /// <summary>
+    /// Reinitialises a pooled heap with a <see cref="Comparison{T}"/> delegate
+    /// — the hot-path overload that avoids <see cref="ReverseComparer{T}"/>
+    /// allocation and double virtual dispatch.
+    /// </summary>
+    public void Initialize(Comparison<T> comparison, int minCapacity = 8)
+    {
+      _comparison = comparison ?? Comparer<T>.Default.Compare;
+      Comparer = null;
+      EnsureCapacity(minCapacity);
+      _count = 0;
+    }
+
+    private void EnsureCapacity(int minCapacity)
+    {
       var cap = Math.Max(minCapacity, 4);
       if (_buffer is null || _buffer.Length < cap)
         _buffer = new T[cap];
-      _count = 0;
     }
 
     /// <summary>
@@ -138,6 +180,9 @@ namespace Jigen.Indexer
       _buffer = newBuffer;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private int Compare(T x, T y) => _comparison(x, y);
+
     private void SiftDown(int i)
     {
       while (true)
@@ -145,8 +190,8 @@ namespace Jigen.Indexer
         int l = (i << 1) + 1;
         if (l >= _count) break;
         int r = l + 1;
-        int m = r < _count && Comparer.Compare(_buffer[l], _buffer[r]) < 0 ? r : l;
-        if (Comparer.Compare(_buffer[m], _buffer[i]) <= 0) break;
+        int m = r < _count && Compare(_buffer[l], _buffer[r]) < 0 ? r : l;
+        if (Compare(_buffer[m], _buffer[i]) <= 0) break;
         Swap(i, m);
         i = m;
       }
@@ -157,7 +202,7 @@ namespace Jigen.Indexer
       while (i > 0)
       {
         int p = (i - 1) >> 1;
-        if (Comparer.Compare(_buffer[i], _buffer[p]) <= 0) break;
+        if (Compare(_buffer[i], _buffer[p]) <= 0) break;
         Swap(i, p);
         i = p;
       }

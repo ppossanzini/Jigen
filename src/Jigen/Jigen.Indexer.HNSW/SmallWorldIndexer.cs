@@ -44,6 +44,17 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     return heap;
   }
 
+  /// <summary>
+  /// Hot-path overload: rents a heap driven by a <see cref="Comparison{T}"/>
+  /// delegate, bypassing <see cref="IComparer{T}"/> and its virtual dispatch.
+  /// </summary>
+  internal BinaryHeap<IndexNode> RentHeap(Comparison<IndexNode> comparison, int minCapacity = 16)
+  {
+    if (!_heapPool.TryTake(out var heap)) heap = new BinaryHeap<IndexNode>();
+    heap.Initialize(comparison, minCapacity);
+    return heap;
+  }
+
   internal void ReturnHeap(BinaryHeap<IndexNode> heap)
   {
     heap.Clear();

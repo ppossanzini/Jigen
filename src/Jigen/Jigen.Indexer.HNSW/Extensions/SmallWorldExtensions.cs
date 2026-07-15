@@ -1,10 +1,12 @@
 // SEARCH-LAYER hot-path optimizations:
-//  - BinaryHeap<T> now uses a T[] backing store: no IList dispatch, no virtual calls.
+//  - BinaryHeap<T> uses Comparison<T> internally: no IComparer<T> virtual dispatch.
 //  - BinaryHeap instances are pooled in SmallWorldIndexer to avoid per-call allocations.
 //  - Visited set: pooled epoch-stamped int[] (VisitedSet) — starting a traversal
 //    is a counter bump instead of clearing nodeCount bytes per level.
 //  - GetConnections replaced with ForEachConnection / inlined loop: no yield-return
 //    state-machine allocation per expanded node.
+//  - ReverseComparer eliminated from the hot path: the reverse comparison is
+//    an inline lambda, no wrapper allocation, no double virtual dispatch.
 //  - All LINQ calls (.Any(), .First()) eliminated from the hot loop.
 
 using Jigen.DataStructures;
@@ -52,10 +54,14 @@ public static class SmallWorldExtensions
      */
 
     var travelingCosts = destination.TravelingCosts;
-    IComparer<IndexNode> fartherIsLess = travelingCosts.Reverse();
+
+    // Reverse comparison as an inline lambda — no ReverseComparer allocation,
+    // no double virtual dispatch. Both heaps are driven by Comparison<T>
+    // delegates, which the JIT may inline for simple forwarding patterns.
+    Comparison<IndexNode> fartherIsLess = (a, b) => travelingCosts.Compare(b, a);
 
     // Heaps: pooled — Clear() + Initialize() reuse the T[] buffers across calls.
-    var resultHeap    = smallworld.RentHeap(travelingCosts, k + 1);
+    var resultHeap    = smallworld.RentHeap(travelingCosts.Compare, k + 1);
     var expansionHeap = smallworld.RentHeap(fartherIsLess, 16);
 
     // Deleted nodes stay navigable (their links bridge the graph) but must
@@ -87,6 +93,7 @@ public static class SmallWorldExtensions
       : Math.Max(k, k * smallworld.Options.FilteredSearchExpansionFactor);
     var expanded = 0;
 
+    IList<IndexNode> results;
     try
     {
       while (!expansionHeap.IsEmpty)
@@ -139,6 +146,10 @@ public static class SmallWorldExtensions
           }
         }
       }
+
+      // Extract results BEFORE returning heaps to the pool — Clear() resets
+      // _count to 0, so ToList() after ReturnHeap would always be empty.
+      results = resultHeap.ToList();
     }
     finally
     {
@@ -147,6 +158,6 @@ public static class SmallWorldExtensions
       smallworld.ReturnHeap(expansionHeap);
     }
 
-    return resultHeap.ToList();
+    return results;
   }
 }
