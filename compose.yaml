@@ -1,9 +1,69 @@
 ﻿services:
+  # ============================================================================
+  # JigenDb — local build
+  # ============================================================================
   jigendb:
-    build: .
+    build:
+      context: publish/server
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
-      - "8001:8001"
+      - "3223:3223"     # REST
+      - "13223:13223"   # gRPC
     volumes:
-      - /data:/data
-    
+      - jigen-data:/data
+      - /tmp/benchmark-data:/data/benchmarks:ro,z
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+    restart: unless-stopped
+
+  # ============================================================================
+  # Qdrant — vector search engine
+  # ============================================================================
+  qdrant:
+    image: docker.io/qdrant/qdrant:latest
+    ports:
+      - "6333:6333"     # REST
+      - "6334:6334"     # gRPC
+    volumes:
+      - qdrant-data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+    restart: unless-stopped
+
+  # ============================================================================
+  # Milvus — standalone mode (no minio/etcd needed for benchmarks)
+  # ============================================================================
+  milvus:
+    image: docker.io/milvusdb/milvus:v2.5.4
+    command: ["milvus", "run", "standalone"]
+    ports:
+      - "19530:19530"   # gRPC
+      - "9091:9091"     # Health/metrics
+    volumes:
+      - milvus-data:/var/lib/milvus
+    environment:
+      ETCD_USE_EMBED: "true"
+      COMMON_STORAGETYPE: local
+    restart: unless-stopped
+
+  # ============================================================================
+  # pgvector — PostgreSQL 17 + pgvector extension
+  # ============================================================================
+  pgvector:
+    image: docker.io/pgvector/pgvector:pg17
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgvector-data:/var/lib/postgresql/data:z
+      - ./tests/JigenBenchmarks/ComparativeBenchmarks/init-pgvector.sql:/docker-entrypoint-initdb.d/init.sql:ro,z
+    environment:
+      POSTGRES_USER: benchmark
+      POSTGRES_PASSWORD: benchmark
+      POSTGRES_DB: vectordb
+    restart: unless-stopped
+
+volumes:
+  jigen-data:
+  qdrant-data:
+  milvus-data:
+  pgvector-data:
