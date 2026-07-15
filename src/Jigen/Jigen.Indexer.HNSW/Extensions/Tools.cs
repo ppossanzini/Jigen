@@ -23,6 +23,7 @@ public static class Tools
   {
     var visitedIds = new HashSet<int>();
     var expansionQueue = new Queue<IndexNode>(new[] { entryPoint });
+    var graph = smallworld.GetGraphForCollection(collection);
 
     while (expansionQueue.Count > 0)
     {
@@ -30,8 +31,7 @@ public static class Tools
       if (visitedIds.Add(currentNode.PositionId))
       {
         visitAction(currentNode);
-        foreach (var neighbour in currentNode.GetConnections(level, smallworld, collection))
-          expansionQueue.Enqueue(neighbour);
+        currentNode.ForEachConnection(level, graph, neighbour => expansionQueue.Enqueue(neighbour));
       }
     }
   }

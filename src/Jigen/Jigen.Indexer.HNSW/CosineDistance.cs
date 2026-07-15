@@ -5,6 +5,7 @@
 
 using System.Numerics;
 using System.Numerics.Tensors;
+using System.Runtime.InteropServices;
 
 namespace Jigen.Indexer
 {
@@ -64,13 +65,17 @@ namespace Jigen.Indexer
                 throw new ArgumentException("Vectors have non-matching dimensions");
             }
 
-            float dot = 0;
-            for (int i = 0; i < u.Count; ++i)
-            {
-                dot += u[i] * v[i];
-            }
+            return 1 - TensorPrimitives.Dot(AsSpan(u), AsSpan(v));
+        }
 
-            return 1 - dot;
+        private static ReadOnlySpan<float> AsSpan(IReadOnlyList<float> list)
+        {
+            if (list is float[] arr) return arr;
+            if (list is List<float> l) return CollectionsMarshal.AsSpan(l);
+            // Fallback: allocate. Callers pass float[] or List<float> in practice.
+            var copy = new float[list.Count];
+            for (int i = 0; i < list.Count; i++) copy[i] = list[i];
+            return copy;
         }
 
         /// <summary>

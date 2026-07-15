@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>JigenBenchmarks.Comparative</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="BenchmarkDotNet" Version="0.14.*" />
+    <PackageReference Include="Npgsql" Version="9.*" />
+    <!-- Qdrant gRPC client -->
+    <PackageReference Include="Qdrant.Client" Version="1.*" />
+    <!-- Milvus gRPC client (pre-release until stable 2.x) -->
+    <PackageReference Include="Milvus.Client" Version="2.3.0-preview.1" />
+    <!-- Parquet for shared dataset files -->
+    <PackageReference Include="Parquet.Net" Version="5.*" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Jigen\Jigen.Store\Jigen.Store.csproj" />
+    <ProjectReference Include="..\..\..\src\Jigen\Jigen.Indexer.HNSW\Jigen.Indexer.HNSW.csproj" />
+  </ItemGroup>
+</Project>

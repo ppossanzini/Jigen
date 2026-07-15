@@ -24,6 +24,12 @@ namespace Jigen.Indexer
   {
     private static readonly Comparer<float> DistanceComparer = Comparer<float>.Default;
 
+    // Cached at construction: avoids the options.DefaultDistanceFunction
+    // property indirection on every From() call. ReferenceEquals against
+    // SmallWorldIndexer.DefaultDistanceFunc lets the JIT inline the direct
+    // call in the common (no-custom-distance) case.
+    private readonly Func<IndexNode, IndexNode, float> _distanceFunc = options.DefaultDistanceFunction;
+
     // Plain Dictionary: per-operation, single-threaded access only.
     // ~3-5x faster than ConcurrentDictionary for the hit path.
     // Lazily allocated: graph nodes never queried as destination pay nothing,
@@ -38,7 +44,7 @@ namespace Jigen.Indexer
     public float From(IndexNode departure, bool usecache = true)
     {
       if (!usecache)
-        return options.DefaultDistanceFunction(departure, destination);
+        return ComputeDistance(departure);
 
       // Snapshot the field: a concurrent ClearCache (another insert releasing
       // this node) must not null it between the ??= and the use. Mutations are
@@ -47,9 +53,22 @@ namespace Jigen.Indexer
       if (cache.TryGetValue(departure.PositionId, out var cached))
         return cached;
 
-      var result = options.DefaultDistanceFunction(departure, destination);
+      var result = ComputeDistance(departure);
       cache[departure.PositionId] = result;
       return result;
+    }
+
+    /// <summary>
+    /// Computes the (uncached) distance. When the distance function is the
+    /// built-in default (the common case), the call is inlined through a
+    /// direct static invocation instead of a delegate dispatch.
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private float ComputeDistance(IndexNode departure)
+    {
+      return ReferenceEquals(_distanceFunc, SmallWorldIndexer.DefaultDistanceFunc)
+        ? SmallWorldIndexer.DefaultDistance(departure, destination)
+        : _distanceFunc(departure, destination);
     }
 
     /// <summary>

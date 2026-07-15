@@ -32,6 +32,46 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
 
   internal void ReturnVisitedSet(VisitedSet set) => _visitedPool.Add(set);
 
+  // Pool of BinaryHeap<IndexNode> instances: KNearestAtLevel allocates two
+  // heaps per call (result window + expansion candidates). Recycling them
+  // spares Gen0 the per-search churn; the T[] buffers grow once and stay.
+  private readonly ConcurrentBag<BinaryHeap<IndexNode>> _heapPool = new();
+
+  internal BinaryHeap<IndexNode> RentHeap(IComparer<IndexNode> comparer, int minCapacity = 16)
+  {
+    if (!_heapPool.TryTake(out var heap)) heap = new BinaryHeap<IndexNode>();
+    heap.Initialize(comparer, minCapacity);
+    return heap;
+  }
+
+  /// <summary>
+  /// Hot-path overload: rents a heap driven by a <see cref="Comparison{T}"/>
+  /// delegate, bypassing <see cref="IComparer{T}"/> and its virtual dispatch.
+  /// </summary>
+  internal BinaryHeap<IndexNode> RentHeap(Comparison<IndexNode> comparison, int minCapacity = 16)
+  {
+    if (!_heapPool.TryTake(out var heap)) heap = new BinaryHeap<IndexNode>();
+    heap.Initialize(comparison, minCapacity);
+    return heap;
+  }
+
+  internal void ReturnHeap(BinaryHeap<IndexNode> heap)
+  {
+    heap.Clear();
+    _heapPool.Add(heap);
+  }
+
+  /// <summary>
+  /// Rents a heap and heapifies <paramref name="source"/> into it, driven
+  /// by a <see cref="Comparison{T}"/> delegate (construction pruning path).
+  /// </summary>
+  internal BinaryHeap<IndexNode> RentHeap(IList<IndexNode> source, Comparison<IndexNode> comparison)
+  {
+    if (!_heapPool.TryTake(out var heap)) heap = new BinaryHeap<IndexNode>();
+    heap.Initialize(source, comparison);
+    return heap;
+  }
+
   // Key → node positions, built lazily on the first delete: without it every
   // RemoveFromIndex scans (and, for disk graphs, deserializes) the whole node
   // list. Duplicate keys are possible (an overwrite inserts a new node), hence
@@ -622,7 +662,12 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     _keyIndexes.Clear();
   }
 
-  private static float DefaultDistance(IndexNode left, IndexNode right)
+  /// <summary>Reference sentinel for the default distance function, so
+  /// <see cref="TravelingCosts"/> can branch to the direct call when no
+  /// custom distance has been configured (the common case).</summary>
+  internal static readonly Func<IndexNode, IndexNode, float> DefaultDistanceFunc = DefaultDistance;
+
+  internal static float DefaultDistance(IndexNode left, IndexNode right)
   {
     if (left.VectorDimensions == 0 || right.VectorDimensions == 0)
       return float.MaxValue;

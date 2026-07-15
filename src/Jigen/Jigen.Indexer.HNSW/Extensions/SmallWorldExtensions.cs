@@ -1,9 +1,12 @@
 // SEARCH-LAYER hot-path optimizations:
-//  - BinaryHeap<T> now uses a T[] backing store: no IList dispatch, no virtual calls.
+//  - BinaryHeap<T> uses Comparison<T> internally: no IComparer<T> virtual dispatch.
+//  - BinaryHeap instances are pooled in SmallWorldIndexer to avoid per-call allocations.
 //  - Visited set: pooled epoch-stamped int[] (VisitedSet) — starting a traversal
 //    is a counter bump instead of clearing nodeCount bytes per level.
-//  - GetConnections overload that takes the pre-fetched graph to avoid repeated
-//    internal dictionary lookups per neighbour.
+//  - GetConnections replaced with ForEachConnection / inlined loop: no yield-return
+//    state-machine allocation per expanded node.
+//  - ReverseComparer eliminated from the hot path: the reverse comparison is
+//    an inline lambda, no wrapper allocation, no double virtual dispatch.
 //  - All LINQ calls (.Any(), .First()) eliminated from the hot loop.
 
 using Jigen.DataStructures;
@@ -51,12 +54,15 @@ public static class SmallWorldExtensions
      */
 
     var travelingCosts = destination.TravelingCosts;
-    IComparer<IndexNode> fartherIsLess = travelingCosts.Reverse();
 
-    // Heaps: result (max-heap by distance → Peek() = farthest),
-    //        expansion (max-heap with reversed comparator → Peek() = nearest).
-    var resultHeap    = new BinaryHeap<IndexNode>(travelingCosts, k + 1);
-    var expansionHeap = new BinaryHeap<IndexNode>(fartherIsLess, 16);
+    // Reverse comparison as an inline lambda — no ReverseComparer allocation,
+    // no double virtual dispatch. Both heaps are driven by Comparison<T>
+    // delegates, which the JIT may inline for simple forwarding patterns.
+    Comparison<IndexNode> fartherIsLess = (a, b) => travelingCosts.Compare(b, a);
+
+    // Heaps: pooled — Clear() + Initialize() reuse the T[] buffers across calls.
+    var resultHeap    = smallworld.RentHeap(travelingCosts.Compare, k + 1);
+    var expansionHeap = smallworld.RentHeap(fartherIsLess, 16);
 
     // Deleted nodes stay navigable (their links bridge the graph) but must
     // never surface in the result window — same treatment for nodes the
@@ -68,8 +74,7 @@ public static class SmallWorldExtensions
       resultHeap.Push(entryPoint);
     expansionHeap.Push(entryPoint);
 
-    // Pre-fetch graph once; also used by the inner GetConnections overload to skip
-    // the repeated internal dictionary lookup per neighbour.
+    // Pre-fetch graph once.
     var graph     = smallworld.GetGraphForCollection(collection);
     int nodeCount = graph.nodes.Count;
 
@@ -88,6 +93,7 @@ public static class SmallWorldExtensions
       : Math.Max(k, k * smallworld.Options.FilteredSearchExpansionFactor);
     var expanded = 0;
 
+    IList<IndexNode> results;
     try
     {
       while (!expansionHeap.IsEmpty)
@@ -106,33 +112,52 @@ public static class SmallWorldExtensions
         if (++expanded > expansionBudget)
           break; // filtered search budget spent: return what was found so far
 
-        foreach (var neighbour in toExpand.GetConnections(level, graph))
+        // Inline the connection iteration — no yield-return state machine,
+        // no delegate allocation per expanded node.
+        var conns = toExpand.Connections;
+        if ((uint)level < (uint)conns.Count)
         {
-          // Already seen, or inserted concurrently (not fully wired): skip.
-          if (!visited.TryVisit(neighbour.PositionId))
-            continue;
-
-          if (resultHeap.Count < k
-              || Tools.DLt(travelingCosts.From(neighbour), travelingCosts.From(resultHeap.Peek())))
+          var levelConns = conns[level];
+          for (int i = 0; i < levelConns.Count; i++)
           {
-            expansionHeap.Push(neighbour);
+            var id = levelConns[i];
+            // Torn graph tail (crash recovery): skip dangling position ids.
+            if ((uint)id >= (uint)nodeCount) continue;
 
-            // Deleted or filtered-out nodes are expanded but never returned.
-            if (EntersResults(neighbour))
+            var neighbour = graph.nodes[id];
+
+            // Already seen, or inserted concurrently (not fully wired): skip.
+            if (!visited.TryVisit(neighbour.PositionId))
+              continue;
+
+            if (resultHeap.Count < k
+                || Tools.DLt(travelingCosts.From(neighbour), travelingCosts.From(resultHeap.Peek())))
             {
-              resultHeap.Push(neighbour);
-              if (resultHeap.Count > k)
-                resultHeap.Pop();
+              expansionHeap.Push(neighbour);
+
+              // Deleted or filtered-out nodes are expanded but never returned.
+              if (EntersResults(neighbour))
+              {
+                resultHeap.Push(neighbour);
+                if (resultHeap.Count > k)
+                  resultHeap.Pop();
+              }
             }
           }
         }
       }
+
+      // Extract results BEFORE returning heaps to the pool — Clear() resets
+      // _count to 0, so ToList() after ReturnHeap would always be empty.
+      results = resultHeap.ToList();
     }
     finally
     {
       smallworld.ReturnVisitedSet(visited);
+      smallworld.ReturnHeap(resultHeap);
+      smallworld.ReturnHeap(expansionHeap);
     }
 
-    return resultHeap.ToList();
+    return results;
   }
 }

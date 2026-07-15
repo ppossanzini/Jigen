@@ -17,7 +17,7 @@ namespace Jigen.Indexer
     /// </summary>
     public static readonly ReverseComparer<T> Default = new ReverseComparer<T>(Comparer<T>.Default);
 
-    private readonly IComparer<T> comparer = Default;
+    private readonly IComparer<T> comparer;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ReverseComparer{T}"/> class.
