@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
@@ -81,6 +82,25 @@ public static class StoreWritingExtensions
     await store.IngestionQueue.EnqueueAsync(entry);
     store.Writer.SignalNewData();
     return entry;
+  }
+
+  /// <summary>
+  /// Bulk ingestion: enqueues multiple entries with reduced queue overhead.
+  /// All entries share one semaphore acquisition batch for the ingestion queue.
+  /// </summary>
+  public static async Task AppendContentBulk(this Store store, IReadOnlyList<VectorEntry> entries)
+  {
+    // Batch-enqueue: acquire semaphore once per window instead of per entry.
+    // The queue capacity is 1M, so we can enqueue large batches safely.
+    const int windowSize = 256;
+    for (int offset = 0; offset < entries.Count; offset += windowSize)
+    {
+      var window = Math.Min(windowSize, entries.Count - offset);
+      for (int i = 0; i < window; i++)
+        store.IngestionQueue.Enqueue(entries[offset + i]);
+
+      store.Writer.SignalNewData();
+    }
   }
 
   public static Task<VectorEntry> SetContent(this Store store, VectorEntry entry)
@@ -168,6 +188,111 @@ public static class StoreWritingExtensions
     return removedKeys.Count;
   }
 
+  /// <summary>
+  /// Batch-serializes multiple entries into pooled buffers and writes them with
+  /// one <see cref="FileStream.Write(byte[],int,int)"/> per file, eliminating
+  /// per-entry Seek and tiny Write kernel calls. Returns position tuples in
+  /// the same order as the input list.
+  /// </summary>
+  internal static List<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)>
+    AppendContentBatch(this Store store, List<VectorEntry> entries)
+  {
+    var results = new List<(byte[], string, long, long, int, long)>(entries.Count);
+    if (entries.Count == 0) return results;
+
+    // ── Calculate total byte sizes ──
+    long contentTotal = 0, embeddingTotal = 0;
+    foreach (var e in entries)
+    {
+      if (e.Content.Length > 0)
+        contentTotal += Store.ContentRecordSize(e.Id.Length, e.Content.Length);
+      if (e.Embedding.Length > 0)
+        embeddingTotal += Store.EmbeddingRecordSize(e.Id.Length, e.Embedding.Length);
+    }
+
+    // ── Allocate pooled buffers ──
+    byte[] contentBuf = null!, embedBuf = null!;
+    int contentOff = 0, embedOff = 0;
+
+    if (contentTotal > 0)
+    {
+      contentBuf = System.Buffers.ArrayPool<byte>.Shared.Rent((int)contentTotal);
+      contentOff = 0;
+    }
+    if (embeddingTotal > 0)
+    {
+      embedBuf = System.Buffers.ArrayPool<byte>.Shared.Rent((int)embeddingTotal);
+      embedOff = 0;
+    }
+
+    try
+    {
+      // ── Acquire file positions once ──
+      var contentStream = store.ContentFileStream;
+      var embedStream = store.EmbeddingFileStream;
+
+      long contentBasePos = contentTotal > 0 ? contentStream.Seek(0, SeekOrigin.End) : 0;
+      long embedBasePos = embeddingTotal > 0 ? embedStream.Seek(0, SeekOrigin.End) : 0;
+
+      // ── Serialize all entries into buffers ──
+      foreach (var entry in entries)
+      {
+        long cp = 0, ep = 0;
+
+        if (entry.Content.Length > 0)
+        {
+          cp = contentBasePos + contentOff;
+          var span = contentBuf.AsSpan(contentOff);
+          BinaryPrimitives.WriteInt32LittleEndian(span, entry.Id.Length);
+          contentOff += 4;
+          entry.Id.CopyTo(contentBuf.AsSpan(contentOff));
+          contentOff += entry.Id.Length;
+          BinaryPrimitives.WriteInt32LittleEndian(contentBuf.AsSpan(contentOff), entry.Content.Length);
+          contentOff += 4;
+          entry.Content.Span.CopyTo(contentBuf.AsSpan(contentOff));
+          contentOff += entry.Content.Length;
+        }
+
+        if (entry.Embedding.Length > 0)
+        {
+          ep = embedBasePos + embedOff;
+          var span = embedBuf.AsSpan(embedOff);
+          BinaryPrimitives.WriteInt32LittleEndian(span, entry.Id.Length);
+          embedOff += 4;
+          entry.Id.CopyTo(embedBuf.AsSpan(embedOff));
+          embedOff += entry.Id.Length;
+          System.Runtime.InteropServices.MemoryMarshal.AsBytes(entry.Embedding.Span)
+            .CopyTo(embedBuf.AsSpan(embedOff));
+          embedOff += entry.Embedding.Length * sizeof(float);
+        }
+
+        results.Add((entry.Id, entry.CollectionName, cp, ep,
+          entry.Embedding.Length, entry.Content.Length));
+      }
+
+      // ── Single Write per file ──
+      if (contentTotal > 0)
+      {
+        contentStream.Write(contentBuf, 0, contentOff);
+        store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
+      }
+      if (embeddingTotal > 0)
+      {
+        embedStream.Write(embedBuf, 0, embedOff);
+        store.VectorStoreHeader.EmbeddingCurrentPosition = embedStream.Position;
+      }
+    }
+    finally
+    {
+      if (contentTotal > 0)
+        System.Buffers.ArrayPool<byte>.Shared.Return(contentBuf);
+      if (embeddingTotal > 0)
+        System.Buffers.ArrayPool<byte>.Shared.Return(embedBuf);
+    }
+
+    return results;
+  }
+
   internal static (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)
     AppendContent(this Store store, byte[] id, string collection, ReadOnlyMemory<byte>? content, ReadOnlyMemory<float>? embeddings)
   {
@@ -178,7 +303,6 @@ public static class StoreWritingExtensions
 
     if (content == null || embeddings == null)
     {
-      // Evaluate partial updates.
       store.PositionIndex.TryGetValue(collection, out var positionIndex);
       positionIndex?.TryGetValue(id, out actualindex);
     }
@@ -210,7 +334,6 @@ public static class StoreWritingExtensions
       embeddingsStream.WriteInt32Le(id.Length);
       embeddingsStream.Write(id, 0, id.Length);
 
-      // Evita embeddings.Value.ToArray(): scrive lo span come bytes
       embeddingsStream.WriteByteArray(embeddings.Value.Span);
       
       store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;

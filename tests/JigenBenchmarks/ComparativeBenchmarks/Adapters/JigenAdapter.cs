@@ -12,16 +12,28 @@ namespace JigenBenchmarks.Comparative.Adapters;
 /// </summary>
 public sealed class JigenAdapter : IVectorDbAdapter
 {
+    public enum IndexerMode { Hnsw, BruteForce }
+
     private Store? _store;
     private SmallWorldIndexer? _indexer;
     private readonly string _storagePath;
+    private readonly IndexerMode _mode;
+    private readonly int _indexerWorkers;
     private int _vectorCount;
 
-    public string Name => "JigenDb (in-process)";
+    public string Name => _mode == IndexerMode.Hnsw
+        ? $"JigenDb (HNSW, w={_indexerWorkers})"
+        : "JigenDb (BruteForce)";
     public int VectorCount => _vectorCount;
 
-    public JigenAdapter(string? storagePath = null)
+    public JigenAdapter(
+        IndexerMode mode = IndexerMode.Hnsw,
+        int indexerWorkers = 0,
+        string? storagePath = null)
     {
+        _mode = mode;
+        // 0 = use default: clamp(cores/2, 1, 8)
+        _indexerWorkers = indexerWorkers;
         _storagePath = storagePath ?? Path.Combine(
             Path.GetTempPath(), "jigen-bench", Guid.CreateVersion7().ToString("N"));
     }
@@ -30,21 +42,28 @@ public sealed class JigenAdapter : IVectorDbAdapter
     {
         Directory.CreateDirectory(_storagePath);
 
+        var hnswOpts = new SmallWorldOptions
+        {
+            M = 16,
+            EfConstruction = 200,
+            EfSearch = 80,
+            StoragePath = Path.Combine(_storagePath, "hnsw")
+        };
+
         var options = new StoreOptions
         {
             DataBasePath = _storagePath,
             DataBaseName = "bench",
-            Indexer = new SmallWorldIndexer(new SmallWorldOptions
-            {
-                M = 16,
-                EfConstruction = 200,
-                EfSearch = 80,
-                StoragePath = Path.Combine(_storagePath, "hnsw")
-            })
+            IndexerWorkers = _indexerWorkers > 0
+                ? _indexerWorkers
+                : Math.Clamp(Environment.ProcessorCount / 2, 1, 8), // default
+            Indexer = _mode == IndexerMode.Hnsw
+                ? new SmallWorldIndexer(hnswOpts)
+                : new BruteForceIndexer()
         };
 
         _store = new Store(options);
-        _indexer = (SmallWorldIndexer)options.Indexer;
+        _indexer = options.Indexer as SmallWorldIndexer;
         return Task.CompletedTask;
     }
 
@@ -56,20 +75,26 @@ public sealed class JigenAdapter : IVectorDbAdapter
         if (_store is null)
             throw new InvalidOperationException("Call InitializeAsync first.");
 
+        const int batchSize = 4096;
+        var bulk = new List<VectorEntry>(batchSize);
+
         for (int i = 0; i < vectors.Length; i++)
         {
             ct.ThrowIfCancellationRequested();
 
-            var id = Guid.CreateVersion7().ToByteArray();
-            var entry = new VectorEntry
+            bulk.Add(new VectorEntry
             {
-                Id = id,
+                Id = Guid.CreateVersion7().ToByteArray(),
                 CollectionName = "bench",
                 Content = "x"u8.ToArray(),
                 Embedding = vectors[i]
-            };
+            });
 
-            await _store.AppendContent(entry);
+            if (bulk.Count >= batchSize || i == vectors.Length - 1)
+            {
+                await _store.AppendContentBulk(bulk);
+                bulk.Clear();
+            }
         }
 
         await _store.SaveChangesAsync();

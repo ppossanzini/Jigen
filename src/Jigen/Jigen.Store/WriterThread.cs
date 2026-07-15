@@ -198,8 +198,9 @@ public class Writer
 
   private void WriterJob()
   {
-    // Keep processing after Stop() until the queue is drained: items accepted
-    // by AppendContent must reach the files even when Close follows immediately.
+    // Reusable list to avoid per-batch allocations.
+    var batch = new List<VectorEntry>(4096);
+
     while (_running || !_store.IngestionQueue.IsEmpty)
     {
       if (_store.IngestionQueue.IsEmpty)
@@ -209,50 +210,45 @@ public class Writer
         continue;
       }
 
-      // The whole batch (content/embedding writes AND index appends) runs
-      // inside _ioLock so that anyone holding the lock (flusher, ShrinkAsync)
-      // observes a consistent state: no content bytes without their index entry.
       try
       {
         lock (_ioLock)
         {
           try
           {
+            // ── Drain the ingestion queue into a local batch ──
+            batch.Clear();
             while (_store.IngestionQueue.TryDequeue(out var entry))
             {
-              try
-              {
-                var result = _store.AppendContent(
-                  entry.Id,
-                  entry.CollectionName,
-                  entry.Content,
-                  entry.Embedding);
+              batch.Add(entry);
+              Interlocked.Decrement(ref _pending);
+            }
 
-                // Cannot immediatly update search index till the file are committed
-                TempIndex.Enqueue(result);
+            if (batch.Count == 0) continue;
 
-                // Pipeline: graph construction happens on the index workers,
-                // so the writer is never throttled by it.
-                EnqueueForIndexing(new VectorEntry()
-                {
-                  Id = result.id, CollectionName = entry.CollectionName, Embedding = entry.Embedding, Content = entry.Content
-                });
-              }
-              finally
+            // ── Batch-serialize: one Write per file ──
+            var indexEntries = _store.AppendContentBatch(batch);
+
+            // ── Stage index records and forward to index workers ──
+            for (int i = 0; i < indexEntries.Count; i++)
+            {
+              var idx = indexEntries[i];
+              TempIndex.Enqueue(idx);
+
+              var original = batch[i];
+              EnqueueForIndexing(new VectorEntry()
               {
-                // The entry left the queue for good (even on failure).
-                Interlocked.Decrement(ref _pending);
-              }
+                Id = idx.id,
+                CollectionName = original.CollectionName,
+                Embedding = original.Embedding,
+                Content = original.Content
+              });
             }
           }
           finally
           {
             _store.EmbeddingFileStream.Flush(false);
             _store.ContentFileStream.Flush(false);
-
-            // No EnableReading here: recreating the memory mappings per batch
-            // cost an mmap per write burst. Readers remap on demand when they
-            // target bytes past the mapped extent (Store.EnsureMapped).
 
             while (TempIndex.TryDequeue(out var indexData))
               _store.AppendIndex(indexData);
@@ -263,8 +259,6 @@ public class Writer
       }
       catch (Exception ex)
       {
-        // Disk full, I/O failure, a poison entry: the batch is lost but the
-        // writer keeps draining the queue. Never let an exception escape.
         RecordError(ex);
       }
 

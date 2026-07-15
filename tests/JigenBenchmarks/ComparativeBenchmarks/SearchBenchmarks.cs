@@ -71,12 +71,21 @@ public class SearchBenchmarks
 
     // ── Factory ──
 
-    private static IVectorDbAdapter CreateAdapter(string name) => name.ToLowerInvariant() switch
+    private static IVectorDbAdapter CreateAdapter(string name)
     {
-        "jigendb" => new JigenAdapter(),
-        "qdrant" => new QdrantAdapter(),
-        "milvus" => new MilvusAdapter(),
-        "pgvector" => new PgvectorAdapter(),
-        _ => throw new ArgumentException($"Unknown DB: {name}")
-    };
+        var lower = name.ToLowerInvariant();
+        int workers = 0;
+        var wMatch = System.Text.RegularExpressions.Regex.Match(lower, @"w(\d+)$");
+        if (wMatch.Success) workers = int.Parse(wMatch.Groups[1].Value);
+
+        if (lower == "jigendb" || lower.StartsWith("jigendb-hnsw"))
+            return new JigenAdapter(JigenAdapter.IndexerMode.Hnsw, workers);
+        if (lower == "jigendb-brute")
+            return new JigenAdapter(JigenAdapter.IndexerMode.BruteForce);
+        if (lower == "qdrant") return new QdrantAdapter();
+        if (lower == "milvus") return new MilvusAdapter();
+        if (lower == "pgvector") return new PgvectorAdapter();
+
+        throw new ArgumentException($"Unknown DB: {name}");
+    }
 }

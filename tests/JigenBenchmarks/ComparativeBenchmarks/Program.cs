@@ -22,7 +22,11 @@ namespace JigenBenchmarks.Comparative;
 /// </summary>
 public static class Program
 {
-    private static readonly string[] AllDbs = ["jigendb", "qdrant", "milvus", "pgvector"];
+    private static readonly string[] AllDbs = [
+        "jigendb-hnsw-w1", "jigendb-hnsw-w4", "jigendb-hnsw-w8",
+        "jigendb-brute",
+        "qdrant", "milvus", "pgvector"
+    ];
 
     public static async Task<int> Main(string[] args)
     {
@@ -276,14 +280,29 @@ public static class Program
     // Helpers
     // ═══════════════════════════════════════════════════════════════
 
-    private static IVectorDbAdapter CreateAdapter(string name) => name.ToLowerInvariant() switch
+    private static IVectorDbAdapter CreateAdapter(string name)
     {
-        "jigendb" => new JigenAdapter(),
-        "qdrant" => new QdrantAdapter(),
-        "milvus" => new MilvusAdapter(),
-        "pgvector" => new PgvectorAdapter(),
-        _ => throw new ArgumentException($"Unknown DB: {name}")
-    };
+        var lower = name.ToLowerInvariant();
+
+        // Parse worker count: "jigendb-hnsw-w4" → 4 workers, "jigendb-hnsw" → default
+        int workers = 0;
+        var wMatch = System.Text.RegularExpressions.Regex.Match(lower, @"w(\d+)$");
+        if (wMatch.Success)
+            workers = int.Parse(wMatch.Groups[1].Value);
+
+        if (lower == "jigendb" || lower.StartsWith("jigendb-hnsw"))
+            return new JigenAdapter(JigenAdapter.IndexerMode.Hnsw, workers);
+        if (lower == "jigendb-brute")
+            return new JigenAdapter(JigenAdapter.IndexerMode.BruteForce);
+        if (lower == "qdrant")
+            return new QdrantAdapter();
+        if (lower == "milvus")
+            return new MilvusAdapter();
+        if (lower == "pgvector")
+            return new PgvectorAdapter();
+
+        throw new ArgumentException($"Unknown DB: {name}");
+    }
 
     private static void PrintUsage()
     {
