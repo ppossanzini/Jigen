@@ -97,10 +97,9 @@ public static class NodeExtensions
 
     if (levelNeighbours.Count > GetM(smallworld.Options.M, level))
     {
-      // Collect current connections without LINQ/ToList allocation via IEnumerable
+      // Collect current connections without LINQ/ToList allocation via ForEachConnection
       var currentConns = new List<IndexNode>();
-      foreach (var conn in item.GetConnections(level, graph))
-        currentConns.Add(conn);
+      item.ForEachConnection(level, graph, conn => currentConns.Add(conn));
 
       var best = smallworld.SelectBestForConnecting(item, currentConns, level, smallworld, collection);
 
@@ -173,11 +172,11 @@ public static class NodeExtensions
       var candidatesIds = new HashSet<int>(candidates.Count);
       foreach (var c in candidates) candidatesIds.Add(c.PositionId);
 
-      foreach (var neighbour in item.GetConnections(level, graph))
+      item.ForEachConnection(level, graph, neighbour =>
       {
         if (candidatesIds.Add(neighbour.PositionId))
           candidatesHeap.Push(neighbour);
-      }
+      });
     }
 
     var discardedHeap = new BinaryHeap<IndexNode>(fartherIsLess, candidatesHeap.Count);
@@ -249,6 +248,28 @@ public static class NodeExtensions
       // Deleted nodes are yielded on purpose: traversal must pass through
       // them or the graph fragments; callers filter them from results.
       yield return graph.nodes[id];
+    }
+  }
+
+  /// <summary>
+  /// Zero-allocation neighbour iteration for hot paths: invokes
+  /// <paramref name="action"/> for every connection at the given level
+  /// without allocating an enumerator state machine.
+  /// </summary>
+  internal static void ForEachConnection(
+    this IndexNode node,
+    int level,
+    (IndexNode ep, IList<IndexNode> nodes) graph,
+    Action<IndexNode> action)
+  {
+    if ((uint)level >= (uint)node.Connections.Count) return;
+
+    var connections = node.Connections[level];
+    for (var i = 0; i < connections.Count; i++)
+    {
+      var id = connections[i];
+      if ((uint)id >= (uint)graph.nodes.Count) continue;
+      action(graph.nodes[id]);
     }
   }
 }

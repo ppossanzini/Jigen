@@ -5,6 +5,8 @@
 
 // Rewritten for zero-allocation hot path: T[] backing store, no IList<T> dispatch,
 // no LINQ. SiftUp/SiftDown use direct array indexing with ref-swap.
+// Poolable: parameterless constructor + Initialize + Clear let the indexer
+// recycle heap instances across SEARCH-LAYER calls without re-allocating buffers.
 
 using System.Runtime.CompilerServices;
 
@@ -14,11 +16,15 @@ namespace Jigen.Indexer
   /// Binary max-heap backed by a plain array.
   /// The maximum element is always at index 0 (top).
   /// Order is customizable via <see cref="IComparer{T}"/>.
+  /// Supports pooling: call <see cref="Initialize"/> to reuse a cleared heap.
   /// </summary>
   public class BinaryHeap<T>
   {
     private T[] _buffer;
     private int _count;
+
+    /// <summary>For pooling: creates an uninitialized heap — call <see cref="Initialize"/> before use.</summary>
+    public BinaryHeap() { }
 
     /// <summary>Creates an empty heap with the given initial capacity.</summary>
     public BinaryHeap(IComparer<T> comparer, int initialCapacity = 8)
@@ -47,7 +53,31 @@ namespace Jigen.Indexer
       }
     }
 
-    public IComparer<T> Comparer { get; }
+    public IComparer<T> Comparer { get; private set; }
+
+    /// <summary>
+    /// Reinitialises a pooled (or default-constructed) heap with a new comparer
+    /// and the requested minimum capacity. Existing elements are discarded.
+    /// </summary>
+    public void Initialize(IComparer<T> comparer, int minCapacity = 8)
+    {
+      Comparer = comparer ?? Comparer<T>.Default;
+      var cap = Math.Max(minCapacity, 4);
+      if (_buffer is null || _buffer.Length < cap)
+        _buffer = new T[cap];
+      _count = 0;
+    }
+
+    /// <summary>
+    /// Empties the heap and nulls references if <typeparamref name="T"/> is
+    /// a reference type, so pooled heaps don't keep dead objects alive.
+    /// </summary>
+    public void Clear()
+    {
+      if (_count > 0 && RuntimeHelpers.IsReferenceOrContainsReferences<T>())
+        Array.Clear(_buffer, 0, _count);
+      _count = 0;
+    }
 
     /// <summary>Number of elements currently in the heap.</summary>
     public int Count => _count;

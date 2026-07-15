@@ -32,6 +32,24 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
 
   internal void ReturnVisitedSet(VisitedSet set) => _visitedPool.Add(set);
 
+  // Pool of BinaryHeap<IndexNode> instances: KNearestAtLevel allocates two
+  // heaps per call (result window + expansion candidates). Recycling them
+  // spares Gen0 the per-search churn; the T[] buffers grow once and stay.
+  private readonly ConcurrentBag<BinaryHeap<IndexNode>> _heapPool = new();
+
+  internal BinaryHeap<IndexNode> RentHeap(IComparer<IndexNode> comparer, int minCapacity = 16)
+  {
+    if (!_heapPool.TryTake(out var heap)) heap = new BinaryHeap<IndexNode>();
+    heap.Initialize(comparer, minCapacity);
+    return heap;
+  }
+
+  internal void ReturnHeap(BinaryHeap<IndexNode> heap)
+  {
+    heap.Clear();
+    _heapPool.Add(heap);
+  }
+
   // Key → node positions, built lazily on the first delete: without it every
   // RemoveFromIndex scans (and, for disk graphs, deserializes) the whole node
   // list. Duplicate keys are possible (an overwrite inserts a new node), hence
