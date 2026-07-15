@@ -103,6 +103,25 @@ namespace Jigen.Indexer
       _count = 0;
     }
 
+    /// <summary>
+    /// Reinitialises a pooled heap from an existing list, driven by a
+    /// <see cref="Comparison{T}"/> delegate. Elements are copied and
+    /// heapified in-place.
+    /// </summary>
+    public void Initialize(IList<T> source, Comparison<T> comparison)
+    {
+      _comparison = comparison ?? Comparer<T>.Default.Compare;
+      Comparer = null;
+      _count = source.Count;
+      if (_count > 0)
+      {
+        if (_buffer is null || _buffer.Length < _count)
+          _buffer = new T[_count];
+        for (int i = 0; i < _count; i++) _buffer[i] = source[i];
+        for (int i = 1; i < _count; i++) SiftUp(i);
+      }
+    }
+
     private void EnsureCapacity(int minCapacity)
     {
       var cap = Math.Max(minCapacity, 4);

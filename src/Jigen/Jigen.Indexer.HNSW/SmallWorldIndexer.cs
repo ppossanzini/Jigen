@@ -61,6 +61,17 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     _heapPool.Add(heap);
   }
 
+  /// <summary>
+  /// Rents a heap and heapifies <paramref name="source"/> into it, driven
+  /// by a <see cref="Comparison{T}"/> delegate (construction pruning path).
+  /// </summary>
+  internal BinaryHeap<IndexNode> RentHeap(IList<IndexNode> source, Comparison<IndexNode> comparison)
+  {
+    if (!_heapPool.TryTake(out var heap)) heap = new BinaryHeap<IndexNode>();
+    heap.Initialize(source, comparison);
+    return heap;
+  }
+
   // Key → node positions, built lazily on the first delete: without it every
   // RemoveFromIndex scans (and, for disk graphs, deserializes) the whole node
   // list. Duplicate keys are possible (an overwrite inserts a new node), hence
@@ -651,7 +662,12 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     _keyIndexes.Clear();
   }
 
-  private static float DefaultDistance(IndexNode left, IndexNode right)
+  /// <summary>Reference sentinel for the default distance function, so
+  /// <see cref="TravelingCosts"/> can branch to the direct call when no
+  /// custom distance has been configured (the common case).</summary>
+  internal static readonly Func<IndexNode, IndexNode, float> DefaultDistanceFunc = DefaultDistance;
+
+  internal static float DefaultDistance(IndexNode left, IndexNode right)
   {
     if (left.VectorDimensions == 0 || right.VectorDimensions == 0)
       return float.MaxValue;

@@ -124,14 +124,22 @@ public static class NodeExtensions
     // inserts prune it under its own lock while its owner compares distances
     // lock-free — sharing item.TravelingCosts here corrupts its cache.
     var costs = new TravelingCosts(item, smallworld.Options);
-    IComparer<IndexNode> fartherIsLess = costs.Reverse();
-    var candidatesHeap = new BinaryHeap<IndexNode>(candidates, fartherIsLess);
+    Comparison<IndexNode> fartherIsLess = (a, b) => costs.Compare(b, a);
 
-    var result = new List<IndexNode>(maxM + 1);
-    while (!candidatesHeap.IsEmpty && result.Count < maxM)
-      result.Add(candidatesHeap.Pop());
+    var candidatesHeap = smallworld.RentHeap(candidates, fartherIsLess);
 
-    return result;
+    try
+    {
+      var result = new List<IndexNode>(maxM + 1);
+      while (!candidatesHeap.IsEmpty && result.Count < maxM)
+        result.Add(candidatesHeap.Pop());
+
+      return result;
+    }
+    finally
+    {
+      smallworld.ReturnHeap(candidatesHeap);
+    }
   }
 
   public static IList<IndexNode> SelectBestForConnectingAlg4(
@@ -159,51 +167,63 @@ public static class NodeExtensions
     // LOCAL TravelingCosts: see SelectBestForConnectingAlg3 — the shared
     // node's cache must never be touched from concurrent prunes.
     var costs = new TravelingCosts(item, smallworld.Options);
-    IComparer<IndexNode> closerIsLess = costs;
-    IComparer<IndexNode> fartherIsLess = closerIsLess.Reverse();
+    Comparison<IndexNode> closerIsLess = costs.Compare;
+    Comparison<IndexNode> fartherIsLess = (a, b) => costs.Compare(b, a);
 
-    var resultHeap    = new BinaryHeap<IndexNode>(closerIsLess, maxM + 1);
-    var candidatesHeap = new BinaryHeap<IndexNode>(candidates, fartherIsLess);
+    var resultHeap     = smallworld.RentHeap(closerIsLess, maxM + 1);
+    var candidatesHeap = smallworld.RentHeap(candidates, fartherIsLess);
+    BinaryHeap<IndexNode> discardedHeap = null;
 
-    if (smallworld.Options.ExpandBestSelection)
+    try
     {
-      // Add neighbours of existing candidates not already in the working set.
-      var graph = smallworld.GetGraphForCollection(collection);
-      var candidatesIds = new HashSet<int>(candidates.Count);
-      foreach (var c in candidates) candidatesIds.Add(c.PositionId);
-
-      item.ForEachConnection(level, graph, neighbour =>
+      if (smallworld.Options.ExpandBestSelection)
       {
-        if (candidatesIds.Add(neighbour.PositionId))
-          candidatesHeap.Push(neighbour);
-      });
-    }
+        // Add neighbours of existing candidates not already in the working set.
+        var graph = smallworld.GetGraphForCollection(collection);
+        var candidatesIds = new HashSet<int>(candidates.Count);
+        foreach (var c in candidates) candidatesIds.Add(c.PositionId);
 
-    var discardedHeap = new BinaryHeap<IndexNode>(fartherIsLess, candidatesHeap.Count);
-
-    while (!candidatesHeap.IsEmpty && resultHeap.Count < maxM)
-    {
-      var candidate    = candidatesHeap.Pop();
-      var farestResult = resultHeap.IsEmpty ? null : resultHeap.Peek();
-
-      if (farestResult is null
-          || Tools.DLt(costs.From(candidate), costs.From(farestResult)))
-      {
-        resultHeap.Push(candidate);
+        item.ForEachConnection(level, graph, neighbour =>
+        {
+          if (candidatesIds.Add(neighbour.PositionId))
+            candidatesHeap.Push(neighbour);
+        });
       }
-      else if (smallworld.Options.KeepPrunedConnections)
-      {
-        discardedHeap.Push(candidate);
-      }
-    }
 
-    if (!smallworld.Options.KeepPrunedConnections)
+      if (smallworld.Options.KeepPrunedConnections)
+        discardedHeap = smallworld.RentHeap(fartherIsLess, candidatesHeap.Count);
+
+      while (!candidatesHeap.IsEmpty && resultHeap.Count < maxM)
+      {
+        var candidate    = candidatesHeap.Pop();
+        var farestResult = resultHeap.IsEmpty ? null : resultHeap.Peek();
+
+        if (farestResult is null
+            || Tools.DLt(costs.From(candidate), costs.From(farestResult)))
+        {
+          resultHeap.Push(candidate);
+        }
+        else if (discardedHeap is not null)
+        {
+          discardedHeap.Push(candidate);
+        }
+      }
+
+      if (discardedHeap is null)
+        return resultHeap.ToList();
+
+      while (!discardedHeap.IsEmpty && resultHeap.Count < maxM)
+        resultHeap.Push(discardedHeap.Pop());
+
       return resultHeap.ToList();
-
-    while (!discardedHeap.IsEmpty && resultHeap.Count < maxM)
-      resultHeap.Push(discardedHeap.Pop());
-
-    return resultHeap.ToList();
+    }
+    finally
+    {
+      smallworld.ReturnHeap(resultHeap);
+      smallworld.ReturnHeap(candidatesHeap);
+      if (discardedHeap is not null)
+        smallworld.ReturnHeap(discardedHeap);
+    }
   }
 
   /// <summary>
