@@ -46,11 +46,12 @@ public sealed class MilvusAdapter : IVectorDbAdapter
 
         _collection = await _client.CreateCollectionAsync(CollectionName, fields, cancellationToken: ct);
 
+        // Create a minimal index so searches work before BuildIndexAsync.
+        // BuildIndexAsync will replace it with the real IVF_FLAT index.
         await _collection.CreateIndexAsync(
             "vector", IndexType.IvfFlat, SimilarityMetricType.Cosine,
-            extraParams: new Dictionary<string, string> { ["nlist"] = "128" },
+            extraParams: new Dictionary<string, string> { ["nlist"] = "1" },
             cancellationToken: ct);
-
         await _collection.LoadAsync(cancellationToken: ct);
     }
 
@@ -93,7 +94,34 @@ public sealed class MilvusAdapter : IVectorDbAdapter
     {
         if (_client is null || _collection is null) return;
         await _client.FlushAsync(new[] { CollectionName }, ct);
+    }
+
+    public async Task BuildIndexAsync(CancellationToken ct = default)
+    {
+        if (_collection is null) return;
+
+        // Release, drop minimal index, rebuild with proper nlist=128.
+        await _collection.ReleaseAsync(ct);
+        await _collection.DropIndexAsync("vector", indexName: null, ct);
+
+        await _collection.CreateIndexAsync(
+            "vector", IndexType.IvfFlat, SimilarityMetricType.Cosine,
+            extraParams: new Dictionary<string, string> { ["nlist"] = "128" },
+            cancellationToken: ct);
+
+        // Poll until index build completes
+        while (true)
+        {
+            ct.ThrowIfCancellationRequested();
+            var indexInfo = await _collection.DescribeIndexAsync("vector", indexName: null, ct);
+            if (indexInfo.Count > 0 && indexInfo[0].State == IndexState.Finished)
+                break;
+            await Task.Delay(200, ct);
+        }
+
+        // Reload collection into memory with the new index
         await _collection.LoadAsync(cancellationToken: ct);
+        await _collection.WaitForCollectionLoadAsync(cancellationToken: ct);
     }
 
     public async Task<List<(string Id, float Score)>> SearchAsync(

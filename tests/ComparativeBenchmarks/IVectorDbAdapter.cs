@@ -20,6 +20,13 @@ public interface IVectorDbAdapter : IAsyncDisposable
     /// <summary>Flush / ensure all ingested data is searchable.</summary>
     Task FlushAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Build or rebuild the search index and wait for it to be ready.
+    /// Called after ingest and before post-index search measurement.
+    /// For backends with incremental indexing (e.g. Jigen HNSW) this is a no-op.
+    /// </summary>
+    Task BuildIndexAsync(CancellationToken ct = default);
+
     /// <summary>Search top-K nearest neighbours. Returns (id, score) tuples.</summary>
     Task<List<(string Id, float Score)>> SearchAsync(
         float[] query, int topK,

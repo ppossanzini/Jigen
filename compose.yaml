@@ -55,7 +55,7 @@
       - "5432:5432"
     volumes:
       - pgvector-data:/var/lib/postgresql/data:z
-      - ./tests/JigenBenchmarks/ComparativeBenchmarks/init-pgvector.sql:/docker-entrypoint-initdb.d/init.sql:ro,z
+      - ./tests/ComparativeBenchmarks/init-pgvector.sql:/docker-entrypoint-initdb.d/init.sql:ro,z
     environment:
       POSTGRES_USER: benchmark
       POSTGRES_PASSWORD: benchmark

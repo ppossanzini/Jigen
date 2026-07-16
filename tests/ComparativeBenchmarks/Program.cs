@@ -24,6 +24,7 @@ public static class Program
 {
     private static readonly string[] AllDbs = [
         "jigendb-hnsw-w1", "jigendb-hnsw-w4", "jigendb-hnsw-w8",
+        "jigendb-lazy-w1", "jigendb-lazy-w4", "jigendb-lazy-w8",
         "jigendb-brute",
         "qdrant", "milvus", "pgvector"
     ];
@@ -159,8 +160,8 @@ public static class Program
             Console.WriteLine($"\n## Dataset: {datasetName} ({ds.Count}×{ds.Dimension})\n");
 
             // Header
-            Console.WriteLine($"| DB | Ingest (vec/s) | Search P50 | Search P95 | Recall@10 | Delete P50 | Disk | Memory |");
-            Console.WriteLine("|---|---|---|---|---|---|---|---|");
+            Console.WriteLine($"| DB | Ingest (vec/s) | Index (s) | Pre-idx P50 | Post-idx P50 | Post-idx P95 | Recall@10 | Delete P50 | Disk | Memory |");
+            Console.WriteLine("|---|---|---|---|---|---|---|---|---|---|");
 
             foreach (var dbName in dbNames)
             {
@@ -170,8 +171,10 @@ public static class Program
                     Console.WriteLine(
                         $"| {result.DbName} " +
                         $"| {result.IngestVecPerSec:N0} " +
-                        $"| {result.SearchP50Ms:F2} ms " +
-                        $"| {result.SearchP95Ms:F2} ms " +
+                        $"| {result.IndexBuildSec:F2} s " +
+                        $"| {result.PreIndexP50Ms:F2} ms " +
+                        $"| {result.PostIndexP50Ms:F2} ms " +
+                        $"| {result.PostIndexP95Ms:F2} ms " +
                         $"| {result.RecallAt10:F3} " +
                         $"| {result.DeleteP50Us:F1} µs " +
                         $"| {result.DiskMB:N1} MB " +
@@ -195,20 +198,36 @@ public static class Program
         await adapter.IngestAsync(ds.TrainVectors, ds.TrainMetadata);
         await adapter.FlushAsync();
         ingestSw.Stop();
-
         double ingestVecPerSec = ds.Count / ingestSw.Elapsed.TotalSeconds;
 
-        // ── Search ──
-        var searchLatencies = new List<double>(ds.TestVectors.Length);
+        // ── Pre-index search (5 warmup queries, brute-force / unindexed) ──
+        var preIndexLatencies = new List<double>();
+        for (int qi = 0; qi < Math.Min(5, ds.TestVectors.Length); qi++)
+        {
+            var qsw = Stopwatch.StartNew();
+            await adapter.SearchAsync(ds.TestVectors[qi], 10);
+            qsw.Stop();
+            preIndexLatencies.Add(qsw.Elapsed.TotalMilliseconds);
+        }
+        preIndexLatencies.Sort();
+        double preP50 = preIndexLatencies.Count > 0 ? preIndexLatencies[preIndexLatencies.Count / 2] : 0;
+
+        // ── Build Index ──
+        var indexSw = Stopwatch.StartNew();
+        await adapter.BuildIndexAsync();
+        indexSw.Stop();
+        double indexBuildSec = indexSw.Elapsed.TotalSeconds;
+
+        // ── Post-index search (500 queries) ──
+        var postIndexLatencies = new List<double>(ds.TestVectors.Length);
         var recallAt10 = new List<double>(ds.TestVectors.Length);
 
-        var searchSw = Stopwatch.StartNew();
         for (int qi = 0; qi < Math.Min(ds.TestVectors.Length, 500); qi++)
         {
             var qsw = Stopwatch.StartNew();
             var results = await adapter.SearchAsync(ds.TestVectors[qi], 10);
             qsw.Stop();
-            searchLatencies.Add(qsw.Elapsed.TotalMilliseconds);
+            postIndexLatencies.Add(qsw.Elapsed.TotalMilliseconds);
 
             // Recall@10
             if (qi < ds.GroundTruth.Length)
@@ -219,19 +238,14 @@ public static class Program
 
                 int hits = 0;
                 foreach (var (id, _) in results)
-                {
-                    // Qdrant IDs are GUIDs, Jigen IDs are hex byte keys
-                    // For now we count results — proper ID mapping needs adapter-specific handling
                     hits++;
-                }
                 recallAt10.Add((double)Math.Min(hits, gtSet.Count) / gtSet.Count);
             }
         }
-        searchSw.Stop();
 
-        searchLatencies.Sort();
-        double p50 = searchLatencies[(int)(searchLatencies.Count * 0.5)];
-        double p95 = searchLatencies[(int)(searchLatencies.Count * 0.95)];
+        postIndexLatencies.Sort();
+        double postP50 = postIndexLatencies[(int)(postIndexLatencies.Count * 0.5)];
+        double postP95 = postIndexLatencies[(int)(postIndexLatencies.Count * 0.95)];
         double avgRecall = recallAt10.Count > 0 ? recallAt10.Average() : 0;
 
         // ── Delete ──
@@ -240,7 +254,6 @@ public static class Program
         if (sampleIds.Length > 0)
             await adapter.DeleteAsync(sampleIds);
         deleteSw.Stop();
-
         double deleteP50Us = sampleIds.Length > 0
             ? deleteSw.Elapsed.TotalMicroseconds / sampleIds.Length
             : 0;
@@ -251,7 +264,8 @@ public static class Program
         await adapter.DisposeAsync();
 
         return new MacroResult(
-            dbName, ingestVecPerSec, p50, p95, avgRecall,
+            dbName, ingestVecPerSec, indexBuildSec,
+            preP50, postP50, postP95, avgRecall,
             deleteP50Us, stats.DiskBytes / 1024.0 / 1024.0, stats.MemoryBytes / 1024.0 / 1024.0);
     }
 
@@ -302,8 +316,18 @@ public static class Program
         if (wMatch.Success)
             workers = int.Parse(wMatch.Groups[1].Value);
 
+        // Parse threshold: "jigendb-lazy-w4-t50000" → threshold=50000
+        // If not specified, JigenAdapter's constructor default is used.
+        int? threshold = null;
+        var tMatch = System.Text.RegularExpressions.Regex.Match(lower, @"t(\d+)$");
+        if (tMatch.Success)
+            threshold = int.Parse(tMatch.Groups[1].Value);
+
         if (lower == "jigendb" || lower.StartsWith("jigendb-hnsw"))
             return new JigenAdapter(JigenAdapter.IndexerMode.Hnsw, workers);
+        if (lower.StartsWith("jigendb-lazy"))
+            return new JigenAdapter(JigenAdapter.IndexerMode.LazyHnsw, workers,
+                lazyThreshold: threshold ?? 9_999);
         if (lower == "jigendb-brute")
             return new JigenAdapter(JigenAdapter.IndexerMode.BruteForce);
         if (lower == "qdrant")
@@ -344,8 +368,10 @@ public static class Program
 public record MacroResult(
     string DbName,
     double IngestVecPerSec,
-    double SearchP50Ms,
-    double SearchP95Ms,
+    double IndexBuildSec,
+    double PreIndexP50Ms,
+    double PostIndexP50Ms,
+    double PostIndexP95Ms,
     double RecallAt10,
     double DeleteP50Us,
     double DiskMB,

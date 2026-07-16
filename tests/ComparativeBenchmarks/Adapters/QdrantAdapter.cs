@@ -78,6 +78,13 @@ public sealed class QdrantAdapter : IVectorDbAdapter
         await Task.CompletedTask;
     }
 
+    public async Task BuildIndexAsync(CancellationToken ct = default)
+    {
+        // Qdrant builds HNSW incrementally during upsert. Data is already
+        // fully searchable; this just ensures any pending background merges settle.
+        await Task.Delay(500, ct);
+    }
+
     public async Task<List<(string Id, float Score)>> SearchAsync(
         float[] query, int topK,
         Dictionary<string, object>? filter = null,
