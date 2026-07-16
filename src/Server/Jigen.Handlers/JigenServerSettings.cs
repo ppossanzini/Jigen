@@ -49,4 +49,12 @@ public class JigenIndexSettings
 
   /// <summary>With SQ8: rescore results with full-precision embeddings (default true).</summary>
   public bool ExactRerank { get; set; } = true;
+
+  /// <summary>
+  /// When greater than zero, ingestion skips HNSW graph construction (pure
+  /// file writes) until the total number of stored vectors meets or exceeds
+  /// this threshold, at which point the graph is built from the store in a
+  /// single reconciliation pass. Set to 0 to always build the graph eagerly.
+  /// </summary>
+  public int LazyHnswThreshold { get; set; } = 0;
 }

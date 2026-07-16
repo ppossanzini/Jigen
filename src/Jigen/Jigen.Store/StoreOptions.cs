@@ -10,7 +10,7 @@ public class StoreOptions
   public const string EmbeddingSuffix = "vectors";
 
   public IIndexer Indexer = new BruteForceIndexer();
-
+  
   /// <summary>
   /// When true, SaveChangesAsync triggers ShrinkAsync automatically once both
   /// shrink thresholds below are exceeded.
@@ -25,7 +25,7 @@ public class StoreOptions
 
   /// <summary>
   /// Background indexing workers. Entries are distributed round-robin and the
-  /// HNSW graph supports concurrent inserts, so a single collection scales
+  /// index graph supports concurrent inserts, so a single collection scales
   /// across all workers. Even one worker pipelines graph construction off the
   /// writer thread.
   /// </summary>

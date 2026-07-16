@@ -30,6 +30,7 @@ HNSW parameters applied to every database opened by this server instance (passed
 | `EfSearch` | int | `50` | Search beam width (recall vs. latency; raise it on large collections). |
 | `Sq8Quantization` | bool | `false` | SQ8-quantizes the graph vectors (4x smaller graph files, less memory bandwidth); store embeddings stay full precision. Applies to newly written graph records. |
 | `ExactRerank` | bool | `true` | With SQ8 enabled, rescore candidates with full-precision embeddings from the store before returning results. |
+| `LazyHnswThreshold` | int | `0` | When greater than zero, ingestion skips HNSW graph construction (pure file writes) until the total number of stored vectors across all collections meets or exceeds this count, at which point the graph is built from the store in a single reconciliation pass. Set to `100000` or higher for bulk-load scenarios to maximise initial ingestion throughput. `0` disables the lazy behaviour and builds the graph eagerly. |
 
 ## `JigenEmbeddings:Tasks`
 

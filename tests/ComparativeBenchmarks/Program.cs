@@ -44,6 +44,18 @@ public static class Program
                 GenerateDatasets();
                 return 0;
 
+            case "gendim":
+                // gendim <count> <dim>  — generate a custom-dimension dataset
+                if (args.Length < 3) { Console.WriteLine("Usage: dotnet run -- gendim 10000 1024"); return 1; }
+                var gCount = int.Parse(args[1]);
+                var gDim = int.Parse(args[2]);
+                var gName = $"random-{gCount / 1000}k-{gDim}d";
+                var gSw = Stopwatch.StartNew();
+                var gDs = DatasetGenerator.GenerateRandom(gName, gCount, gDim);
+                DatasetGenerator.SaveToDisk(gDs);
+                Console.WriteLine($"Generated {gName}: {gSw.Elapsed.TotalSeconds:F1}s ({gCount}×{gDim})");
+                return 0;
+
             case "macro":
                 if (args.Length < 2) { PrintUsage(); return 1; }
                 var dbNames = args[1].ToUpperInvariant() == "ALL" ? AllDbs : args[1].Split(',');
