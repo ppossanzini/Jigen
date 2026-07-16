@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Jigen.Indexer;
+using Jigen.Indexers;
 using Microsoft.Extensions.Options;
 
 namespace Jigen.Handlers.Model;
@@ -37,17 +38,28 @@ public class DatabasesManager
     var graphIsNew = !Directory.Exists(hnswPath);
 
     var index = _settings.Index ?? new JigenIndexSettings();
+
+    SmallWorldIndexer CreateHnsw() => new(
+      new(m: index.M, efConstruction: index.EfConstruction, efSearch: index.EfSearch, storagePath: hnswPath)
+      {
+        Quantization = index.Sq8Quantization ? VectorQuantization.SQ8 : VectorQuantization.None,
+        ExactRerank = index.ExactRerank
+      });
+
+    IIndexer indexer = CreateHnsw();
+
+    // When a lazy threshold is configured, wrap the HNSW indexer so graph
+    // construction is deferred until the total vector count crosses it.
+    // Ingestion below the threshold is pure file writes (no graph overhead).
+    if (index.LazyHnswThreshold > 0)
+      indexer = new LazyIndexer(CreateHnsw, index.LazyHnswThreshold);
+
     var storeOptions = new StoreOptions
     {
       DataBaseName = name,
       DataBasePath = _settings.DataFolderPath,
       ReconcileOnUncleanShutdown = _settings.ReconcileOnUncleanShutdown,
-      Indexer = new SmallWorldIndexer(
-        new(m: index.M, efConstruction: index.EfConstruction, efSearch: index.EfSearch, storagePath: hnswPath)
-        {
-          Quantization = index.Sq8Quantization ? VectorQuantization.SQ8 : VectorQuantization.None,
-          ExactRerank = index.ExactRerank
-        })
+      Indexer = indexer
     };
 
     if (_settings.IndexerWorkers > 0)

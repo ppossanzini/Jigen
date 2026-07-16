@@ -67,6 +67,22 @@ public sealed class PgvectorAdapter : IVectorDbAdapter
         await Task.CompletedTask;
     }
 
+    public async Task BuildIndexAsync(CancellationToken ct = default)
+    {
+        await using var conn = new NpgsqlConnection(_connectionString);
+        await conn.OpenAsync(ct);
+
+        // Drop existing index if any, then create IVFFlat for cosine distance.
+        // lists = max(1, rows/1000) — good balance for 10k-100k datasets.
+        await using (var cmd = new NpgsqlCommand("DROP INDEX IF EXISTS idx_embeddings_vector", conn))
+            await cmd.ExecuteNonQueryAsync(ct);
+
+        var lists = Math.Max(1, _vectorCount / 1000);
+        await using (var cmd = new NpgsqlCommand(
+            $"CREATE INDEX idx_embeddings_vector ON embeddings USING ivfflat (vector vector_cosine_ops) WITH (lists = {lists})", conn))
+            await cmd.ExecuteNonQueryAsync(ct);
+    }
+
     public async Task<List<(string Id, float Score)>> SearchAsync(
         float[] query, int topK,
         Dictionary<string, object>? filter = null,

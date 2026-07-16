@@ -46,6 +46,11 @@ public class SearchBenchmarks
         await _adapter.IngestAsync(_dataset.TrainVectors, _dataset.TrainMetadata);
         await _adapter.FlushAsync();
         Console.WriteLine($"  Done in {sw.Elapsed.TotalSeconds:F1}s ({_dataset.Count / sw.Elapsed.TotalSeconds:N0} vec/s)");
+
+        // Build index before search benchmarks
+        Console.WriteLine("Building index...");
+        await _adapter.BuildIndexAsync();
+        Console.WriteLine("  Index ready.");
     }
 
     [GlobalCleanup]
@@ -71,12 +76,28 @@ public class SearchBenchmarks
 
     // ── Factory ──
 
-    private static IVectorDbAdapter CreateAdapter(string name) => name.ToLowerInvariant() switch
+    private static IVectorDbAdapter CreateAdapter(string name)
     {
-        "jigendb" => new JigenAdapter(),
-        "qdrant" => new QdrantAdapter(),
-        "milvus" => new MilvusAdapter(),
-        "pgvector" => new PgvectorAdapter(),
-        _ => throw new ArgumentException($"Unknown DB: {name}")
-    };
+        var lower = name.ToLowerInvariant();
+        int workers = 0;
+        var wMatch = System.Text.RegularExpressions.Regex.Match(lower, @"w(\d+)$");
+        if (wMatch.Success) workers = int.Parse(wMatch.Groups[1].Value);
+
+        int? threshold = null;
+        var tMatch = System.Text.RegularExpressions.Regex.Match(lower, @"t(\d+)$");
+        if (tMatch.Success) threshold = int.Parse(tMatch.Groups[1].Value);
+
+        if (lower == "jigendb" || lower.StartsWith("jigendb-hnsw"))
+            return new JigenAdapter(JigenAdapter.IndexerMode.Hnsw, workers);
+        if (lower.StartsWith("jigendb-lazy"))
+            return new JigenAdapter(JigenAdapter.IndexerMode.LazyHnsw, workers,
+                lazyThreshold: threshold ?? 9_999);
+        if (lower == "jigendb-brute")
+            return new JigenAdapter(JigenAdapter.IndexerMode.BruteForce);
+        if (lower == "qdrant") return new QdrantAdapter();
+        if (lower == "milvus") return new MilvusAdapter();
+        if (lower == "pgvector") return new PgvectorAdapter();
+
+        throw new ArgumentException($"Unknown DB: {name}");
+    }
 }

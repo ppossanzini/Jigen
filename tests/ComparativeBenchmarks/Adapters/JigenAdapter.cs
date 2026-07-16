@@ -12,39 +12,71 @@ namespace JigenBenchmarks.Comparative.Adapters;
 /// </summary>
 public sealed class JigenAdapter : IVectorDbAdapter
 {
+    public enum IndexerMode { Hnsw, BruteForce, LazyHnsw }
+
     private Store? _store;
-    private SmallWorldIndexer? _indexer;
+    private IIndexer? _indexer;
     private readonly string _storagePath;
+    private readonly IndexerMode _mode;
+    private readonly int _indexerWorkers;
+    private readonly int _lazyThreshold;
     private int _vectorCount;
 
-    public string Name => "JigenDb (in-process)";
+    public string Name => _mode switch
+    {
+        IndexerMode.Hnsw => $"JigenDb (HNSW, w={_indexerWorkers})",
+        IndexerMode.LazyHnsw => $"JigenDb (LazyHNSW, w={_indexerWorkers}, thr={_lazyThreshold / 1000}k)",
+        _ => "JigenDb (BruteForce)"
+    };
     public int VectorCount => _vectorCount;
 
-    public JigenAdapter(string? storagePath = null)
+    public JigenAdapter(
+        IndexerMode mode = IndexerMode.Hnsw,
+        int indexerWorkers = 0,
+        string? storagePath = null,
+        int lazyThreshold = 9_999)
     {
+        _mode = mode;
+        // 0 = use default: clamp(cores/2, 1, 8)
+        _indexerWorkers = indexerWorkers;
         _storagePath = storagePath ?? Path.Combine(
             Path.GetTempPath(), "jigen-bench", Guid.CreateVersion7().ToString("N"));
+        _lazyThreshold = lazyThreshold;
     }
 
     public Task InitializeAsync(int dimension, CancellationToken ct = default)
     {
         Directory.CreateDirectory(_storagePath);
 
+        var hnswOpts = new SmallWorldOptions
+        {
+            M = 16,
+            EfConstruction = 200,
+            EfSearch = 80,
+            StoragePath = Path.Combine(_storagePath, "hnsw")
+        };
+
+        IIndexer indexer = _mode switch
+        {
+            IndexerMode.Hnsw => new SmallWorldIndexer(hnswOpts),
+            IndexerMode.LazyHnsw => new LazyIndexer(
+                () => new SmallWorldIndexer(hnswOpts),
+                _lazyThreshold),
+            _ => new BruteForceIndexer()
+        };
+
         var options = new StoreOptions
         {
             DataBasePath = _storagePath,
             DataBaseName = "bench",
-            Indexer = new SmallWorldIndexer(new SmallWorldOptions
-            {
-                M = 16,
-                EfConstruction = 200,
-                EfSearch = 80,
-                StoragePath = Path.Combine(_storagePath, "hnsw")
-            })
+            IndexerWorkers = _indexerWorkers > 0
+                ? _indexerWorkers
+                : Math.Clamp(Environment.ProcessorCount / 2, 1, 8), // default
+            Indexer = indexer
         };
 
         _store = new Store(options);
-        _indexer = (SmallWorldIndexer)options.Indexer;
+        _indexer = indexer;
         return Task.CompletedTask;
     }
 
@@ -56,20 +88,26 @@ public sealed class JigenAdapter : IVectorDbAdapter
         if (_store is null)
             throw new InvalidOperationException("Call InitializeAsync first.");
 
+        const int batchSize = 4096;
+        var bulk = new List<VectorEntry>(batchSize);
+
         for (int i = 0; i < vectors.Length; i++)
         {
             ct.ThrowIfCancellationRequested();
 
-            var id = Guid.CreateVersion7().ToByteArray();
-            var entry = new VectorEntry
+            bulk.Add(new VectorEntry
             {
-                Id = id,
+                Id = Guid.CreateVersion7().ToByteArray(),
                 CollectionName = "bench",
                 Content = "x"u8.ToArray(),
                 Embedding = vectors[i]
-            };
+            });
 
-            await _store.AppendContent(entry);
+            if (bulk.Count >= batchSize || i == vectors.Length - 1)
+            {
+                await _store.AppendContentBulk(bulk);
+                bulk.Clear();
+            }
         }
 
         await _store.SaveChangesAsync();
@@ -80,6 +118,15 @@ public sealed class JigenAdapter : IVectorDbAdapter
     {
         if (_store is not null)
             await _store.SaveChangesAsync();
+    }
+
+    public async Task BuildIndexAsync(CancellationToken ct = default)
+    {
+        if (_store is null || _indexer is null) return;
+
+        // Force reconciliation: for LazyIndexer this triggers the HNSW switch;
+        // for HNSW/Brute this is a quick no-op.
+        await _indexer.ReconcileAsync(_store);
     }
 
     public Task<List<(string Id, float Score)>> SearchAsync(

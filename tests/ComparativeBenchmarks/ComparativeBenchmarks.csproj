@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\src\Jigen\Jigen.Store\Jigen.Store.csproj" />
-    <ProjectReference Include="..\..\..\src\Jigen\Jigen.Indexer.HNSW\Jigen.Indexer.HNSW.csproj" />
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Store\Jigen.Store.csproj" />
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Indexer.HNSW\Jigen.Indexer.HNSW.csproj" />
   </ItemGroup>
 </Project>
