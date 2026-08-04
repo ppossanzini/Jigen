@@ -35,8 +35,8 @@ public partial class Store : IStore, IDisposable
   // WAL file: written BEFORE the ingestion queue by StoreWritingExtensions,
   // checkpointed (and truncated) by the WalCheckpointer background thread.
   // Opened with FileShare.Read so the checkpointer can read the same handle.
-  internal FileStream? WalFileStream;
-  private WalCheckpointer? _walCheckpointer;
+  internal FileStream WalFileStream;
+  private WalCheckpointer _walCheckpointer;
 
   // WAL position up to which records have been checkpointed.
   internal long CheckpointedWalPosition;
@@ -423,6 +423,18 @@ public partial class Store : IStore, IDisposable
     }
   }
 
+
+  /// <summary>
+  /// Begins a new multi-entry transaction. Operations are buffered in memory
+  /// until <see cref="Transaction.CommitAsync"/> is called, at which point the
+  /// entire transaction is serialized as a single atomic WAL block
+  /// [BEGIN][ops...][COMMIT]. If not committed, the transaction is rolled back
+  /// on disposal.
+  /// </summary>
+  public Transaction BeginTransaction()
+  {
+    return new Transaction(this);
+  }
 
   public void Dispose()
   {

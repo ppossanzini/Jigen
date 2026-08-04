@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using Jigen.DataStructures;
 
-#nullable enable
+
 
 namespace Jigen;
 
@@ -18,6 +18,8 @@ public enum WalRecordType : byte
   Delete = 0x02,
   ClearCollection = 0x03,
   Checkpoint = 0xFE,
+  BeginTransaction = 0x05,
+  CommitTransaction = 0x06,
 }
 
 /// <summary>
@@ -71,7 +73,7 @@ public static class WalRecord
 
   // ── Sizing ──
 
-  public static int InsertRecordSize(byte[] id, string collection, byte[]? content, float[]? embedding)
+  public static int InsertRecordSize(byte[] id, string collection, byte[] content, float[] embedding)
   {
     var payload = LengthFieldSize + TypeFieldSize
                   + IdFieldSize(id)
@@ -99,6 +101,11 @@ public static class WalRecord
 
   public const int CheckpointMarkerSize = CrcFieldSize + LengthFieldSize + TypeFieldSize;
 
+  // Transaction markers: [CRC(4)][Length(4)][Type(1)][TxId(16)]
+  private const int TxIdFieldSize = 16; // Guid as 16 bytes
+  public const int BeginTransactionSize = CrcFieldSize + LengthFieldSize + TypeFieldSize + TxIdFieldSize;
+  public const int CommitTransactionSize = CrcFieldSize + LengthFieldSize + TypeFieldSize + TxIdFieldSize;
+
   private static int ContentFieldSize(byte[] content) =>
     content is { Length: > 0 } ? VarFieldSize(content.Length) : VarFieldSize(0);
 
@@ -112,7 +119,7 @@ public static class WalRecord
   /// Serializes an insert record. Returns bytes written.
   /// Layout: [CRC(4)][Length(4)][Type:0x01][id][collection][content][embedding]
   /// </summary>
-  public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[]? content, float[]? embedding)
+  public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[] content, float[] embedding)
   {
     int totalSize = InsertRecordSize(id, collection, content, embedding);
     int payloadOffset = CrcFieldSize + LengthFieldSize;
@@ -256,6 +263,68 @@ public static class WalRecord
     return totalSize;
   }
 
+  /// <summary>
+  /// Serializes a BeginTransaction marker. Returns bytes written.
+  /// Layout: [CRC(4)][Length(4)][Type:0x05][TxId(16)]
+  /// </summary>
+  public static int SerializeBeginTransaction(Span<byte> buffer, Guid txId)
+  {
+    int totalSize = BeginTransactionSize;
+    int payloadOffset = CrcFieldSize + LengthFieldSize;
+
+    buffer[payloadOffset] = (byte)WalRecordType.BeginTransaction;
+    int pos = payloadOffset + TypeFieldSize;
+
+    txId.TryWriteBytes(buffer[pos..]);
+    pos += TxIdFieldSize;
+
+    var payloadSize = totalSize - CrcFieldSize - LengthFieldSize;
+    BinaryPrimitives.WriteInt32LittleEndian(buffer[CrcFieldSize..], payloadSize);
+    var crc = ComputeCrc32(buffer[CrcFieldSize..totalSize]);
+    BinaryPrimitives.WriteUInt32LittleEndian(buffer, crc);
+
+    return totalSize;
+  }
+
+  /// <summary>
+  /// Serializes a CommitTransaction marker. Returns bytes written.
+  /// Layout: [CRC(4)][Length(4)][Type:0x06][TxId(16)]
+  /// </summary>
+  public static int SerializeCommitTransaction(Span<byte> buffer, Guid txId)
+  {
+    int totalSize = CommitTransactionSize;
+    int payloadOffset = CrcFieldSize + LengthFieldSize;
+
+    buffer[payloadOffset] = (byte)WalRecordType.CommitTransaction;
+    int pos = payloadOffset + TypeFieldSize;
+
+    txId.TryWriteBytes(buffer[pos..]);
+    pos += TxIdFieldSize;
+
+    var payloadSize = totalSize - CrcFieldSize - LengthFieldSize;
+    BinaryPrimitives.WriteInt32LittleEndian(buffer[CrcFieldSize..], payloadSize);
+    var crc = ComputeCrc32(buffer[CrcFieldSize..totalSize]);
+    BinaryPrimitives.WriteUInt32LittleEndian(buffer, crc);
+
+    return totalSize;
+  }
+
+  /// <summary>
+  /// Serializes a batch of Insert records into a pre-sized buffer.
+  /// Returns the total bytes written.
+  /// </summary>
+  public static int SerializeInsertBatch(VectorEntry[] entries, Span<byte> buffer)
+  {
+    int pos = 0;
+    foreach (var entry in entries)
+    {
+      var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
+      var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
+      pos += SerializeInsert(buffer[pos..], entry.Id, entry.CollectionName, content, embedding);
+    }
+    return pos;
+  }
+
   // ── Deserialization ──
 
   /// <summary>
@@ -271,11 +340,31 @@ public static class WalRecord
     out float[] embedding,
     out int bytesRead)
   {
+    return TryReadRecord(stream, out type, out id, out collection, out content, out embedding, out _, out bytesRead);
+  }
+
+  /// <summary>
+  /// Reads one WAL record from the stream, including transaction markers.
+  /// Returns false on end-of-stream or CRC mismatch (torn write).
+  /// <paramref name="txId"/> is set only for <see cref="WalRecordType.BeginTransaction"/>
+  /// and <see cref="WalRecordType.CommitTransaction"/>.
+  /// </summary>
+  public static bool TryReadRecord(
+    Stream stream,
+    out WalRecordType type,
+    out byte[] id,
+    out string collection,
+    out byte[] content,
+    out float[] embedding,
+    out Guid txId,
+    out int bytesRead)
+  {
     type = 0;
     id = [];
     collection = string.Empty;
     content = [];
     embedding = [];
+    txId = Guid.Empty;
     bytesRead = 0;
 
     Span<byte> header = stackalloc byte[HeaderSize];
@@ -294,7 +383,7 @@ public static class WalRecord
     int totalSize = CrcFieldSize + LengthFieldSize + payloadLength;
     int remainingPayload = payloadLength - TypeFieldSize;
 
-    byte[]? rentedPayload = null;
+    byte[] rentedPayload = null;
     Span<byte> payloadBuffer = remainingPayload <= 4096
       ? stackalloc byte[remainingPayload]
       : (rentedPayload = ArrayPool<byte>.Shared.Rent(remainingPayload)).AsSpan(0, remainingPayload);
@@ -306,7 +395,7 @@ public static class WalRecord
 
       // Verify CRC
       int verifyLen = LengthFieldSize + TypeFieldSize + remainingPayload;
-      byte[]? rentedVerify = null;
+      byte[] rentedVerify = null;
       Span<byte> verifyBuffer = verifyLen <= 4096
         ? stackalloc byte[verifyLen]
         : (rentedVerify = ArrayPool<byte>.Shared.Rent(verifyLen)).AsSpan(0, verifyLen);
@@ -327,6 +416,15 @@ public static class WalRecord
 
       if (type == WalRecordType.Checkpoint)
       {
+        bytesRead = totalSize;
+        return true;
+      }
+
+      // Transaction markers: payload is just the TxId (16 bytes)
+      if (type == WalRecordType.BeginTransaction || type == WalRecordType.CommitTransaction)
+      {
+        if (remainingPayload < TxIdFieldSize) return false;
+        txId = new Guid(payloadBuffer[..TxIdFieldSize]);
         bytesRead = totalSize;
         return true;
       }

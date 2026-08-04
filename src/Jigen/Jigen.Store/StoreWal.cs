@@ -1,6 +1,7 @@
 using Jigen.DataStructures;
 using Jigen.Extensions;
 
+
 namespace Jigen;
 
 public partial class Store
@@ -9,6 +10,12 @@ public partial class Store
   /// Applies WAL records written after the last checkpoint on top of the
   /// PositionIndex already loaded by <see cref="LoadIndex"/>.
   /// Called once during construction, after LoadIndex.
+  ///
+  /// Transaction handling: when a <see cref="WalRecordType.BeginTransaction"/>
+  /// marker is encountered, subsequent records are buffered until the matching
+  /// <see cref="WalRecordType.CommitTransaction"/>. Only then are they applied
+  /// atomically. If the WAL ends without a COMMIT, the buffered records are
+  /// discarded (rolled back) and the WAL is truncated before the BEGIN marker.
   /// </summary>
   private void ReplayWal()
   {
@@ -22,37 +29,104 @@ public partial class Store
     // 2. Seek to right after the checkpoint (or beginning if none).
     walStream.Seek(lastCheckpoint, SeekOrigin.Begin);
 
-    // 2. Feed records into the ingestion pipeline.
+    // 3. Feed records into the ingestion pipeline, respecting transactions.
     long lastValidPosition = walStream.Position;
+
+    // Transaction state: when non-null, we're inside a transaction.
+    List<VectorEntry> txInserts = null;
+    List<(byte[] Key, string Collection)> txDeletes = null;
+    long txBeginPosition = 0;
 
     while (WalRecord.TryReadRecord(walStream,
              out var type, out var id, out var collection,
-             out var content, out var embedding, out _))
+             out var content, out var embedding, out var txId, out _))
     {
-      lastValidPosition = walStream.Position;
-
       switch (type)
       {
-        case WalRecordType.Insert:
-          // Enqueue into the IngestionQueue — the WriterThread (started later
-          // in the constructor) processes it and writes to content/vectors/index.
-          // No data-file write happens here: only the WriterThread touches those.
-          IngestionQueue.Enqueue(new VectorEntry
+        case WalRecordType.BeginTransaction:
+          // Nested transactions not supported: if already in one, treat as error
+          // and stop replay at the previous valid position.
+          if (txInserts is not null)
           {
-            Id = id,
-            CollectionName = collection,
-            Content = content ?? [],
-            Embedding = embedding ?? []
-          });
-          Writer.SignalNewData();
+            walStream.Seek(lastValidPosition, SeekOrigin.Begin);
+            goto done;
+          }
+          txInserts = new List<VectorEntry>();
+          txDeletes = new List<(byte[], string)>();
+          txBeginPosition = lastValidPosition;
+          lastValidPosition = walStream.Position;
+          break;
+
+        case WalRecordType.CommitTransaction:
+          if (txInserts is null)
+          {
+            // Orphan COMMIT without BEGIN: skip it, keep lastValidPosition.
+            break;
+          }
+          // Apply all buffered operations atomically.
+          foreach (var entry in txInserts)
+          {
+            IngestionQueue.Enqueue(entry);
+          }
+          foreach (var (key, collectionName) in txDeletes!)
+          {
+            ApplyWalDelete(key, collectionName);
+          }
+          txInserts = null;
+          txDeletes = null;
+          lastValidPosition = walStream.Position;
+          break;
+
+        case WalRecordType.Insert:
+          if (txInserts is not null)
+          {
+            // Inside a transaction: buffer.
+            txInserts.Add(new VectorEntry
+            {
+              Id = id,
+              CollectionName = collection,
+              Content = content ?? [],
+              Embedding = embedding ?? []
+            });
+          }
+          else
+          {
+            // Outside a transaction: apply immediately (backward compat).
+            IngestionQueue.Enqueue(new VectorEntry
+            {
+              Id = id,
+              CollectionName = collection,
+              Content = content ?? [],
+              Embedding = embedding ?? []
+            });
+            lastValidPosition = walStream.Position;
+          }
           break;
 
         case WalRecordType.Delete:
-          ApplyWalDelete(id, collection);
+          if (txDeletes is not null)
+          {
+            // Inside a transaction: buffer.
+            txDeletes.Add((id, collection));
+          }
+          else
+          {
+            // Outside a transaction: apply immediately.
+            ApplyWalDelete(id, collection);
+            lastValidPosition = walStream.Position;
+          }
           break;
 
         case WalRecordType.ClearCollection:
+          // ClearCollection inside a transaction is not supported:
+          // if inside a tx, stop replay before this record.
+          if (txInserts is not null)
+          {
+            walStream.Seek(lastValidPosition, SeekOrigin.Begin);
+            goto done;
+          }
           ApplyWalClearCollection(collection);
+          lastValidPosition = walStream.Position;
           break;
 
         case WalRecordType.Checkpoint:
@@ -60,7 +134,15 @@ public partial class Store
       }
     }
 
-    // Truncate torn writes (CRC mismatch stops the loop).
+    // 4. If we ended mid-transaction, roll back: truncate before the BEGIN.
+    if (txInserts is not null)
+    {
+      walStream.Seek(txBeginPosition, SeekOrigin.Begin);
+      lastValidPosition = txBeginPosition;
+    }
+
+done:
+    // Truncate torn writes (CRC mismatch or incomplete transaction).
     walStream.SetLength(lastValidPosition);
     walStream.Flush(true);
 

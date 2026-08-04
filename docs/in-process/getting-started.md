@@ -66,6 +66,34 @@ articles.Add(Guid.NewGuid(), new VectorEntry<Article>
 });
 ```
 
+## Atomic transactions
+
+When the [Write-Ahead Log](store-options.md#write-ahead-log-wal) is enabled, multiple writes can be grouped into an atomic transaction — all-or-nothing, recoverable on crash:
+
+```csharp
+var store = new Store(new StoreOptions
+{
+  DataBasePath = "/data/jigendb",
+  DataBaseName = "demo",
+  Wal = new WalOptions { Enabled = true }
+});
+
+using var tx = store.BeginTransaction();
+tx.Append(new VectorEntry
+{
+  Id = key1,
+  CollectionName = "orders",
+  Content = serializedOrder1,
+  Embedding = embedding1
+});
+tx.Delete("orders", key2);   // delete another entry atomically with the insert
+await tx.CommitAsync();      // BEGIN → [insert] → [delete] → COMMIT in one WAL write
+
+await store.SaveChangesAsync();
+```
+
+If `CommitAsync()` is not called (rolled back, or the `using` block ends without committing), nothing is persisted. After a crash, an incomplete transaction is automatically rolled back on recovery. See [Store options](store-options.md#atomic-transactions) for the full reference.
+
 ## Searching
 
 ```csharp

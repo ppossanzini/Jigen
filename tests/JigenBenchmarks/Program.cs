@@ -16,6 +16,8 @@ using Jigen.Indexers;
 var n = args.Length > 0 && int.TryParse(args[0], out var argN) ? argN : 10_000;
 var dim = args.Length > 1 && int.TryParse(args[1], out var argD) ? argD : 128;
 var sq8 = args.Contains("sq8", StringComparer.OrdinalIgnoreCase);
+var wal = args.Contains("wal", StringComparer.OrdinalIgnoreCase);
+var walDurability = args.FirstOrDefault(a => a.StartsWith("dur:"))?.AsSpan(4).ToString();
 var workersArg = args.FirstOrDefault(a => a.StartsWith("w") && int.TryParse(a.AsSpan(1), out _));
 var workers = workersArg is null ? (int?)null : int.Parse(workersArg.AsSpan(1));
 
@@ -40,10 +42,20 @@ StoreOptions OptionsFor() => new()
     StoragePath = Path.Combine(root, "hnsw"),
     generator = new Random(4242),
     Quantization = sq8 ? VectorQuantization.SQ8 : VectorQuantization.None
-  })
+  }),
+  Wal = wal ? new WalOptions
+  {
+    Enabled = true,
+    Durability = walDurability switch
+    {
+      "perwrite" => WalDurability.PerWrite,
+      "none" => WalDurability.None,
+      _ => WalDurability.Group
+    }
+  } : null
 };
 
-Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, workers={workers?.ToString() ?? "auto"}");
+Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, wal={(wal ? walDurability ?? "group" : "off")}, workers={workers?.ToString() ?? "auto"}");
 Console.WriteLine(new string('-', 64));
 
 try
