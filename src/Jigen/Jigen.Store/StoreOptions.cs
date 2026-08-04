@@ -37,4 +37,11 @@ public class StoreOptions
   /// restoring index entries whose updates were lost. See <see cref="Store.ReconcileIndexAsync"/>.
   /// </summary>
   public bool ReconcileOnUncleanShutdown { get; set; } = true;
+
+  /// <summary>
+  /// Write-Ahead Log configuration. When <see cref="WalOptions.Enabled"/> is
+  /// true, every write is persisted to the WAL file before being enqueued for
+  /// background writing to the data files, guaranteeing per-record durability.
+  /// </summary>
+  public WalOptions? Wal { get; set; }
 }

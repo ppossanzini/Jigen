@@ -1,14 +1,126 @@
 using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using Jigen.DataStructures;
 
 namespace Jigen.Extensions;
 
 public static class StoreWritingExtensions
 {
+  // ── WAL write helpers ──
+
+  /// <summary>
+  /// Writes an Insert record to the WAL, fsyncing according to durability policy.
+  /// Called BEFORE the entry is enqueued to the ingestion queue — this is the
+  /// "write-ahead" guarantee.
+  /// </summary>
+  private static void WriteWalInsert(Store store, VectorEntry entry)
+  {
+    var walStream = store.WalFileStream!;
+    var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
+    var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
+
+    int size = WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embedding);
+    byte[] rented = null;
+    Span<byte> buffer = size <= 8192
+      ? stackalloc byte[size]
+      : (rented = ArrayPool<byte>.Shared.Rent(size)).AsSpan(0, size);
+
+    try
+    {
+      WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding);
+      walStream.Write(buffer[..size]);
+
+      switch (store.Options.Wal!.Durability)
+      {
+        case WalDurability.PerWrite:
+          walStream.Flush(true);
+          break;
+        case WalDurability.Group:
+          walStream.Flush(false);
+          break;
+        default:
+          walStream.Flush(false);
+          break;
+      }
+    }
+    finally
+    {
+      if (rented != null) ArrayPool<byte>.Shared.Return(rented);
+    }
+  }
+
+  private static void WriteWalDelete(Store store, byte[] key, string collection)
+  {
+    var walStream = store.WalFileStream!;
+    int size = WalRecord.DeleteRecordSize(key, collection);
+    byte[] rented = null;
+    Span<byte> buffer = size <= 512
+      ? stackalloc byte[size]
+      : (rented = ArrayPool<byte>.Shared.Rent(size)).AsSpan(0, size);
+
+    try
+    {
+      WalRecord.SerializeDelete(buffer, key, collection);
+      walStream.Write(buffer[..size]);
+      walStream.Flush(false);
+    }
+    finally
+    {
+      if (rented != null) ArrayPool<byte>.Shared.Return(rented);
+    }
+  }
+
+  private static void WriteWalClearCollection(Store store, string collection)
+  {
+    var walStream = store.WalFileStream!;
+    int size = WalRecord.ClearCollectionRecordSize(collection);
+    byte[] rented = null;
+    Span<byte> buffer = size <= 512
+      ? stackalloc byte[size]
+      : (rented = ArrayPool<byte>.Shared.Rent(size)).AsSpan(0, size);
+
+    try
+    {
+      WalRecord.SerializeClearCollection(buffer, collection);
+      walStream.Write(buffer[..size]);
+      walStream.Flush(false);
+    }
+    finally
+    {
+      if (rented != null) ArrayPool<byte>.Shared.Return(rented);
+    }
+  }
+
+  // ── Group commit counter ──
+
+  private static int _walGroupCounter;
+  private static Stopwatch? _walGroupTimer;
+
+  private static void WalGroupFsyncIfNeeded(Store store)
+  {
+    if (store.Options.Wal!.Durability != WalDurability.Group)
+      return;
+
+    var counter = Interlocked.Increment(ref _walGroupCounter);
+    _walGroupTimer ??= Stopwatch.StartNew();
+
+    if (counter >= store.Options.Wal.MaxGroupBatchCount
+        || _walGroupTimer.Elapsed >= store.Options.Wal.MaxGroupDelay)
+    {
+      lock (store.WalFileStream!)
+      {
+        store.WalFileStream.Flush(true);
+      }
+      Interlocked.Exchange(ref _walGroupCounter, 0);
+      _walGroupTimer.Restart();
+    }
+  }
+
   internal static void AppendIndex(
     this Store store,
     (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize) item)
@@ -79,6 +191,13 @@ public static class StoreWritingExtensions
 
   public static async Task<VectorEntry> AppendContent(this Store store, VectorEntry entry)
   {
+    // WAL: write BEFORE enqueuing. This is the write-ahead guarantee.
+    if (store.Options.Wal?.Enabled == true)
+    {
+      WriteWalInsert(store, entry);
+      WalGroupFsyncIfNeeded(store);
+    }
+
     await store.IngestionQueue.EnqueueAsync(entry);
     store.Writer.SignalNewData();
     return entry;
@@ -115,6 +234,10 @@ public static class StoreWritingExtensions
     // X in the store (writer) or in the graph (index workers).
     await store.Writer.WaitForWritingCompleted;
     await store.Writer.WaitForIndexingCompleted;
+
+    // WAL: write the delete record BEFORE modifying the in-memory state.
+    if (store.Options.Wal?.Enabled == true)
+      WriteWalDelete(store, key, collection);
 
     bool result = false;
 
@@ -155,6 +278,10 @@ public static class StoreWritingExtensions
     // (and index) before the clear, or they would resurrect after it.
     await store.Writer.WaitForWritingCompleted;
     await store.Writer.WaitForIndexingCompleted;
+
+    // WAL: write the clear-collection record BEFORE modifying in-memory state.
+    if (store.Options.Wal?.Enabled == true)
+      WriteWalClearCollection(store, collection);
 
     var removedKeys = new List<byte[]>();
 

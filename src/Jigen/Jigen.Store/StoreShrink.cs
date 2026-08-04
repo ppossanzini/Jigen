@@ -154,6 +154,17 @@ public partial class Store
 
     DeadContentBytes = 0;
     DeadEmbeddingBytes = 0;
+
+    // After shrink the data files are a complete, self-consistent snapshot:
+    // the WAL can be discarded entirely.
+    if (Options.Wal?.Enabled == true && WalFileStream is not null)
+    {
+      WalFileStream.SetLength(0);
+      WalFileStream.Flush(true);
+      WalFileStream.Seek(0, SeekOrigin.End);
+      CheckpointedWalPosition = 0;
+      _walCheckpointer?.ResetPosition();
+    }
   }
 
   private static void CopyRecord(FileStream source, long position, long length, FileStream destination)

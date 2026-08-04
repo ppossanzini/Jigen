@@ -32,6 +32,15 @@ public partial class Store : IStore, IDisposable
   internal FileStream EmbeddingFileStream;
   internal FileStream IndexFileStream;
 
+  // WAL file: written BEFORE the ingestion queue by StoreWritingExtensions,
+  // checkpointed (and truncated) by the WalCheckpointer background thread.
+  // Opened with FileShare.Read so the checkpointer can read the same handle.
+  internal FileStream? WalFileStream;
+  private WalCheckpointer? _walCheckpointer;
+
+  // WAL position up to which records have been checkpointed.
+  internal long CheckpointedWalPosition;
+
   public long IngestionQueueLength => IngestionQueue.Count;
   
   public readonly StoreOptions Options;
@@ -67,6 +76,7 @@ public partial class Store : IStore, IDisposable
   internal string IndexFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.index.jigen");
   internal string EmbeddingsFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.EmbeddingSuffix}.jigen");
   internal string LockFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.lock.jigen");
+  internal string WalFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.wal.jigen");
 
   // Held exclusively for the Store lifetime: the data files themselves are
   // opened with FileShare.ReadWrite (the read mappings need it), so without
@@ -101,6 +111,8 @@ public partial class Store : IStore, IDisposable
     yield return IndexFullFileName;
     yield return ContentFullFileName;
     yield return EmbeddingsFullFileName;
+    if (Options.Wal?.Enabled == true)
+      yield return WalFullFileName;
   }
 
   public IEnumerable<string> GetCollections()
@@ -141,7 +153,16 @@ public partial class Store : IStore, IDisposable
       this.LoadIndex();
       this.ReadHeader();
 
+      // WAL recovery: apply any records written after the last checkpoint
+      // on top of the PositionIndex already built by LoadIndex.
+      if (Options.Wal?.Enabled == true)
+        ReplayWal();
+
       Writer = new Writer(this);
+
+      // Start the background WAL checkpointer AFTER the writer.
+      if (Options.Wal?.Enabled == true)
+        _walCheckpointer = new WalCheckpointer(this);
 
       if (_uncleanShutdown && options.ReconcileOnUncleanShutdown)
         ReconcileIndexAsync().GetAwaiter().GetResult();
@@ -175,6 +196,9 @@ public partial class Store : IStore, IDisposable
     ContentFileStream = File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     EmbeddingFileStream = File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     IndexFileStream = File.Open(IndexFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+
+    if (Options.Wal?.Enabled == true)
+      WalFileStream = File.Open(WalFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
   }
 
   internal void EnableReading()
@@ -238,6 +262,10 @@ public partial class Store : IStore, IDisposable
 
     if (Options.Indexer is not null)
       await Options.Indexer.FlushAsync();
+
+    // fsync WAL before data files.
+    if (WalFileStream is not null)
+      WalFileStream.Flush(true);
 
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
@@ -313,10 +341,21 @@ public partial class Store : IStore, IDisposable
     // batch still needs the streams and recreates the read mappings.
     Writer.Stop();
 
+    // Stop the WAL checkpointer AFTER the writer (so it drains what remains).
+    if (_walCheckpointer is not null)
+    {
+      _walCheckpointer.ForceCheckpoint();
+      _walCheckpointer.Stop();
+    }
+
     // CloseAsync flushes AND releases the index storage (file handles, flush
     // loops), which would otherwise outlive the store.
     if (Options.Indexer is not null)
       await Options.Indexer.CloseAsync();
+
+    // fsync WAL before the data files: the WAL is authoritative.
+    if (WalFileStream is not null)
+      WalFileStream.Flush(true);
 
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
@@ -328,6 +367,9 @@ public partial class Store : IStore, IDisposable
     this.ContentFileStream.Close();
     this.EmbeddingFileStream.Close();
     this.IndexFileStream.Close();
+
+    if (WalFileStream is not null)
+      WalFileStream.Close();
 
     // Clean shutdown: release the exclusive lock and remove the file, which
     // doubles as the crash marker (its survival triggers reconciliation).
