@@ -95,10 +95,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Jigen-AllInOne", "src\Serve
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "JigenBenchmarks", "tests\JigenBenchmarks\JigenBenchmarks.csproj", "{05396BC8-F108-4CED-ABE4-F32E1D215F3D}"
 EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Jigen", "Jigen", "{A90ED8DF-164D-4D39-80CA-8D590F860827}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Jigen", "Jigen", "{E047CDCD-5779-4D78-A927-1BB93612F0A2}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
