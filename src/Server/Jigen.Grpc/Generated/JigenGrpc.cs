@@ -81,6 +81,20 @@ namespace Jigen.Proto {
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchRequest> __Marshaller_jigen_EmbeddingBatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.CollectionInfoResponse> __Marshaller_jigen_CollectionInfoResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionInfoResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.CollectionsInfoResponse> __Marshaller_jigen_CollectionsInfoResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionsInfoResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.GetGraphRequest> __Marshaller_jigen_GetGraphRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.GetGraphRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.GraphSnapshotResponse> __Marshaller_jigen_GraphSnapshotResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.GraphSnapshotResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SearchFilterRequest> __Marshaller_jigen_SearchFilterRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchFilterRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.TransactionOp> __Marshaller_jigen_TransactionOp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.TransactionOp.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.TransactionResult> __Marshaller_jigen_TransactionResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.TransactionResult.Parser));
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.ListCollectionResult> __Method_ListCollections = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.ListCollectionResult>(
@@ -218,6 +232,70 @@ namespace Jigen.Proto {
         __Marshaller_jigen_EmbeddingBatchRequest,
         __Marshaller_jigen_EmbeddingBatchResponse);
 
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse> __Method_GetCollectionInfo = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetCollectionInfo",
+        __Marshaller_jigen_CollectionKey,
+        __Marshaller_jigen_CollectionInfoResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionsInfoResponse> __Method_GetCollectionsInfo = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionsInfoResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetCollectionsInfo",
+        __Marshaller_jigen_CollectionKey,
+        __Marshaller_jigen_CollectionsInfoResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.GetGraphRequest, global::Jigen.Proto.GraphSnapshotResponse> __Method_GetCollectionGraph = new grpc::Method<global::Jigen.Proto.GetGraphRequest, global::Jigen.Proto.GraphSnapshotResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetCollectionGraph",
+        __Marshaller_jigen_GetGraphRequest,
+        __Marshaller_jigen_GraphSnapshotResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.SearchFilterRequest, global::Jigen.Proto.SearchVectorResponse> __Method_SearchFilter = new grpc::Method<global::Jigen.Proto.SearchFilterRequest, global::Jigen.Proto.SearchVectorResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "SearchFilter",
+        __Marshaller_jigen_SearchFilterRequest,
+        __Marshaller_jigen_SearchVectorResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.Document, global::Jigen.Proto.Result> __Method_AppendDocument = new grpc::Method<global::Jigen.Proto.Document, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "AppendDocument",
+        __Marshaller_jigen_Document,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.Vector, global::Jigen.Proto.Result> __Method_AppendVector = new grpc::Method<global::Jigen.Proto.Vector, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "AppendVector",
+        __Marshaller_jigen_Vector,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.Vector, global::Jigen.Proto.Result> __Method_SetRawVector = new grpc::Method<global::Jigen.Proto.Vector, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "SetRawVector",
+        __Marshaller_jigen_Vector,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult> __Method_Transaction = new grpc::Method<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult>(
+        grpc::MethodType.DuplexStreaming,
+        __ServiceName,
+        "Transaction",
+        __Marshaller_jigen_TransactionOp,
+        __Marshaller_jigen_TransactionResult);
+
     /// <summary>Service descriptor</summary>
     public static global::Google.Protobuf.Reflection.ServiceDescriptor Descriptor
     {
@@ -353,6 +431,95 @@ namespace Jigen.Proto {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
+      /// <summary>
+      /// ── Collection metadata ──
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.CollectionInfoResponse> GetCollectionInfo(global::Jigen.Proto.CollectionKey request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      /// <summary>
+      /// Full details of all collections in a database (the Collection field of
+      /// the request is ignored; only Database is used).
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.CollectionsInfoResponse> GetCollectionsInfo(global::Jigen.Proto.CollectionKey request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.GraphSnapshotResponse> GetCollectionGraph(global::Jigen.Proto.GetGraphRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      /// <summary>
+      /// ── Filter-only search (no query vector, no similarity scores) ──
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.SearchVectorResponse> SearchFilter(global::Jigen.Proto.SearchFilterRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      /// <summary>
+      /// ── Append-only variants: reject when the key already exists, unlike
+      ///     SetDocument/SetVector which upsert. ──
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> AppendDocument(global::Jigen.Proto.Document request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> AppendVector(global::Jigen.Proto.Vector request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      /// <summary>
+      /// ── Raw vector storage without server-side normalization or processing. ──
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> SetRawVector(global::Jigen.Proto.Vector request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      /// <summary>
+      /// ── Multi-entry atomic transaction with WAL durability guarantees.
+      ///     Bidirectional stream: client sends Begin → Append*/Delete → Commit/Rollback;
+      ///     server acknowledges each step and commits atomically on Commit. ──
+      /// </summary>
+      /// <param name="requestStream">Used for reading requests from the client.</param>
+      /// <param name="responseStream">Used for sending responses back to the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>A task indicating completion of the handler.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task Transaction(grpc::IAsyncStreamReader<global::Jigen.Proto.TransactionOp> requestStream, grpc::IServerStreamWriter<global::Jigen.Proto.TransactionResult> responseStream, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
     }
 
     /// <summary>Creates service definition that can be registered with a server</summary>
@@ -377,7 +544,15 @@ namespace Jigen.Proto {
           .AddMethod(__Method_Clear, serviceImpl.Clear)
           .AddMethod(__Method_Count, serviceImpl.Count)
           .AddMethod(__Method_CalculateEmbeddings, serviceImpl.CalculateEmbeddings)
-          .AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl.CalculateEmbeddingsBatch).Build();
+          .AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl.CalculateEmbeddingsBatch)
+          .AddMethod(__Method_GetCollectionInfo, serviceImpl.GetCollectionInfo)
+          .AddMethod(__Method_GetCollectionsInfo, serviceImpl.GetCollectionsInfo)
+          .AddMethod(__Method_GetCollectionGraph, serviceImpl.GetCollectionGraph)
+          .AddMethod(__Method_SearchFilter, serviceImpl.SearchFilter)
+          .AddMethod(__Method_AppendDocument, serviceImpl.AppendDocument)
+          .AddMethod(__Method_AppendVector, serviceImpl.AppendVector)
+          .AddMethod(__Method_SetRawVector, serviceImpl.SetRawVector)
+          .AddMethod(__Method_Transaction, serviceImpl.Transaction).Build();
     }
 
     /// <summary>Register service method with a service binder with or without implementation. Useful when customizing the service binding logic.
@@ -404,6 +579,14 @@ namespace Jigen.Proto {
       serviceBinder.AddMethod(__Method_Count, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CountResult>(serviceImpl.Count));
       serviceBinder.AddMethod(__Method_CalculateEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.CalculateEmbeddings));
       serviceBinder.AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse>(serviceImpl.CalculateEmbeddingsBatch));
+      serviceBinder.AddMethod(__Method_GetCollectionInfo, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse>(serviceImpl.GetCollectionInfo));
+      serviceBinder.AddMethod(__Method_GetCollectionsInfo, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionsInfoResponse>(serviceImpl.GetCollectionsInfo));
+      serviceBinder.AddMethod(__Method_GetCollectionGraph, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.GetGraphRequest, global::Jigen.Proto.GraphSnapshotResponse>(serviceImpl.GetCollectionGraph));
+      serviceBinder.AddMethod(__Method_SearchFilter, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.SearchFilterRequest, global::Jigen.Proto.SearchVectorResponse>(serviceImpl.SearchFilter));
+      serviceBinder.AddMethod(__Method_AppendDocument, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.Document, global::Jigen.Proto.Result>(serviceImpl.AppendDocument));
+      serviceBinder.AddMethod(__Method_AppendVector, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.Vector, global::Jigen.Proto.Result>(serviceImpl.AppendVector));
+      serviceBinder.AddMethod(__Method_SetRawVector, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.Vector, global::Jigen.Proto.Result>(serviceImpl.SetRawVector));
+      serviceBinder.AddMethod(__Method_Transaction, serviceImpl == null ? null : new grpc::DuplexStreamingServerMethod<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult>(serviceImpl.Transaction));
     }
 
   }

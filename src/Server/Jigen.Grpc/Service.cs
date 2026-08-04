@@ -1,6 +1,7 @@
 using Google.Protobuf;
 using Grpc.Core;
 using Hikyaku;
+using Jigen.DataStructures;
 using Jigen.Filtering;
 using Jigen.Proto;
 
@@ -377,5 +378,171 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
       Database = request.Database, Collection = request.Collection, Key = request.Key.ToByteArray()
     });
     return new Result() { Success = true };
+  }
+
+  // ── New RPCs (added during Store API alignment) ──
+
+  public override async Task<CollectionInfoResponse> GetCollectionInfo(CollectionKey request, ServerCallContext context)
+  {
+    var result = await mediator.Send(new Core.Query.collections.GetCollectionInfo()
+    {
+      Database = request.Database,
+      Collection = request.Collection
+    });
+
+    return ToCollectionInfoResponse(result);
+  }
+
+  public override async Task<CollectionsInfoResponse> GetCollectionsInfo(CollectionKey request, ServerCallContext context)
+  {
+    var result = await mediator.Send(new Core.Query.collections.GetCollectionsInfo()
+    {
+      Database = request.Database
+    });
+
+    var response = new CollectionsInfoResponse();
+    response.Collections.AddRange(result.Select(ToCollectionInfoResponse));
+    return response;
+  }
+
+  public override async Task<GraphSnapshotResponse> GetCollectionGraph(GetGraphRequest request, ServerCallContext context)
+  {
+    var result = await mediator.Send(new Core.Query.collections.GetCollectionGraph()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Dimensions = request.Dimensions > 0 ? request.Dimensions : 2,
+      Limit = request.Limit > 0 ? request.Limit : 2000,
+      Level = request.HasLevel ? request.Level : null
+    });
+
+    return new GraphSnapshotResponse
+    {
+      Collection = result.Collection,
+      Dimensions = result.Dimensions,
+      TotalNodes = result.TotalNodes,
+      LiveNodes = result.LiveNodes,
+      DeletedNodes = result.DeletedNodes,
+      ReturnedNodes = result.ReturnedNodes,
+      MaxLevel = result.MaxLevel,
+      EntrypointPositionId = result.EntrypointPositionId,
+      Truncated = result.Truncated,
+      Nodes = { result.Nodes.Select(n => new GraphNodeResponse
+      {
+        PositionId = n.PositionId,
+        Key = n.Key,
+        MaxLevel = n.MaxLevel,
+        IsDeleted = n.IsDeleted,
+        Degree = n.Degree,
+        Position = { n.Position }
+      }) },
+      Edges = { result.Edges.Select(e => new GraphEdgeResponse
+      {
+        Source = e.Source,
+        Target = e.Target,
+        Level = e.Level
+      }) }
+    };
+  }
+
+  public override async Task<SearchVectorResponse> SearchFilter(SearchFilterRequest request, ServerCallContext context)
+  {
+    // Filter-only search: dispatches a SearchVector query with no embeddings.
+    // The handler treats an empty/null Embeddings array as "enumerate with filter only,
+    // no similarity scoring" and returns all matching entries with Score = 0.
+    var result = await mediator.Send(ApplyTuning(new Core.Query.collections.SearchVector
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Embeddings = [],
+      Top = int.MaxValue,
+      Filter = ToFilterExpression(request.Filter)
+    }, null), context.CancellationToken);
+
+    return ToSearchResponse(result);
+  }
+
+  public override async Task<Result> AppendDocument(Document request, ServerCallContext context)
+  {
+    await mediator.Send(new Core.Command.collections.AppendDocument()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Key = request.Key.ToByteArray(),
+      Content = request.Content.ToByteArray(),
+      Sentence = request.Sentence
+    });
+
+    return new Result() { Success = true };
+  }
+
+  public override async Task<Result> AppendVector(Vector request, ServerCallContext context)
+  {
+    await mediator.Send(new Core.Command.collections.AppendVector()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Key = request.Key.ToByteArray(),
+      Content = request.Content.ToByteArray(),
+      Embeddings = request.Embeddings.ToArray()
+    });
+
+    return new Result() { Success = true };
+  }
+
+  public override async Task<Result> SetRawVector(Vector request, ServerCallContext context)
+  {
+    await mediator.Send(new Core.Command.collections.SetRawVector()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Key = request.Key.ToByteArray(),
+      Content = request.Content.ToByteArray(),
+      Embeddings = request.Embeddings.ToArray()
+    });
+
+    return new Result() { Success = true };
+  }
+
+  public override async Task Transaction(
+    IAsyncStreamReader<TransactionOp> requestStream,
+    IServerStreamWriter<TransactionResult> responseStream,
+    ServerCallContext context)
+  {
+    // Placeholder: full Store-level transaction support (WAL-based atomic
+    // multi-entry transactions) will be implemented in a follow-up phase
+    // once the ITransactionManager abstraction is in place.
+    throw new RpcException(new Status(StatusCode.Unimplemented,
+      "Transaction RPC is not yet implemented. Full WAL-based transaction support coming in a follow-up phase."));
+  }
+
+  // ── Response mappers ──
+
+  private static CollectionInfoResponse ToCollectionInfoResponse(DataStructures.CollectionInfo info)
+  {
+    var response = new CollectionInfoResponse
+    {
+      Name = info.Name,
+      Vectors = info.Vectors,
+      Dimensions = info.Dimensions,
+      ContentSize = info.ContentSize,
+      VectorSize = info.VectorSize
+    };
+
+    if (info.Index is not null)
+    {
+      response.Index = new CollectionIndexInfoResponse
+      {
+        IndexSizeBytes = info.Index.IndexSizeBytes,
+        Nodes = info.Index.Nodes,
+        DeletedNodes = info.Index.DeletedNodes,
+        MaxLevel = info.Index.MaxLevel,
+        AverageDegree = info.Index.AverageDegree,
+        Quantization = info.Index.Quantization
+      };
+      response.Index.NodesPerLevel.AddRange(info.Index.NodesPerLevel);
+    }
+
+    return response;
   }
 }

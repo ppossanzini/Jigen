@@ -81,6 +81,20 @@ namespace Jigen.Proto {
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchRequest> __Marshaller_jigen_EmbeddingBatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.CollectionInfoResponse> __Marshaller_jigen_CollectionInfoResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionInfoResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.CollectionsInfoResponse> __Marshaller_jigen_CollectionsInfoResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionsInfoResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.GetGraphRequest> __Marshaller_jigen_GetGraphRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.GetGraphRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.GraphSnapshotResponse> __Marshaller_jigen_GraphSnapshotResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.GraphSnapshotResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SearchFilterRequest> __Marshaller_jigen_SearchFilterRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchFilterRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.TransactionOp> __Marshaller_jigen_TransactionOp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.TransactionOp.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.TransactionResult> __Marshaller_jigen_TransactionResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.TransactionResult.Parser));
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.ListCollectionResult> __Method_ListCollections = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.ListCollectionResult>(
@@ -217,6 +231,70 @@ namespace Jigen.Proto {
         "CalculateEmbeddingsBatch",
         __Marshaller_jigen_EmbeddingBatchRequest,
         __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse> __Method_GetCollectionInfo = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetCollectionInfo",
+        __Marshaller_jigen_CollectionKey,
+        __Marshaller_jigen_CollectionInfoResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionsInfoResponse> __Method_GetCollectionsInfo = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionsInfoResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetCollectionsInfo",
+        __Marshaller_jigen_CollectionKey,
+        __Marshaller_jigen_CollectionsInfoResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.GetGraphRequest, global::Jigen.Proto.GraphSnapshotResponse> __Method_GetCollectionGraph = new grpc::Method<global::Jigen.Proto.GetGraphRequest, global::Jigen.Proto.GraphSnapshotResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetCollectionGraph",
+        __Marshaller_jigen_GetGraphRequest,
+        __Marshaller_jigen_GraphSnapshotResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.SearchFilterRequest, global::Jigen.Proto.SearchVectorResponse> __Method_SearchFilter = new grpc::Method<global::Jigen.Proto.SearchFilterRequest, global::Jigen.Proto.SearchVectorResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "SearchFilter",
+        __Marshaller_jigen_SearchFilterRequest,
+        __Marshaller_jigen_SearchVectorResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.Document, global::Jigen.Proto.Result> __Method_AppendDocument = new grpc::Method<global::Jigen.Proto.Document, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "AppendDocument",
+        __Marshaller_jigen_Document,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.Vector, global::Jigen.Proto.Result> __Method_AppendVector = new grpc::Method<global::Jigen.Proto.Vector, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "AppendVector",
+        __Marshaller_jigen_Vector,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.Vector, global::Jigen.Proto.Result> __Method_SetRawVector = new grpc::Method<global::Jigen.Proto.Vector, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "SetRawVector",
+        __Marshaller_jigen_Vector,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult> __Method_Transaction = new grpc::Method<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult>(
+        grpc::MethodType.DuplexStreaming,
+        __ServiceName,
+        "Transaction",
+        __Marshaller_jigen_TransactionOp,
+        __Marshaller_jigen_TransactionResult);
 
     /// <summary>Service descriptor</summary>
     public static global::Google.Protobuf.Reflection.ServiceDescriptor Descriptor
@@ -624,6 +702,320 @@ namespace Jigen.Proto {
       public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingBatchResponse> CalculateEmbeddingsBatchAsync(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncUnaryCall(__Method_CalculateEmbeddingsBatch, null, options, request);
+      }
+      /// <summary>
+      /// ── Collection metadata ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.CollectionInfoResponse GetCollectionInfo(global::Jigen.Proto.CollectionKey request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return GetCollectionInfo(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Collection metadata ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.CollectionInfoResponse GetCollectionInfo(global::Jigen.Proto.CollectionKey request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_GetCollectionInfo, null, options, request);
+      }
+      /// <summary>
+      /// ── Collection metadata ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.CollectionInfoResponse> GetCollectionInfoAsync(global::Jigen.Proto.CollectionKey request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return GetCollectionInfoAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Collection metadata ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.CollectionInfoResponse> GetCollectionInfoAsync(global::Jigen.Proto.CollectionKey request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_GetCollectionInfo, null, options, request);
+      }
+      /// <summary>
+      /// Full details of all collections in a database (the Collection field of
+      /// the request is ignored; only Database is used).
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.CollectionsInfoResponse GetCollectionsInfo(global::Jigen.Proto.CollectionKey request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return GetCollectionsInfo(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// Full details of all collections in a database (the Collection field of
+      /// the request is ignored; only Database is used).
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.CollectionsInfoResponse GetCollectionsInfo(global::Jigen.Proto.CollectionKey request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_GetCollectionsInfo, null, options, request);
+      }
+      /// <summary>
+      /// Full details of all collections in a database (the Collection field of
+      /// the request is ignored; only Database is used).
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.CollectionsInfoResponse> GetCollectionsInfoAsync(global::Jigen.Proto.CollectionKey request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return GetCollectionsInfoAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// Full details of all collections in a database (the Collection field of
+      /// the request is ignored; only Database is used).
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.CollectionsInfoResponse> GetCollectionsInfoAsync(global::Jigen.Proto.CollectionKey request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_GetCollectionsInfo, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.GraphSnapshotResponse GetCollectionGraph(global::Jigen.Proto.GetGraphRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return GetCollectionGraph(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.GraphSnapshotResponse GetCollectionGraph(global::Jigen.Proto.GetGraphRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_GetCollectionGraph, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.GraphSnapshotResponse> GetCollectionGraphAsync(global::Jigen.Proto.GetGraphRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return GetCollectionGraphAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.GraphSnapshotResponse> GetCollectionGraphAsync(global::Jigen.Proto.GetGraphRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_GetCollectionGraph, null, options, request);
+      }
+      /// <summary>
+      /// ── Filter-only search (no query vector, no similarity scores) ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.SearchVectorResponse SearchFilter(global::Jigen.Proto.SearchFilterRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return SearchFilter(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Filter-only search (no query vector, no similarity scores) ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.SearchVectorResponse SearchFilter(global::Jigen.Proto.SearchFilterRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_SearchFilter, null, options, request);
+      }
+      /// <summary>
+      /// ── Filter-only search (no query vector, no similarity scores) ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.SearchVectorResponse> SearchFilterAsync(global::Jigen.Proto.SearchFilterRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return SearchFilterAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Filter-only search (no query vector, no similarity scores) ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.SearchVectorResponse> SearchFilterAsync(global::Jigen.Proto.SearchFilterRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_SearchFilter, null, options, request);
+      }
+      /// <summary>
+      /// ── Append-only variants: reject when the key already exists, unlike
+      ///     SetDocument/SetVector which upsert. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.Result AppendDocument(global::Jigen.Proto.Document request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return AppendDocument(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Append-only variants: reject when the key already exists, unlike
+      ///     SetDocument/SetVector which upsert. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.Result AppendDocument(global::Jigen.Proto.Document request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_AppendDocument, null, options, request);
+      }
+      /// <summary>
+      /// ── Append-only variants: reject when the key already exists, unlike
+      ///     SetDocument/SetVector which upsert. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> AppendDocumentAsync(global::Jigen.Proto.Document request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return AppendDocumentAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Append-only variants: reject when the key already exists, unlike
+      ///     SetDocument/SetVector which upsert. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> AppendDocumentAsync(global::Jigen.Proto.Document request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_AppendDocument, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.Result AppendVector(global::Jigen.Proto.Vector request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return AppendVector(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.Result AppendVector(global::Jigen.Proto.Vector request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_AppendVector, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> AppendVectorAsync(global::Jigen.Proto.Vector request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return AppendVectorAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> AppendVectorAsync(global::Jigen.Proto.Vector request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_AppendVector, null, options, request);
+      }
+      /// <summary>
+      /// ── Raw vector storage without server-side normalization or processing. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.Result SetRawVector(global::Jigen.Proto.Vector request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return SetRawVector(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Raw vector storage without server-side normalization or processing. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.Result SetRawVector(global::Jigen.Proto.Vector request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_SetRawVector, null, options, request);
+      }
+      /// <summary>
+      /// ── Raw vector storage without server-side normalization or processing. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> SetRawVectorAsync(global::Jigen.Proto.Vector request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return SetRawVectorAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Raw vector storage without server-side normalization or processing. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> SetRawVectorAsync(global::Jigen.Proto.Vector request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_SetRawVector, null, options, request);
+      }
+      /// <summary>
+      /// ── Multi-entry atomic transaction with WAL durability guarantees.
+      ///     Bidirectional stream: client sends Begin → Append*/Delete → Commit/Rollback;
+      ///     server acknowledges each step and commits atomically on Commit. ──
+      /// </summary>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncDuplexStreamingCall<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult> Transaction(grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return Transaction(new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Multi-entry atomic transaction with WAL durability guarantees.
+      ///     Bidirectional stream: client sends Begin → Append*/Delete → Commit/Rollback;
+      ///     server acknowledges each step and commits atomically on Commit. ──
+      /// </summary>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncDuplexStreamingCall<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult> Transaction(grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncDuplexStreamingCall(__Method_Transaction, null, options);
       }
       /// <summary>Creates a new instance of client from given <c>ClientBaseConfiguration</c>.</summary>
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]

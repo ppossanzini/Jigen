@@ -43,6 +43,19 @@ public class DatabaseController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Policy = "database.admin")]
+  [HttpGet("{name}/info")]
+  [ProducesResponseType(typeof(DatabaseInfo), StatusCodes.Status200OK)]
+  public async Task<IActionResult> GetInfo(string name, CancellationToken cancellationToken)
+  {
+    var result = await mediator.Send(new Jigen.Core.Query.database.GetInfo
+    {
+      Database = name
+    }, cancellationToken);
+
+    return Ok(result);
+  }
+
+  [Authorize(Policy = "database.admin")]
   [HttpGet("{name}/details")]
   [ProducesResponseType(typeof(DatabaseDetails), StatusCodes.Status200OK)]
   public async Task<IActionResult> GetDetails(string name, CancellationToken cancellationToken)

@@ -29,6 +29,29 @@ service StoreCollectionService {
 
   rpc CalculateEmbeddings (EmbeddingRequest) returns (EmbeddingResponse);
   rpc CalculateEmbeddingsBatch (EmbeddingBatchRequest) returns (EmbeddingBatchResponse);
+
+  // ── Collection metadata ──
+  rpc GetCollectionInfo(CollectionKey) returns (CollectionInfoResponse);
+  // Full details of all collections in a database (the Collection field of
+  // the request is ignored; only Database is used).
+  rpc GetCollectionsInfo(CollectionKey) returns (CollectionsInfoResponse);
+  rpc GetCollectionGraph(GetGraphRequest) returns (GraphSnapshotResponse);
+
+  // ── Filter-only search (no query vector, no similarity scores) ──
+  rpc SearchFilter(SearchFilterRequest) returns (SearchVectorResponse);
+
+  // ── Append-only variants: reject when the key already exists, unlike
+  //     SetDocument/SetVector which upsert. ──
+  rpc AppendDocument(Document) returns (Result);
+  rpc AppendVector(Vector) returns (Result);
+
+  // ── Raw vector storage without server-side normalization or processing. ──
+  rpc SetRawVector(Vector) returns (Result);
+
+  // ── Multi-entry atomic transaction with WAL durability guarantees.
+  //     Bidirectional stream: client sends Begin → Append*/Delete → Commit/Rollback;
+  //     server acknowledges each step and commits atomically on Commit. ──
+  rpc Transaction(stream TransactionOp) returns (stream TransactionResult);
 }
 
 message ItemKey{
@@ -192,4 +215,130 @@ message RawContentResult{
 
 message JsonContentResult{
   string content = 1;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Collection metadata messages (GetCollectionInfo / GetCollectionsInfo)
+// ─────────────────────────────────────────────────────────────────
+
+message CollectionInfoResponse {
+  string Name = 1;
+  int32 Vectors = 2;
+  int32 Dimensions = 3;
+  int64 ContentSize = 4;
+  int64 VectorSize = 5;
+  // Vector-index metrics; absent when the indexer does not expose them.
+  CollectionIndexInfoResponse Index = 6;
+}
+
+message CollectionIndexInfoResponse {
+  int64 IndexSizeBytes = 1;
+  int32 Nodes = 2;            // live (non-deleted) graph nodes
+  int32 DeletedNodes = 3;      // soft-deleted nodes still in the graph
+  int32 MaxLevel = 4;          // highest HNSW layer
+  repeated int32 NodesPerLevel = 5;  // NodesPerLevel[L] = live nodes whose top layer is L
+  double AverageDegree = 6;    // average layer-0 degree of live nodes
+  string Quantization = 7;     // "None" or "SQ8"
+}
+
+message CollectionsInfoResponse {
+  repeated CollectionInfoResponse Collections = 1;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Graph visualization messages (GetCollectionGraph)
+// ─────────────────────────────────────────────────────────────────
+
+message GetGraphRequest {
+  string Database = 1;
+  string Collection = 2;
+  int32 Dimensions = 3;       // 2 or 3, default 2
+  int32 Limit = 4;            // max nodes returned, default 2000
+  optional int32 Level = 5;   // filter to a single HNSW layer; omit for all
+}
+
+message GraphSnapshotResponse {
+  string Collection = 1;
+  int32 Dimensions = 2;
+  int32 TotalNodes = 3;
+  int32 LiveNodes = 4;
+  int32 DeletedNodes = 5;
+  int32 ReturnedNodes = 6;
+  int32 MaxLevel = 7;
+  int32 EntrypointPositionId = 8;
+  bool Truncated = 9;         // true when Limit cut the sample
+  repeated GraphNodeResponse Nodes = 10;
+  repeated GraphEdgeResponse Edges = 11;
+}
+
+message GraphNodeResponse {
+  int32 PositionId = 1;
+  string Key = 2;             // base64 of the raw vector key bytes
+  int32 MaxLevel = 3;
+  bool IsDeleted = 4;
+  int32 Degree = 5;           // neighbor count at the requested layer (or layer 0)
+  repeated float Position = 6; // PCA coordinates, normalized to [-1, 1]
+}
+
+message GraphEdgeResponse {
+  int32 Source = 1;           // PositionId
+  int32 Target = 2;           // PositionId
+  int32 Level = 3;            // HNSW layer this edge belongs to
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Filter-only search (SearchFilter)
+// ─────────────────────────────────────────────────────────────────
+
+message SearchFilterRequest {
+  string Database = 1;
+  string Collection = 2;
+  FilterNode Filter = 3;
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Transaction messages (Transaction — bidirectional stream)
+// ─────────────────────────────────────────────────────────────────
+
+message TransactionOp {
+  oneof Op {
+    BeginTransaction Begin = 1;
+    Document AppendDoc = 2;    // reuses existing Document message
+    Vector AppendVec = 3;      // reuses existing Vector message
+    ItemKey Delete = 4;        // reuses existing ItemKey message
+    CommitOp Commit = 5;
+    RollbackOp Rollback = 6;
+  }
+}
+
+message BeginTransaction {
+  string Database = 1;        // database the transaction operates on
+}
+
+message CommitOp {}
+message RollbackOp {}
+
+message TransactionResult {
+  oneof Result {
+    TransactionStarted Started = 1;
+    TransactionAccepted Accepted = 2;
+    TransactionCommitted Committed = 3;
+    TransactionRolledBack RolledBack = 4;
+    TransactionError Error = 5;
+  }
+}
+
+message TransactionStarted {
+  string TxId = 1;            // Guid of the transaction
+}
+
+message TransactionAccepted {
+  int32 CumulativeCount = 1;  // number of ops accepted so far in this transaction
+}
+
+message TransactionCommitted {}
+message TransactionRolledBack {}
+
+message TransactionError {
+  string Message = 1;
 }
