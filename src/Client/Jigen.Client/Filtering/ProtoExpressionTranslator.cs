@@ -25,11 +25,83 @@ internal class ProtoExpressionTranslator : ExpressionVisitor
   {
     if (node.NodeType == ExpressionType.AndAlso || node.NodeType == ExpressionType.OrElse)
     {
+      bool isAnd = node.NodeType == ExpressionType.AndAlso;
+      bool leftIsConstant = !ReferencesParameter(node.Left);
+      bool rightIsConstant = !ReferencesParameter(node.Right);
+
+      // If left is a constant expression, try to short-circuit
+      if (leftIsConstant)
+      {
+        bool leftVal = EvaluateBool(node.Left);
+        // false && X = false (match-none)  OR  true || X = true (match-all)
+        if (isAnd ? !leftVal : leftVal)
+        {
+          _stack.Push(null);
+          _result = null;
+          return node;
+        }
+        // true && X = X  OR  false || X = X  → skip left, use only right
+        Visit(node.Right);
+        return node;
+      }
+
+      // Visit left normally (it references the parameter)
       Visit(node.Left);
       var left = _stack.Pop();
 
+      // If right is a constant expression, try to short-circuit
+      if (rightIsConstant)
+      {
+        bool rightVal = EvaluateBool(node.Right);
+        // X && false = false (match-none)  OR  X || true = true (match-all)
+        if (isAnd ? !rightVal : rightVal)
+        {
+          _stack.Push(null);
+          _result = null;
+          return node;
+        }
+        // X && true = X  OR  X || false = X  → just use left
+        _stack.Push(left);
+        _result = left;
+        return node;
+      }
+
+      // Both sides reference the parameter — normal path
       Visit(node.Right);
       var right = _stack.Pop();
+
+      // If either branch produced a null (match-all sentinel from short-circuit
+      // of a nested constant-true OrElse), propagate correctly:
+      //   match-all && X  =  X       match-all || X  =  match-all
+      if (left == null)
+      {
+        if (isAnd)
+        {
+          _stack.Push(right);
+          _result = right;
+        }
+        else
+        {
+          _stack.Push(null);
+          _result = null;
+        }
+        return node;
+      }
+
+      if (right == null)
+      {
+        if (isAnd)
+        {
+          _stack.Push(left);
+          _result = left;
+        }
+        else
+        {
+          _stack.Push(null);
+          _result = null;
+        }
+        return node;
+      }
 
       var logical = new LogicalCondition
       {
@@ -38,7 +110,7 @@ internal class ProtoExpressionTranslator : ExpressionVisitor
       };
 
       var filter = new FilterNode();
-      if (node.NodeType == ExpressionType.AndAlso)
+      if (isAnd)
         filter.And = logical;
       else
         filter.Or = logical;
@@ -228,5 +300,46 @@ internal class ProtoExpressionTranslator : ExpressionVisitor
     }
 
     return null;
+  }
+
+  /// <summary>
+  /// Returns true if the expression tree references the lambda parameter (e.g. <c>t</c> in <c>t => ...</c>).
+  /// </summary>
+  private bool ReferencesParameter(Expression? expr)
+  {
+    if (expr == null) return false;
+    if (expr == _parameterExpression) return true;
+
+    return expr switch
+    {
+      MemberExpression me => ReferencesParameter(me.Expression),
+      UnaryExpression ue => ReferencesParameter(ue.Operand),
+      BinaryExpression be => ReferencesParameter(be.Left) || ReferencesParameter(be.Right),
+      MethodCallExpression mce =>
+        ReferencesParameter(mce.Object) || mce.Arguments.Any(ReferencesParameter),
+      ConditionalExpression ce =>
+        ReferencesParameter(ce.Test) || ReferencesParameter(ce.IfTrue) || ReferencesParameter(ce.IfFalse),
+      InvocationExpression ie =>
+        ReferencesParameter(ie.Expression) || ie.Arguments.Any(ReferencesParameter),
+      NewExpression ne => ne.Arguments.Any(ReferencesParameter),
+      MemberInitExpression mie =>
+        ReferencesParameter(mie.NewExpression) || mie.Bindings.Any(b =>
+          b is MemberAssignment ma && ReferencesParameter(ma.Expression)),
+      LambdaExpression le => ReferencesParameter(le.Body),
+      _ => false
+    };
+  }
+
+  /// <summary>
+  /// Evaluates an expression that does NOT reference the lambda parameter to a boolean value
+  /// at translation time. Handles <see cref="ExpressionType.Not"/> unary expressions.
+  /// </summary>
+  private static bool EvaluateBool(Expression expr)
+  {
+    if (expr is UnaryExpression ue && ue.NodeType == ExpressionType.Not)
+      return !EvaluateBool(ue.Operand);
+
+    var lambda = Expression.Lambda<Func<bool>>(Expression.Convert(expr, typeof(bool)));
+    return lambda.Compile().Invoke();
   }
 }
