@@ -9,17 +9,30 @@ public static class Extensions
     item.AddRange(values);
     return item;
   }
-  
+
   public static VectorCollection<T> Collection<T>(this Context store, string name)
-  where T : class, new()
+    where T : class, new()
   {
-    return new VectorCollection<T>(store, new VectorCollectionOptions<T>(){Name = name});
+    return new VectorCollection<T>(store, new VectorCollectionOptions<T>() { Name = name });
   }
-  
+
   public static VectorCollection<T> Collection<T>(this Context store)
     where T : class, new()
   {
     var name = typeof(T).Name;
-    return new VectorCollection<T>(store, new VectorCollectionOptions<T>(){Name = name});
+    return new VectorCollection<T>(store, new VectorCollectionOptions<T>() { Name = name });
+  }
+
+  public static ShardedCollection<T> ShardedCollection<T>(this Context store, string name)
+    where T : class, new()
+  {
+    return new ShardedCollection<T>(store, new VectorCollectionOptions<T>() { Name = name });
+  }
+
+  public static ShardedCollection<T> ShardedCollection<T>(this Context store)
+    where T : class, new()
+  {
+    var name = typeof(T).Name;
+    return new ShardedCollection<T>(store, new VectorCollectionOptions<T>() { Name = name });
   }
 }
