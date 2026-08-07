@@ -5,6 +5,7 @@ import type { DataTableColumns } from 'naive-ui';
 import { fetchDeleteRole, fetchListRoles } from '@/service/api';
 import type { RoleSummary } from '@/service/api-types';
 import { $t } from '@/locales';
+import { useResizableColumns } from '@/hooks/common/resizable-columns';
 import CreateRoleModal from './create-role-modal.vue';
 import RoleDetailDrawer from './role-detail-drawer.vue';
 
@@ -76,10 +77,11 @@ function handleUpdated() {
   loadRows();
 }
 
-const columns: DataTableColumns<RoleSummary> = [
+const rawColumns: DataTableColumns<RoleSummary> = [
   {
     title: () => $t('page.security.roles.table.name'),
     key: 'name',
+    width: 200,
     render: row =>
       h(
         'a',
@@ -93,11 +95,13 @@ const columns: DataTableColumns<RoleSummary> = [
   {
     title: () => $t('page.security.roles.table.id'),
     key: 'id',
+    width: 280,
     render: row => h('span', { class: 'text-gray-500' }, row.id ?? '')
   },
   {
     title: () => $t('common.action'),
     key: 'actions',
+    width: 90,
     render: row =>
       h(
         NButton,
@@ -111,6 +115,11 @@ const columns: DataTableColumns<RoleSummary> = [
       )
   }
 ];
+
+const { columns } = useResizableColumns(rawColumns, {
+  storageKey: 'security-roles',
+  defaultWidth: 150
+});
 </script>
 
 <template>

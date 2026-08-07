@@ -4,6 +4,7 @@ import type { DataTableColumns } from 'naive-ui';
 import { fetchListApps } from '@/service/api';
 import type { AppSummary } from '@/service/api-types';
 import { $t } from '@/locales';
+import { useResizableColumns } from '@/hooks/common/resizable-columns';
 
 defineOptions({
   name: 'AppsPanel'
@@ -33,10 +34,15 @@ async function loadRows() {
 
 onMounted(loadRows);
 
-const columns: DataTableColumns<AppSummary> = [
-  { title: () => $t('page.security.apps.table.clientId'), key: 'clientId' },
-  { title: () => $t('page.security.apps.table.displayName'), key: 'displayName' }
+const rawColumns: DataTableColumns<AppSummary> = [
+  { title: () => $t('page.security.apps.table.clientId'), key: 'clientId', width: 240 },
+  { title: () => $t('page.security.apps.table.displayName'), key: 'displayName', width: 200 }
 ];
+
+const { columns } = useResizableColumns(rawColumns, {
+  storageKey: 'security-apps',
+  defaultWidth: 150
+});
 </script>
 
 <template>

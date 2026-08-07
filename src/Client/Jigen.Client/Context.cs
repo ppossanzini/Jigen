@@ -3,6 +3,7 @@ using System.Net.Security;
 using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
 using Jigen.Proto;
+using Microsoft.Extensions.Options;
 
 // ReSharper disable VirtualMemberCallInConstructor
 // ReSharper disable PrivateFieldCanBeConvertedToLocalVariable
@@ -15,6 +16,8 @@ public class Context
 
   public StoreCollectionService.StoreCollectionServiceClient ServiceClient { get; }
   public ConnectionOptions Options { get; }
+
+  public Context(IOptions<ConnectionOptions> options): this(options.Value){}
 
   public Context(ConnectionOptions options)
   {

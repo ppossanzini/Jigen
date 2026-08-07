@@ -1,0 +1,57 @@
+// ── Resizable NDataTable column handles ──────────────────────────────────
+
+.resizable-col-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  // let the handle extend 4 px past the right padding so it's easier to grab
+  margin-right: -4px;
+
+  .resizable-col-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .resizable-col-handle {
+    position: absolute;
+    top: -8px;       // cover the header padding-top
+    right: 0;
+    bottom: -8px;    // cover the header padding-bottom
+    width: 8px;
+    cursor: col-resize;
+    z-index: 1;
+    // subtle centre line
+    &::after {
+      content: '';
+      position: absolute;
+      top: 25%;
+      bottom: 25%;
+      left: 50%;
+      width: 2px;
+      transform: translateX(-50%);
+      border-radius: 1px;
+      background: transparent;
+      transition: background 0.15s;
+    }
+
+    &:hover::after,
+    &:active::after {
+      background: rgb(var(--primary-300, 99 102 241));
+    }
+  }
+}
+
+// When the user is actively dragging a column edge
+body.col-resizing {
+  cursor: col-resize !important;
+  user-select: none !important;
+
+  // prevent text selection inside all tables while resizing
+  * {
+    user-select: none !important;
+  }
+}

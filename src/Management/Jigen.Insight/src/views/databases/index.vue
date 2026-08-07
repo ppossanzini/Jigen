@@ -7,6 +7,7 @@ import type { DatabaseDetails, DatabaseUserInfo } from '@/service/api-types';
 import { useDatabaseStore } from '@/store/modules/database';
 import { formatBytes, formatCount, toNum } from '@/utils/format';
 import { $t } from '@/locales';
+import { useResizableColumns } from '@/hooks/common/resizable-columns';
 import CreateDatabaseModal from './modules/create-database-modal.vue';
 import DeleteDatabaseDialog from './modules/delete-database-dialog.vue';
 import DatabaseDetailDrawer from './modules/database-detail-drawer.vue';
@@ -100,10 +101,11 @@ function handleUsersUpdated(users: DatabaseUserInfo[]) {
   if (row) row.users = users;
 }
 
-const columns: DataTableColumns<DatabaseDetails> = [
+const rawColumns: DataTableColumns<DatabaseDetails> = [
   {
     title: () => $t('page.databases.table.name'),
     key: 'name',
+    width: 160,
     render: row =>
       h(
         'a',
@@ -117,46 +119,55 @@ const columns: DataTableColumns<DatabaseDetails> = [
   {
     title: () => $t('page.databases.table.created'),
     key: 'createdAtUtc',
+    width: 190,
     render: row => (row.createdAtUtc ? new Date(row.createdAtUtc).toLocaleString() : '—')
   },
   {
     title: () => $t('page.databases.table.collections'),
     key: 'collectionsCount',
+    width: 120,
     render: row => formatCount(row.collectionsCount)
   },
   {
     title: () => $t('page.databases.table.vectors'),
     key: 'vectors',
+    width: 100,
     render: row => formatCount(row.vectors)
   },
   {
     title: () => $t('page.databases.table.contentSize'),
     key: 'contentSize',
+    width: 130,
     render: row => formatBytes(row.contentSize)
   },
   {
     title: () => $t('page.databases.table.vectorSize'),
     key: 'vectorSize',
+    width: 130,
     render: row => formatBytes(row.vectorSize)
   },
   {
     title: () => $t('page.databases.table.indexSize'),
     key: 'indexSize',
+    width: 120,
     render: row => formatBytes(row.indexSize)
   },
   {
     title: () => $t('page.databases.table.freeSpace'),
     key: 'freeSpace',
+    width: 120,
     render: row => formatBytes(toNum(row.contentFreeSpace) + toNum(row.vectorFreeSpace))
   },
   {
     title: () => $t('page.databases.table.users'),
     key: 'usersCount',
+    width: 90,
     render: row => formatCount(row.usersCount)
   },
   {
     title: () => $t('common.action'),
     key: 'actions',
+    width: 90,
     render: row =>
       h(
         NButton,
@@ -170,6 +181,11 @@ const columns: DataTableColumns<DatabaseDetails> = [
       )
   }
 ];
+
+const { columns } = useResizableColumns(rawColumns, {
+  storageKey: 'databases',
+  defaultWidth: 130
+});
 </script>
 
 <template>

@@ -3,6 +3,7 @@ import type { DataTableColumns } from 'naive-ui';
 import { toNum } from '@/utils/format';
 import { decodeKey } from '@/utils/key-codec';
 import { $t } from '@/locales';
+import { useResizableColumns } from '@/hooks/common/resizable-columns';
 
 defineOptions({
   name: 'ResultsTable'
@@ -37,29 +38,38 @@ function contentPreview(content: unknown): string {
   return text.length > 140 ? `${text.slice(0, 140)}…` : text;
 }
 
-const columns: DataTableColumns<ResultRow> = [
+const rawColumns: DataTableColumns<ResultRow> = [
   {
     title: () => $t('page.workbench.results.score'),
     key: 'score',
+    width: 100,
     render: row => toNum(row.score).toFixed(4)
   },
   {
     title: () => $t('page.workbench.results.key'),
     key: 'key',
+    width: 180,
     ellipsis: { tooltip: true },
     render: row => decodeKey(row.key)
   },
   {
     title: () => $t('page.workbench.results.collection'),
-    key: 'collection'
+    key: 'collection',
+    width: 160
   },
   {
     title: () => $t('page.workbench.results.content'),
     key: 'content',
+    width: 320,
     ellipsis: { tooltip: true },
     render: row => contentPreview(row.content)
   }
 ];
+
+const { columns } = useResizableColumns(rawColumns, {
+  storageKey: 'workbench-results',
+  defaultWidth: 150
+});
 </script>
 
 <template>

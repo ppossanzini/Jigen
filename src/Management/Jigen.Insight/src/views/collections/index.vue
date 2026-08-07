@@ -7,6 +7,7 @@ import type { CollectionInfo } from '@/service/api-types';
 import { useDatabaseStore } from '@/store/modules/database';
 import { formatBytes, formatCount, toNum } from '@/utils/format';
 import { $t } from '@/locales';
+import { useResizableColumns } from '@/hooks/common/resizable-columns';
 import CollectionDetailDrawer from './modules/collection-detail-drawer.vue';
 
 defineOptions({
@@ -94,10 +95,11 @@ async function openDetail(name: string) {
   }
 }
 
-const columns: DataTableColumns<CollectionInfo> = [
+const rawColumns: DataTableColumns<CollectionInfo> = [
   {
     title: () => $t('page.collections.table.name'),
     key: 'name',
+    width: 180,
     render: row =>
       h(
         'a',
@@ -111,44 +113,57 @@ const columns: DataTableColumns<CollectionInfo> = [
   {
     title: () => $t('page.collections.table.vectors'),
     key: 'vectors',
+    width: 100,
     render: row => formatCount(row.vectors)
   },
   {
     title: () => $t('page.collections.table.dimensions'),
     key: 'dimensions',
+    width: 110,
     render: row => formatCount(row.dimensions)
   },
   {
     title: () => $t('page.collections.table.contentSize'),
     key: 'contentSize',
+    width: 130,
     render: row => formatBytes(row.contentSize)
   },
   {
     title: () => $t('page.collections.table.vectorSize'),
     key: 'vectorSize',
+    width: 130,
     render: row => formatBytes(row.vectorSize)
   },
   {
     title: () => $t('page.collections.table.maxLevel'),
     key: 'maxLevel',
+    width: 110,
     render: row => (row.index ? formatCount(row.index.maxLevel) : '—')
   },
   {
     title: () => $t('page.collections.table.averageDegree'),
     key: 'averageDegree',
+    width: 140,
     render: row => (row.index ? toNum(row.index.averageDegree).toFixed(2) : '—')
   },
   {
     title: () => $t('page.collections.table.deletedCount'),
     key: 'deletedCount',
+    width: 130,
     render: row => (row.index ? formatCount(row.index.deletedNodes) : '—')
   },
   {
     title: () => $t('page.collections.table.quantization'),
     key: 'quantization',
+    width: 140,
     render: row => row.index?.quantization ?? '—'
   }
 ];
+
+const { columns } = useResizableColumns(rawColumns, {
+  storageKey: 'collections',
+  defaultWidth: 130
+});
 </script>
 
 <template>

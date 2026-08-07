@@ -5,6 +5,7 @@ import type { DataTableColumns } from 'naive-ui';
 import { fetchDeleteUser, fetchListUsers } from '@/service/api';
 import type { UserSummary } from '@/service/api-types';
 import { $t } from '@/locales';
+import { useResizableColumns } from '@/hooks/common/resizable-columns';
 import CreateUserModal from './create-user-modal.vue';
 import UserDetailDrawer from './user-detail-drawer.vue';
 
@@ -76,10 +77,11 @@ function handleUpdated() {
   loadRows();
 }
 
-const columns: DataTableColumns<UserSummary> = [
+const rawColumns: DataTableColumns<UserSummary> = [
   {
     title: () => $t('page.security.users.table.userName'),
     key: 'userName',
+    width: 200,
     render: row =>
       h(
         'a',
@@ -93,11 +95,13 @@ const columns: DataTableColumns<UserSummary> = [
   {
     title: () => $t('page.security.users.table.id'),
     key: 'id',
+    width: 280,
     render: row => h('span', { class: 'text-gray-500' }, row.id ?? '')
   },
   {
     title: () => $t('common.action'),
     key: 'actions',
+    width: 90,
     render: row =>
       h(
         NButton,
@@ -111,6 +115,11 @@ const columns: DataTableColumns<UserSummary> = [
       )
   }
 ];
+
+const { columns } = useResizableColumns(rawColumns, {
+  storageKey: 'security-users',
+  defaultWidth: 150
+});
 </script>
 
 <template>

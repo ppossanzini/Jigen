@@ -2,7 +2,7 @@ using Google.Protobuf.Collections;
 
 namespace Jigen.Client;
 
-public static class Extensions
+public static class ContextCreationExtensions
 {
   public static RepeatedField<T> Append<T>(this RepeatedField<T> item, IEnumerable<T> values)
   {
@@ -35,4 +35,5 @@ public static class Extensions
     var name = typeof(T).Name;
     return new ShardedCollection<T>(store, new VectorCollectionOptions<T>() { Name = name });
   }
+
 }

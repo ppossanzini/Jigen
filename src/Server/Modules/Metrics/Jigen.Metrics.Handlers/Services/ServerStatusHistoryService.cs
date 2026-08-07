@@ -98,7 +98,7 @@ public sealed class ServerStatusHistoryService(
       {
         TimestampUtc = timestampUtc,
         CpuUsagePercent = CalculateCpuUsage(process.TotalProcessorTime, timestampUtc),
-        MemoryUsageBytes = process.WorkingSet64,
+        MemoryUsageBytes = process.PrivateMemorySize64,
         Databases = databasesManager.ActiveDatabases
           .OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase)
           .Select(entry => BuildDatabaseStatus(entry.Key, entry.Value))

@@ -41,6 +41,7 @@ namespace Jigen
 
       app.Logger.LogInformation("Jigen server started on 3223 port for GRPC connections");
       app.Logger.LogInformation("Jigen server started on 13223 port for HTTP connections");
+      app.Logger.LogInformation("Jigen server started ... version: " + Assembly.GetExecutingAssembly().GetName().Version);
       app.Run();
     }
 
