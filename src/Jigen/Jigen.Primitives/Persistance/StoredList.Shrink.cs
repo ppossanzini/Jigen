@@ -46,7 +46,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         {
           var bufferSlice = sharedBuffer.AsSpan(0, item.MaxLength);
 
-          RandomAccess.Read(_data.SafeFileHandle, bufferSlice, item.Position);
+          ReadExactly(_data.SafeFileHandle, bufferSlice, item.Position);
           RandomAccess.Write(_data.SafeFileHandle, bufferSlice, position);
 
           _itemsIndex[originalIndex] = new ItemIndex()

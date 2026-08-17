@@ -20,7 +20,14 @@ public partial class SmallWorldIndexer
     if (_collectionGraphs.ContainsKey(collection)) return true;
     if (Options.InMemory) return false;
     var basePath = GraphBasePathFor(collection);
-    return File.Exists($"{basePath}.vec") || File.Exists(basePath); // split files or legacy single file
+    if (File.Exists($"{basePath}.vec") || File.Exists(basePath)) return true;
+
+    // Backward-compatible discovery; opening the graph migrates these files to
+    // the collision-resistant hashed path.
+    var invalid = Path.GetInvalidFileNameChars();
+    var legacyName = new string(collection.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
+    var legacyPath = Path.Combine(Options.StoragePath ?? string.Empty, $"{legacyName}.hnsw");
+    return File.Exists($"{legacyPath}.vec") || File.Exists(legacyPath);
   }
 
   private long IndexFilesSizeFor(string collection)

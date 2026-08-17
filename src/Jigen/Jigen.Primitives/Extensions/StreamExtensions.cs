@@ -59,7 +59,14 @@ public static class StreamExtensions
   public static int ReadLEInt32(this SafeFileHandle handle, long position)
   {
     Span<byte> buffer = stackalloc byte[sizeof(int)];
-    RandomAccess.Read(handle, buffer, position);
+    var read = 0;
+    while (read < buffer.Length)
+    {
+      var current = RandomAccess.Read(handle, buffer[read..], position + read);
+      if (current == 0)
+        throw new EndOfStreamException($"Unexpected end of file at offset {position + read}.");
+      read += current;
+    }
     return BinaryPrimitives.ReadInt32LittleEndian(buffer);
   }
 }

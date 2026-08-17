@@ -106,6 +106,29 @@ public class TornIndexLogTests
   }
 
   [Fact]
+  public async Task IndexRecordWhosePayloadExtendsPastDataFile_IsRejected()
+  {
+    var path = Path.Combine(Path.GetTempPath(), $"jigen-tornlog-test-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(path);
+    try
+    {
+      var (first, second, indexFile) = await CreateStoreWithTwoEntries(path);
+      var contentFile = Path.Combine(path, "tornlog.content.jigen");
+      using (var content = new FileStream(contentFile, FileMode.Open, FileAccess.Write, FileShare.Read))
+        content.SetLength(content.Length - 2); // tear only the second payload
+
+      using var reopened = new Store(OptionsFor(path));
+      Assert.True(reopened.TryGetContent("docs", first, out _));
+      Assert.False(reopened.TryGetContent("docs", second, out _));
+      Assert.True(new FileInfo(indexFile).Length > 0);
+    }
+    finally
+    {
+      Directory.Delete(path, recursive: true);
+    }
+  }
+
+  [Fact]
   public async Task IndexerFailure_DoesNotKillTheWriter_AndSurfacesOnSaveChanges()
   {
     var path = Path.Combine(Path.GetTempPath(), $"jigen-tornlog-test-{Guid.NewGuid():N}");

@@ -28,6 +28,33 @@ public class TestItem : IStorableItem<TestItem, TestItemOptions>
 public class TestStoredList(ITestOutputHelper testOutputHelper)
 {
   [Fact]
+  public async Task CopyTo_WorksWithNonRecursiveLocking()
+  {
+    var filePath = Path.Combine(Path.GetTempPath(), $"jigen-copyto-{Guid.NewGuid():N}.list");
+    try
+    {
+      await using var list = new StoredList<TestItem, TestItemOptions>(new StoreListOptions
+      {
+        FilePath = filePath
+      }, new TestItemOptions());
+      list.Add(new TestItem { Id = 1, Name = "one" });
+      list.Add(new TestItem { Id = 2, Name = "two" });
+
+      var destination = new TestItem[3];
+      list.CopyTo(destination, 1);
+
+      Assert.Null(destination[0]);
+      Assert.Equal("one", destination[1].Name);
+      Assert.Equal("two", destination[2].Name);
+    }
+    finally
+    {
+      if (File.Exists(filePath)) File.Delete(filePath);
+      if (File.Exists($"{filePath}.index")) File.Delete($"{filePath}.index");
+    }
+  }
+
+  [Fact]
   public void CreateList()
   {
     var list = new StoredList<TestItem, TestItemOptions>(new StoreListOptions()

@@ -75,7 +75,10 @@ public partial class Store
             if (!seen.Add(identity)) continue;
 
             if (operation.Type == WalRecordType.Insert)
+            {
+              ValidateVectorDimensions(operation.Entry);
               IngestionQueue.Enqueue(operation.Entry);
+            }
             else
               ApplyWalDelete(operation.Key, operation.Collection);
           }
@@ -99,13 +102,15 @@ public partial class Store
           else
           {
             // Outside a transaction: apply immediately (backward compat).
-            IngestionQueue.Enqueue(new VectorEntry
+            var entry = new VectorEntry
             {
               Id = id,
               CollectionName = collection,
               Content = content ?? [],
               Embedding = embedding ?? []
-            });
+            };
+            ValidateVectorDimensions(entry);
+            IngestionQueue.Enqueue(entry);
             lastValidPosition = walStream.Position;
           }
           break;

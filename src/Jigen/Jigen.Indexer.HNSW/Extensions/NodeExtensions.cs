@@ -67,7 +67,7 @@ public static class NodeExtensions
       node.RamQuantized = Sq8.Quantize(vector);
 
     for (int level = 0; level <= maxLevel; ++level)
-      node.Connections[level] = new List<int>(GetM(options.M, level));
+      node.Connections[level] = Array.Empty<int>();
 
     return node;
   }
@@ -92,27 +92,30 @@ public static class NodeExtensions
   internal static void AddConnection(this IndexNode item, IndexNode newNeighbour, int level, SmallWorldIndexer smallworld, string collection,
     (IndexNode entrypoint, IList<IndexNode> nodes) graph)
   {
-    var levelNeighbours = item.Connections[level];
-    if (levelNeighbours is int[] or null)
-    {
-      levelNeighbours = levelNeighbours == null ? new List<int>() : new List<int>(levelNeighbours);
-      item.Connections[level] = levelNeighbours;
-    }
-
+    // Copy-on-write adjacency: searches do not take node locks, so mutating a
+    // shared List<int> concurrently is undefined even with indexed iteration.
+    // Readers now always observe an immutable array, old or new.
+    var current = item.Connections[level] ?? Array.Empty<int>();
+    var levelNeighbours = new List<int>(current.Count + 1);
+    for (var i = 0; i < current.Count; i++) levelNeighbours.Add(current[i]);
     levelNeighbours.Add(newNeighbour.PositionId);
 
     if (levelNeighbours.Count > GetM(smallworld.Options.M, level))
     {
-      // Collect current connections without LINQ/ToList allocation via ForEachConnection
-      var currentConns = new List<IndexNode>();
-      item.ForEachConnection(level, graph, conn => currentConns.Add(conn));
+      var currentConns = new List<IndexNode>(levelNeighbours.Count);
+      foreach (var id in levelNeighbours)
+        if ((uint)id < (uint)graph.nodes.Count)
+          currentConns.Add(graph.nodes[id]);
 
       var best = smallworld.SelectBestForConnecting(item, currentConns, level, smallworld, collection);
 
-      var newIds = new List<int>(best.Count);
-      foreach (var bc in best) newIds.Add(bc.PositionId);
+      var newIds = new int[best.Count];
+      for (var i = 0; i < best.Count; i++) newIds[i] = best[i].PositionId;
       item.Connections[level] = newIds;
+      return;
     }
+
+    item.Connections[level] = levelNeighbours.ToArray();
   }
 
   public static IList<IndexNode> SelectBestForConnectingAlg3(

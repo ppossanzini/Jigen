@@ -5,6 +5,8 @@ using Jigen.Filtering;
 using Jigen.Indexer.Extensions;
 using Jigen.Persistance;
 using System.Numerics.Tensors;
+using System.Security.Cryptography;
+using System.Text;
 using MessagePack;
 using MessagePack.Resolvers;
 
@@ -124,6 +126,7 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
 
       if (!Directory.Exists(Options.StoragePath)) Directory.CreateDirectory(Options.StoragePath);
       var filePath = Path.Combine(Options.StoragePath, $"{SanitizeCollectionName(collection)}.hnsw");
+      MigrateLegacyGraphPaths(collection, filePath);
 
       IList<IndexNode> nodes;
       if (Options.InMemory)
@@ -251,6 +254,12 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     lock (graph.nodes)
     {
       graph = GetGraphForCollection(collection); // refresh entrypoint under lock
+
+      if (graph.entrypoint is { VectorDimensions: > 0 } &&
+          graph.entrypoint.VectorDimensions != newNode.VectorDimensions)
+        throw new ArgumentException(
+          $"Collection '{collection}' uses {graph.entrypoint.VectorDimensions} dimensions; received {newNode.VectorDimensions}.",
+          nameof(entry));
 
       graph.nodes.AddNewNode(newNode);
 
@@ -413,6 +422,10 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     var graph = GetGraphForCollection(collection);
     if (graph.entrypoint is null || graph.entrypoint.VectorDimensions == 0) // empty graph (placeholder only)
       return [];
+    if (queryVector.Length != graph.entrypoint.VectorDimensions)
+      throw new ArgumentException(
+        $"Collection '{collection}' uses {graph.entrypoint.VectorDimensions} dimensions; received {queryVector.Length}.",
+        nameof(queryVector));
 
     var destination = CreateQueryNode(queryVector);
     var searchTop = Math.Max(top, efSearch > 0 ? efSearch : Options.SearchPruning);
@@ -691,9 +704,26 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
 
   private static string SanitizeCollectionName(string collection)
   {
+    // Collection names are arbitrary user data. A replacement-based sanitizer
+    // is not injective ("a/b" and "a_b" collide), so disk identity is the full
+    // SHA-256 of the UTF-8 name. This is also independent of OS filename rules.
+    return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(collection))).ToLowerInvariant();
+  }
+
+  private void MigrateLegacyGraphPaths(string collection, string newBasePath)
+  {
     var invalid = Path.GetInvalidFileNameChars();
-    var buffer = collection.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray();
-    return new string(buffer);
+    var legacyName = new string(collection.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
+    var legacyBasePath = Path.Combine(Options.StoragePath, $"{legacyName}.hnsw");
+    if (string.Equals(legacyBasePath, newBasePath, StringComparison.Ordinal)) return;
+
+    foreach (var suffix in new[] { "", ".index", ".vec", ".vec.index", ".adj", ".adj.index" })
+    {
+      var source = legacyBasePath + suffix;
+      var destination = newBasePath + suffix;
+      if (File.Exists(source) && !File.Exists(destination))
+        File.Move(source, destination);
+    }
   }
 
   private IndexNode CreateQueryNode(float[] queryVector)

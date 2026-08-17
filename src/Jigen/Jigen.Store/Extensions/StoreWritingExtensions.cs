@@ -186,6 +186,7 @@ public static class StoreWritingExtensions
 
   public static async Task<VectorEntry> AppendContent(this Store store, VectorEntry entry)
   {
+    store.ValidateVectorDimensions(entry);
     // WAL: write BEFORE enqueuing. This is the write-ahead guarantee.
     if (store.Options.Wal?.Enabled == true)
     {
@@ -210,6 +211,11 @@ public static class StoreWritingExtensions
   /// </summary>
   public static async Task AppendContentBulk(this Store store, IReadOnlyList<VectorEntry> entries)
   {
+    // Validate the whole batch before accepting its first WAL/data operation;
+    // a bad dimension must not turn a bulk call into a partial write.
+    foreach (var entry in entries)
+      store.ValidateVectorDimensions(entry);
+
     // Batch-enqueue: acquire semaphore once per window instead of per entry.
     // The queue capacity is 1M, so we can enqueue large batches safely.
     const int windowSize = 256;

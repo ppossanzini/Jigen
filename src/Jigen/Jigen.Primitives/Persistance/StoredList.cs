@@ -51,6 +51,20 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   // comparing the stored bytes, so hash collisions cannot match a wrong item.
   private Dictionary<ulong, List<int>> _hashToIndices;
 
+  private static void ReadExactly(Microsoft.Win32.SafeHandles.SafeFileHandle handle,
+    Span<byte> destination, long fileOffset)
+  {
+    var read = 0;
+    while (read < destination.Length)
+    {
+      var current = RandomAccess.Read(handle, destination[read..], fileOffset + read);
+      if (current == 0)
+        throw new EndOfStreamException(
+          $"Unexpected end of stored-list file at offset {fileOffset + read}.");
+      read += current;
+    }
+  }
+
   // Requires the write lock.
   private void EnsureHashIndex()
   {
@@ -79,7 +93,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     var rented = ArrayPool<byte>.Shared.Rent(ii.Length);
     try
     {
-      RandomAccess.Read(_data!.SafeFileHandle!, rented.AsSpan(0, ii.Length), ii.Position);
+      ReadExactly(_data!.SafeFileHandle!, rented.AsSpan(0, ii.Length), ii.Position);
       return rented.AsSpan(0, ii.Length).SequenceEqual(buffer.Span);
     }
     finally
@@ -129,7 +143,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     {
       // stackalloc instead of heap-allocated byte[]
       Span<byte> buffer = stackalloc byte[StoredListHeader.Size];
-      RandomAccess.Read(_data.SafeFileHandle!, buffer, 0);
+      ReadExactly(_data.SafeFileHandle!, buffer, 0);
       _header = MemoryMarshal.Cast<byte, StoredListHeader>(buffer)[0];
     }
   }
@@ -164,7 +178,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     var rentedBuffer = ArrayPool<byte>.Shared.Rent(totalBytes);
     try
     {
-      RandomAccess.Read(_dataindex.SafeFileHandle!, rentedBuffer.AsSpan(0, totalBytes), 0);
+      ReadExactly(_dataindex.SafeFileHandle!, rentedBuffer.AsSpan(0, totalBytes), 0);
       var indices = MemoryMarshal.Cast<byte, ItemIndex>(rentedBuffer.AsSpan(0, totalBytes));
       long dataLength = _data.Length;
       _itemsIndex.EnsureCapacity(count);
@@ -270,7 +284,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         length = ii.Length;
         buffer = ArrayPool<byte>.Shared.Rent(length);
         // File read inside the lock: ShrinkDb can move records concurrently.
-        RandomAccess.Read(_data!.SafeFileHandle!, buffer.AsSpan(0, length), ii.Position);
+        ReadExactly(_data!.SafeFileHandle!, buffer.AsSpan(0, length), ii.Position);
       }
       finally
       {
@@ -334,26 +348,24 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
   public void Clear()
   {
-    this._data.SetLength(0);
-    this._dataindex.SetLength(0);
-
-    _data.Flush(true);
-    _dataindex.Flush(true);
     _itemsIndexLock.EnterWriteLock();
     try
     {
+      _data.SetLength(0);
+      _dataindex.SetLength(0);
       _itemsIndex.Clear();
       InvalidateCache();
       _hashToIndices = null;
       _flushedCount = 0;
       _dirtyIndexes.Clear();
+      InitializeStore();
+      _data.Flush(true);
+      _dataindex.Flush(true);
     }
     finally
     {
       _itemsIndexLock.ExitWriteLock();
     }
-
-    InitializeStore();
   }
 
   public bool Contains(T item)
@@ -365,16 +377,27 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   {
     if (array is null) throw new ArgumentNullException(nameof(array));
     if (arrayIndex < 0) throw new ArgumentOutOfRangeException(nameof(arrayIndex), "arrayIndex must be >= 0");
-    if (arrayIndex + Count > array.Length)
-      throw new ArgumentException(
-        "The number of elements in the source ICollection is greater than the available space from arrayIndex to the end of the destination array.");
 
     _itemsIndexLock.EnterReadLock();
     try
     {
+      if (arrayIndex > array.Length - _itemsIndex.Count)
+        throw new ArgumentException(
+          "The number of elements in the source ICollection is greater than the available space from arrayIndex to the end of the destination array.");
+
       for (int i = 0; i < _itemsIndex.Count; i++)
       {
-        array[arrayIndex + i] = this[i];
+        var ii = _itemsIndex[i];
+        var buffer = ArrayPool<byte>.Shared.Rent(ii.Length);
+        try
+        {
+          ReadExactly(_data!.SafeFileHandle!, buffer.AsSpan(0, ii.Length), ii.Position);
+          array[arrayIndex + i] = T.Deserialize(buffer.AsMemory(0, ii.Length), _itemOptions);
+        }
+        finally
+        {
+          ArrayPool<byte>.Shared.Return(buffer);
+        }
       }
     }
     finally
@@ -414,7 +437,15 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
     return true;
   }
 
-  public int Count => _itemsIndex.Count;
+  public int Count
+  {
+    get
+    {
+      _itemsIndexLock.EnterReadLock();
+      try { return _itemsIndex.Count; }
+      finally { _itemsIndexLock.ExitReadLock(); }
+    }
+  }
   public bool IsReadOnly => false;
 
   public int IndexOf(T item)
@@ -452,12 +483,12 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
   public void Insert(int index, T item)
   {
     if (item is null) return;
-    if (index < 0 || index > _itemsIndex.Count) throw new ArgumentOutOfRangeException(nameof(index));
     var buffer = item.Serialize();
 
     _itemsIndexLock.EnterWriteLock();
     try
     {
+      if (index < 0 || index > _itemsIndex.Count) throw new ArgumentOutOfRangeException(nameof(index));
       var position = _header.NextItemPosition;
       _header.NextItemPosition += buffer.Length;
       RandomAccess.Write(_data!.SafeFileHandle!, buffer.Span, position);
@@ -485,10 +516,10 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
 
   public void RemoveAt(int index)
   {
-    if (index < 0 || index >= _itemsIndex.Count) throw new ArgumentOutOfRangeException(nameof(index));
     _itemsIndexLock.EnterWriteLock();
     try
     {
+      if (index < 0 || index >= _itemsIndex.Count) throw new ArgumentOutOfRangeException(nameof(index));
       InvalidateCache();
       _hashToIndices = null;
       _itemsIndex.RemoveAt(index);
@@ -523,7 +554,7 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         {
           // The file read must stay inside the lock: ShrinkDb moves records
           // and truncates the file while holding the write lock.
-          RandomAccess.Read(_data!.SafeFileHandle!, buffer.AsSpan(0, ii.Length), ii.Position);
+          ReadExactly(_data!.SafeFileHandle!, buffer.AsSpan(0, ii.Length), ii.Position);
           result = T.Deserialize(buffer.AsMemory(0, ii.Length), _itemOptions);
         }
         finally
@@ -584,14 +615,15 @@ public partial class StoredList<T, TOptions> : IList<T> where T : IStorableItem<
         // Updated below the flush watermark: only this entry needs rewriting.
         if (index < _flushedCount)
           _dirtyIndexes.Add(index);
+
+        // Publish the cache entry before releasing the write lock. Publishing
+        // afterwards lets an older setter overwrite a newer setter's cache.
+        Volatile.Write(ref _readCache[index & ReadCacheMask], new ReadCacheEntry(index, value));
       }
       finally
       {
         _itemsIndexLock.ExitWriteLock();
       }
-
-      // Update cache with the new value
-      Volatile.Write(ref _readCache[index & ReadCacheMask], new ReadCacheEntry(index, value));
     }
   }
 }

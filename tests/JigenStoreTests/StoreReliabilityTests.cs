@@ -93,6 +93,67 @@ public class StoreReliabilityTests
   }
 
   [Fact]
+  public async Task WalCheckpointActuallyReclaimsCheckpointedRecords()
+  {
+    var path = NewTempPath();
+    Directory.CreateDirectory(path);
+    try
+    {
+      var options = new StoreOptions
+      {
+        DataBaseName = "wal-truncate", DataBasePath = path,
+        Wal = new WalOptions
+        {
+          Enabled = true, Durability = WalDurability.PerWrite,
+          CheckpointInterval = TimeSpan.FromMilliseconds(20)
+        }
+      };
+      using var store = new Store(options);
+      await store.AppendContent(new VectorEntry
+      {
+        Id = Guid.NewGuid().ToByteArray(), CollectionName = "docs",
+        Content = "payload"u8.ToArray(), Embedding = new[] { 1f, 2f }
+      });
+      await store.SaveChangesAsync();
+
+      var walPath = Path.Combine(path, "wal-truncate.wal.jigen");
+      Assert.True(SpinWait.SpinUntil(() => new FileInfo(walPath).Length == 0, TimeSpan.FromSeconds(2)));
+    }
+    finally
+    {
+      Directory.Delete(path, recursive: true);
+    }
+  }
+
+  [Fact]
+  public async Task CollectionRejectsMixedVectorDimensionsBeforePersistence()
+  {
+    var path = NewTempPath();
+    Directory.CreateDirectory(path);
+    try
+    {
+      using var store = new Store(new StoreOptions { DataBaseName = "dimensions", DataBasePath = path });
+      await store.AppendContent(new VectorEntry
+      {
+        Id = Guid.NewGuid().ToByteArray(), CollectionName = "docs",
+        Content = "valid"u8.ToArray(), Embedding = new[] { 1f, 2f, 3f }
+      });
+
+      await Assert.ThrowsAsync<ArgumentException>(() => store.AppendContent(new VectorEntry
+      {
+        Id = Guid.NewGuid().ToByteArray(), CollectionName = "docs",
+        Content = "invalid"u8.ToArray(), Embedding = new[] { 1f, 2f }
+      }));
+      await store.SaveChangesAsync();
+      Assert.Equal(1, store.GetCollectionInfo("docs").Vectors);
+    }
+    finally
+    {
+      Directory.Delete(path, recursive: true);
+    }
+  }
+
+  [Fact]
   public async Task SecondOpen_OfSameDatabase_Throws_AndSucceedsAfterClose()
   {
     var path = NewTempPath();

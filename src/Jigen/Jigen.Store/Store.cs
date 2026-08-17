@@ -78,6 +78,21 @@ public partial class Store : IStore, IDisposable
   // thread, deletes, shrink) but lookups and enumerations come lock-free from
   // reader threads (GetContent, searches, collections).
   internal ConcurrentDictionary<string, ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
+  private readonly ConcurrentDictionary<string, int> _collectionDimensions = new();
+
+  internal void ValidateVectorDimensions(VectorEntry entry)
+  {
+    if (entry is null || entry.Embedding.IsEmpty) return;
+    if (string.IsNullOrWhiteSpace(entry.CollectionName))
+      throw new ArgumentException("Collection name cannot be empty.", nameof(entry));
+
+    var dimensions = entry.Embedding.Length;
+    var expected = _collectionDimensions.GetOrAdd(entry.CollectionName, dimensions);
+    if (expected != dimensions)
+      throw new ArgumentException(
+        $"Collection '{entry.CollectionName}' uses {expected} dimensions; received {dimensions}.",
+        nameof(entry));
+  }
 
   internal readonly Writer Writer;
 
@@ -178,8 +193,19 @@ public partial class Store : IStore, IDisposable
     }
     catch
     {
-      // Release the exclusive lock so a retry in the same process can open the
-      // database. The file itself stays: the state is still possibly dirty.
+      // Construction can fail after streams, mappings and even background
+      // workers have started (for example during WAL replay/reconciliation).
+      // Tear down every successfully-created component before releasing the
+      // exclusive database lock, otherwise a retry leaks handles and threads.
+      try { Writer?.Stop(); } catch { }
+      try { _walCheckpointer?.Stop(); } catch { }
+      try { Options.Indexer?.CloseAsync().GetAwaiter().GetResult(); } catch { }
+      try { _contentData?.Dispose(); } catch { }
+      try { _embeddingsData?.Dispose(); } catch { }
+      try { ContentFileStream?.Dispose(); } catch { }
+      try { EmbeddingFileStream?.Dispose(); } catch { }
+      try { IndexFileStream?.Dispose(); } catch { }
+      try { WalFileStream?.Dispose(); } catch { }
       _databaseLock?.Dispose();
       throw;
     }

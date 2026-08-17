@@ -11,6 +11,19 @@ namespace Jigen;
 
 public partial class Store
 {
+  private static void ReadExactly(Microsoft.Win32.SafeHandles.SafeFileHandle handle,
+    Span<byte> destination, long fileOffset)
+  {
+    var read = 0;
+    while (read < destination.Length)
+    {
+      var current = RandomAccess.Read(handle, destination[read..], fileOffset + read);
+      if (current == 0)
+        throw new EndOfStreamException($"Unexpected end of store file at offset {fileOffset + read}.");
+      read += current;
+    }
+  }
+
   private void ReadHeader()
   {
     {
@@ -66,12 +79,27 @@ public partial class Store
       var dimensions = reader.ReadInt32();
       var size = reader.ReadInt64();
 
-      // Positions must land inside their files (tombstones excepted):
-      // out-of-range values mean the record bytes are garbage.
+      // Validate the complete referenced records, not only their starting
+      // positions. Plausible values in a torn index tail must not survive load
+      // and trigger partial reads or oversized allocations later.
+      var contentRecordSize = contentPosition > 0
+        ? ContentRecordSize(idsize, size)
+        : 0;
+      var embeddingRecordSize = embeddingsPosition > 0
+        ? EmbeddingRecordSize(idsize, dimensions)
+        : 0;
       if (!(contentPosition == IndexTombstone && embeddingsPosition == IndexTombstone) &&
-          (contentPosition < 0 || contentPosition > ContentFileStream.Length ||
-           embeddingsPosition < 0 || embeddingsPosition > EmbeddingFileStream.Length ||
-           dimensions < 0 || size < 0)) { torn = true; break; }
+          (contentPosition < 0 || embeddingsPosition < 0 ||
+           dimensions < 0 || size < 0 || size > int.MaxValue ||
+           (contentPosition == 0 && size != 0) ||
+           (embeddingsPosition == 0 && dimensions != 0) ||
+           (contentPosition > 0 &&
+            (contentRecordSize > ContentFileStream.Length ||
+             contentPosition > ContentFileStream.Length - contentRecordSize)) ||
+           (embeddingsPosition > 0 &&
+            (embeddingRecordSize > EmbeddingFileStream.Length ||
+             embeddingsPosition > EmbeddingFileStream.Length - embeddingRecordSize))))
+      { torn = true; break; }
 
       // Tombstone record: the entry was deleted after this point of the log.
       if (contentPosition == IndexTombstone && embeddingsPosition == IndexTombstone)
@@ -91,6 +119,12 @@ public partial class Store
       {
         index = new ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance);
         PositionIndex[collectionName] = index;
+      }
+
+      if (dimensions > 0)
+      {
+        var expectedDimensions = _collectionDimensions.GetOrAdd(collectionName, dimensions);
+        if (expectedDimensions != dimensions) { torn = true; break; }
       }
 
       // A record replacing an existing entry supersedes the old positions:
@@ -133,7 +167,7 @@ public partial class Store
     if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
           out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
 
-    int headerSize = sizeof(int) + id.Length;
+    int headerSize = 2 * sizeof(int) + id.Length;
     byte[] rented = null;
     Span<byte> headerBuffer = headerSize <= 512 
         ? stackalloc byte[headerSize] 
@@ -141,11 +175,14 @@ public partial class Store
 
     try
     {
-      RandomAccess.Read(this.ContentFileStream.SafeFileHandle, headerBuffer, item.contentposition);
+      ReadExactly(ContentFileStream.SafeFileHandle, headerBuffer, item.contentposition);
       
       var idsize = BitConverter.ToInt32(headerBuffer.Slice(0, sizeof(int)));
       if (idsize != id.Length || !headerBuffer.Slice(sizeof(int), id.Length).SequenceEqual(id))
         throw new InvalidConstraintException("Content ID mismatch");
+      var contentSize = BitConverter.ToInt32(headerBuffer.Slice(sizeof(int) + id.Length, sizeof(int)));
+      if (contentSize != item.size)
+        throw new InvalidDataException("Content length does not match the index record.");
     }
     finally
     {
@@ -153,8 +190,8 @@ public partial class Store
         System.Buffers.ArrayPool<byte>.Shared.Return(rented);
     }
 
-    byte[] buffer = new byte[item.size];
-    RandomAccess.Read(this.ContentFileStream.SafeFileHandle, buffer, item.contentposition + 2 * sizeof(int) + id.Length);
+    byte[] buffer = new byte[checked((int)item.size)];
+    ReadExactly(ContentFileStream.SafeFileHandle, buffer, item.contentposition + 2 * sizeof(int) + id.Length);
     return buffer;
   }
 
@@ -174,7 +211,7 @@ public partial class Store
 
     try
     {
-      RandomAccess.Read(this.EmbeddingFileStream.SafeFileHandle, headerBuffer, item.embeddingposition);
+      ReadExactly(EmbeddingFileStream.SafeFileHandle, headerBuffer, item.embeddingposition);
 
       var idsize = BitConverter.ToInt32(headerBuffer.Slice(0, sizeof(int)));
       // A torn record (crash between the embedding write and the index flush)
@@ -189,7 +226,7 @@ public partial class Store
     }
 
     var vector = new float[item.dimensions];
-    RandomAccess.Read(this.EmbeddingFileStream.SafeFileHandle, MemoryMarshal.AsBytes(vector.AsSpan()), item.embeddingposition + sizeof(int) + id.Length);
+    ReadExactly(EmbeddingFileStream.SafeFileHandle, MemoryMarshal.AsBytes(vector.AsSpan()), item.embeddingposition + sizeof(int) + id.Length);
     return vector;
   }
 }

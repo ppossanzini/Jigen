@@ -59,6 +59,43 @@ public class HnswSplitStorageTest
   }
 
   [Fact]
+  public async Task CollectionNamesThatPreviouslyCollidedUseDistinctGraphFiles()
+  {
+    var root = NewTempRoot();
+    Directory.CreateDirectory(root);
+    try
+    {
+      var firstId = Guid.NewGuid().ToByteArray();
+      var secondId = Guid.NewGuid().ToByteArray();
+      using (var store = new Store(OptionsFor(root)))
+      {
+        await store.AppendContent(new VectorEntry
+        {
+          Id = firstId, CollectionName = "a/b", Content = "first"u8.ToArray(),
+          Embedding = new[] { 1f, 0f }
+        });
+        await store.AppendContent(new VectorEntry
+        {
+          Id = secondId, CollectionName = "a_b", Content = "second"u8.ToArray(),
+          Embedding = new[] { 0f, 1f }
+        });
+        await store.SaveChangesAsync();
+      }
+
+      var graphFiles = Directory.GetFiles(Path.Combine(root, "hnsw"), "*.hnsw.vec");
+      Assert.Equal(2, graphFiles.Length);
+
+      using var reopened = new Store(OptionsFor(root));
+      Assert.Equal(firstId, reopened.Search("a/b", new[] { 1f, 0f }, 1).Single().entry.Id);
+      Assert.Equal(secondId, reopened.Search("a_b", new[] { 0f, 1f }, 1).Single().entry.Id);
+    }
+    finally
+    {
+      Directory.Delete(root, recursive: true);
+    }
+  }
+
+  [Fact]
   public async Task DeletesAndRelinking_NeverGrowTheGraphFiles()
   {
     var root = NewTempRoot();
@@ -174,8 +211,8 @@ public class HnswSplitStorageTest
 
       Assert.False(File.Exists(legacyPath));
       Assert.False(File.Exists($"{legacyPath}.index"));
-      Assert.True(File.Exists($"{legacyPath}.vec"));
-      Assert.True(File.Exists($"{legacyPath}.adj"));
+      Assert.Single(Directory.GetFiles(storagePath, "*.hnsw.vec"));
+      Assert.Single(Directory.GetFiles(storagePath, "*.hnsw.adj"));
 
       indexer.CloseAsync().GetAwaiter().GetResult();
     }

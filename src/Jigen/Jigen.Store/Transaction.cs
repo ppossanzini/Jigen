@@ -45,6 +45,7 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
   public void Append(VectorEntry entry)
   {
     ThrowIfClosed();
+    _store.ValidateVectorDimensions(entry);
     _operations.Add(new Operation(OperationType.Insert, entry, null, null));
   }
 

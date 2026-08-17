@@ -12,6 +12,7 @@ public class WalCheckpointer
   private readonly Writer _writer;
   private readonly ManualResetEvent _completed = new(true);
   private readonly AutoResetEvent _forceWake = new(false);
+  private readonly Thread _thread;
   private volatile bool _running = true;
 
   private long _checkpointedWalPosition;
@@ -22,8 +23,8 @@ public class WalCheckpointer
     _writer = store.Writer;
     _checkpointedWalPosition = store.CheckpointedWalPosition;
 
-    var thread = new Thread(CheckpointLoop) { IsBackground = true };
-    thread.Start();
+    _thread = new Thread(CheckpointLoop) { IsBackground = true };
+    _thread.Start();
   }
 
   /// <summary>
@@ -34,7 +35,8 @@ public class WalCheckpointer
   {
     _completed.Reset();
     _forceWake.Set();
-    SpinWait.SpinUntil(() => _completed.WaitOne(0), TimeSpan.FromSeconds(10));
+    if (!_completed.WaitOne(TimeSpan.FromSeconds(10)))
+      throw new TimeoutException("The WAL checkpoint did not complete within 10 seconds.");
     _store.CheckpointedWalPosition = Volatile.Read(ref _checkpointedWalPosition);
   }
 
@@ -42,7 +44,7 @@ public class WalCheckpointer
   {
     _running = false;
     _forceWake.Set();
-    _completed.Set();
+    _thread.Join();
   }
 
   public void ResetPosition()
@@ -54,9 +56,7 @@ public class WalCheckpointer
   {
     while (_running)
     {
-      WaitHandle.WaitAny(
-        [_forceWake, _completed],
-        _store.Options.Wal!.CheckpointInterval);
+      _forceWake.WaitOne(_store.Options.Wal!.CheckpointInterval);
 
       if (!_running) break;
 
@@ -109,19 +109,13 @@ public class WalCheckpointer
     _store.EmbeddingFileStream!.Flush(true);
     _store.IndexFileStream!.Flush(true);
 
-    // Write a checkpoint marker at the current WAL tail.
-    Span<byte> marker = stackalloc byte[WalRecord.CheckpointMarkerSize];
-    WalRecord.SerializeCheckpoint(marker);
-    walStream.Write(marker);
+    // No appends can race us while WalLock is held and all accepted work has
+    // drained. The data/index files are durable, so the complete WAL prefix can
+    // be discarded instead of retaining a no-op checkpoint marker forever.
+    walStream.SetLength(0);
+    walStream.Position = 0;
     walStream.Flush(true);
 
-    // Truncate: everything up to and including the checkpoint marker is
-    // durable in the data files — the WAL can be discarded.
-    long truncatePosition = walStream.Position;
-    walStream.SetLength(truncatePosition);
-    walStream.Flush(true);
-    walStream.Seek(0, SeekOrigin.End);
-
-    _checkpointedWalPosition = walStream.Position;
+    _checkpointedWalPosition = 0;
   }
 }
