@@ -14,7 +14,7 @@ namespace Jigen.Indexer;
 
 internal delegate IList<IndexNode> SelectForConnectingDelegate(IndexNode item, IList<IndexNode> candidates, int level, SmallWorldIndexer smallworld, string collection);
 
-public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
+public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndexer
 {
   internal SmallWorldOptions Options { get; init; }
 
@@ -237,7 +237,49 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     else _ = Task.Run(() => AddToIndex(entry));
   }
 
-  internal void AddToIndex(VectorEntry entry)
+  internal void AddToIndex(VectorEntry entry) => AddToIndex(entry, null);
+
+  public void AddBatchToIndex(IReadOnlyList<VectorEntry> entries)
+  {
+    var dirtyByGraph = new Dictionary<IList<IndexNode>, HashSet<IndexNode>>();
+    Exception lastError = null;
+    try
+    {
+      foreach (var entry in entries)
+      {
+        try { AddToIndex(entry, dirtyByGraph); }
+        catch (Exception ex) { lastError = ex; }
+      }
+    }
+    finally
+    {
+      PersistDirtyNodes(dirtyByGraph);
+    }
+
+    if (lastError is not null)
+      throw new InvalidOperationException("One or more HNSW batch entries failed to index.", lastError);
+  }
+
+  private static void MarkDirty(
+    Dictionary<IList<IndexNode>, HashSet<IndexNode>> dirtyByGraph,
+    IList<IndexNode> nodes, IndexNode node)
+  {
+    if (!dirtyByGraph.TryGetValue(nodes, out var dirty))
+      dirtyByGraph[nodes] = dirty = new HashSet<IndexNode>();
+    dirty.Add(node);
+  }
+
+  private static void PersistDirtyNodes(
+    Dictionary<IList<IndexNode>, HashSet<IndexNode>> dirtyByGraph)
+  {
+    foreach (var (nodes, dirtyNodes) in dirtyByGraph)
+      foreach (var node in dirtyNodes)
+        lock (node)
+          nodes[node.PositionId] = node;
+  }
+
+  private void AddToIndex(VectorEntry entry,
+    Dictionary<IList<IndexNode>, HashSet<IndexNode>> batchDirty)
   {
     if (entry is null || entry.Id is null || string.IsNullOrWhiteSpace(entry.CollectionName) || entry.Embedding.IsEmpty)
       return;
@@ -287,51 +329,59 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex
     // ---- concurrent wiring phase (no graph lock held) ----------------------
 
     var bestPeer = entrypoint;
-    for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
+    var dirtyByGraph = batchDirty ?? new Dictionary<IList<IndexNode>, HashSet<IndexNode>>();
+    var ownsDirtySet = batchDirty is null;
+    try
     {
-      // A level can hold no live node (heavy deletions): keep descending
-      // from the current peer instead of failing the insert.
-      var nearest = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level);
-      if (nearest.Count > 0) bestPeer = nearest[0];
-    }
-
-    for (var level = Math.Min(newNode.MaxLevel, entrypoint.MaxLevel); level >= 0; --level)
-    {
-      var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
-      var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, level, this, collection);
-
-      foreach (var newNeighbour in bestNeighbours)
+      for (var level = bestPeer.MaxLevel; level > newNode.MaxLevel; --level)
       {
-        // Per-node locks: adjacency mutation, pruning (which uses the node's
-        // TravelingCosts cache) and the write-through persist must be atomic
-        // per node, but two inserts touching DIFFERENT nodes proceed in parallel.
-        lock (newNode)
-        {
-          newNode.AddConnection(newNeighbour, level, this, collection, graph);
-        }
+        // A level can hold no live node (heavy deletions): keep descending
+        // from the current peer instead of failing the insert.
+        var nearest = this.KNearestAtLevel(collection, bestPeer, newNode, 1, level);
+        if (nearest.Count > 0) bestPeer = nearest[0];
+      }
 
-        lock (newNeighbour)
-        {
-          newNeighbour.AddConnection(newNode, level, this, collection, graph);
-          graph.nodes[newNeighbour.PositionId] = newNeighbour;
-        }
+      for (var level = Math.Min(newNode.MaxLevel, entrypoint.MaxLevel); level >= 0; --level)
+      {
+        var potentialNeighbours = this.KNearestAtLevel(collection, bestPeer, newNode, Options.ConstructionPruning, level);
+        var bestNeighbours = SelectBestForConnecting(newNode, potentialNeighbours, level, this, collection);
 
-        // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
-        if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
-          bestPeer = newNeighbour;
+        foreach (var newNeighbour in bestNeighbours)
+        {
+          // Mutations remain immediately visible through immutable adjacency
+          // snapshots. Persistence is coalesced below: the same neighbour can
+          // be touched at several levels but is written only once per insert.
+          lock (newNode)
+          {
+            newNode.AddConnection(newNeighbour, level, this, collection, graph);
+          }
+
+          lock (newNeighbour)
+          {
+            newNeighbour.AddConnection(newNode, level, this, collection, graph);
+            MarkDirty(dirtyByGraph, graph.nodes, newNeighbour);
+          }
+
+          // if distance from newNode to newNeighbour is better than to bestPeer => update bestPeer
+          if (Tools.DLt(newNode.TravelingCosts.From(newNeighbour), newNode.TravelingCosts.From(bestPeer)))
+            bestPeer = newNeighbour;
+        }
       }
     }
-
-    // Persist the newly constructed adjacency lists for the inserted node.
-    lock (newNode)
+    finally
     {
-      graph.nodes[newNode.PositionId] = newNode;
-    }
+      // Serialize each dirty canonical node under its node lock so concurrent
+      // inserts/deletes cannot publish a newer snapshot between serialization
+      // and write-through. The finally preserves the previous durability
+      // behaviour even when graph wiring fails part-way through.
+      MarkDirty(dirtyByGraph, graph.nodes, newNode);
+      if (ownsDirtySet)
+        PersistDirtyNodes(dirtyByGraph);
 
-    // Only the owner thread fills newNode's distance cache (prunes use local
-    // TravelingCosts instances), so this release needs no lock — but it must
-    // happen: graph nodes live forever and the cache would leak per insert.
-    newNode.TravelingCosts.ClearCache();
+      // Only the owner thread fills newNode's distance cache (prunes use local
+      // TravelingCosts instances), so release it when the operation completes.
+      newNode.TravelingCosts.ClearCache();
+    }
 
     // zoom out to the highest level; a deleted entrypoint (legacy graph, or
     // every node deleted) is also replaced, so searches restart from a live node

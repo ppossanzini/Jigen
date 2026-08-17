@@ -36,3 +36,13 @@ public interface IIndexer
   /// </summary>
   Task ReconcileAsync(IStore store) => Task.CompletedTask;
 }
+
+/// <summary>
+/// Optional high-throughput indexing contract. Implementations may coalesce
+/// repeated mutations across the batch; the Store falls back to AddToIndex
+/// one item at a time for indexers that do not implement it.
+/// </summary>
+public interface IBatchIndexer
+{
+  void AddBatchToIndex(IReadOnlyList<VectorEntry> entries);
+}

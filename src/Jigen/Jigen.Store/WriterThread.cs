@@ -139,24 +139,57 @@ public class Writer
 
   private void IndexJob(BlockingCollection<VectorEntry> queue)
   {
-    foreach (var entry in queue.GetConsumingEnumerable())
+    const int indexBatchSize = 64;
+    var batch = new List<VectorEntry>(indexBatchSize);
+
+    while (!queue.IsCompleted)
     {
+      batch.Clear();
       try
       {
-        // waitForIndexing: this worker is the sequential lane for its
-        // collections; the fire-and-forget path would break that ordering.
-        _store.Options.Indexer?.AddToIndex(entry, waitForIndexing: true);
+        batch.Add(queue.Take());
       }
-      catch (Exception ex)
+      catch (InvalidOperationException) when (queue.IsCompleted)
       {
-        // The entry is persisted in the store; only the vector index missed
-        // it. Record and keep the pipeline alive.
-        RecordError(ex);
+        break;
       }
-      finally
+
+      while (batch.Count < indexBatchSize && queue.TryTake(out var entry))
+        batch.Add(entry);
+
+      if (_store.Options.Indexer is IBatchIndexer batchIndexer)
       {
-        if (Interlocked.Decrement(ref _indexPending) == 0)
-          _indexingCompleted.Set();
+        try
+        {
+          batchIndexer.AddBatchToIndex(batch);
+        }
+        catch (Exception ex)
+        {
+          RecordError(ex);
+        }
+        finally
+        {
+          if (Interlocked.Add(ref _indexPending, -batch.Count) == 0)
+            _indexingCompleted.Set();
+        }
+        continue;
+      }
+
+      foreach (var entry in batch)
+      {
+        try
+        {
+          _store.Options.Indexer?.AddToIndex(entry, waitForIndexing: true);
+        }
+        catch (Exception ex)
+        {
+          RecordError(ex);
+        }
+        finally
+        {
+          if (Interlocked.Decrement(ref _indexPending) == 0)
+            _indexingCompleted.Set();
+        }
       }
     }
   }
