@@ -120,6 +120,73 @@ await foreach (var key in articles.StreamKeysAsync())
   Process(key);
 ```
 
+## Embedding calculation
+
+The `Context` also exposes extension methods to call the server's embedding endpoint directly — useful when you need embeddings for operations outside of `VectorCollection<T>` (e.g. precomputing, caching, or combining with other pipelines):
+
+```csharp
+using Jigen.Client;
+
+// single sentence
+float[] embedding = context.CalculateEmbeddings("Jigen is a vector database");
+float[] embedding2 = await context.CalculateEmbeddingsAsync("Hello world");
+
+// with an optional task description (maps to the model's task prefix)
+float[] qaEmbedding = context.CalculateEmbeddings("What is Jigen?", task: "Question");
+
+// batch — processes multiple sentences in one gRPC call
+IEnumerable<float[]> batch = context.CalculateEmbeddingsBatch(
+  new[] { "sentence one", "sentence two" });
+
+IEnumerable<float[]> asyncBatch = await context.CalculateEmbeddingsBatchAsync(
+  new[] { "sentence one", "sentence two" }, task: "Document");
+```
+
+The embedding server batches requests internally (up to 64 sentences per model forward pass). Prefer the batch overloads when processing many sentences at once — they reduce round trips and let the server optimise throughput. See [embeddings overview](../embeddings/overview.md) for the supported `task` values and the server-side pipeline.
+
+## Sharded collections
+
+`ShardedCollection<T>` is a client-side partitioning helper: it creates independent `VectorCollection<T>` instances whose names differ by a shard suffix. The server has no awareness of sharding — each shard is a completely separate collection from the server's perspective.
+
+```csharp
+using Jigen.Client;
+
+// create a sharded collection with a base name
+var sharded = context.ShardedCollection<Article>("articles");
+
+// each GetShard call returns a normal VectorCollection<T> whose
+// collection name is "articles_{shardName}"
+var shardA = sharded.GetShard(() => "partition_0");
+var shardB = sharded.GetShard(() => "partition_1");
+
+// each shard behaves like any other VectorCollection<T>
+shardA.Add(42, article, sentence);
+var results = await shardA.SearchAsync(queryVector, top: 10);
+```
+
+The shard name is determined lazily by a `Func<string>` delegate, evaluated at each `GetShard` call. This lets you compute the shard name from a key or other runtime context:
+
+```csharp
+var sharded = context.ShardedCollection<Article>("articles");
+var shard = sharded.GetShard(() => key % 4 == 0 ? "even" : "odd");
+```
+
+The shard inherits the parent's `DocumentSerializer`. To query across shards, fan out manually:
+
+```csharp
+var partitions = new[] { "partition_0", "partition_1", "partition_2" };
+var tasks = partitions.Select(p =>
+  sharded.GetShard(() => p).SearchAsync(queryVector, top: 10));
+var allResults = (await Task.WhenAll(tasks)).SelectMany(r => r).OrderBy(r => r.Score).Take(10);
+```
+
+If you omit the base name, the sharded collection uses `typeof(T).Name`:
+
+```csharp
+// equivalent to ShardedCollection<Article>("Article")
+var sharded = context.ShardedCollection<Article>();
+```
+
 ## Dictionary-style access
 
 `VectorCollection<T>` implements `IDictionary<VectorKey, VectorEntry<T>>`:

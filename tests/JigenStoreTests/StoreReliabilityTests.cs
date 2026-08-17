@@ -11,6 +11,88 @@ public class StoreReliabilityTests
     Path.Combine(Path.GetTempPath(), $"jigen-reliability-test-{Guid.NewGuid():N}");
 
   [Fact]
+  public async Task BulkAppend_SaveChangesWaitsForEveryEntryAcrossBatches()
+  {
+    var path = NewTempPath();
+    Directory.CreateDirectory(path);
+    try
+    {
+      using var store = new Store(new StoreOptions { DataBaseName = "bulk", DataBasePath = path });
+
+      static VectorEntry Entry(int i) => new()
+      {
+        Id = BitConverter.GetBytes(i), CollectionName = "docs",
+        Content = BitConverter.GetBytes(i), Embedding = new[] { (float)i }
+      };
+
+      await store.AppendContentBulk(Enumerable.Range(0, 512).Select(Entry).ToArray());
+      await store.SaveChangesAsync();
+      await store.AppendContentBulk(Enumerable.Range(512, 512).Select(Entry).ToArray());
+      await store.SaveChangesAsync();
+
+      Assert.True(store.GetCollectionIndexOf("docs", out var index));
+      Assert.Equal(1024, index.Count);
+      Assert.Equal(0, store.IngestionQueueLength);
+    }
+    finally
+    {
+      Directory.Delete(path, recursive: true);
+    }
+  }
+
+  [Fact]
+  public async Task ConcurrentWalAppendsAndTransactionsRemainReplayable()
+  {
+    var path = NewTempPath();
+    Directory.CreateDirectory(path);
+    try
+    {
+      var options = new StoreOptions
+      {
+        DataBaseName = "wal-concurrent", DataBasePath = path,
+        Wal = new WalOptions
+        {
+          Enabled = true, Durability = WalDurability.PerWrite,
+          CheckpointInterval = TimeSpan.FromMilliseconds(5)
+        }
+      };
+      var ids = Enumerable.Range(0, 100).Select(_ => Guid.NewGuid().ToByteArray()).ToArray();
+
+      using (var store = new Store(options))
+      {
+        await Task.WhenAll(ids.Take(50).Select((id, i) =>
+          store.AppendContent(new VectorEntry
+          {
+            Id = id, CollectionName = "docs",
+            Content = BitConverter.GetBytes(i), Embedding = new[] { (float)i }
+          })));
+
+        await Task.WhenAll(ids.Skip(50).Select(async (id, i) =>
+        {
+          using var tx = store.BeginTransaction();
+          tx.Append(new VectorEntry
+          {
+            Id = id, CollectionName = "docs",
+            Content = BitConverter.GetBytes(i + 50), Embedding = new[] { (float)(i + 50) }
+          });
+          await tx.CommitAsync();
+        }));
+
+        await store.SaveChangesAsync();
+      }
+
+      using var reopened = new Store(options);
+      Assert.True(reopened.GetCollectionIndexOf("docs", out var index));
+      Assert.Equal(ids.Length, index.Count);
+      Assert.All(ids, id => Assert.True(reopened.TryGetContent("docs", id, out _)));
+    }
+    finally
+    {
+      Directory.Delete(path, recursive: true);
+    }
+  }
+
+  [Fact]
   public async Task SecondOpen_OfSameDatabase_Throws_AndSucceedsAfterClose()
   {
     var path = NewTempPath();

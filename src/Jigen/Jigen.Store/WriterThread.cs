@@ -92,6 +92,11 @@ public class Writer
   public Writer(Store store)
   {
     _store = store;
+    // WAL replay happens before the writer is constructed and can pre-populate
+    // the queue. Seed the accounting so the replayed items do not drive the
+    // counter negative on their first drain.
+    _pending = store.IngestionQueue.Count;
+    if (_pending > 0) _writingCompleted.Reset();
 
     var workers = Math.Max(1, store.Options.IndexerWorkers);
     _indexQueues = new BlockingCollection<VectorEntry>[workers];
@@ -156,12 +161,14 @@ public class Writer
     }
   }
 
-  internal void SignalNewData()
+  internal void SignalNewData(int count = 1)
   {
+    if (count <= 0) return;
+
     // Reset is a kernel transition: pay it only when the queue turns from
     // empty to busy. The waiter Set stays unconditional (AutoResetEvent set
     // on an already-set event is cheap) so the writer never oversleeps.
-    if (Interlocked.Increment(ref _pending) > 0)
+    if (Interlocked.Add(ref _pending, count) == count)
       _writingCompleted.Reset();
 
     _waiter.Set();

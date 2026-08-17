@@ -33,8 +33,7 @@ public partial class Store
     long lastValidPosition = walStream.Position;
 
     // Transaction state: when non-null, we're inside a transaction.
-    List<VectorEntry> txInserts = null;
-    List<(byte[] Key, string Collection)> txDeletes = null;
+    List<(WalRecordType Type, VectorEntry Entry, byte[] Key, string Collection)> txOperations = null;
     long txBeginPosition = 0;
 
     while (WalRecord.TryReadRecord(walStream,
@@ -46,48 +45,56 @@ public partial class Store
         case WalRecordType.BeginTransaction:
           // Nested transactions not supported: if already in one, treat as error
           // and stop replay at the previous valid position.
-          if (txInserts is not null)
+          if (txOperations is not null)
           {
             walStream.Seek(lastValidPosition, SeekOrigin.Begin);
             goto done;
           }
-          txInserts = new List<VectorEntry>();
-          txDeletes = new List<(byte[], string)>();
+          txOperations = new List<(WalRecordType, VectorEntry, byte[], string)>();
           txBeginPosition = lastValidPosition;
           lastValidPosition = walStream.Position;
           break;
 
         case WalRecordType.CommitTransaction:
-          if (txInserts is null)
+          if (txOperations is null)
           {
             // Orphan COMMIT without BEGIN: skip it, keep lastValidPosition.
             break;
           }
-          // Apply all buffered operations atomically.
-          foreach (var entry in txInserts)
+          // Only the last operation for a collection/key affects final state.
+          // This preserves insert→delete and delete→insert semantics without
+          // requiring the writer (which is constructed after WAL replay).
+          var seen = new HashSet<(string Collection, VectorKey Key)>();
+          for (var i = txOperations.Count - 1; i >= 0; i--)
           {
-            IngestionQueue.Enqueue(entry);
+            var operation = txOperations[i];
+            var identity = (operation.Collection,
+              new VectorKey { Value = operation.Type == WalRecordType.Insert
+                ? operation.Entry.Id
+                : operation.Key });
+            if (!seen.Add(identity)) continue;
+
+            if (operation.Type == WalRecordType.Insert)
+              IngestionQueue.Enqueue(operation.Entry);
+            else
+              ApplyWalDelete(operation.Key, operation.Collection);
           }
-          foreach (var (key, collectionName) in txDeletes!)
-          {
-            ApplyWalDelete(key, collectionName);
-          }
-          txInserts = null;
-          txDeletes = null;
+          txOperations = null;
           lastValidPosition = walStream.Position;
           break;
 
         case WalRecordType.Insert:
-          if (txInserts is not null)
+          if (txOperations is not null)
           {
             // Inside a transaction: buffer.
-            txInserts.Add(new VectorEntry
+            var entry = new VectorEntry
             {
               Id = id,
               CollectionName = collection,
               Content = content ?? [],
               Embedding = embedding ?? []
-            });
+            };
+            txOperations.Add((WalRecordType.Insert, entry, null, collection));
           }
           else
           {
@@ -104,10 +111,10 @@ public partial class Store
           break;
 
         case WalRecordType.Delete:
-          if (txDeletes is not null)
+          if (txOperations is not null)
           {
             // Inside a transaction: buffer.
-            txDeletes.Add((id, collection));
+            txOperations.Add((WalRecordType.Delete, null, id, collection));
           }
           else
           {
@@ -120,7 +127,7 @@ public partial class Store
         case WalRecordType.ClearCollection:
           // ClearCollection inside a transaction is not supported:
           // if inside a tx, stop replay before this record.
-          if (txInserts is not null)
+          if (txOperations is not null)
           {
             walStream.Seek(lastValidPosition, SeekOrigin.Begin);
             goto done;
@@ -135,7 +142,7 @@ public partial class Store
     }
 
     // 4. If we ended mid-transaction, roll back: truncate before the BEGIN.
-    if (txInserts is not null)
+    if (txOperations is not null)
     {
       walStream.Seek(txBeginPosition, SeekOrigin.Begin);
       lastValidPosition = txBeginPosition;

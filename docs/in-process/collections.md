@@ -151,6 +151,37 @@ The filter is evaluated against the document's MessagePack payload converted to 
 - Property paths are limited to member-access chains (`x.Prop`, `x.Nested.Prop`); the right-hand side of a comparison must be a constant or a captured local/field/property, not another document property.
 - Without a filter, brute-force search picks the top-k directly from ranked scores; with a filter, the brute-force indexer ranks candidates first and then applies the filter, while the HNSW indexer evaluates the filter *during* graph traversal (ACORN-1 style): non-matching nodes stay navigable but never enter the result window, and the traversal keeps expanding — bounded by `FilteredSearchExpansionFactor × ef` node visits — until it collects `top` matches. Either way, a highly selective filter over a large collection costs more than an unfiltered search.
 
+## Sharded collections
+
+The in-process API provides two sharded wrappers that follow the same naming-convention pattern as the [client's `ShardedCollection<T>`](../client/usage.md#sharded-collections):
+
+```csharp
+// from a Store:
+var shardedVec = store.ShardedVectorCollection<Article>("articles");
+var shardedDoc = store.ShardedDocumentCollection<LogEntry>("logs");
+
+// GetShard returns a normal VectorCollection<T> / DocumentCollection<T>
+// whose collection name is "{baseName}_{shardName}"
+var shardA = shardedVec.GetShard(() => "partition_0");
+var shardB = shardedDoc.GetShard(() => $"{DateTime.UtcNow:yyyyMM}");
+
+// each shard behaves like any other collection
+shardA.Add(42, entry);
+var hits = shardA.Search(queryVector, top: 10, predicate: a => a.Category == "news");
+```
+
+`GetShard` accepts a `Func<string>` delegate evaluated lazily at each call. The shard inherits the parent's `Dimensions`, `SentenceEmbedder` (for `VectorCollection`), and `DocumentSerializer` options.
+
+### `ShardedVectorCollection<T>` vs `ShardedDocumentCollection<T>`
+
+| | `ShardedVectorCollection<T>` | `ShardedDocumentCollection<T>` |
+|---|---|---|
+| **Propagates** | `Dimensions`, `DocumentSerializer`, `SentenceEmbedder` | `DocumentSerializer` |
+| **Shard type** | `VectorCollection<T>` | `DocumentCollection<T>` |
+| **Search** | Vector + predicate | Predicate only |
+
+As with the client version, there is no server-side shard awareness — each shard is an independent collection. Fan-out queries across shards must be orchestrated by the caller.
+
 ## See also
 
 - [Store options](store-options.md) — durability, files on disk, shrink.

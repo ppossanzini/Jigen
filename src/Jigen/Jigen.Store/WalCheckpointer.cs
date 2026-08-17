@@ -77,21 +77,26 @@ public class WalCheckpointer
 
   private void PerformCheckpoint()
   {
-    // Wait for the ingestion pipeline to fully drain BEFORE we fsync and
-    // truncate the WAL. Otherwise WAL records still in the IngestionQueue
-    // (not yet written to data files) would be lost.
-    _writer.WaitForWritingCompleted.GetAwaiter().GetResult();
-    _writer.WaitForIndexingCompleted.GetAwaiter().GetResult();
-
-    _writer.RunExclusive(() =>
+    // Exclude new accepted operations for the whole drain + fsync + checkpoint
+    // sequence. Append/delete register their work while holding the same lock.
+    lock (_store.WalLock)
     {
-      lock (_store.IndexAppendLock)
-      {
-        PerformCheckpointCore();
-      }
-    });
+      // Wait for the ingestion pipeline to fully drain BEFORE we fsync and
+      // truncate the WAL. Otherwise WAL records still in the IngestionQueue
+      // (not yet written to data files) would be lost.
+      _writer.WaitForWritingCompleted.GetAwaiter().GetResult();
+      _writer.WaitForIndexingCompleted.GetAwaiter().GetResult();
 
-    _store.CheckpointedWalPosition = Volatile.Read(ref _checkpointedWalPosition);
+      _writer.RunExclusive(() =>
+      {
+        lock (_store.IndexAppendLock)
+        {
+          PerformCheckpointCore();
+        }
+      });
+
+      _store.CheckpointedWalPosition = Volatile.Read(ref _checkpointedWalPosition);
+    }
   }
 
   private void PerformCheckpointCore()

@@ -26,6 +26,23 @@ var options = new ConnectionOptions
 var context = new Context(options);
 ```
 
+When using `Microsoft.Extensions.DependencyInjection`, you can also register `ConnectionOptions` with the DI container and inject it via `IOptions<ConnectionOptions>`:
+
+```csharp
+// In Program.cs / Startup:
+services.Configure<ConnectionOptions>(configuration.GetSection("Jigen"));
+services.AddSingleton<Context>();
+
+// The Context constructor also accepts IOptions<ConnectionOptions>:
+public class MyService
+{
+  public MyService(IOptions<ConnectionOptions> options)
+  {
+    var context = new Context(options);
+  }
+}
+```
+
 ### `ConnectionOptions`
 
 | Parameter | Type | Default | Description |
@@ -61,6 +78,22 @@ var articles = new VectorCollection<Article>(context, new VectorCollectionOption
   Name = "articles"
 });
 ```
+
+## Convenience factory: `Collection<T>()`
+
+Instead of `new VectorCollection<T>(context, ...)`, you can use the `Collection<T>()` extension method on `Context` for a shorter syntax:
+
+```csharp
+using Jigen.Client;
+
+// explicit name
+var articles = context.Collection<Article>("articles");
+
+// name defaults to typeof(T).Name
+var articles2 = context.Collection<Article>();
+```
+
+Both overloads accept an optional `VectorCollectionOptions<T>` as a second parameter.
 
 ## Recommended pattern: subclass `Context`
 

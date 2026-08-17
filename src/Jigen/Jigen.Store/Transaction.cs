@@ -24,8 +24,9 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
 {
   private readonly Store _store;
   private readonly Guid _txId;
-  private readonly List<VectorEntry> _pending = new();
-  private readonly List<(byte[] Key, string Collection)> _pendingDeletes = new();
+  private enum OperationType { Insert, Delete }
+  private sealed record Operation(OperationType Type, VectorEntry Entry, byte[] Key, string Collection);
+  private readonly List<Operation> _operations = new();
   private bool _committed;
   private bool _disposed;
 
@@ -44,7 +45,7 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
   public void Append(VectorEntry entry)
   {
     ThrowIfClosed();
-    _pending.Add(entry);
+    _operations.Add(new Operation(OperationType.Insert, entry, null, null));
   }
 
   /// <summary>
@@ -53,7 +54,7 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
   public void Delete(string collection, byte[] key)
   {
     ThrowIfClosed();
-    _pendingDeletes.Add((key, collection));
+    _operations.Add(new Operation(OperationType.Delete, null, key, collection));
   }
 
   /// <summary>
@@ -66,10 +67,11 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
     ThrowIfClosed();
     if (_committed)
       throw new InvalidOperationException("Transaction already committed.");
-    _committed = true;
-
-    if (_pending.Count == 0 && _pendingDeletes.Count == 0)
+    if (_operations.Count == 0)
+    {
+      _committed = true;
       return; // nothing to commit
+    }
 
     // WAL must be enabled for atomic transactions.
     if (_store.Options.Wal?.Enabled != true)
@@ -78,15 +80,21 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
 
     // 1. Calculate WAL buffer size.
     int totalWalSize = WalRecord.BeginTransactionSize + WalRecord.CommitTransactionSize;
-    foreach (var e in _pending)
+    foreach (var operation in _operations)
     {
-      totalWalSize += WalRecord.InsertRecordSize(
-        e.Id, e.CollectionName,
-        e.Content.IsEmpty ? null : e.Content.ToArray(),
-        e.Embedding.IsEmpty ? null : e.Embedding.ToArray());
+      if (operation.Type == OperationType.Insert)
+      {
+        var e = operation.Entry;
+        totalWalSize += WalRecord.InsertRecordSize(
+          e.Id, e.CollectionName,
+          e.Content.IsEmpty ? null : e.Content.ToArray(),
+          e.Embedding.IsEmpty ? null : e.Embedding.ToArray());
+      }
+      else
+      {
+        totalWalSize += WalRecord.DeleteRecordSize(operation.Key, operation.Collection);
+      }
     }
-    foreach (var (key, collection) in _pendingDeletes)
-      totalWalSize += WalRecord.DeleteRecordSize(key, collection);
 
     // 2. Serialize: [BEGIN][inserts...][deletes...][COMMIT]
     byte[] walBuffer = System.Buffers.ArrayPool<byte>.Shared.Rent(totalWalSize);
@@ -95,49 +103,60 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
       int pos = 0;
       pos += WalRecord.SerializeBeginTransaction(walBuffer.AsSpan(pos), _txId);
 
-      foreach (var e in _pending)
-        pos += SerializeInsert(walBuffer.AsSpan(pos), e);
-
-      foreach (var (key, collection) in _pendingDeletes)
-        pos += WalRecord.SerializeDelete(walBuffer.AsSpan(pos), key, collection);
+      foreach (var operation in _operations)
+      {
+        pos += operation.Type == OperationType.Insert
+          ? SerializeInsert(walBuffer.AsSpan(pos), operation.Entry)
+          : WalRecord.SerializeDelete(walBuffer.AsSpan(pos), operation.Key, operation.Collection);
+      }
 
       pos += WalRecord.SerializeCommitTransaction(walBuffer.AsSpan(pos), _txId);
 
-      // 3. Atomic write: the whole transaction is one Write call.
-      _store.WalFileStream!.Write(walBuffer, 0, pos);
-
-      // 4. fsync based on configured durability.
-      switch (_store.Options.Wal.Durability)
+      lock (_store.WalLock)
       {
-        case WalDurability.PerWrite:
-          _store.WalFileStream.Flush(true);
-          break;
-        case WalDurability.Group:
-          _store.WalFileStream.Flush(false); // group commit handles fsync
-          break;
-        default:
-          _store.WalFileStream.Flush(false);
-          break;
+        // The complete transaction is one indivisible WAL append.
+        _store.WalFileStream!.Write(walBuffer, 0, pos);
+        // From this point the transaction is durably represented in the WAL
+        // (according to the selected policy) and must not be submitted twice,
+        // even if applying it to the live pipeline subsequently fails.
+        _committed = true;
+
+        switch (_store.Options.Wal.Durability)
+        {
+          case WalDurability.PerWrite:
+            _store.WalFileStream.Flush(true);
+            break;
+          default:
+            _store.WalFileStream.Flush(false);
+            break;
+        }
+
+        // Register operations in their original order while the checkpointer
+        // is excluded. Before a delete, drain preceding inserts so it cannot
+        // be overtaken and later resurrect the key.
+        foreach (var operation in _operations)
+        {
+          if (operation.Type == OperationType.Insert)
+          {
+            _store.IngestionQueue.Enqueue(operation.Entry);
+            _store.Writer.SignalNewData();
+          }
+          else
+          {
+            StoreWritingExtensions.DrainPipeline(_store);
+            StoreWritingExtensions.DeleteContentCore(
+              _store, operation.Collection, operation.Key);
+          }
+        }
       }
+
     }
     finally
     {
       System.Buffers.ArrayPool<byte>.Shared.Return(walBuffer);
     }
 
-    // 5. Enqueue all entries into the IngestionQueue for background processing.
-    //    The Writer thread handles content/vectors/index writes + HNSW indexing.
-    foreach (var entry in _pending)
-      _store.IngestionQueue.Enqueue(entry);
-
-    foreach (var (key, collection) in _pendingDeletes)
-    {
-      // Deletes go through the same delete path: drain pipeline, remove from
-      // PositionIndex, write tombstone, signal indexer.
-      await _store.DeleteContent(collection, key);
-    }
-
-    _store.Writer.SignalNewData();
+    await Task.CompletedTask;
   }
 
   /// <summary>
@@ -147,8 +166,7 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
   {
     if (_disposed) return;
     _committed = true; // prevent double-commit
-    _pending.Clear();
-    _pendingDeletes.Clear();
+    _operations.Clear();
   }
 
   private void ThrowIfClosed()

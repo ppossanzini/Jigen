@@ -98,26 +98,21 @@ public static class StoreWritingExtensions
 
   // ── Group commit counter ──
 
-  private static int _walGroupCounter;
-  private static Stopwatch? _walGroupTimer;
-
-  private static void WalGroupFsyncIfNeeded(Store store)
+  private static void WalGroupFsyncIfNeeded(Store store, int writes = 1)
   {
     if (store.Options.Wal!.Durability != WalDurability.Group)
       return;
 
-    var counter = Interlocked.Increment(ref _walGroupCounter);
-    _walGroupTimer ??= Stopwatch.StartNew();
+    // Called while Store.WalLock is held. Counters are per store: a busy
+    // database must not reset the group-commit policy of another database.
+    store.WalGroupCounter += writes;
 
-    if (counter >= store.Options.Wal.MaxGroupBatchCount
-        || _walGroupTimer.Elapsed >= store.Options.Wal.MaxGroupDelay)
+    if (store.WalGroupCounter >= store.Options.Wal.MaxGroupBatchCount
+        || store.WalGroupTimer.Elapsed >= store.Options.Wal.MaxGroupDelay)
     {
-      lock (store.WalFileStream!)
-      {
-        store.WalFileStream.Flush(true);
-      }
-      Interlocked.Exchange(ref _walGroupCounter, 0);
-      _walGroupTimer.Restart();
+      store.WalFileStream!.Flush(true);
+      store.WalGroupCounter = 0;
+      store.WalGroupTimer.Restart();
     }
   }
 
@@ -194,8 +189,14 @@ public static class StoreWritingExtensions
     // WAL: write BEFORE enqueuing. This is the write-ahead guarantee.
     if (store.Options.Wal?.Enabled == true)
     {
-      WriteWalInsert(store, entry);
-      WalGroupFsyncIfNeeded(store);
+      lock (store.WalLock)
+      {
+        WriteWalInsert(store, entry);
+        store.IngestionQueue.Enqueue(entry);
+        store.Writer.SignalNewData();
+        WalGroupFsyncIfNeeded(store);
+      }
+      return entry;
     }
 
     await store.IngestionQueue.EnqueueAsync(entry);
@@ -215,10 +216,26 @@ public static class StoreWritingExtensions
     for (int offset = 0; offset < entries.Count; offset += windowSize)
     {
       var window = Math.Min(windowSize, entries.Count - offset);
-      for (int i = 0; i < window; i++)
-        store.IngestionQueue.Enqueue(entries[offset + i]);
-
-      store.Writer.SignalNewData();
+      if (store.Options.Wal?.Enabled == true)
+      {
+        lock (store.WalLock)
+        {
+          for (int i = 0; i < window; i++)
+          {
+            var entry = entries[offset + i];
+            WriteWalInsert(store, entry);
+            store.IngestionQueue.Enqueue(entry);
+          }
+          store.Writer.SignalNewData(window);
+          WalGroupFsyncIfNeeded(store, window);
+        }
+      }
+      else
+      {
+        for (int i = 0; i < window; i++)
+          await store.IngestionQueue.EnqueueAsync(entries[offset + i]);
+        store.Writer.SignalNewData(window);
+      }
     }
   }
 
@@ -229,15 +246,33 @@ public static class StoreWritingExtensions
 
   public static async Task<bool> DeleteContent(this Store store, string collection, byte[] key)
   {
+    if (store.Options.Wal?.Enabled == true)
+    {
+      lock (store.WalLock)
+      {
+        DrainPipeline(store);
+        WriteWalDelete(store, key, collection);
+        WalGroupFsyncIfNeeded(store);
+        return DeleteContentCore(store, collection, key);
+      }
+    }
+
     // Appends travel through the ingestion queue while deletes run inline:
     // drain BOTH stages first, so "append X, then delete X" cannot resurrect
     // X in the store (writer) or in the graph (index workers).
     await store.Writer.WaitForWritingCompleted;
     await store.Writer.WaitForIndexingCompleted;
+    return DeleteContentCore(store, collection, key);
+  }
 
-    // WAL: write the delete record BEFORE modifying the in-memory state.
-    if (store.Options.Wal?.Enabled == true)
-      WriteWalDelete(store, key, collection);
+  internal static void DrainPipeline(Store store)
+  {
+    store.Writer.WaitForWritingCompleted.GetAwaiter().GetResult();
+    store.Writer.WaitForIndexingCompleted.GetAwaiter().GetResult();
+  }
+
+  internal static bool DeleteContentCore(Store store, string collection, byte[] key)
+  {
 
     bool result = false;
 
@@ -274,14 +309,27 @@ public static class StoreWritingExtensions
   /// </summary>
   public static async Task<int> ClearContent(this Store store, string collection)
   {
+    if (store.Options.Wal?.Enabled == true)
+    {
+      lock (store.WalLock)
+      {
+        DrainPipeline(store);
+        WriteWalClearCollection(store, collection);
+        WalGroupFsyncIfNeeded(store);
+        return ClearContentCore(store, collection);
+      }
+    }
+
     // Same ordering guarantee as DeleteContent: queued appends must land
     // (and index) before the clear, or they would resurrect after it.
     await store.Writer.WaitForWritingCompleted;
     await store.Writer.WaitForIndexingCompleted;
 
-    // WAL: write the clear-collection record BEFORE modifying in-memory state.
-    if (store.Options.Wal?.Enabled == true)
-      WriteWalClearCollection(store, collection);
+    return ClearContentCore(store, collection);
+  }
+
+  private static int ClearContentCore(Store store, string collection)
+  {
 
     var removedKeys = new List<byte[]>();
 

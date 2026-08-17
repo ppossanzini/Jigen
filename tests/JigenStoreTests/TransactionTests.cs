@@ -267,6 +267,102 @@ public class TransactionTests
     finally { Directory.Delete(path, recursive: true); }
   }
 
+  [Fact]
+  public async Task Commit_PreservesOperationOrderForTheSameKey()
+  {
+    var path = CreateTempPath();
+    Directory.CreateDirectory(path);
+    try
+    {
+      var deletedId = Guid.NewGuid().ToByteArray();
+      var insertedId = Guid.NewGuid().ToByteArray();
+
+      using var store = new Store(WalEnabledOptions(path));
+
+      using (var tx = store.BeginTransaction())
+      {
+        tx.Append(new VectorEntry
+        {
+          Id = deletedId, CollectionName = "docs",
+          Content = "temporary"u8.ToArray(), Embedding = new[] { 1f }
+        });
+        tx.Delete("docs", deletedId);
+        await tx.CommitAsync();
+      }
+
+      using (var tx = store.BeginTransaction())
+      {
+        tx.Delete("docs", insertedId);
+        tx.Append(new VectorEntry
+        {
+          Id = insertedId, CollectionName = "docs",
+          Content = "survives"u8.ToArray(), Embedding = new[] { 2f }
+        });
+        await tx.CommitAsync();
+      }
+
+      await store.SaveChangesAsync();
+      Assert.False(store.TryGetContent("docs", deletedId, out _));
+      Assert.True(store.TryGetContent("docs", insertedId, out var content));
+      Assert.Equal("survives", Encoding.UTF8.GetString(content));
+    }
+    finally { Directory.Delete(path, recursive: true); }
+  }
+
+  [Fact]
+  public async Task Recovery_PreservesLastOperationForEachTransactionKey()
+  {
+    var path = CreateTempPath();
+    Directory.CreateDirectory(path);
+    try
+    {
+      var deletedId = Guid.NewGuid().ToByteArray();
+      var insertedId = Guid.NewGuid().ToByteArray();
+      using (var store = new Store(WalEnabledOptions(path))) { }
+
+      var walPath = Path.Combine(path, "txtest.wal.jigen");
+      using (var wal = new FileStream(walPath, FileMode.Open, FileAccess.ReadWrite, FileShare.Read))
+      {
+        wal.Seek(0, SeekOrigin.End);
+
+        void WriteTransaction(byte[] id, bool insertFirst)
+        {
+          var content = insertFirst ? "temporary"u8.ToArray() : "survives"u8.ToArray();
+          var size = WalRecord.BeginTransactionSize +
+                     WalRecord.InsertRecordSize(id, "docs", content, new[] { 1f }) +
+                     WalRecord.DeleteRecordSize(id, "docs") +
+                     WalRecord.CommitTransactionSize;
+          var buffer = new byte[size];
+          var txId = Guid.NewGuid();
+          var pos = WalRecord.SerializeBeginTransaction(buffer, txId);
+          if (insertFirst)
+          {
+            pos += WalRecord.SerializeInsert(buffer.AsSpan(pos), id, "docs", content, new[] { 1f });
+            pos += WalRecord.SerializeDelete(buffer.AsSpan(pos), id, "docs");
+          }
+          else
+          {
+            pos += WalRecord.SerializeDelete(buffer.AsSpan(pos), id, "docs");
+            pos += WalRecord.SerializeInsert(buffer.AsSpan(pos), id, "docs", content, new[] { 1f });
+          }
+          pos += WalRecord.SerializeCommitTransaction(buffer.AsSpan(pos), txId);
+          wal.Write(buffer, 0, pos);
+        }
+
+        WriteTransaction(deletedId, insertFirst: true);
+        WriteTransaction(insertedId, insertFirst: false);
+        wal.Flush(true);
+      }
+
+      using var recovered = new Store(WalEnabledOptions(path));
+      await recovered.SaveChangesAsync();
+      Assert.False(recovered.TryGetContent("docs", deletedId, out _));
+      Assert.True(recovered.TryGetContent("docs", insertedId, out var content));
+      Assert.Equal("survives", Encoding.UTF8.GetString(content));
+    }
+    finally { Directory.Delete(path, recursive: true); }
+  }
+
   // ── Empty transaction ──
 
   [Fact]

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
 using System.Reflection;
 using System.Text;
@@ -37,6 +38,14 @@ public partial class Store : IStore, IDisposable
   // Opened with FileShare.Read so the checkpointer can read the same handle.
   internal FileStream WalFileStream;
   private WalCheckpointer _walCheckpointer;
+
+  // Serializes the complete WAL acceptance boundary: append + registration in
+  // the ingestion pipeline (or inline delete) must be atomic with respect to a
+  // checkpoint, otherwise a checkpoint can discard a record before the
+  // corresponding operation is visible to the writer.
+  internal readonly Lock WalLock = new();
+  internal int WalGroupCounter;
+  internal readonly Stopwatch WalGroupTimer = Stopwatch.StartNew();
 
   // WAL position up to which records have been checkpointed.
   internal long CheckpointedWalPosition;
@@ -265,7 +274,8 @@ public partial class Store : IStore, IDisposable
 
     // fsync WAL before data files.
     if (WalFileStream is not null)
-      WalFileStream.Flush(true);
+      lock (WalLock)
+        WalFileStream.Flush(true);
 
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
@@ -355,7 +365,8 @@ public partial class Store : IStore, IDisposable
 
     // fsync WAL before the data files: the WAL is authoritative.
     if (WalFileStream is not null)
-      WalFileStream.Flush(true);
+      lock (WalLock)
+        WalFileStream.Flush(true);
 
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
