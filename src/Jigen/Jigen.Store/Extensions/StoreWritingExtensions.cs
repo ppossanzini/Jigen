@@ -14,7 +14,8 @@ public static class StoreWritingExtensions
   // ── WAL write helpers ──
 
   /// <summary>
-  /// Writes an Insert record to the WAL, fsyncing according to durability policy.
+  /// Serializes and appends an Insert record to the WAL. The caller completes
+  /// the configured durability policy while still holding Store.WalLock.
   /// Called BEFORE the entry is enqueued to the ingestion queue — this is the
   /// "write-ahead" guarantee.
   /// </summary>
@@ -34,19 +35,6 @@ public static class StoreWritingExtensions
     {
       WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding);
       walStream.Write(buffer[..size]);
-
-      switch (store.Options.Wal!.Durability)
-      {
-        case WalDurability.PerWrite:
-          walStream.Flush(true);
-          break;
-        case WalDurability.Group:
-          walStream.Flush(false);
-          break;
-        default:
-          walStream.Flush(false);
-          break;
-      }
     }
     finally
     {
@@ -67,7 +55,6 @@ public static class StoreWritingExtensions
     {
       WalRecord.SerializeDelete(buffer, key, collection);
       walStream.Write(buffer[..size]);
-      walStream.Flush(false);
     }
     finally
     {
@@ -88,7 +75,6 @@ public static class StoreWritingExtensions
     {
       WalRecord.SerializeClearCollection(buffer, collection);
       walStream.Write(buffer[..size]);
-      walStream.Flush(false);
     }
     finally
     {
@@ -96,12 +82,23 @@ public static class StoreWritingExtensions
     }
   }
 
-  // ── Group commit counter ──
-
-  private static void WalGroupFsyncIfNeeded(Store store, int writes = 1)
+  // Called while Store.WalLock is held, after the complete WAL record/block is
+  // appended and before its operation is exposed to the live store.
+  internal static void CompleteWalWrite(Store store, int writes = 1)
   {
-    if (store.Options.Wal!.Durability != WalDurability.Group)
-      return;
+    var wal = store.WalFileStream!;
+    switch (store.Options.Wal!.Durability)
+    {
+      case WalDurability.PerWrite:
+        wal.Flush(true);
+        return;
+      case WalDurability.None:
+        wal.Flush(false);
+        return;
+      case WalDurability.Group:
+        wal.Flush(false);
+        break;
+    }
 
     // Called while Store.WalLock is held. Counters are per store: a busy
     // database must not reset the group-commit policy of another database.
@@ -110,7 +107,7 @@ public static class StoreWritingExtensions
     if (store.WalGroupCounter >= store.Options.Wal.MaxGroupBatchCount
         || store.WalGroupTimer.Elapsed >= store.Options.Wal.MaxGroupDelay)
     {
-      store.WalFileStream!.Flush(true);
+      wal.Flush(true);
       store.WalGroupCounter = 0;
       store.WalGroupTimer.Restart();
     }
@@ -195,7 +192,7 @@ public static class StoreWritingExtensions
         WriteWalInsert(store, entry);
         store.IngestionQueue.Enqueue(entry);
         store.Writer.SignalNewData();
-        WalGroupFsyncIfNeeded(store);
+        CompleteWalWrite(store);
       }
       return entry;
     }
@@ -233,7 +230,7 @@ public static class StoreWritingExtensions
             store.IngestionQueue.Enqueue(entry);
           }
           store.Writer.SignalNewData(window);
-          WalGroupFsyncIfNeeded(store, window);
+          CompleteWalWrite(store, window);
         }
       }
       else
@@ -258,7 +255,7 @@ public static class StoreWritingExtensions
       {
         DrainPipeline(store);
         WriteWalDelete(store, key, collection);
-        WalGroupFsyncIfNeeded(store);
+        CompleteWalWrite(store);
         return DeleteContentCore(store, collection, key);
       }
     }
@@ -321,7 +318,7 @@ public static class StoreWritingExtensions
       {
         DrainPipeline(store);
         WriteWalClearCollection(store, collection);
-        WalGroupFsyncIfNeeded(store);
+        CompleteWalWrite(store);
         return ClearContentCore(store, collection);
       }
     }

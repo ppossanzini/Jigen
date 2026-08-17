@@ -117,20 +117,11 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
       {
         // The complete transaction is one indivisible WAL append.
         _store.WalFileStream!.Write(walBuffer, 0, pos);
+        StoreWritingExtensions.CompleteWalWrite(_store);
         // From this point the transaction is durably represented in the WAL
         // (according to the selected policy) and must not be submitted twice,
         // even if applying it to the live pipeline subsequently fails.
         _committed = true;
-
-        switch (_store.Options.Wal.Durability)
-        {
-          case WalDurability.PerWrite:
-            _store.WalFileStream.Flush(true);
-            break;
-          default:
-            _store.WalFileStream.Flush(false);
-            break;
-        }
 
         // Register operations in their original order while the checkpointer
         // is excluded. Before a delete, drain preceding inserts so it cannot
