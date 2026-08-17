@@ -120,13 +120,12 @@ internal sealed class AdjacencyPart : IStorableItem<AdjacencyPart, SmallWorldOpt
 
     // Header + per level: [capacity][count][capacity * ids].
     var size = 1 + sizeof(int) + 1 + sizeof(int);
-    var capacities = new int[levels];
     for (var level = 0; level < levels; level++)
     {
       // The construction pruning keeps counts within GetM; max() keeps the
       // record self-describing even if a level ever exceeds it.
-      capacities[level] = Math.Max(NodeExtensions.GetM(_options.M, level), Connections![level]?.Count ?? 0);
-      size += 2 * sizeof(int) + capacities[level] * sizeof(int);
+      var capacity = Math.Max(NodeExtensions.GetM(_options.M, level), Connections![level]?.Count ?? 0);
+      size += 2 * sizeof(int) + capacity * sizeof(int);
     }
 
     var buffer = new byte[size];
@@ -142,8 +141,9 @@ internal sealed class AdjacencyPart : IStorableItem<AdjacencyPart, SmallWorldOpt
     {
       var connections = Connections![level];
       var count = connections?.Count ?? 0;
+      var capacity = Math.Max(NodeExtensions.GetM(_options.M, level), count);
 
-      BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset), capacities[level]);
+      BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset), capacity);
       offset += sizeof(int);
       BinaryPrimitives.WriteInt32LittleEndian(buffer.AsSpan(offset), count);
       offset += sizeof(int);
@@ -156,7 +156,7 @@ internal sealed class AdjacencyPart : IStorableItem<AdjacencyPart, SmallWorldOpt
 
       // Reserved slots stay zero: they fix the record size at its maximum so
       // later updates never outgrow it.
-      offset += (capacities[level] - count) * sizeof(int);
+      offset += (capacity - count) * sizeof(int);
     }
 
     return buffer;

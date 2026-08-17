@@ -532,9 +532,15 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndex
       }
     }
 
-    return resultsByKey.Values
-      .OrderByDescending(r => r.score)
-      .Take(top);
+    // The candidate window is small (normally efSearch), but this is still a
+    // query hot path: materialize and sort directly instead of building the
+    // OrderBy/Take iterator pipeline and its auxiliary enumerable objects.
+    var results = new List<(VectorEntry entry, float score)>(resultsByKey.Count);
+    results.AddRange(resultsByKey.Values);
+    results.Sort(static (left, right) => right.score.CompareTo(left.score));
+    if (results.Count > top)
+      results.RemoveRange(top, results.Count - top);
+    return results;
   }
 
   public IEnumerable<VectorEntry> Search(IStore store, string collection, IFilterExpression contentFilter = null)
@@ -544,8 +550,6 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndex
 
     if (!store.GetCollectionIndexOf(collection, out var index))
       yield break;
-
-    var results = new List<VectorEntry>();
 
     foreach (var key in index.Keys)
     {
@@ -579,12 +583,18 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndex
   public IList<KNNSearchResult> KNNSearch(string collection, IndexNode item, int k)
   {
     var neighbourhood = KNearest(collection, item, k);
-    return neighbourhood.Select(n => new KNNSearchResult
+    var results = new List<KNNSearchResult>(neighbourhood.Count);
+    for (var i = 0; i < neighbourhood.Count; i++)
     {
-      Id = n.PositionId,
-      Item = n,
-      Distance = item.TravelingCosts.From(n),
-    }).ToList();
+      var node = neighbourhood[i];
+      results.Add(new KNNSearchResult
+      {
+        Id = node.PositionId,
+        Item = node,
+        Distance = item.TravelingCosts.From(node),
+      });
+    }
+    return results;
   }
 
   /// <summary>
