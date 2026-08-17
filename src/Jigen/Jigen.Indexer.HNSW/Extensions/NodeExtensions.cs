@@ -96,13 +96,13 @@ public static class NodeExtensions
     // shared List<int> concurrently is undefined even with indexed iteration.
     // Readers now always observe an immutable array, old or new.
     var current = item.Connections[level] ?? Array.Empty<int>();
-    var levelNeighbours = new List<int>(current.Count + 1);
-    for (var i = 0; i < current.Count; i++) levelNeighbours.Add(current[i]);
-    levelNeighbours.Add(newNeighbour.PositionId);
+    var levelNeighbours = new int[current.Count + 1];
+    for (var i = 0; i < current.Count; i++) levelNeighbours[i] = current[i];
+    levelNeighbours[^1] = newNeighbour.PositionId;
 
-    if (levelNeighbours.Count > GetM(smallworld.Options.M, level))
+    if (levelNeighbours.Length > GetM(smallworld.Options.M, level))
     {
-      var currentConns = new List<IndexNode>(levelNeighbours.Count);
+      var currentConns = new List<IndexNode>(levelNeighbours.Length);
       foreach (var id in levelNeighbours)
         if ((uint)id < (uint)graph.nodes.Count)
           currentConns.Add(graph.nodes[id]);
@@ -115,7 +115,7 @@ public static class NodeExtensions
       return;
     }
 
-    item.Connections[level] = levelNeighbours.ToArray();
+    item.Connections[level] = levelNeighbours;
   }
 
   public static IList<IndexNode> SelectBestForConnectingAlg3(

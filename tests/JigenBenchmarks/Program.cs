@@ -1,7 +1,8 @@
 // Jigen macro-benchmark: ingest / search (with recall) / delete / reopen on a
 // disk-backed store with the HNSW indexer.
 //
-//   dotnet run -c Release [-- N [dim] [sq8]]      (defaults: 10000 128)
+//   dotnet run -c Release [-- N [dim] [sq8] [wal] [bulk]]
+//                                                     (defaults: 10000 128)
 //
 // Run it before and after performance work: the recall column is the guard
 // against "faster but wrong" regressions.
@@ -17,6 +18,7 @@ var n = args.Length > 0 && int.TryParse(args[0], out var argN) ? argN : 10_000;
 var dim = args.Length > 1 && int.TryParse(args[1], out var argD) ? argD : 128;
 var sq8 = args.Contains("sq8", StringComparer.OrdinalIgnoreCase);
 var wal = args.Contains("wal", StringComparer.OrdinalIgnoreCase);
+var bulk = args.Contains("bulk", StringComparer.OrdinalIgnoreCase);
 var walDurability = args.FirstOrDefault(a => a.StartsWith("dur:"))?.AsSpan(4).ToString();
 var workersArg = args.FirstOrDefault(a => a.StartsWith("w") && int.TryParse(a.AsSpan(1), out _));
 var workers = workersArg is null ? (int?)null : int.Parse(workersArg.AsSpan(1));
@@ -55,7 +57,7 @@ StoreOptions OptionsFor() => new()
   } : null
 };
 
-Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, wal={(wal ? walDurability ?? "group" : "off")}, workers={workers?.ToString() ?? "auto"}");
+Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, wal={(wal ? walDurability ?? "group" : "off")}, workers={workers?.ToString() ?? "auto"}, ingest={(bulk ? "bulk" : "scalar")}");
 Console.WriteLine(new string('-', 64));
 
 try
@@ -72,11 +74,24 @@ try
 
   // ---- ingest -------------------------------------------------------------
   var sw = Stopwatch.StartNew();
-  for (var i = 0; i < n; i++)
-    await store.AppendContent(new VectorEntry
-    {
-      Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(), Embedding = vectors[i]
-    });
+  if (bulk)
+  {
+    var entries = new VectorEntry[n];
+    for (var i = 0; i < n; i++)
+      entries[i] = new VectorEntry
+      {
+        Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(), Embedding = vectors[i]
+      };
+    await store.AppendContentBulk(entries);
+  }
+  else
+  {
+    for (var i = 0; i < n; i++)
+      await store.AppendContent(new VectorEntry
+      {
+        Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(), Embedding = vectors[i]
+      });
+  }
   await store.SaveChangesAsync();
   sw.Stop();
   Report("ingest", $"{n / sw.Elapsed.TotalSeconds,10:0} vec/s   ({sw.Elapsed.TotalSeconds:0.0}s total)");

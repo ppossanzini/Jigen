@@ -63,7 +63,7 @@ namespace Jigen.Indexer
       {
         _buffer = new T[_count];
         for (int i = 0; i < _count; i++) _buffer[i] = source[i];
-        for (int i = 1; i < _count; i++) SiftUp(i);
+        Heapify();
       }
       else
       {
@@ -118,7 +118,7 @@ namespace Jigen.Indexer
         if (_buffer is null || _buffer.Length < _count)
           _buffer = new T[_count];
         for (int i = 0; i < _count; i++) _buffer[i] = source[i];
-        for (int i = 1; i < _count; i++) SiftUp(i);
+        Heapify();
       }
     }
 
@@ -127,6 +127,13 @@ namespace Jigen.Indexer
       var cap = Math.Max(minCapacity, 4);
       if (_buffer is null || _buffer.Length < cap)
         _buffer = new T[cap];
+    }
+
+    /// <summary>Floyd bottom-up heap construction in O(n).</summary>
+    private void Heapify()
+    {
+      for (var i = (_count >> 1) - 1; i >= 0; i--)
+        SiftDown(i);
     }
 
     /// <summary>
