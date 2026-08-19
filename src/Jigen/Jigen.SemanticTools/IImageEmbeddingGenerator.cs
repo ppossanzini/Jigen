@@ -12,7 +12,15 @@ public interface IImageEmbeddingGenerator
   float[] GenerateImageEmbedding(byte[] imageBytes);
   float[][] GenerateImageEmbeddings(IReadOnlyList<byte[]> images);
 
+  /// <summary>
+  /// Generates tile embeddings for one image: equally sized, overlapping tiles
+  /// of the input, each embedded separately, with the whole-image embedding
+  /// appended as the last vector.
+  /// </summary>
+  float[][] GenerateImageTileEmbeddings(byte[] imageBytes);
+
   Task<float[]> GenerateImageEmbeddingAsync(string imagePath, CancellationToken cancellationToken = default);
   Task<float[]> GenerateImageEmbeddingAsync(byte[] imageBytes, CancellationToken cancellationToken = default);
   Task<float[][]> GenerateImageEmbeddingsAsync(IReadOnlyList<byte[]> images, CancellationToken cancellationToken = default);
+  Task<float[][]> GenerateImageTileEmbeddingsAsync(byte[] imageBytes, CancellationToken cancellationToken = default);
 }

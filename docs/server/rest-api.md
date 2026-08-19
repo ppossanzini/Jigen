@@ -64,8 +64,11 @@ Note: the server's Newtonsoft.Json configuration does not add a camelCase contra
 | `GET` | `/api/embeddings/tasks` | List configured task prefixes (`JigenEmbeddings:Tasks`). |
 | `POST` | `/api/embeddings/calculate` | Compute an embedding for a JSON string body, using the default task. |
 | `POST` | `/api/embeddings/calculate/{task}` | Compute an embedding for a JSON string body, using the given task prefix. |
+| `POST` | `/api/embeddings/calculate-image` | Compute an image embedding. Body: base64 string (JSON) or a `file` field (`multipart/form-data`). Requires `ImagesModelPath` configured. |
+| `POST` | `/api/embeddings/calculate-image/batch` | Compute image embeddings for many images. Body: array of base64 strings (JSON) or a `files` field (`multipart/form-data`). |
+| `POST` | `/api/embeddings/calculate-image/tiles` | Compute tile embeddings: overlapping tiles of the image, each embedded separately, plus the whole-image embedding as the last vector. Body: base64 string (JSON) or a `file` field (`multipart/form-data`). Tiling parameters come from `ImageGeneratorOptions`. |
 
-These endpoints require an embedding module to be reachable (all-in-one server, or a `jigendb` server routing to `jigen-embeddings` over RabbitMQ). See [embeddings overview](../embeddings/overview.md).
+These endpoints require an embedding module to be reachable (all-in-one server, or a `jigendb` server routing to `jigen-embeddings` over RabbitMQ). The image endpoints additionally require `JigenEmbeddings:ImagesModelPath` to be set — without it the server runs text-only and image requests fail with a clear configuration error. See [embeddings overview](../embeddings/overview.md).
 
 ## curl examples
 
@@ -98,6 +101,28 @@ Compute an embedding directly:
 curl -X POST http://localhost:13223/api/embeddings/calculate/search_document \
   -H "Content-Type: application/json" \
   -d '"Jigen is a vector database written in C#."'
+```
+
+Compute an image embedding (JSON base64):
+
+```bash
+curl -X POST http://localhost:13223/api/embeddings/calculate-image \
+  -H "Content-Type: application/json" \
+  -d '"/9j/4AAQSkZJRgABAQEA..."'
+```
+
+Compute image embeddings from a file (multipart):
+
+```bash
+curl -X POST http://localhost:13223/api/embeddings/calculate-image \
+  -F "file=@/path/to/photo.jpg"
+```
+
+Compute tile embeddings from a file:
+
+```bash
+curl -X POST http://localhost:13223/api/embeddings/calculate-image/tiles \
+  -F "file=@/path/to/photo.jpg"
 ```
 
 For the equivalent gRPC operations, see [gRPC API](grpc-api.md).

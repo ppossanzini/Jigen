@@ -84,9 +84,14 @@ public interface IImageEmbeddingGenerator
   float[] GenerateImageEmbedding(byte[] imageBytes);
   float[][] GenerateImageEmbeddings(IReadOnlyList<byte[]> images);
 
+  // Tiling: overlapping tiles of the image, each embedded separately, plus the
+  // whole-image embedding appended as the last vector (see below).
+  float[][] GenerateImageTileEmbeddings(byte[] imageBytes);
+
   Task<float[]> GenerateImageEmbeddingAsync(string imagePath, CancellationToken cancellationToken = default);
   Task<float[]> GenerateImageEmbeddingAsync(byte[] imageBytes, CancellationToken cancellationToken = default);
   Task<float[][]> GenerateImageEmbeddingsAsync(IReadOnlyList<byte[]> images, CancellationToken cancellationToken = default);
+  Task<float[][]> GenerateImageTileEmbeddingsAsync(byte[] imageBytes, CancellationToken cancellationToken = default);
 }
 ```
 
@@ -125,14 +130,40 @@ var results = collection.Search(textGenerator.GenerateEmbedding("search_query", 
 
 Because collections accept raw `float[]` vectors, any of the deployment modes below work for images too.
 
+### Tiling (multi-embedding for large images)
+
+A single global embedding captures the *overall* content of an image, but details are lost when a large photo is downscaled to 224×224. `GenerateImageTileEmbeddings` splits the image into **equally sized, overlapping square tiles**, embeds each tile separately, and appends the **whole-image embedding as the last vector** — all in a single batched inference run. Tiling is always on for this method; the plain `GenerateImageEmbedding`/`GenerateImageEmbeddings` methods keep returning a single global vector per image.
+
+The tile grid is controlled by configuration (see [configuration](configuration.md)):
+
+- **`TileColumns`** — the number of tile columns. The number of rows is **derived from the image aspect ratio** (tile edge = `width / TileColumns`, square tiles), so the grid always covers the image with no gaps.
+- **`TileOverlap`** — overlap between adjacent tiles as a fraction of the tile size (0 = none, default 0.2 = 20%). Overlap ensures details that straddle a tile boundary appear fully in at least one tile.
+
+Example: an 800×600 image with `TileColumns = 4` and 20% overlap produces a 5×4 grid (20 tiles) + 1 global vector; a 400×400 square image with `TileColumns = 2` and no overlap produces exactly 2×2 = 4 tiles + 1 global.
+
+```csharp
+using var imageGenerator = new OnnxImageEmbeddingGenerator(
+  "/data/onnx/nomic-embed-vision-v1.5/model.onnx",
+  options: new ImageEmbeddingGeneratorOptions
+  {
+    TileColumns = 4,
+    TileOverlap = 0.2f
+  });
+
+var vectors = imageGenerator.GenerateImageTileEmbeddings(File.ReadAllBytes("photo.jpg"));
+// vectors[^1] is always the whole-image embedding; the rest are tiles in raster order.
+```
+
+**Storing tile embeddings in Jigen.** An image with tiling yields multiple vectors. For region-level retrieval ("find images with a cat in the bottom right"), store them as multiple `VectorEntry` rows sharing the same key — Jigen supports several vectors per key. For whole-image retrieval, index only the global vector (the last one), or aggregate the tiles (e.g. max-pool) into a single vector.
+
 ### Where image embeddings run
 
 Image embedding generation is available wherever the `Jigen.SemanticTools` engine is used:
 
 | Mode | Description |
 |---|---|
-| In-process / client-side | The `OnnxImageEmbeddingGenerator` is used directly in your application; the resulting vector is handed to Jigen as-is. This is the current integration point — the server embedding module is text-only, see below. |
-| Server (future) | The server embedding module (`JigenEmbeddings`) currently serves the text model only. Wiring the image model through the same module (config section + REST/gRPC endpoints + `QueuedEmbeddingGenerator` wrapper) is the natural next step. |
+| In-process / client-side | The `OnnxImageEmbeddingGenerator` is used directly in your application; the resulting vector is handed to Jigen as-is. |
+| Server (embedding worker) | The `jigen-embeddings` worker exposes the image model through `JigenEmbeddings` configuration (`ImagesModelPath`, `ImageGeneratorOptions`, ...). Endpoints: `POST /api/embeddings/calculate-image`, `POST /api/embeddings/calculate-image/batch`, `POST /api/embeddings/calculate-image/tiles` — each accepting JSON (base64) or `multipart/form-data`. Image embedding is **opt-in**: with `ImagesModelPath` empty the server runs text-only and image requests fail with a clear configuration error. |
 
 ### Image model export
 

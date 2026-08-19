@@ -5,9 +5,12 @@ using Microsoft.Extensions.Options;
 
 namespace Jigen.TextEmbedding.Handlers;
 
-public class CommandHandlers(IEmbeddingGenerator generator, IOptions<EmbeddingSettings> settings)
+public class CommandHandlers(IEmbeddingGenerator generator, IImageEmbeddingGenerator imageGenerator, IOptions<EmbeddingSettings> settings)
   : IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings, float[]>,
-    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddingsBatch, float[][]>
+    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddingsBatch, float[][]>,
+    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateImageEmbedding, float[]>,
+    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateImageEmbeddingBatch, float[][]>,
+    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateImageTileEmbeddings, float[][]>
 {
   public Task<float[]> Handle(CalculateEmbeddings request, CancellationToken cancellationToken)
   {
@@ -24,5 +27,20 @@ public class CommandHandlers(IEmbeddingGenerator generator, IOptions<EmbeddingSe
       : Array.ConvertAll(request.Sentences, sentence => $"{task}: {sentence}");
 
     return generator.GenerateEmbeddingsAsync(inputs, cancellationToken);
+  }
+
+  public Task<float[]> Handle(CalculateImageEmbedding request, CancellationToken cancellationToken)
+  {
+    return imageGenerator.GenerateImageEmbeddingAsync(request.ImageBytes, cancellationToken);
+  }
+
+  public Task<float[][]> Handle(CalculateImageEmbeddingBatch request, CancellationToken cancellationToken)
+  {
+    return imageGenerator.GenerateImageEmbeddingsAsync(request.Images, cancellationToken);
+  }
+
+  public Task<float[][]> Handle(CalculateImageTileEmbeddings request, CancellationToken cancellationToken)
+  {
+    return imageGenerator.GenerateImageTileEmbeddingsAsync(request.ImageBytes, cancellationToken);
   }
 }

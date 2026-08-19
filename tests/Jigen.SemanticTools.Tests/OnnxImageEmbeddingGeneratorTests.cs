@@ -168,6 +168,57 @@ public class OnnxImageEmbeddingGeneratorTests
     Assert.Throws<ArgumentException>(() => generator.GenerateImageEmbedding((string)null));
   }
 
+  [Fact]
+  public void GenerateImageTileEmbeddings_ReturnsTilesPlusGlobal()
+  {
+    using var generator = new OnnxImageEmbeddingGenerator(FixturePath, null,
+      new ImageEmbeddingGeneratorOptions { TileColumns = 4, TileOverlap = 0.2f });
+    var image = CreateSolidPng(800, 600, 33, 77, 122);
+
+    var result = generator.GenerateImageTileEmbeddings(image);
+
+    // 800x600 with 4 columns: square tiles of 200px, overlap 20% → stride 160.
+    // 800/160 = 5 x-positions; 600/160 = 4 y-positions (last aligned to edge).
+    Assert.Equal(5 * 4 + 1, result.Length); // 20 tiles + 1 global
+
+    // Solid color → every tile and the global embedding match (within ULP noise).
+    for (var i = 1; i < result.Length; i++)
+      AssertClose(result[i], result[0], tolerance: 1e-5f);
+
+    foreach (var vector in result)
+    {
+      var norm = Math.Sqrt(vector.Sum(v => v * v));
+      Assert.Equal(1d, norm, 3);
+    }
+  }
+
+  [Fact]
+  public void GenerateImageTileEmbeddings_SmallImage_ReturnsTiles()
+  {
+    using var generator = new OnnxImageEmbeddingGenerator(FixturePath, null,
+      new ImageEmbeddingGeneratorOptions { TileColumns = 4 });
+    var image = CreateSolidPng(100, 80, 5, 90, 250);
+
+    var result = generator.GenerateImageTileEmbeddings(image);
+
+    // 4 columns on a 100px-wide image → 25px tiles, so multiple tiles are
+    // produced even on a small image (tiles are always square and relative).
+    Assert.True(result.Length > 1);
+  }
+
+  [Fact]
+  public void GenerateImageTileEmbeddings_SingleColumn_SquareImage()
+  {
+    using var generator = new OnnxImageEmbeddingGenerator(FixturePath, null,
+      new ImageEmbeddingGeneratorOptions { TileColumns = 2, TileOverlap = 0f });
+    var image = CreateSolidPng(400, 400, 33, 77, 122);
+
+    var result = generator.GenerateImageTileEmbeddings(image);
+
+    // Square image with 2 columns and no overlap → exactly 2x2 = 4 tiles.
+    Assert.Equal(4 + 1, result.Length); // 4 tiles + 1 global
+  }
+
   // --- helpers -------------------------------------------------------------
 
   private static float[] ExpectedCls(byte r, byte g, byte b)

@@ -33,6 +33,29 @@ public class Module: IModule
       settings.EmbeddingsQueueCapacity,
       TimeSpan.FromSeconds(settings.EmbeddingsQueueTimeoutSeconds),
       generatorOptions.MaxBatchSize));
+
+    // Image embeddings are opt-in: without ImagesModelPath the server keeps
+    // working (text only) and image requests fail with a clear error.
+    services.AddSingleton<IImageEmbeddingGenerator>(_ =>
+    {
+      if (string.IsNullOrWhiteSpace(settings.ImagesModelPath))
+        return new UnconfiguredImageEmbeddingGenerator();
+
+      var imageOptions = settings.ImageGeneratorOptions ?? new ImageEmbeddingGeneratorOptions();
+      if (imageOptions.IntraOpNumThreads <= 0)
+        imageOptions.IntraOpNumThreads =
+          Math.Max(1, Environment.ProcessorCount / Math.Max(settings.ImageEmbeddingsMaxConcurrency, 1));
+
+      return new QueuedImageEmbeddingGenerator(
+        new OnnxImageEmbeddingGenerator(
+          settings.ImagesModelPath,
+          _.GetService<ILogger<OnnxImageEmbeddingGenerator>>(),
+          imageOptions),
+        settings.ImageEmbeddingsMaxConcurrency,
+        settings.ImageEmbeddingsQueueCapacity,
+        TimeSpan.FromSeconds(settings.ImageEmbeddingsQueueTimeoutSeconds),
+        imageOptions.MaxBatchSize);
+    });
     
   }
 

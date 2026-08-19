@@ -41,6 +41,20 @@ public sealed class ImageEmbeddingGeneratorOptions
   public int MaxBatchSize { get; set; } = 1;
 
   /// <summary>
+  /// Number of tile columns for the tile grid used by
+  /// <see cref="IImageEmbeddingGenerator.GenerateImageTileEmbeddings"/>. The
+  /// number of rows is derived from the image aspect ratio, so each tile is
+  /// square and covers the image with no gaps. Clamped to a minimum of 1.
+  /// </summary>
+  public int TileColumns { get; set; } = 4;
+
+  /// <summary>
+  /// Overlap between adjacent tiles as a fraction of the tile size
+  /// (0 = none, 0.2 = 20%). Clamped between 0 and 0.9.
+  /// </summary>
+  public float TileOverlap { get; set; } = 0.2f;
+
+  /// <summary>
   /// Execution provider for the vision model: "cpu" (default), "cuda", "dml",
   /// "openvino[:DEVICE]" (e.g. "openvino:GPU"), "coreml" (Apple Silicon, included
   /// in the default package), "rocm" or "migraphx" (AMD, require a custom ONNX

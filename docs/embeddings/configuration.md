@@ -31,7 +31,7 @@ Embedding generation is configured through the `JigenEmbeddings` configuration s
 
 ## `ImageEmbeddingGeneratorOptions`
 
-Options for the image embedding generator (`OnnxImageEmbeddingGenerator`, see [overview](overview.md#image-embeddings)). **Note:** unlike `EmbeddingGeneratorOptions`, these are **library-level** options passed to the generator constructor — the server `JigenEmbeddings` section does not expose the image model yet.
+Options for the image embedding generator (`OnnxImageEmbeddingGenerator`, see [overview](overview.md#image-embeddings)). These are configured in the server through the `JigenEmbeddings:ImageGeneratorOptions` section (they bind directly to this class).
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
@@ -41,6 +41,8 @@ Options for the image embedding generator (`OnnxImageEmbeddingGenerator`, see [o
 | `ImageStd` | float[3] | `[0.26862954, 0.26130258, 0.27577711]` | Per-channel RGB normalization standard deviation (CLIP ImageNet values). |
 | `IntraOpNumThreads` | int | `0` | ONNX Runtime intra-op thread count for a single inference run. `0` (or negative) lets ONNX Runtime pick automatically (all cores). |
 | `MaxBatchSize` | int | `1` | Maximum number of images fused into a single ONNX inference run. `1` disables batching. On CPU the intra-op parallelism already saturates the cores; raise it (8–32) on GPU providers. |
+| `TileColumns` | int | `4` | Number of tile columns for the tile grid used by `GenerateImageTileEmbeddings`. The number of rows is derived from the image aspect ratio, so each tile is square and the grid covers the image with no gaps. |
+| `TileOverlap` | float | `0.2` | Overlap between adjacent tiles as a fraction of the tile size (`0` = none, `0.2` = 20%). Clamped between 0 and 0.9. |
 | `ExecutionProvider` | string | `"cpu"` | ONNX Runtime execution provider. See [execution providers](execution-providers.md) for the full list and build requirements. |
 | `GpuDeviceId` | int | `0` | Device index used by GPU execution providers (`cuda`, `dml`, `rocm`, `migraphx`). |
 
@@ -79,9 +81,19 @@ Model and tokenizer files are expected under `/data/onnx/<model-name>/` in the `
       "search_query",
       "clustering",
       "classification"
-    ]
+    ],
+    "ImagesModelPath": "/data/onnx/nomic-embed-vision-v1.5/model.onnx",
+    "ImageGeneratorOptions": {
+      "InputWidth": 224,
+      "InputHeight": 224,
+      "TileColumns": 4,
+      "TileOverlap": 0.2
+    },
+    "ImageEmbeddingsMaxConcurrency": 2,
+    "ImageEmbeddingsQueueCapacity": 10,
+    "ImageEmbeddingsQueueTimeoutSeconds": 60
   }
 }
 ```
 
-This example is taken from the shipped `jigen-embeddings` worker configuration. Note that `EmbeddingsQueueCapacity` here (`10`) is deliberately lower than the library default (`256`), and `HeadTailHeadTokens` (`4096`) exceeds `MaxTokens` — since chunking is enabled in this example, `HeadTailHeadTokens` is unused (it only applies to the non-chunking truncation path).
+The text part of this example is taken from the shipped `jigen-embeddings` worker configuration. Note that `EmbeddingsQueueCapacity` here (`10`) is deliberately lower than the library default (`256`), and `HeadTailHeadTokens` (`4096`) exceeds `MaxTokens` — since chunking is enabled in this example, `HeadTailHeadTokens` is unused (it only applies to the non-chunking truncation path). The image part is **opt-in**: setting `ImagesModelPath` to an empty string disables image embedding entirely (the server keeps running text-only and image requests fail with a clear configuration error).

@@ -32,6 +32,8 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
   private readonly float[] _mean;
   private readonly float[] _std;
   private readonly int _maxBatchSize;
+  private readonly int _tileColumns;
+  private readonly float _tileOverlap;
 
   private bool _disposed;
 
@@ -61,6 +63,9 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
     _std = options.ImageStd;
 
     _maxBatchSize = Math.Max(options.MaxBatchSize, 1);
+
+    _tileColumns = Math.Max(options.TileColumns, 1);
+    _tileOverlap = Math.Clamp(options.TileOverlap, 0f, 0.9f);
 
     using var sessionOptions = new SessionOptions
     {
@@ -124,6 +129,61 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
         throw new ArgumentException($"Image at index {i} is null or empty.", nameof(images));
     }
 
+    var decoded = new Image<Rgba32>[images.Count];
+    for (var i = 0; i < images.Count; i++)
+      decoded[i] = Image.Load<Rgba32>(images[i]);
+
+    try
+    {
+      return RunInferenceBatch(decoded);
+    }
+    finally
+    {
+      foreach (var image in decoded)
+        image.Dispose();
+    }
+  }
+
+  /// <summary>
+  /// Generates tile embeddings for a single image: the image is split into
+  /// equally sized, overlapping tiles (grid per
+  /// <see cref="ImageEmbeddingGeneratorOptions"/>), each tile is embedded, and
+  /// the whole-image embedding is appended as the last vector.
+  /// </summary>
+  public float[][] GenerateImageTileEmbeddings(byte[] imageBytes)
+  {
+    ArgumentNullException.ThrowIfNull(imageBytes);
+    if (imageBytes.Length == 0)
+      throw new ArgumentException("Image data cannot be empty.", nameof(imageBytes));
+
+    using var image = Image.Load<Rgba32>(imageBytes);
+
+    var tiles = BuildTiles(image);
+    var all = new List<Image<Rgba32>>(tiles.Count + 1);
+    all.AddRange(tiles);
+    all.Add(image); // whole-image embedding, appended last
+
+    try
+    {
+      return RunInferenceBatch(all);
+    }
+    finally
+    {
+      foreach (var tile in tiles)
+        tile.Dispose();
+    }
+  }
+
+  public Task<float[][]> GenerateImageTileEmbeddingsAsync(byte[] imageBytes, CancellationToken cancellationToken = default) =>
+    Task.Run(() => GenerateImageTileEmbeddings(imageBytes), cancellationToken);
+
+  /// <summary>
+  /// Runs one or more decoded images through the model in batches of up to
+  /// <see cref="ImageEmbeddingGeneratorOptions.MaxBatchSize"/>, returning one
+  /// L2-normalized vector per image (same order).
+  /// </summary>
+  private float[][] RunInferenceBatch(IReadOnlyList<Image<Rgba32>> images)
+  {
     var results = new float[images.Count][];
 
     for (var start = 0; start < images.Count; start += _maxBatchSize)
@@ -142,6 +202,68 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
     }
 
     return results;
+  }
+
+  /// <summary>
+  /// Splits <paramref name="image"/> into equally sized square tiles. The tile
+  /// size is derived from <see cref="_tileColumns"/> and the image aspect
+  /// ratio: the tile edge is <c>width / columns</c>, so the grid is exactly
+  /// <c>columns</c> wide and <c>ceil(rows / cols)</c> tall, covering the image
+  /// with no gaps. With <see cref="_tileOverlap"/> &gt; 0 the tile edge is
+  /// reduced so tiles overlap while the grid keeps the same extent.
+  /// </summary>
+  private List<Image<Rgba32>> BuildTiles(Image<Rgba32> image)
+  {
+    var width = image.Width;
+    var height = image.Height;
+
+    // Base tile edge: width / columns (square tiles). With overlap the edge
+    // shrinks so tiles still overlap while the grid covers the whole image.
+    var edge = (float)width / _tileColumns;
+    var tileSize = Math.Max(1, (int)Math.Floor(edge * (1f - _tileOverlap)));
+    var strideX = Math.Max(1, (int)Math.Floor(edge * (1f - _tileOverlap)));
+
+    var positionsX = AxisPositions(width, tileSize, strideX);
+    // Rows derive from the aspect ratio: ceil(width/columns : tile) along the
+    // vertical axis — i.e. the same tile size stepped over the height.
+    var positionsY = AxisPositions(height, tileSize, strideX);
+
+    var tiles = new List<Image<Rgba32>>(positionsX.Count * positionsY.Count);
+    foreach (var y in positionsY)
+    {
+      foreach (var x in positionsX)
+      {
+        tiles.Add(image.Clone(ctx => ctx.Crop(new Rectangle(x, y, tileSize, tileSize))));
+      }
+    }
+
+    _logger?.LogDebug(
+      "Tiled image {Width}x{Height} into {Count} tiles ({Columns}x{Rows}), tile {TileSize}px, overlap {Overlap:P0}",
+      width, height, tiles.Count, positionsX.Count, positionsY.Count, tileSize, _tileOverlap);
+
+    return tiles;
+  }
+
+  /// <summary>
+  /// Positions of tile top-left corners along one axis. The first tile starts
+  /// at 0; the last tile is aligned to the far edge when it would otherwise be
+  /// more than half a stride away from the previous one (a near-duplicate tile
+  /// is skipped).
+  /// </summary>
+  private static List<int> AxisPositions(int length, int tileSize, int stride)
+  {
+    var last = length - tileSize;
+    if (last <= 0)
+      return [0];
+
+    var positions = new List<int>();
+    for (var pos = 0; pos < last; pos += stride)
+      positions.Add(pos);
+
+    if (last - positions[^1] >= stride / 2)
+      positions.Add(last);
+
+    return positions;
   }
 
   public Task<float[]> GenerateImageEmbeddingAsync(string imagePath, CancellationToken cancellationToken = default) =>
@@ -163,22 +285,22 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
   }
 
   /// <summary>
-  /// CLIPImageProcessor-equivalent preprocessing: decode, resize to the target
-  /// size with bicubic resampling (CLIP resizes to exactly size when both
-  /// height and width are given), rescale to [0,1] and normalize per-channel.
-  /// The center crop is a no-op here because the resize already produces the
-  /// crop size.
+  /// CLIPImageProcessor-equivalent preprocessing: resize to the target size with
+  /// bicubic resampling (a no-op when already at the input size), rescale to
+  /// [0,1] and normalize per-channel. The center crop is a no-op because the
+  /// resize already produces the crop size.
   /// </summary>
-  private void Preprocess(byte[] imageBytes, DenseTensor<float> tensor, int batchIndex)
+  private void Preprocess(Image<Rgba32> image, DenseTensor<float> tensor, int batchIndex)
   {
-    using var image = Image.Load<Rgba32>(imageBytes);
-
-    image.Mutate(context => context.Resize(new ResizeOptions
+    if (image.Width != _inputWidth || image.Height != _inputHeight)
     {
-      Size = new Size(_inputWidth, _inputHeight),
-      Mode = ResizeMode.Stretch,
-      Sampler = KnownResamplers.Bicubic
-    }));
+      image.Mutate(context => context.Resize(new ResizeOptions
+      {
+        Size = new Size(_inputWidth, _inputHeight),
+        Mode = ResizeMode.Stretch,
+        Sampler = KnownResamplers.Bicubic
+      }));
+    }
 
     image.ProcessPixelRows(accessor =>
     {
