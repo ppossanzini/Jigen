@@ -245,63 +245,8 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     return Array.Empty<long>();
   }
 
-  private void AppendExecutionProvider(SessionOptions sessionOptions, EmbeddingGeneratorOptions options)
-  {
-    var provider = options.ExecutionProvider?.Trim();
-    if (string.IsNullOrEmpty(provider) || provider.Equals("cpu", StringComparison.OrdinalIgnoreCase))
-      return;
-
-    try
-    {
-      if (provider.Equals("cuda", StringComparison.OrdinalIgnoreCase))
-      {
-        sessionOptions.AppendExecutionProvider_CUDA(options.GpuDeviceId);
-      }
-      else if (provider.Equals("dml", StringComparison.OrdinalIgnoreCase))
-      {
-        sessionOptions.AppendExecutionProvider_DML(options.GpuDeviceId);
-      }
-      else if (provider.StartsWith("openvino", StringComparison.OrdinalIgnoreCase))
-      {
-        var separatorIndex = provider.IndexOf(':');
-        var device = separatorIndex >= 0 ? provider[(separatorIndex + 1)..] : "GPU";
-        sessionOptions.AppendExecutionProvider_OpenVINO(device);
-      }
-      else if (provider.Equals("coreml", StringComparison.OrdinalIgnoreCase))
-      {
-        // MLProgram targets the modern CoreML format; ALL lets CoreML pick
-        // between ANE, GPU and CPU per operator.
-        sessionOptions.AppendExecutionProvider("CoreML", new Dictionary<string, string>
-        {
-          ["ModelFormat"] = "MLProgram",
-          ["MLComputeUnits"] = "ALL"
-        });
-      }
-      else if (provider.Equals("rocm", StringComparison.OrdinalIgnoreCase))
-      {
-        sessionOptions.AppendExecutionProvider_ROCm(options.GpuDeviceId);
-      }
-      else if (provider.Equals("migraphx", StringComparison.OrdinalIgnoreCase))
-      {
-        sessionOptions.AppendExecutionProvider_MIGraphX(options.GpuDeviceId);
-      }
-      else
-      {
-        _logger?.LogWarning("Unknown execution provider '{Provider}'. Using CPU.", provider);
-        return;
-      }
-
-      _logger?.LogInformation("Registered execution provider {Provider} for the embedding model.", provider);
-    }
-    catch (Exception ex)
-    {
-      _logger?.LogWarning(
-        ex,
-        "Failed to register execution provider '{Provider}'. Falling back to CPU. " +
-        "Ensure the process was built with the matching ONNX Runtime native package (JigenOnnxRuntimeFlavor).",
-        provider);
-    }
-  }
+  private void AppendExecutionProvider(SessionOptions sessionOptions, EmbeddingGeneratorOptions options) =>
+    OnnxExecutionProvider.Append(sessionOptions, options.ExecutionProvider, options.GpuDeviceId, _logger);
 
   private static string ResolveTokenizerInputName(InferenceSession tokenizerSession)
   {
