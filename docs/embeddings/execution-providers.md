@@ -1,6 +1,6 @@
 # Execution Providers
 
-The embedding model runs on ONNX Runtime, which supports multiple hardware execution providers (EPs). Jigen selects the provider through `EmbeddingGeneratorOptions.ExecutionProvider` (see [configuration](configuration.md)), and the native ONNX Runtime package linked into the binary must match — selected at build time with the `JigenOnnxRuntimeFlavor` MSBuild property on `Jigen.SemanticTools.csproj`.
+The embedding models run on ONNX Runtime, which supports multiple hardware execution providers (EPs). Both the text engine (`OnnxEmbeddingGenerator`) and the image engine (`OnnxImageEmbeddingGenerator`) select the provider through their respective options (`EmbeddingGeneratorOptions.ExecutionProvider` / `ImageEmbeddingGeneratorOptions.ExecutionProvider`, see [configuration](configuration.md)), via a **shared registration helper** (`OnnxExecutionProvider`) — so the fallback behavior and build requirements below apply identically to both. The native ONNX Runtime package linked into the binary must match — selected at build time with the `JigenOnnxRuntimeFlavor` MSBuild property on `Jigen.SemanticTools.csproj`.
 
 ## Supported providers
 
@@ -27,8 +27,8 @@ This means requesting `cuda`, `dml`, `rocm`, `migraphx`, or `openvino` on a bina
 
 ## Choosing a model and batch size
 
-- `MaxBatchSize`: keep at `1` on CPU (the default); intra-op parallelism already saturates CPU cores, and batching mixed-length inputs pads shorter sequences to the longest one in the batch, wasting compute. Raise it to somewhere in the 8–32 range on GPU providers, where fusing sequences into one inference call amortizes kernel launch and data-transfer overhead.
-- Model precision: prefer the `int8` quantized model on CPU (faster, no measurable ranking degradation in testing) and an `fp16` model on GPU.
+- `MaxBatchSize`: keep at `1` on CPU (the default); intra-op parallelism already saturates CPU cores, and batching mixed-length inputs pads shorter sequences to the longest one in the batch, wasting compute. Raise it to somewhere in the 8–32 range on GPU providers, where fusing sequences into one inference call amortizes kernel launch and data-transfer overhead. For images the padding concern does not apply (fixed-size input), so batching is more useful than for text even on CPU.
+- Model precision: prefer the `int8` quantized model on CPU (faster, no measurable ranking degradation in testing) and an `fp16` model on GPU. The same guidance applies to the vision model (`nomic-embed-vision-v1.5`).
 - `GpuDeviceId` selects the target device index for `cuda`, `dml`, `rocm`, and `migraphx`.
 
-See [configuration](configuration.md) for the full `EmbeddingGeneratorOptions` reference and a production configuration example.
+See [configuration](configuration.md) for the full `EmbeddingGeneratorOptions` and `ImageEmbeddingGeneratorOptions` reference and a production configuration example.

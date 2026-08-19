@@ -29,7 +29,7 @@
 
 ### Embeddings
 
-- [Overview](embeddings/overview.md) — ONNX pipeline, chunking, deployment options
+- [Overview](embeddings/overview.md) — ONNX pipelines for text and image embeddings, chunking, deployment options
 - [Configuration](embeddings/configuration.md) — all generator and service parameters
 - [Execution providers (CPU/GPU)](embeddings/execution-providers.md) — CUDA, DirectML, OpenVINO, CoreML, ROCm
 

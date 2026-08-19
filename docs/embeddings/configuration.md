@@ -29,6 +29,21 @@ Embedding generation is configured through the `JigenEmbeddings` configuration s
 | `ExecutionProvider` | string | `"cpu"` | ONNX Runtime execution provider. See [execution providers](execution-providers.md) for the full list and build requirements. |
 | `GpuDeviceId` | int | `0` | Device index used by GPU execution providers (`cuda`, `dml`, `rocm`, `migraphx`). |
 
+## `ImageEmbeddingGeneratorOptions`
+
+Options for the image embedding generator (`OnnxImageEmbeddingGenerator`, see [overview](overview.md#image-embeddings)). **Note:** unlike `EmbeddingGeneratorOptions`, these are **library-level** options passed to the generator constructor — the server `JigenEmbeddings` section does not expose the image model yet.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `InputWidth` | int | `224` | Target width the input image is resized to before inference. |
+| `InputHeight` | int | `224` | Target height the input image is resized to before inference. |
+| `ImageMean` | float[3] | `[0.48145466, 0.4578275, 0.40821073]` | Per-channel RGB normalization mean (CLIP ImageNet values from `nomic-embed-vision-v1.5`'s `preprocessor_config.json`). |
+| `ImageStd` | float[3] | `[0.26862954, 0.26130258, 0.27577711]` | Per-channel RGB normalization standard deviation (CLIP ImageNet values). |
+| `IntraOpNumThreads` | int | `0` | ONNX Runtime intra-op thread count for a single inference run. `0` (or negative) lets ONNX Runtime pick automatically (all cores). |
+| `MaxBatchSize` | int | `1` | Maximum number of images fused into a single ONNX inference run. `1` disables batching. On CPU the intra-op parallelism already saturates the cores; raise it (8–32) on GPU providers. |
+| `ExecutionProvider` | string | `"cpu"` | ONNX Runtime execution provider. See [execution providers](execution-providers.md) for the full list and build requirements. |
+| `GpuDeviceId` | int | `0` | Device index used by GPU execution providers (`cuda`, `dml`, `rocm`, `migraphx`). |
+
 ## Model files layout
 
 Model and tokenizer files are expected under `/data/onnx/<model-name>/` in the `jigendb-all-in-one` and `jigen-embeddings` Docker images, e.g. for the default model:
