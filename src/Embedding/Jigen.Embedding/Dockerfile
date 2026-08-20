@@ -6,4 +6,4 @@ EXPOSE 13223
 
 RUN mkdir -p /data/onnx
 
-ENTRYPOINT ["dotnet", "Jigen.TextEmbedding.dll"]
+ENTRYPOINT ["dotnet", "Jigen.Embedding.dll"]

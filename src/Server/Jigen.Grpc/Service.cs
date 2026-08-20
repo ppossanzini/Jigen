@@ -50,6 +50,68 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
     return response;
   }
 
+  public override async Task<EmbeddingResponse> CalculateImageEmbedding(ImageEmbeddingRequest request, ServerCallContext context)
+  {
+    if (request.Image.IsEmpty)
+      return new EmbeddingResponse();
+
+    var result = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateImageEmbedding()
+    {
+      ImageBytes = request.Image.ToByteArray()
+    }, context.CancellationToken);
+
+    var response = new EmbeddingResponse();
+    response.Embeddings.AddRange(result);
+    return response;
+  }
+
+  public override async Task<EmbeddingBatchResponse> CalculateImageEmbeddingBatch(ImageEmbeddingBatchRequest request, ServerCallContext context)
+  {
+    var response = new EmbeddingBatchResponse();
+    for (var i = 0; i < request.Images.Count; i++)
+      response.Results.Add(new EmbeddingResponse());
+
+    // Empty inputs would fail the whole batch in the generator: keep an empty
+    // row for them and embed only the meaningful ones, preserving positions.
+    var indexes = new List<int>(request.Images.Count);
+    for (var i = 0; i < request.Images.Count; i++)
+      if (!request.Images[i].IsEmpty)
+        indexes.Add(i);
+
+    if (indexes.Count == 0)
+      return response;
+
+    var vectors = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateImageEmbeddingBatch
+    {
+      Images = indexes.Select(i => request.Images[i].ToByteArray()).ToArray()
+    }, context.CancellationToken);
+
+    for (var i = 0; i < indexes.Count; i++)
+      response.Results[indexes[i]].Embeddings.AddRange(vectors[i]);
+
+    return response;
+  }
+
+  public override async Task<ImageTileEmbeddingsResponse> CalculateImageTileEmbeddings(ImageEmbeddingRequest request, ServerCallContext context)
+  {
+    if (request.Image.IsEmpty)
+      return new ImageTileEmbeddingsResponse();
+
+    var result = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateImageTileEmbeddings()
+    {
+      ImageBytes = request.Image.ToByteArray()
+    }, context.CancellationToken);
+
+    var response = new ImageTileEmbeddingsResponse();
+    foreach (var vector in result)
+    {
+      var tile = new EmbeddingResponse();
+      tile.Embeddings.AddRange(vector);
+      response.Tiles.Add(tile);
+    }
+    return response;
+  }
+
   public override async Task<RawContentResult> GetContent(ItemKey request, ServerCallContext context)
   {
     var result = await mediator.Send(new Core.Query.collections.GetRawContent()

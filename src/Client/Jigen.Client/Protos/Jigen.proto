@@ -30,6 +30,11 @@ service StoreCollectionService {
   rpc CalculateEmbeddings (EmbeddingRequest) returns (EmbeddingResponse);
   rpc CalculateEmbeddingsBatch (EmbeddingBatchRequest) returns (EmbeddingBatchResponse);
 
+  // ── Direct image embedding: raw image bytes in, vision model vector out ──
+  rpc CalculateImageEmbedding (ImageEmbeddingRequest) returns (EmbeddingResponse);
+  rpc CalculateImageEmbeddingBatch (ImageEmbeddingBatchRequest) returns (EmbeddingBatchResponse);
+  rpc CalculateImageTileEmbeddings (ImageEmbeddingRequest) returns (ImageTileEmbeddingsResponse);
+
   // ── Collection metadata ──
   rpc GetCollectionInfo(CollectionKey) returns (CollectionInfoResponse);
   // Full details of all collections in a database (the Collection field of
@@ -203,6 +208,22 @@ message EmbeddingBatchResponse {
   // One entry per input message, same order. An input the model could not
   // embed yields an entry with an empty Embeddings list.
   repeated EmbeddingResponse Results = 1;
+}
+
+// Direct image embedding: raw image bytes in, the vision model's vector out,
+// aligned to the text embedding space so image and text vectors are comparable.
+message ImageEmbeddingRequest {
+  bytes Image = 1;
+}
+
+message ImageEmbeddingBatchRequest {
+  repeated bytes Images = 1;
+}
+
+// One EmbeddingResponse per tile (raster order) plus the whole-image embedding
+// appended as the last entry.
+message ImageTileEmbeddingsResponse {
+  repeated EmbeddingResponse Tiles = 1;
 }
 
 message ListCollectionResult{

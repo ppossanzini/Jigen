@@ -82,6 +82,12 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.ImageEmbeddingRequest> __Marshaller_jigen_ImageEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageEmbeddingRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.ImageEmbeddingBatchRequest> __Marshaller_jigen_ImageEmbeddingBatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageEmbeddingBatchRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.ImageTileEmbeddingsResponse> __Marshaller_jigen_ImageTileEmbeddingsResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageTileEmbeddingsResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.CollectionInfoResponse> __Marshaller_jigen_CollectionInfoResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionInfoResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.CollectionsInfoResponse> __Marshaller_jigen_CollectionsInfoResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionsInfoResponse.Parser));
@@ -231,6 +237,30 @@ namespace Jigen.Proto {
         "CalculateEmbeddingsBatch",
         __Marshaller_jigen_EmbeddingBatchRequest,
         __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse> __Method_CalculateImageEmbedding = new grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateImageEmbedding",
+        __Marshaller_jigen_ImageEmbeddingRequest,
+        __Marshaller_jigen_EmbeddingResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ImageEmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse> __Method_CalculateImageEmbeddingBatch = new grpc::Method<global::Jigen.Proto.ImageEmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateImageEmbeddingBatch",
+        __Marshaller_jigen_ImageEmbeddingBatchRequest,
+        __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.ImageTileEmbeddingsResponse> __Method_CalculateImageTileEmbeddings = new grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.ImageTileEmbeddingsResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateImageTileEmbeddings",
+        __Marshaller_jigen_ImageEmbeddingRequest,
+        __Marshaller_jigen_ImageTileEmbeddingsResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse> __Method_GetCollectionInfo = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse>(
@@ -702,6 +732,94 @@ namespace Jigen.Proto {
       public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingBatchResponse> CalculateEmbeddingsBatchAsync(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncUnaryCall(__Method_CalculateEmbeddingsBatch, null, options, request);
+      }
+      /// <summary>
+      /// ── Direct image embedding: raw image bytes in, vision model vector out ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.EmbeddingResponse CalculateImageEmbedding(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateImageEmbedding(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Direct image embedding: raw image bytes in, vision model vector out ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.EmbeddingResponse CalculateImageEmbedding(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_CalculateImageEmbedding, null, options, request);
+      }
+      /// <summary>
+      /// ── Direct image embedding: raw image bytes in, vision model vector out ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingResponse> CalculateImageEmbeddingAsync(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateImageEmbeddingAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Direct image embedding: raw image bytes in, vision model vector out ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingResponse> CalculateImageEmbeddingAsync(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_CalculateImageEmbedding, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.EmbeddingBatchResponse CalculateImageEmbeddingBatch(global::Jigen.Proto.ImageEmbeddingBatchRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateImageEmbeddingBatch(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.EmbeddingBatchResponse CalculateImageEmbeddingBatch(global::Jigen.Proto.ImageEmbeddingBatchRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_CalculateImageEmbeddingBatch, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingBatchResponse> CalculateImageEmbeddingBatchAsync(global::Jigen.Proto.ImageEmbeddingBatchRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateImageEmbeddingBatchAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingBatchResponse> CalculateImageEmbeddingBatchAsync(global::Jigen.Proto.ImageEmbeddingBatchRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_CalculateImageEmbeddingBatch, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.ImageTileEmbeddingsResponse CalculateImageTileEmbeddings(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateImageTileEmbeddings(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.ImageTileEmbeddingsResponse CalculateImageTileEmbeddings(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_CalculateImageTileEmbeddings, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.ImageTileEmbeddingsResponse> CalculateImageTileEmbeddingsAsync(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateImageTileEmbeddingsAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.ImageTileEmbeddingsResponse> CalculateImageTileEmbeddingsAsync(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_CalculateImageTileEmbeddings, null, options, request);
       }
       /// <summary>
       /// ── Collection metadata ──

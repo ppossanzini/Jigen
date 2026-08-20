@@ -82,6 +82,12 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.ImageEmbeddingRequest> __Marshaller_jigen_ImageEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageEmbeddingRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.ImageEmbeddingBatchRequest> __Marshaller_jigen_ImageEmbeddingBatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageEmbeddingBatchRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.ImageTileEmbeddingsResponse> __Marshaller_jigen_ImageTileEmbeddingsResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageTileEmbeddingsResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.CollectionInfoResponse> __Marshaller_jigen_CollectionInfoResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionInfoResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.CollectionsInfoResponse> __Marshaller_jigen_CollectionsInfoResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CollectionsInfoResponse.Parser));
@@ -231,6 +237,30 @@ namespace Jigen.Proto {
         "CalculateEmbeddingsBatch",
         __Marshaller_jigen_EmbeddingBatchRequest,
         __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse> __Method_CalculateImageEmbedding = new grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateImageEmbedding",
+        __Marshaller_jigen_ImageEmbeddingRequest,
+        __Marshaller_jigen_EmbeddingResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ImageEmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse> __Method_CalculateImageEmbeddingBatch = new grpc::Method<global::Jigen.Proto.ImageEmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateImageEmbeddingBatch",
+        __Marshaller_jigen_ImageEmbeddingBatchRequest,
+        __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.ImageTileEmbeddingsResponse> __Method_CalculateImageTileEmbeddings = new grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.ImageTileEmbeddingsResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateImageTileEmbeddings",
+        __Marshaller_jigen_ImageEmbeddingRequest,
+        __Marshaller_jigen_ImageTileEmbeddingsResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse> __Method_GetCollectionInfo = new grpc::Method<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse>(
@@ -432,6 +462,30 @@ namespace Jigen.Proto {
       }
 
       /// <summary>
+      /// ── Direct image embedding: raw image bytes in, vision model vector out ──
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.EmbeddingResponse> CalculateImageEmbedding(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.EmbeddingBatchResponse> CalculateImageEmbeddingBatch(global::Jigen.Proto.ImageEmbeddingBatchRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.ImageTileEmbeddingsResponse> CalculateImageTileEmbeddings(global::Jigen.Proto.ImageEmbeddingRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      /// <summary>
       /// ── Collection metadata ──
       /// </summary>
       /// <param name="request">The request received from the client.</param>
@@ -545,6 +599,9 @@ namespace Jigen.Proto {
           .AddMethod(__Method_Count, serviceImpl.Count)
           .AddMethod(__Method_CalculateEmbeddings, serviceImpl.CalculateEmbeddings)
           .AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl.CalculateEmbeddingsBatch)
+          .AddMethod(__Method_CalculateImageEmbedding, serviceImpl.CalculateImageEmbedding)
+          .AddMethod(__Method_CalculateImageEmbeddingBatch, serviceImpl.CalculateImageEmbeddingBatch)
+          .AddMethod(__Method_CalculateImageTileEmbeddings, serviceImpl.CalculateImageTileEmbeddings)
           .AddMethod(__Method_GetCollectionInfo, serviceImpl.GetCollectionInfo)
           .AddMethod(__Method_GetCollectionsInfo, serviceImpl.GetCollectionsInfo)
           .AddMethod(__Method_GetCollectionGraph, serviceImpl.GetCollectionGraph)
@@ -579,6 +636,9 @@ namespace Jigen.Proto {
       serviceBinder.AddMethod(__Method_Count, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CountResult>(serviceImpl.Count));
       serviceBinder.AddMethod(__Method_CalculateEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.CalculateEmbeddings));
       serviceBinder.AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse>(serviceImpl.CalculateEmbeddingsBatch));
+      serviceBinder.AddMethod(__Method_CalculateImageEmbedding, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.CalculateImageEmbedding));
+      serviceBinder.AddMethod(__Method_CalculateImageEmbeddingBatch, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ImageEmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse>(serviceImpl.CalculateImageEmbeddingBatch));
+      serviceBinder.AddMethod(__Method_CalculateImageTileEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.ImageTileEmbeddingsResponse>(serviceImpl.CalculateImageTileEmbeddings));
       serviceBinder.AddMethod(__Method_GetCollectionInfo, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionInfoResponse>(serviceImpl.GetCollectionInfo));
       serviceBinder.AddMethod(__Method_GetCollectionsInfo, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CollectionsInfoResponse>(serviceImpl.GetCollectionsInfo));
       serviceBinder.AddMethod(__Method_GetCollectionGraph, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.GetGraphRequest, global::Jigen.Proto.GraphSnapshotResponse>(serviceImpl.GetCollectionGraph));

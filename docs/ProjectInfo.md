@@ -8,6 +8,7 @@
 - ADR-0005 | Superseded | Backend | Fixed selectable windows for Metrics status endpoint | docs/ProjectInfo.md
 - ADR-0006 | Accepted | Backend | Explicit route windows for Metrics status endpoint | docs/ProjectInfo.md
 - ADR-0007 | Accepted | Backend | Embeddings bulkhead with bounded queue and concurrency cap | docs/ProjectInfo.md
+- ADR-0008 | Accepted | Backend | gRPC direct image embedding RPCs | docs/ProjectInfo.md
 
 ## ADR-0001 - Database access control and DB details endpoint baseline
 - Date: 2026-06-18
@@ -127,3 +128,17 @@
   - Request bursts are smoothed by queueing instead of spawning uncontrolled concurrent embedding executions.
   - When queue stays full beyond timeout, requests fail fast with timeout error.
   - Same pattern can be applied to other heavy services by adding equivalent queued decorators.
+
+## ADR-0008 - gRPC direct image embedding RPCs
+- Date: 2026-08-20
+- Status: Accepted
+- Context:
+  - The gRPC StoreCollectionService exposed only text embedding RPCs (CalculateEmbeddings, CalculateEmbeddingsBatch).
+  - Image embedding commands already exist in Jigen.Embedding.Core (CalculateImageEmbedding, CalculateImageEmbeddingBatch, CalculateImageTileEmbeddings) but only over REST.
+- Decision:
+  - Add three gRPC RPCs (CalculateImageEmbedding, CalculateImageEmbeddingBatch, CalculateImageTileEmbeddings) dispatching the existing Hikyaku image-embedding commands.
+  - Reuse EmbeddingResponse/EmbeddingBatchResponse and add ImageEmbeddingRequest, ImageEmbeddingBatchRequest, ImageTileEmbeddingsResponse messages.
+  - Empty image bytes return an empty response instead of failing; batch skips empty images preserving positions.
+- Consequences:
+  - Image and text vectors can be produced through a single gRPC channel for clients already using the store service.
+  - Behavior depends on the vision model being configured (ImagesModelPath), otherwise image RPCs fail with the existing configuration error.

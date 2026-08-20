@@ -20,7 +20,7 @@
   </ItemGroup>
   
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Tools\SharedTools\SharedTools.csproj" />
+    <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj" />
     <ProjectReference Include="..\Jigen.Embedding.Api\Jigen.Embedding.Api.csproj" />
     <ProjectReference Include="..\Jigen.Embedding.Core\Jigen.Embedding.Core.csproj" />
     <ProjectReference Include="..\Jigen.Embedding.Handlers\Jigen.Embedding.Handlers.csproj" />

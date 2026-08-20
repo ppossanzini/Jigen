@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\Embedding\TextEmbedding\Jigen.Embedding.Core\Jigen.Embedding.Core.csproj" />
+    <ProjectReference Include="..\..\Embedding\Jigen.Embedding.Core\Jigen.Embedding.Core.csproj" />
     <ProjectReference Include="..\..\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj"/>
     <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj"/>
     <ProjectReference Include="..\Jigen.Core\Jigen.Core.csproj"/>

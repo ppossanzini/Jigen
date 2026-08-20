@@ -3,7 +3,7 @@ Version="${VARIABLE:-1.1.0}"
 
 dotnet publish src/Server/Jigen/Jigen.csproj -o publish/server
 dotnet publish src/Server/Jigen/Jigen-AllInOne.csproj -o publish/all-in-one-server
-dotnet publish src/Embedding/TextEmbedding/Jigen.TextEmbedding -o publish/embeddings
+dotnet publish src/Embedding/Jigen.Embedding -o publish/embeddings
 
 rm -rf publish/server/wwwroot/*
 rm -rf publish/all-in-one-server/wwwroot/*
@@ -16,6 +16,7 @@ cp -r src/Management/Jigen.Insight/dist/* publish/all-in-one-server/wwwroot
 
 cd publish/server
 podman build . -t ppossanzini/jigendb:latest -t ppossanzini/jigendb:$Version
+
 
 cd ../../publish/all-in-one-server
 podman build . -t ppossanzini/jigendb-all-in-one:latest -t ppossanzini/jigendb-all-in-one:$Version

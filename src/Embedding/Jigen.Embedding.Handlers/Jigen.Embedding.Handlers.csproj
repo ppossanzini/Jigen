@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\..\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj" />
-    <ProjectReference Include="..\..\..\Tools\SharedTools\SharedTools.csproj" />
+    <ProjectReference Include="..\..\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj" />
+    <ProjectReference Include="..\..\Tools\SharedTools\SharedTools.csproj" />
     <ProjectReference Include="..\Jigen.Embedding.Core\Jigen.Embedding.Core.csproj" />
   </ItemGroup>
 
