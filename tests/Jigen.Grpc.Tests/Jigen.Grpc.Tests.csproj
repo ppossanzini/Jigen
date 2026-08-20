@@ -29,7 +29,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Server\Jigen.Grpc\Jigen.Grpc.csproj" />
     <ProjectReference Include="..\..\src\Server\Jigen.Core\Jigen.Core.csproj" />
-    <ProjectReference Include="..\..\src\Embedding\TextEmbedding\Jigen.TextEmbedding.Core\Jigen.TextEmbedding.Core.csproj" />
   </ItemGroup>
 
 </Project>

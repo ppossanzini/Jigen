@@ -440,7 +440,7 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     // Sentence-based search: compute embedding first, then search.
     if (!string.IsNullOrWhiteSpace(request.Sentence))
     {
-      queryEmbeddings = await mediator.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings
+      queryEmbeddings = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddings
       {
         Sentence = request.Sentence
       }, cancellationToken);

@@ -1,6 +1,6 @@
 using Hikyaku;
 
-namespace Jigen.TextEmbedding.Core.Commands;
+namespace Jigen.Embedding.Core.Commands;
 
 /// <summary>
 /// Requests the tile embeddings of a single image: equally sized, overlapping

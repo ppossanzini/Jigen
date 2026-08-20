@@ -1,16 +1,16 @@
 using Hikyaku;
 using Jigen.SemanticTools;
-using Jigen.TextEmbedding.Core.Commands;
+using Jigen.Embedding.Core.Commands;
 using Microsoft.Extensions.Options;
 
-namespace Jigen.TextEmbedding.Handlers;
+namespace Jigen.Embedding.Handlers;
 
 public class CommandHandlers(IEmbeddingGenerator generator, IImageEmbeddingGenerator imageGenerator, IOptions<EmbeddingSettings> settings)
-  : IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings, float[]>,
-    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddingsBatch, float[][]>,
-    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateImageEmbedding, float[]>,
-    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateImageEmbeddingBatch, float[][]>,
-    IRequestHandler<Jigen.TextEmbedding.Core.Commands.CalculateImageTileEmbeddings, float[][]>
+  : IRequestHandler<Embedding.Core.Commands.CalculateEmbeddings, float[]>,
+    IRequestHandler<Embedding.Core.Commands.CalculateEmbeddingsBatch, float[][]>,
+    IRequestHandler<Embedding.Core.Commands.CalculateImageEmbedding, float[]>,
+    IRequestHandler<Embedding.Core.Commands.CalculateImageEmbeddingBatch, float[][]>,
+    IRequestHandler<Embedding.Core.Commands.CalculateImageTileEmbeddings, float[][]>
 {
   public Task<float[]> Handle(CalculateEmbeddings request, CancellationToken cancellationToken)
   {

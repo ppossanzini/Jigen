@@ -20,7 +20,7 @@ public class EmbeddingController(IHikyaku mediator) : ControllerBase
     if (request == null || string.IsNullOrWhiteSpace(request.Message))
       return BadRequest("Message is required");
 
-    var result = await mediator.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings
+    var result = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddings
     {
       Task = request.Task,
       Sentence = request.Message
@@ -49,7 +49,7 @@ public class EmbeddingController(IHikyaku mediator) : ControllerBase
 
     if (indexes.Count > 0)
     {
-      var vectors = await mediator.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddingsBatch
+      var vectors = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddingsBatch
       {
         Task = request.Task,
         Sentences = indexes.Select(i => request.Messages[i]).ToArray()

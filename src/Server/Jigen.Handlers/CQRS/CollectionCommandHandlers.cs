@@ -25,7 +25,7 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     float[] embeddings = request.Embeddings ?? ( request.Sentence != null
-      ? await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence }, cancellationToken)
+      ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence }, cancellationToken)
       : null);
 
     await store.AppendContent(
@@ -43,7 +43,7 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var embeddings = request.Embeddings ?? ( request.Sentence != null
-      ? await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence }, cancellationToken)
+      ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence }, cancellationToken)
       : null);
 
     await store.AppendContent(

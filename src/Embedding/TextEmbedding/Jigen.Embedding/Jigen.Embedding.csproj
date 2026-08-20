@@ -21,9 +21,9 @@
   
   <ItemGroup>
     <ProjectReference Include="..\..\..\Tools\SharedTools\SharedTools.csproj" />
-    <ProjectReference Include="..\Jigen.TextEmbedding.Api\Jigen.TextEmbedding.Api.csproj" />
-    <ProjectReference Include="..\Jigen.TextEmbedding.Core\Jigen.TextEmbedding.Core.csproj" />
-    <ProjectReference Include="..\Jigen.TextEmbedding.Handlers\Jigen.TextEmbedding.Handlers.csproj" />
+    <ProjectReference Include="..\Jigen.Embedding.Api\Jigen.Embedding.Api.csproj" />
+    <ProjectReference Include="..\Jigen.Embedding.Core\Jigen.Embedding.Core.csproj" />
+    <ProjectReference Include="..\Jigen.Embedding.Handlers\Jigen.Embedding.Handlers.csproj" />
   </ItemGroup>
   
   <ItemGroup>

@@ -1,6 +1,6 @@
 using Hikyaku;
 
-namespace Jigen.TextEmbedding.Core.Commands;
+namespace Jigen.Embedding.Core.Commands;
 
 public class CalculateEmbeddings: IRequest<float[]>
 {

@@ -1,6 +1,6 @@
 using Jigen.SemanticTools;
 
-namespace Jigen.TextEmbedding.Handlers;
+namespace Jigen.Embedding.Handlers;
 
 /// <summary>
 /// Placeholder returned when no vision model is configured

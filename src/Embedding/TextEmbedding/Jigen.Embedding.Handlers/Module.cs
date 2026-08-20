@@ -8,7 +8,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using SharedTools;
 
-namespace Jigen.TextEmbedding.Handlers;
+namespace Jigen.Embedding.Handlers;
 
 [Export(typeof(IModule))]
 public class Module: IModule

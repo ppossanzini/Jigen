@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 
-namespace Jigen.TextEmbedding.Api;
+namespace Jigen.Embedding.Api;
 
 [ApiController]
 [Route("~/api/embeddings")]
@@ -27,7 +27,7 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
     if (string.IsNullOrWhiteSpace(text))
       return BadRequest("Text cannot be empty.");
 
-    var result = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = text, Task = task });
+    var result = await hikyaku.Send(new Core.Commands.CalculateEmbeddings() { Sentence = text, Task = task });
 
     if (result.Length == 0)
       return UnprocessableEntity("Unable to generate embeddings. Input may exceed model token limits.");
@@ -45,7 +45,7 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
     if (imageBytes is null || imageBytes.Length == 0)
       return BadRequest("Image data cannot be empty.");
 
-    var result = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateImageEmbedding { ImageBytes = imageBytes });
+    var result = await hikyaku.Send(new Core.Commands.CalculateImageEmbedding { ImageBytes = imageBytes });
 
     if (result.Length == 0)
       return UnprocessableEntity("Unable to generate image embedding.");
@@ -66,7 +66,7 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
     using var stream = new MemoryStream();
     await file.CopyToAsync(stream);
 
-    var result = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateImageEmbedding { ImageBytes = stream.ToArray() });
+    var result = await hikyaku.Send(new Core.Commands.CalculateImageEmbedding { ImageBytes = stream.ToArray() });
 
     if (result.Length == 0)
       return UnprocessableEntity("Unable to generate image embedding.");
@@ -89,7 +89,7 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
         return BadRequest($"Image at index {i} is empty.");
     }
 
-    var result = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateImageEmbeddingBatch { Images = images });
+    var result = await hikyaku.Send(new Core.Commands.CalculateImageEmbeddingBatch { Images = images });
 
     return Ok(result);
   }
@@ -114,7 +114,7 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
       images[i] = stream.ToArray();
     }
 
-    var result = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateImageEmbeddingBatch { Images = images });
+    var result = await hikyaku.Send(new Core.Commands.CalculateImageEmbeddingBatch { Images = images });
 
     return Ok(result);
   }
@@ -129,7 +129,7 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
     if (imageBytes is null || imageBytes.Length == 0)
       return BadRequest("Image data cannot be empty.");
 
-    var result = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateImageTileEmbeddings { ImageBytes = imageBytes });
+    var result = await hikyaku.Send(new Core.Commands.CalculateImageTileEmbeddings { ImageBytes = imageBytes });
 
     if (result.Length == 0)
       return UnprocessableEntity("Unable to generate image embedding.");
@@ -150,7 +150,7 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
     using var stream = new MemoryStream();
     await file.CopyToAsync(stream);
 
-    var result = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateImageTileEmbeddings { ImageBytes = stream.ToArray() });
+    var result = await hikyaku.Send(new Core.Commands.CalculateImageTileEmbeddings { ImageBytes = stream.ToArray() });
 
     if (result.Length == 0)
       return UnprocessableEntity("Unable to generate image embedding.");

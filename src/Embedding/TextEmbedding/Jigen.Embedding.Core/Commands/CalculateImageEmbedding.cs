@@ -1,6 +1,6 @@
 using Hikyaku;
 
-namespace Jigen.TextEmbedding.Core.Commands;
+namespace Jigen.Embedding.Core.Commands;
 
 /// <summary>
 /// Requests the embedding of a single image, computed by the vision model

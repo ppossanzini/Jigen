@@ -12,7 +12,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
 {
   public override async Task<EmbeddingResponse> CalculateEmbeddings(EmbeddingRequest request, ServerCallContext context)
   {
-    var result =  await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings()
+    var result =  await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddings()
     {
       Task = request.Task,
       Sentence = request.Message
@@ -38,7 +38,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
     if (indexes.Count == 0)
       return response;
 
-    var vectors = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddingsBatch
+    var vectors = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddingsBatch
     {
       Task = request.Task,
       Sentences = indexes.Select(i => request.Messages[i]).ToArray()
@@ -163,7 +163,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
 
     float[][] vectors = [];
     if (withSentence.Length > 0)
-      vectors = await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddingsBatch
+      vectors = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddingsBatch
       {
         Sentences = withSentence.Select(d => d.Sentence).ToArray()
       }, cancellationToken);
@@ -212,7 +212,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
     if (string.IsNullOrWhiteSpace(request.Sentence))
       return new SearchVectorResponse();
 
-    var embeddings =  await hikyaku.Send(new Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence });
+    var embeddings =  await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence });
     var filter = ToFilterExpression(request.Filter);
     var result = await mediator.Send(ApplyTuning(new Core.Query.collections.SearchVector
     {
