@@ -83,3 +83,62 @@ The server ships with an identity module that seeds a default administrative use
   }
 }
 ```
+
+## Tuning: from defaults to production
+
+The tables above list every parameter; this section explains how they *interact* and how to move from the shipped defaults to a configuration that fits your workload. The three levers that matter most for search performance are the HNSW knobs `M`, `EfConstruction` and `EfSearch` — see [What is HNSW](../concepts/hnsw.md) for the algorithm, and [HNSW index](../indexes/hnsw.md) for the full reference.
+
+### 1. Understand the phases you are tuning
+
+| Phase | Knobs | Cost of getting it wrong |
+|---|---|---|
+| Ingestion | `LazyHnswThreshold`, `IndexerWorkers`, `EfConstruction` | Slow initial load, CPU saturation during bulk import |
+| Memory footprint | `MemoryLimitMB`, `Sq8Quantization`, `M` | OOM, swapping, or unnecessary disk/memory waste |
+| Search latency | `EfSearch` (per-query too), `M` | Slow queries or poor recall |
+| Recall quality | `EfSearch`, `EfConstruction`, `M`, `ExactRerank` | Results that miss the true nearest neighbors |
+
+Because `EfSearch` is a **query-time** parameter, it can also be overridden per request (the gRPC `SearchTuning.EfSearch`, and the client's per-query tuning) without touching the server configuration — the fastest way to experiment.
+
+### 2. Ingestion: bulk loading vs. steady state
+
+For a one-off bulk import (millions of vectors), graph construction is the bottleneck: every insert runs a search to find its neighbors. Two settings help:
+
+- **`LazyHnswThreshold`** — when the expected final size is known, set it to a value slightly below the expected vector count (e.g. `100000`). Ingestion then writes vectors to the store **without building the graph**, and the graph is built in a single reconciliation pass once the threshold is reached. This maximizes throughput during the load; the trade-off is that searches during the load run a full scan (or the store's fallback), and the final graph build takes time.
+- **`IndexerWorkers`** — during steady-state ingestion, more workers build the graph in parallel. The default (`0` = automatic, CPU/2 clamped to 1–8) is usually right; raising it competes with ONNX inference threads on an all-in-one image (see step 5).
+
+For **steady-state** ingestion (a trickle of new documents), leave `LazyHnswThreshold` at `0` — incremental insertion is exactly what HNSW is designed for.
+
+### 3. Latency vs. recall: where the real trade-off lives
+
+The cheapest lever is `EfSearch` (query-time, no rebuild):
+
+- **Latency-bound** (search-as-you-type, high QPS): lower `EfSearch` (e.g. `30–40`). Recall drops, but queries get faster and cheaper.
+- **Recall-bound** (RAG, retrieval where quality matters): raise `EfSearch` (e.g. `100–200`). The graph is untouched, so this is a zero-cost experiment.
+- **Still not enough recall?** Raise `M` and `EfConstruction` — but this changes the stored graph: existing databases need the index rebuilt (or grow the graph over time as new inserts re-wire connections).
+
+A practical workflow:
+
+1. Start with the defaults (`M: 16`, `EfConstruction: 200`, `EfSearch: 50`).
+2. Measure recall against brute force on a sample (Jigen ships benchmarks for this — see [benchmarks](../benchmarks.md)).
+3. If recall is the problem, raise `EfSearch` first; re-measure.
+4. Only if that is insufficient, raise `M`/`EfConstruction` (accepting rebuild/growth cost).
+5. If latency is the problem, lower `EfSearch`, and only then consider quantization or a smaller `M`.
+
+### 4. Memory: quantization is the biggest lever
+
+- **`Sq8Quantization: true`** shrinks the graph's vector file ~4× (float → int8) and roughly halves memory bandwidth during traversal — often a *faster* config in addition to a smaller one.
+- **`ExactRerank: true`** (the default) recovers the precision lost to quantization by rescoring the final candidates against the store's full-precision embeddings, so the recall impact is small. Disable it only when you accept the recall drop and want the last bit of latency.
+- **`M`** directly sizes the adjacency lists: halving `M` roughly halves the graph's adjacency memory.
+- **`MemoryLimitMB`** is an advisory budget for the whole process — on an all-in-one image it must cover the ONNX models too, not just the graphs.
+
+### 5. Embeddings interplay (all-in-one / worker images)
+
+Embedding inference and graph construction compete for the same CPU. On an all-in-one image:
+
+- The embeddings queue settings (`EmbeddingsMaxConcurrency`, `EmbeddingsQueueCapacity`, `EmbeddingsQueueTimeoutSeconds`, `MaxBatchSize`) bound how many ONNX runs execute at once — see [embeddings configuration](../embeddings/configuration.md).
+- During a large ingestion, both `IndexerWorkers` and embedding workers will be active; if ingestion is ONNX-heavy (server-side `SetDocuments`), prefer keeping `IndexerWorkers` at the automatic default rather than raising it.
+- If ingestion and search must coexist with predictable latency, consider the distributed topology (`Kaido:Enabled`) so embedding work runs on separate worker processes.
+
+### 6. When the defaults are fine
+
+If your collections are small (up to a few hundred thousand vectors) and queries are interactive, the **defaults are already right** — `M: 16`, `EfConstruction: 200`, `EfSearch: 50` with brute force as the fallback and no quantization. The tuning above is for collections large enough that scan cost or graph size actually matters.

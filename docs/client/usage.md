@@ -144,6 +144,27 @@ IEnumerable<float[]> asyncBatch = await context.CalculateEmbeddingsBatchAsync(
 
 The embedding server batches requests internally (up to 64 sentences per model forward pass). Prefer the batch overloads when processing many sentences at once — they reduce round trips and let the server optimise throughput. See [embeddings overview](../embeddings/overview.md) for the supported `task` values and the server-side pipeline.
 
+Image embeddings are available through the same extensions, calling the server's vision model (requires `ImagesModelPath` configured — see [embeddings overview](../embeddings/overview.md#image-embeddings)):
+
+```csharp
+// single image (raw bytes; image and text vectors share the embedding space)
+float[] imageVector = context.CalculateImageEmbedding(File.ReadAllBytes("photo.jpg"));
+float[] imageVector2 = await context.CalculateImageEmbeddingAsync(File.ReadAllBytes("photo.jpg"));
+
+// batch
+IEnumerable<float[]> imageBatch = context.CalculateImageEmbeddingsBatch(
+  new[] { File.ReadAllBytes("a.png"), File.ReadAllBytes("b.png") });
+IEnumerable<float[]> asyncImageBatch = await context.CalculateImageEmbeddingsBatchAsync(
+  new[] { File.ReadAllBytes("a.png"), File.ReadAllBytes("b.png") });
+
+// tiles: overlapping tiles of one image, each embedded separately, plus the
+// whole-image embedding as the last vector (see embeddings overview)
+IEnumerable<float[]> tiles = context.CalculateImageTileEmbeddings(File.ReadAllBytes("photo.jpg"));
+IEnumerable<float[]> asyncTiles = await context.CalculateImageTileEmbeddingsAsync(File.ReadAllBytes("photo.jpg"));
+```
+
+The vectors returned by the image extensions can be stored and searched together with text embeddings in the same collection — see [embeddings overview](../embeddings/overview.md#image-embeddings) for cross-modal search and tiling details.
+
 ## Sharded collections
 
 `ShardedCollection<T>` is a client-side partitioning helper: it creates independent `VectorCollection<T>` instances whose names differ by a shard suffix. The server has no awareness of sharding — each shard is a completely separate collection from the server's perspective.

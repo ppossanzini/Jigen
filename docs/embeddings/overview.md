@@ -163,7 +163,7 @@ Image embedding generation is available wherever the `Jigen.SemanticTools` engin
 | Mode | Description |
 |---|---|
 | In-process / client-side | The `OnnxImageEmbeddingGenerator` is used directly in your application; the resulting vector is handed to Jigen as-is. |
-| Server (embedding worker) | The `jigen-embeddings` worker exposes the image model through `JigenEmbeddings` configuration (`ImagesModelPath`, `ImageGeneratorOptions`, ...). Endpoints: `POST /api/embeddings/calculate-image`, `POST /api/embeddings/calculate-image/batch`, `POST /api/embeddings/calculate-image/tiles` — each accepting JSON (base64) or `multipart/form-data`. Image embedding is **opt-in**: with `ImagesModelPath` empty the server runs text-only and image requests fail with a clear configuration error. |
+| Server (embedding worker) | The `jigen-embeddings` worker exposes the image model through `JigenEmbeddings` configuration (`ImagesModelPath`, `ImageGeneratorOptions`, ...). Endpoints: `POST /api/embeddings/calculate-image`, `POST /api/embeddings/calculate-image/batch`, `POST /api/embeddings/calculate-image/tiles` — each accepting JSON (base64) or `multipart/form-data`. The gRPC store service exposes the same three operations as `CalculateImageEmbedding`, `CalculateImageEmbeddingBatch`, `CalculateImageTileEmbeddings` (raw image bytes in, vectors out — see [gRPC API](../server/grpc-api.md)). Image embedding is **opt-in**: with `ImagesModelPath` empty the server runs text-only and image requests fail with a clear configuration error. |
 
 ### Image model export
 

@@ -15,6 +15,12 @@
 
 ## Contents
 
+### Concepts
+
+- [Vector databases](concepts/vector-database.md) — what they are, how they work, where Jigen fits
+- [ANN](concepts/ann.md) — approximate nearest neighbor search and the recall/latency trade-off
+- [HNSW](concepts/hnsw.md) — the graph algorithm behind Jigen's approximate index, explained
+
 ### In-process engine
 
 - [Overview](in-process/overview.md) — architecture, storage model, durability

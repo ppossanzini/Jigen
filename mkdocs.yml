@@ -24,6 +24,10 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Concepts:
+      - Vector databases: concepts/vector-database.md
+      - ANN: concepts/ann.md
+      - HNSW: concepts/hnsw.md
   - In-process engine:
       - Overview: in-process/overview.md
       - Getting started: in-process/getting-started.md

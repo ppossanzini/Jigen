@@ -25,10 +25,13 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 | `Count` | `CollectionKey` | `CountResult` | Count documents in a collection. |
 | `CalculateEmbeddings` | `EmbeddingRequest` | `EmbeddingResponse` | Compute an embedding for a sentence, optionally with a task prefix. |
 | `CalculateEmbeddingsBatch` | `EmbeddingBatchRequest` | `EmbeddingBatchResponse` | Compute embeddings for many sentences in one call; results keep the input order (blank inputs yield an empty row). |
+| `CalculateImageEmbedding` | `ImageEmbeddingRequest` | `EmbeddingResponse` | Compute the embedding of an image from its raw bytes. Requires `ImagesModelPath` configured (vision model). |
+| `CalculateImageEmbeddingBatch` | `ImageEmbeddingBatchRequest` | `EmbeddingBatchResponse` | Compute embeddings for many images in one call; results keep the input order (empty images yield an empty row). |
+| `CalculateImageTileEmbeddings` | `ImageEmbeddingRequest` | `ImageTileEmbeddingsResponse` | Compute tile embeddings of an image: overlapping tiles each embedded separately, plus the whole-image embedding as the last entry. |
 
 `IngestResult.Accepted` counts the entries accepted into the server's ingestion pipeline; durability follows the server's group-commit policy, exactly like the unary `Set` operations.
 
-`SetDocument`, `SetDocuments` and `SearchDocument` require an embedding module reachable from the server process (in-process on the all-in-one image, or remote over RabbitMQ from a `jigendb` server) — see [embeddings overview](../embeddings/overview.md).
+`SetDocument`, `SetDocuments` and `SearchDocument` require an embedding module reachable from the server process (in-process on the all-in-one image, or remote over RabbitMQ from a `jigendb` server) — see [embeddings overview](../embeddings/overview.md). The image RPCs additionally require the vision model to be configured (`JigenEmbeddings:ImagesModelPath`); without it the server runs text-only and image RPCs fail with a clear configuration error.
 
 ## Proto excerpts
 
@@ -101,6 +104,52 @@ message SearchVectorResponse {
   repeated SearchVectorResult Results = 1;
 }
 ```
+
+## Embedding RPCs
+
+Text embedding messages:
+
+```proto
+message EmbeddingRequest {
+  string Message = 1;
+  string Task = 2;
+}
+
+message EmbeddingResponse {
+  repeated float Embeddings = 1;
+}
+
+message EmbeddingBatchRequest {
+  repeated string Messages = 1;
+  string Task = 2;
+}
+
+message EmbeddingBatchResponse {
+  // One entry per input message, same order. An input the model could not
+  // embed yields an entry with an empty Embeddings list.
+  repeated EmbeddingResponse Results = 1;
+}
+```
+
+Image embedding messages (raw bytes in, the same `EmbeddingResponse` out — the vision model is aligned to the text embedding space, so image and text vectors are directly comparable):
+
+```proto
+message ImageEmbeddingRequest {
+  bytes Image = 1;
+}
+
+message ImageEmbeddingBatchRequest {
+  repeated bytes Images = 1;
+}
+
+// One EmbeddingResponse per tile (raster order) plus the whole-image embedding
+// appended as the last entry.
+message ImageTileEmbeddingsResponse {
+  repeated EmbeddingResponse Tiles = 1;
+}
+```
+
+Image and text embedding vectors can be stored together in a collection and searched cross-modally — see [embeddings overview](../embeddings/overview.md#image-embeddings).
 
 ## Filter AST
 
