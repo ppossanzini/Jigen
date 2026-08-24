@@ -73,9 +73,15 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
 
   public bool IsReadOnly { get; } = false;
 
+  public void Add(VectorEntry<T> value)
+  {
+    store.ServiceClient.SetVector(BuildVector(value));
+  }
+
   public void Add(VectorKey key, VectorEntry<T> value)
   {
-    store.ServiceClient.SetVector(BuildVector(key, value));
+    value.Key = key;
+    Add(value);
   }
 
   public void Add(VectorKey key, T content, string sentence)
@@ -91,9 +97,15 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     });
   }
 
+  public async Task AddAsync(VectorEntry<T> value, CancellationToken cancellationToken = default)
+  {
+    await store.ServiceClient.SetVectorAsync(BuildVector(value), cancellationToken: cancellationToken).ConfigureAwait(false);
+  }
+
   public async Task AddAsync(VectorKey key, VectorEntry<T> value, CancellationToken cancellationToken = default)
   {
-    await store.ServiceClient.SetVectorAsync(BuildVector(key, value), cancellationToken: cancellationToken).ConfigureAwait(false);
+    value.Key = key;
+    await AddAsync(value, cancellationToken);
   }
 
   public async Task AddAsync(VectorKey key, T content, string sentence, CancellationToken cancellationToken = default)
@@ -109,17 +121,17 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     }, cancellationToken);
   }
 
-  private Vector BuildVector(VectorKey key, VectorEntry<T> value)
+  private Vector BuildVector(VectorEntry<T> value)
   {
     ArgumentNullException.ThrowIfNull(value);
-    ArgumentNullException.ThrowIfNull(key.Value);
+    ArgumentNullException.ThrowIfNull(value.Key.Value);
     ArgumentNullException.ThrowIfNull(value.Content);
 
     var vector = new Vector()
     {
       Database = GetDatabaseName(),
       Collection = GetCollectionName(),
-      Key = ByteString.CopyFrom(key.Value),
+      Key = ByteString.CopyFrom(value.Key.Value),
       Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(value.Content).Span),
     };
 
@@ -150,14 +162,25 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   /// whole batch instead of one per entry. Entries carry their own embeddings
   /// (possibly none). Returns the number of entries accepted by the server.
   /// </summary>
+  ///
   public async Task<int> AddRangeAsync(IEnumerable<KeyValuePair<VectorKey, VectorEntry<T>>> entries, CancellationToken cancellationToken = default)
+  {
+    foreach (var e in entries)
+    {
+      e.Value.Key = e.Key;
+    }
+
+    return await AddRangeAsync(entries.Select(i => i.Value), cancellationToken);
+  }
+
+  public async Task<int> AddRangeAsync(IEnumerable<VectorEntry<T>> entries, CancellationToken cancellationToken = default)
   {
     ArgumentNullException.ThrowIfNull(entries);
 
     using var call = store.ServiceClient.SetVectors(cancellationToken: cancellationToken);
 
     foreach (var entry in entries)
-      await call.RequestStream.WriteAsync(BuildVector(entry.Key, entry.Value), cancellationToken).ConfigureAwait(false);
+      await call.RequestStream.WriteAsync(BuildVector(entry), cancellationToken).ConfigureAwait(false);
 
     await call.RequestStream.CompleteAsync().ConfigureAwait(false);
     var result = await call.ResponseAsync.ConfigureAwait(false);
@@ -220,17 +243,20 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     return MapResults(store.ServiceClient.SearchVector(BuildSearchVectorRequest(embeddings, predicate, top, options)));
   }
 
-  public Task<List<VectorSearchResult<T>>> SearchAsync(float[] embeddings, int top = 10, SearchOptions options = null, CancellationToken cancellationToken = default)
+  public Task<List<VectorSearchResult<T>>> SearchAsync(float[] embeddings, int top = 10, SearchOptions options = null,
+    CancellationToken cancellationToken = default)
   {
     return SearchAsync(embeddings, predicate: null, top: top, options: options, cancellationToken: cancellationToken);
   }
 
-  public async Task<List<VectorSearchResult<T>>> SearchAsync(float[] embeddings, Expression<Func<T, bool>> predicate, int top = 10, SearchOptions options = null, CancellationToken cancellationToken = default)
+  public async Task<List<VectorSearchResult<T>>> SearchAsync(float[] embeddings, Expression<Func<T, bool>> predicate, int top = 10,
+    SearchOptions options = null, CancellationToken cancellationToken = default)
   {
     if (embeddings == null || embeddings.Length == 0)
       return [];
 
-    var result = await store.ServiceClient.SearchVectorAsync(BuildSearchVectorRequest(embeddings, predicate, top, options), cancellationToken: cancellationToken).ConfigureAwait(false);
+    var result = await store.ServiceClient
+      .SearchVectorAsync(BuildSearchVectorRequest(embeddings, predicate, top, options), cancellationToken: cancellationToken).ConfigureAwait(false);
     return MapResults(result);
   }
 
@@ -239,7 +265,8 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     return Search(sentence, predicate: null, top: top, options: options);
   }
 
-  public Task<List<VectorSearchResult<T>>> SearchAsync(string sentence, int top = 10, SearchOptions options = null, CancellationToken cancellationToken = default)
+  public Task<List<VectorSearchResult<T>>> SearchAsync(string sentence, int top = 10, SearchOptions options = null,
+    CancellationToken cancellationToken = default)
   {
     return SearchAsync(sentence, predicate: null, top: top, options: options, cancellationToken: cancellationToken);
   }
@@ -252,12 +279,14 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     return MapResults(store.ServiceClient.SearchDocument(BuildSearchDocumentRequest(sentence, predicate, top, options)));
   }
 
-  public async Task<List<VectorSearchResult<T>>> SearchAsync(string sentence, Expression<Func<T, bool>> predicate, int top = 10, SearchOptions options = null, CancellationToken cancellationToken = default)
+  public async Task<List<VectorSearchResult<T>>> SearchAsync(string sentence, Expression<Func<T, bool>> predicate, int top = 10, SearchOptions options = null,
+    CancellationToken cancellationToken = default)
   {
     if (string.IsNullOrWhiteSpace(sentence))
       return [];
 
-    var result = await store.ServiceClient.SearchDocumentAsync(BuildSearchDocumentRequest(sentence, predicate, top, options), cancellationToken: cancellationToken).ConfigureAwait(false);
+    var result = await store.ServiceClient
+      .SearchDocumentAsync(BuildSearchDocumentRequest(sentence, predicate, top, options), cancellationToken: cancellationToken).ConfigureAwait(false);
     return MapResults(result);
   }
 
@@ -411,8 +440,8 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     }, cancellationToken: cancellationToken);
 
     await foreach (var chunk in call.ResponseStream.ReadAllAsync(cancellationToken).ConfigureAwait(false))
-      foreach (var key in chunk.Keys)
-        yield return (VectorKey)key.Span;
+    foreach (var key in chunk.Keys)
+      yield return (VectorKey)key.Span;
   }
 
   public ICollection<VectorEntry<T>> Values =>
