@@ -417,8 +417,9 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 
       for (var row = 0; row < batchSize; row++)
       {
-        rows[row] = new float[hiddenSize];
-        Array.Copy(values, row * hiddenSize, rows[row], 0, hiddenSize);
+        var embedding = new float[hiddenSize];
+        Array.Copy(values, row * hiddenSize, embedding, 0, hiddenSize);
+        rows[row] = LayerNormAndL2Normalize(embedding);
       }
 
       return true;
@@ -462,7 +463,10 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
         for (var i = 0; i < hiddenSize; i++)
           pooled[i] *= divisor;
 
-        rows[row] = pooled;
+        // nomic-embed-text-v1.5's reference post-processing is mean pooling,
+        // feature-wise layer normalization, then L2 normalization. The vision
+        // encoder returns an L2-normalized CLS vector in the same space.
+        rows[row] = LayerNormAndL2Normalize(pooled);
       }
 
       return true;
@@ -531,7 +535,57 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     for (var i = 0; i < dimension; i++)
       pooled[i] = (float)(accumulator[i] / totalWeight);
 
-    return pooled;
+    // Averaging unit chunk vectors no longer produces a unit vector. Apply the
+    // same final contract returned for a single text so every public embedding
+    // can be compared directly with image embeddings using dot product/cosine.
+    return LayerNormAndL2Normalize(pooled);
+  }
+
+  /// <summary>
+  /// Applies the post-processing prescribed by nomic-embed-text-v1.5:
+  /// layer normalization over the embedding dimension followed by L2
+  /// normalization. LayerNorm has no learned affine parameters in the
+  /// reference usage (<c>torch.nn.functional.layer_norm</c>).
+  /// </summary>
+  private static float[] LayerNormAndL2Normalize(float[] vector)
+  {
+    if (vector.Length == 0)
+      return vector;
+
+    var mean = 0d;
+    foreach (var value in vector)
+      mean += value;
+    mean /= vector.Length;
+
+    var variance = 0d;
+    foreach (var value in vector)
+    {
+      var centered = value - mean;
+      variance += centered * centered;
+    }
+    variance /= vector.Length;
+
+    // Matches torch.nn.functional.layer_norm's default epsilon. Although the
+    // following L2 normalization cancels the common scale, retaining this step
+    // documents and reproduces the model's reference pipeline exactly.
+    const double epsilon = 1e-5;
+    var inverseStdDev = 1d / Math.Sqrt(variance + epsilon);
+    var normSquared = 0d;
+
+    for (var i = 0; i < vector.Length; i++)
+    {
+      vector[i] = (float)((vector[i] - mean) * inverseStdDev);
+      normSquared += (double)vector[i] * vector[i];
+    }
+
+    if (normSquared <= 0d)
+      return vector;
+
+    var inverseNorm = 1d / Math.Sqrt(normSquared);
+    for (var i = 0; i < vector.Length; i++)
+      vector[i] = (float)(vector[i] * inverseNorm);
+
+    return vector;
   }
 
 
