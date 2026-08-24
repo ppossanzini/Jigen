@@ -22,7 +22,7 @@ This project was born as a research initiative to understand the inner workings 
   - Core Storage & Persistence: Written entirely from scratch by human developer.
   - HNSW Indexing: Forked from a Microsoft library and heavily optimized/modified to support disk persistence.
   - Server Architecture: Built using a well-known CQRS pattern, written by human. 
-  - This software has been optimized using Fable.  
+  - This software has been optimized using Fable, GPT Sol, DeepSeek Pro.  
   - AI-Generated UI: The frontend was written completely by AI. Since UI code isn't the focus of this project, a functional, AI-built interface was more than enough.
   - Testing & Debugging: Handled entirely by a human.
   - Messaging & IPC (Hikyaku): The communication layer uses Hikyaku, a custom fork of MediatR (v12) developed over several years. It introduces out-of-process capabilities via Kafka and RabbitMQ. (Note: The library was previously named Arbitrer, then Axonflow, and finally rebranded to Hikyaku to avoid naming conflicts on NuGet).
