@@ -38,6 +38,7 @@ export default function Home() {
         </a>
         <nav aria-label="Main navigation">
           <a href="/architecture/">Architecture</a>
+          <a href="/clients/">Clients</a>
           <a href="#quickstart">Quick start</a>
           <a href="/benchmarks/">Benchmarks</a>
         </nav>

@@ -25,6 +25,7 @@ for (const [path, heading] of [
   ["/architecture", "A short path from write"],
   ["/embedded", "Vector search with no service boundary"],
   ["/server", "One vector service"],
+  ["/clients", "One protocol. Native workflows"],
   ["/benchmarks", "Measure the architecture"],
 ]) {
   test(`renders ${path}`, async () => {

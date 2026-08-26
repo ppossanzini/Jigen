@@ -49,4 +49,5 @@ nav:
   - Client:
       - Getting started: client/getting-started.md
       - Usage: client/usage.md
+      - Python client: client/python.md
   - Benchmarks & hardware: benchmarks.md

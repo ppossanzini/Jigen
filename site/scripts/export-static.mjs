@@ -6,7 +6,7 @@ const { default: worker } = await import(workerUrl.href);
 
 const repositoryName = process.env.GITHUB_REPOSITORY?.split("/").pop();
 const basePath = process.env.GITHUB_ACTIONS && repositoryName ? `/${repositoryName}` : "";
-const routes = ["", "architecture", "embedded", "server", "benchmarks"];
+const routes = ["", "architecture", "embedded", "server", "clients", "benchmarks"];
 
 for (const route of routes) {
   const response = await worker.fetch(
@@ -16,7 +16,7 @@ for (const route of routes) {
   );
   if (!response.ok) throw new Error(`Static export failed for /${route} with ${response.status}`);
   const html = (await response.text())
-    .replace(/(["'])\/(?!\/)(?=_next\/|favicon\.svg|architecture\/|embedded\/|server\/|benchmarks\/)/g, `$1${basePath}/`)
+    .replace(/(["'])\/(?!\/)(?=_next\/|favicon\.svg|architecture\/|embedded\/|server\/|clients\/|benchmarks\/)/g, `$1${basePath}/`)
     .replace(/href="\/"/g, `href="${basePath}/"`);
   const target = route
     ? new URL(`../dist/client/${route}/index.html`, import.meta.url)

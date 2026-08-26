@@ -36,6 +36,7 @@ This project was born as a research initiative to understand the inner workings 
 - **Server**: multi-database host with gRPC (port 3223) and REST (port 13223) APIs, per-collection search with content filters, periodic durability checkpoints.
 - **Embeddings**: server-side text embedding generation (ONNX), in-process or scaled out to dedicated worker containers over RabbitMQ; CPU by default, GPU execution providers available.
 - **Typed .NET client** (`Jigen.Client`): dictionary-like collections, LINQ predicates translated to server-side filters.
+- **Python client** (`jigen-client`): sync/async gRPC API, MessagePack-compatible collections, and optional LangChain/LlamaIndex adapters.
 
 ## Installation
 
@@ -50,6 +51,13 @@ dotnet add package Jigen.Indexer.HNSW   # ANN index for the engine
 
 ```bash
 dotnet add package Jigen.Client         # client for the server (net8.0+)
+```
+
+**Python** (client):
+
+```bash
+pip install jigen-client                # core sync/async client
+pip install "jigen-client[langchain]"   # optional LangChain adapter
 ```
 
 **Docker** (server):

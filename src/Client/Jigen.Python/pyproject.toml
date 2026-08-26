@@ -1,0 +1,50 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "jigen-client"
+version = "0.1.0"
+description = "Python client and LLM framework integrations for Jigen DB"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Jigen DB contributors" }]
+keywords = ["vector-database", "grpc", "rag", "llm", "langchain", "llama-index"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Database :: Database Engines/Servers",
+]
+dependencies = [
+  "grpcio>=1.67,<2",
+  "msgpack>=1.0,<2",
+  "protobuf>=7.35.1,<8",
+]
+
+[project.optional-dependencies]
+langchain = ["langchain-core>=0.3,<2"]
+llama-index = ["llama-index-core>=0.12,<1"]
+dev = ["pytest>=8,<9", "pytest-asyncio>=0.24,<2", "ruff>=0.9,<1", "mypy>=1.13,<2"]
+
+[project.urls]
+Homepage = "https://github.com/ppossanzini/Jigen"
+Documentation = "https://github.com/ppossanzini/Jigen/tree/main/src/Client/Jigen.Python"
+Repository = "https://github.com/ppossanzini/Jigen"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/jigen"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+extend-exclude = ["src/jigen/_proto"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

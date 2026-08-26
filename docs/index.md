@@ -51,6 +51,7 @@
 
 - [Getting started](client/getting-started.md) — install, connection options
 - [Usage](client/usage.md) — inserting, searching, filtering
+- [Python client](client/python.md) — sync/async API and LLM framework integrations
 
 ### Reference
 

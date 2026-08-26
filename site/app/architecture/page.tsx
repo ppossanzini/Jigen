@@ -12,7 +12,7 @@ const files = `database/
     └── vectors.dat       # index vector storage`;
 
 export default function ArchitecturePage() {
-  return <DetailShell eyebrow="SYSTEM ARCHITECTURE" index="01 / 04" title="A short path from write to nearest neighbor." intro="Jigen keeps storage, indexing and query execution explicit. The embedded engine is the foundation; the server adds an operational boundary without changing the underlying data model.">
+  return <DetailShell eyebrow="SYSTEM ARCHITECTURE" index="01 / 05" title="A short path from write to nearest neighbor." intro="Jigen keeps storage, indexing and query execution explicit. The embedded engine is the foundation; the server adds an operational boundary without changing the underlying data model.">
     <section className="detailSection wrap">
       <div className="detailHeading"><span>01</span><div><h2>The data path</h2><p>An append reaches durable storage first. Search then chooses the exact or approximate path according to the configured index.</p></div></div>
       <div className="archFlow"><article><b>01</b><strong>Typed content</strong><p>MessagePack payload plus stable vector key.</p></article><i>→</i><article><b>02</b><strong>Append-only store</strong><p>Sequential writes to memory-mapped files.</p></article><i>→</i><article><b>03</b><strong>Indexer</strong><p>Exact scan, lazy switch or persistent HNSW.</p></article><i>→</i><article><b>04</b><strong>Top-k results</strong><p>Scores, content and optional metadata filters.</p></article></div>
