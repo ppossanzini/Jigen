@@ -28,7 +28,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Calibration\Jigen.Calibration.csproj" />
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Indexer.HNSW\Jigen.Indexer.HNSW.csproj" />
     <ProjectReference Include="..\..\src\Jigen\Jigen.SemanticTools\Jigen.SemanticTools.csproj" />
+    <ProjectReference Include="..\..\src\Jigen\Jigen.Store\Jigen.Store.csproj" />
   </ItemGroup>
 
   <ItemGroup>

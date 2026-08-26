@@ -59,6 +59,8 @@ Both synchronous and asynchronous overloads are available, with and without an e
 
 `nomic-embed-vision-v1.5` is a ViT (patch 16, 224×224, 768-dim output, ~93M params) trained to project images into the embedding space of `nomic-embed-text-v1.5` — the text encoder is kept frozen during alignment (LiT-style), which is why the two models are directly comparable. This makes image and text vectors interoperable: an image and a sentence that describe the same thing land close together, so a text query can find images and an image query can find texts in the same Jigen collection.
 
+> **Scores vs vectors.** Sharing a space means the *vectors* can be compared — but the raw *scores* of the two modalities live on different scales (the "modality gap"): image↔text cosines are ~16× lower than text↔text ones, so in a mixed collection the texts dominate the ranking. See [Cross-modal search: comparability, modality gap and calibration](cross-modal.md) for why this happens and how `Jigen.Calibration` fixes it (gap correction at index time, z-score calibration at query time).
+
 > **Why this model and not CLIP/SigLIP?** CLIP, SigLIP, Jina CLIP, etc. produce vectors in *different* embedding spaces: even at the same dimensionality, cosine similarity between a CLIP vector and a nomic vector is meaningless. If your text side stays on `nomic-embed-text-v1.5`, `nomic-embed-vision-v1.5` is the only model trained to share its space. The only way to use a different vision model is to change the text model too (to a unified multimodal family such as Jina CLIP v2 or SigLIP), which requires re-embedding existing data.
 
 ### Pipeline

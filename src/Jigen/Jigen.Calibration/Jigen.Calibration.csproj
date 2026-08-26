@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Shared by the .NET client (net8.0) and the server-side tools (net10.0):
+         the cross-modal calibrators are pure math with zero external deps. -->
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Jigen.Calibration</RootNamespace>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\assets\jigen.snk</AssemblyOriginatorKeyFile>
+    <PackageIcon>logo_128.png</PackageIcon>
+    <Description>Cross-modal score/vector calibration for Jigen (modality gap correction and z-score ranking calibration)</Description>
+    <Authors>Paolo Possanzini</Authors>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/ppossanzini/Jigen</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/ppossanzini/Jigen</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\assets\jigen.snk">
+      <Link>jigen.snk</Link>
+    </None>
+    <Content Include="..\assets\logo_128.png">
+      <Pack>True</Pack>
+      <PackagePath></PackagePath>
+      <Link>logo_128.png</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+</Project>

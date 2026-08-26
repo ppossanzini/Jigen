@@ -39,6 +39,10 @@
   </ItemGroup>
   
   <ItemGroup>
+    <ProjectReference Include="..\..\Jigen\Jigen.Calibration\Jigen.Calibration.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include="Generated\"/>
   </ItemGroup>
   

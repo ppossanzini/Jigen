@@ -12,6 +12,6 @@ It provides:
 - MessagePack compatibility with the .NET client;
 - optional LangChain and LlamaIndex vector-store adapters.
 
-See the [package README](../../src/Client/Jigen.Python/README.md) for complete
+See the [package README](https://github.com/ppossanzini/Jigen/blob/main/src/Client/Jigen.Python/README.md) for complete
 installation and usage examples.
 

@@ -40,6 +40,7 @@ nav:
       - Overview: embeddings/overview.md
       - Configuration: embeddings/configuration.md
       - Execution providers (CPU/GPU): embeddings/execution-providers.md
+      - Cross-modal search (gap & z-score): embeddings/cross-modal.md
   - Server:
       - Overview: server/overview.md
       - Configuration: server/configuration.md
@@ -51,3 +52,4 @@ nav:
       - Usage: client/usage.md
       - Python client: client/python.md
   - Benchmarks & hardware: benchmarks.md
+  - Project decisions (ADR log): ProjectInfo.md
