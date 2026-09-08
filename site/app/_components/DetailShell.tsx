@@ -18,6 +18,7 @@ export function DetailShell({ eyebrow, title, intro, index, children }: DetailSh
           <a href="/architecture/">Architecture</a>
           <a href="/embedded/">Embedded</a>
           <a href="/server/">Server</a>
+          <a href="/embeddings/">Embeddings</a>
           <a href="/clients/">Clients</a>
           <a href="/benchmarks/">Benchmarks</a>
         </nav>
@@ -30,7 +31,7 @@ export function DetailShell({ eyebrow, title, intro, index, children }: DetailSh
       {children}
       <section className="detailNext wrap">
         <div><span>KEEP EXPLORING</span><h2>Choose the next layer.</h2></div>
-        <nav><a href="/architecture/">Architecture <b>→</b></a><a href="/embedded/">Embedded engine <b>→</b></a><a href="/server/">Server topology <b>→</b></a><a href="/clients/">Clients & integrations <b>→</b></a><a href="/benchmarks/">Benchmarks <b>→</b></a></nav>
+        <nav><a href="/architecture/">Architecture <b>→</b></a><a href="/embedded/">Embedded engine <b>→</b></a><a href="/server/">Server topology <b>→</b></a><a href="/embeddings/">Multi-model embeddings <b>→</b></a><a href="/clients/">Clients & integrations <b>→</b></a><a href="/benchmarks/">Benchmarks <b>→</b></a></nav>
       </section>
       <footer className="footer wrap"><div className="brand"><span className="brandMark">J</span><span>JIGEN <b>DB</b></span></div><p>A native vector database for the .NET ecosystem.</p><div><Link href="/">Home</Link><a href="https://github.com/ppossanzini/Jigen/tree/main/docs">Docs</a><a href="https://github.com/ppossanzini/Jigen">GitHub</a></div></footer>
     </main>

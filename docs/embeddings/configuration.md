@@ -4,6 +4,10 @@ Embedding generation is configured through the `JigenEmbeddings` configuration s
 
 ## Multiple text models
 
+For the complete indexing, query fan-out, score calibration, and LINQ
+deduplication workflow, see [multi-model embeddings and federated
+search](multi-model.md).
+
 The legacy single-model keys remain supported. To expose independent vector
 spaces, configure named entries under `Models` and select one with `Model` in
 the single/batch API or several with `POST /api/embeddings/multi`:

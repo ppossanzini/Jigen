@@ -39,6 +39,7 @@ nav:
   - Embeddings:
       - Overview: embeddings/overview.md
       - Configuration: embeddings/configuration.md
+      - Multi-model retrieval: embeddings/multi-model.md
       - Execution providers (CPU/GPU): embeddings/execution-providers.md
       - Cross-modal search (gap & z-score): embeddings/cross-modal.md
   - Server:

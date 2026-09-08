@@ -39,6 +39,7 @@ export default function Home() {
         <nav aria-label="Main navigation">
           <a href="/architecture/">Architecture</a>
           <a href="/clients/">Clients</a>
+          <a href="/embeddings/">Embeddings</a>
           <a href="#quickstart">Quick start</a>
           <a href="/benchmarks/">Benchmarks</a>
         </nav>
@@ -115,6 +116,26 @@ export default function Home() {
             <article><b>3</b><span className="stepIcon">⌘</span><h3>Persistence</h3><p>Append-only, memory-mapped storage with crash recovery.</p></article>
             <article><b>4</b><span className="stepIcon">◎</span><h3>Index</h3><p>Exact brute force or persistent HNSW with SQ8 quantization.</p></article>
             <article><b>5</b><span className="stepIcon">↗</span><h3>Results</h3><p>Top-k, similarity scores, metadata filters and exact reranking.</p></article>
+          </div>
+        </div>
+      </section>
+
+      <section className="embeddingFeature">
+        <div className="wrap embeddingFeatureGrid">
+          <div>
+            <div className="eyebrow lightEye"><span /> MULTI-MODEL EMBEDDINGS</div>
+            <h2>One query.<br/>Several semantic spaces.</h2>
+            <p>Run named Nomic, Qwen3 and SigLIP2 encoders side by side. Jigen fans the text out to each model while every vector space—and the store behind it—stays independent.</p>
+            <a className="button inverse" href="/embeddings/">Explore multi-model retrieval <span>→</span></a>
+          </div>
+          <div className="spaceMap" aria-label="A query embedded and searched in three independent vector spaces">
+            <div className="spaceQuery"><small>QUERY</small><strong>“red bicycle”</strong></div>
+            {[
+              ["QWEN3", "TEXT · 1024D", "z +1.82"],
+              ["SIGLIP2", "TEXT / IMAGE", "z +1.47"],
+              ["NOMIC", "TEXT / IMAGE", "z +1.21"],
+            ].map(([model, kind, score]) => <article key={model}><i>→</i><div><small>{kind}</small><strong>{model}</strong><span>{score}</span></div></article>)}
+            <div className="spaceMerge"><small>POST SEARCH</small><strong>Z-SCORE MERGE</strong><span>group + distinct with LINQ</span></div>
           </div>
         </div>
       </section>
