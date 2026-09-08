@@ -17,7 +17,7 @@ public class EmbeddingControllerTests
   {
     var expected = new float[] { 0.1f, 0.2f, 0.3f };
     _mediatorMock.Setup(m => m.Send(
-      It.Is<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings>(c => c.Sentence == "hello"),
+      It.Is<Jigen.Embedding.Core.Commands.CalculateEmbeddings>(c => c.Sentence == "hello"),
       It.IsAny<CancellationToken>()))
       .ReturnsAsync(expected);
 
@@ -50,7 +50,7 @@ public class EmbeddingControllerTests
   {
     const string task = "search_document";
     _mediatorMock.Setup(m => m.Send(
-      It.Is<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings>(c => c.Task == task),
+      It.Is<Jigen.Embedding.Core.Commands.CalculateEmbeddings>(c => c.Task == task),
       It.IsAny<CancellationToken>()))
       .ReturnsAsync([0.5f]);
 
@@ -58,8 +58,59 @@ public class EmbeddingControllerTests
       new CalculateEmbeddingsRequest { Message = "test", Task = task }, CancellationToken.None);
 
     _mediatorMock.Verify(m => m.Send(
-      It.Is<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddings>(c => c.Task == task),
+      It.Is<Jigen.Embedding.Core.Commands.CalculateEmbeddings>(c => c.Task == task),
       It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task CalculateEmbeddings_PassesModelParameter()
+  {
+    const string model = "qwen3";
+    _mediatorMock.Setup(m => m.Send(
+      It.Is<Jigen.Embedding.Core.Commands.CalculateEmbeddings>(c => c.Model == model),
+      It.IsAny<CancellationToken>()))
+      .ReturnsAsync([0.5f]);
+
+    await CreateController().CalculateEmbeddings(
+      new CalculateEmbeddingsRequest { Message = "test", Model = model }, CancellationToken.None);
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Jigen.Embedding.Core.Commands.CalculateEmbeddings>(c => c.Model == model),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task CalculateEmbeddingsMulti_ReturnsOneVectorPerModel()
+  {
+    var expected = new Dictionary<string, float[]>
+    {
+      ["qwen3"] = [1f, 0f],
+      ["siglip2"] = [0f, 1f]
+    };
+    _mediatorMock.Setup(m => m.Send(
+      It.Is<Jigen.Embedding.Core.Commands.CalculateEmbeddingsMulti>(c =>
+        c.Sentence == "query" && c.Models.SequenceEqual(new[] { "qwen3", "siglip2" })),
+      It.IsAny<CancellationToken>()))
+      .ReturnsAsync(expected);
+
+    var result = await CreateController().CalculateEmbeddingsMulti(
+      new CalculateEmbeddingsMultiRequest
+      {
+        Message = "query",
+        Models = ["qwen3", "siglip2"]
+      }, CancellationToken.None);
+
+    var okResult = Assert.IsType<OkObjectResult>(result);
+    Assert.Same(expected, okResult.Value);
+  }
+
+  [Fact]
+  public async Task CalculateEmbeddingsMulti_ReturnsBadRequest_WhenModelsAreEmpty()
+  {
+    var result = await CreateController().CalculateEmbeddingsMulti(
+      new CalculateEmbeddingsMultiRequest { Message = "query", Models = [] }, CancellationToken.None);
+
+    Assert.IsType<BadRequestObjectResult>(result);
   }
 
   // ── CalculateEmbeddingsBatch ──
@@ -70,7 +121,7 @@ public class EmbeddingControllerTests
     var inputs = new[] { "hello", "world" };
     var vectors = new[] { new float[] { 1f, 2f }, new float[] { 3f, 4f } };
     _mediatorMock.Setup(m => m.Send(
-      It.IsAny<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddingsBatch>(),
+      It.IsAny<Jigen.Embedding.Core.Commands.CalculateEmbeddingsBatch>(),
       It.IsAny<CancellationToken>()))
       .ReturnsAsync(vectors);
 
@@ -90,7 +141,7 @@ public class EmbeddingControllerTests
     var inputs = new[] { "valid", "", "also" };
     var vectors = new[] { new float[] { 1f }, new float[] { 3f } };
     _mediatorMock.Setup(m => m.Send(
-      It.IsAny<Jigen.TextEmbedding.Core.Commands.CalculateEmbeddingsBatch>(),
+      It.IsAny<Jigen.Embedding.Core.Commands.CalculateEmbeddingsBatch>(),
       It.IsAny<CancellationToken>()))
       .ReturnsAsync(vectors);
 

@@ -22,10 +22,32 @@ public class EmbeddingController(IHikyaku mediator) : ControllerBase
 
     var result = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddings
     {
+      Model = request.Model,
       Task = request.Task,
       Sentence = request.Message
     }, cancellationToken);
 
+    return Ok(result);
+  }
+
+  /// <summary>Compute the same text in multiple configured embedding spaces.</summary>
+  [HttpPost("multi")]
+  [ProducesResponseType(typeof(Dictionary<string, float[]>), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> CalculateEmbeddingsMulti([FromBody] CalculateEmbeddingsMultiRequest request,
+    CancellationToken cancellationToken)
+  {
+    if (request == null || string.IsNullOrWhiteSpace(request.Message))
+      return BadRequest("Message is required");
+    if (request.Models == null || request.Models.Length == 0 || request.Models.Any(string.IsNullOrWhiteSpace))
+      return BadRequest("At least one valid model is required");
+
+    var result = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddingsMulti
+    {
+      Sentence = request.Message,
+      Task = request.Task,
+      Models = request.Models
+    }, cancellationToken);
     return Ok(result);
   }
 
@@ -51,6 +73,7 @@ public class EmbeddingController(IHikyaku mediator) : ControllerBase
     {
       var vectors = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddingsBatch
       {
+        Model = request.Model,
         Task = request.Task,
         Sentences = indexes.Select(i => request.Messages[i]).ToArray()
       }, cancellationToken);
@@ -70,13 +93,22 @@ public class EmbeddingController(IHikyaku mediator) : ControllerBase
 public class CalculateEmbeddingsRequest
 {
   public string Message { get; set; }
+  public string Model { get; set; }
   public string Task { get; set; }
 }
 
 public class CalculateEmbeddingsBatchRequest
 {
   public string[] Messages { get; set; }
+  public string Model { get; set; }
   public string Task { get; set; }
+}
+
+public class CalculateEmbeddingsMultiRequest
+{
+  public string Message { get; set; }
+  public string Task { get; set; }
+  public string[] Models { get; set; }
 }
 
 public class EmbeddingBatchResult

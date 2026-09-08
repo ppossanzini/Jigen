@@ -32,6 +32,7 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
   private readonly int _maxBatchSize;
   private readonly int _tileColumns;
   private readonly float _tileOverlap;
+  private readonly EmbeddingModelProfile _profile;
 
   private bool _disposed;
 
@@ -49,6 +50,7 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
 
     _logger = logger;
     options ??= new ImageEmbeddingGeneratorOptions();
+    _profile = options.Profile;
 
     _inputWidth = Math.Max(options.InputWidth, 16);
     _inputHeight = Math.Max(options.InputHeight, 16);
@@ -342,8 +344,24 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
     }
   }
 
-  private static float[][] ExtractEmbeddingVectors(IReadOnlyList<DisposableNamedOnnxValue> results, int batchSize)
+  private float[][] ExtractEmbeddingVectors(IReadOnlyList<DisposableNamedOnnxValue> results, int batchSize)
   {
+    if (_profile == EmbeddingModelProfile.SigLip2)
+    {
+      foreach (var preferredName in new[] { "image_embeds", "image_features", "pooler_output" })
+      {
+        foreach (var result in results)
+        {
+          if (string.Equals(result.Name, preferredName, StringComparison.OrdinalIgnoreCase) &&
+              TryExtractPooledRows(result, batchSize, out var projected))
+            return projected;
+        }
+      }
+
+      throw new InvalidOperationException(
+        "SigLIP2 ONNX model must expose a projected rank-2 output named image_embeds, image_features or pooler_output.");
+    }
+
     // Preferred output: last_hidden_state [B, seq, hidden] — take the CLS token
     // (index 0), matching the reference usage F.normalize(img_emb[:, 0]).
     foreach (var result in results)

@@ -25,6 +25,9 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   private readonly int _chunkOverlap;
   private readonly int _headTokens;
   private readonly int _maxBatchSize;
+  private readonly EmbeddingModelProfile _profile;
+  private readonly int _outputDimension;
+  private readonly long _paddingTokenId;
 
   /// <summary>
   /// Initializes a new instance of the OnnxEmbeddingGenerator class.
@@ -81,6 +84,11 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     _chunkOverlap = Math.Clamp(options.ChunkOverlap, 0, _chunkSize - 1);
     _headTokens = Math.Clamp(options.HeadTailHeadTokens, 1, _maxTokens - 1);
     _maxBatchSize = Math.Max(options.MaxBatchSize, 1);
+    _profile = options.Profile;
+    _outputDimension = Math.Max(options.OutputDimension, 0);
+    _paddingTokenId = options.PaddingTokenId;
+    if (_profile == EmbeddingModelProfile.Qwen3 && _outputDimension is > 0 and < 32)
+      throw new ArgumentOutOfRangeException(nameof(options), "Qwen3 OutputDimension must be zero or at least 32.");
   }
 
   /// <summary>
@@ -136,9 +144,12 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       }
       else if (!_useChunking)
       {
-        var truncated = TruncateHeadTail(tokenIds);
+        var truncated = _profile is EmbeddingModelProfile.Qwen3 or EmbeddingModelProfile.SigLip2
+          ? tokenIds.Take(_maxTokens).ToArray()
+          : TruncateHeadTail(tokenIds);
         _logger?.LogInformation(
-          "Input tokens exceed max tokens. Using head-tail truncation: original={OriginalTokens}, truncated={TruncatedTokens}",
+          "Input tokens exceed max tokens. Truncating for profile {Profile}: original={OriginalTokens}, truncated={TruncatedTokens}",
+          _profile,
           tokenIds.Length,
           truncated.Length);
         sequences.Add((i, truncated));
@@ -200,6 +211,9 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 
   private long[] TokenizeToInputIds(string text)
   {
+    if (_profile == EmbeddingModelProfile.SigLip2)
+      text = text.ToLowerInvariant();
+
     if (_jsonTokenizer != null)
     {
       var ids = _jsonTokenizer.EncodeToIds(text, true, true);
@@ -316,17 +330,22 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     foreach (var tokens in sequences)
       maxLength = Math.Max(maxLength, tokens.Length);
 
-    // Padding a destra con id 0; l'attention mask esclude il padding dal calcolo.
+    if (_profile == EmbeddingModelProfile.SigLip2)
+      maxLength = _maxTokens;
+
     var inputIdsTensor = new DenseTensor<long>([batchSize, maxLength]);
     var attentionMaskTensor = new DenseTensor<long>([batchSize, maxLength]);
+    if (_paddingTokenId != 0)
+      inputIdsTensor.Fill(_paddingTokenId);
 
     for (var row = 0; row < batchSize; row++)
     {
       var tokens = sequences[row];
+      var offset = _profile == EmbeddingModelProfile.Qwen3 ? maxLength - tokens.Length : 0;
       for (var col = 0; col < tokens.Length; col++)
       {
-        inputIdsTensor[row, col] = tokens[col];
-        attentionMaskTensor[row, col] = 1;
+        inputIdsTensor[row, offset + col] = tokens[col];
+        attentionMaskTensor[row, offset + col] = 1;
       }
     }
 
@@ -356,25 +375,41 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   {
     var batchSize = tokenCounts.Length;
 
-    foreach (var result in results)
+    var preferredNames = _profile switch
     {
-      if (!string.Equals(result.Name, "sentence_embedding", StringComparison.OrdinalIgnoreCase))
-        continue;
+      EmbeddingModelProfile.SigLip2 => new[] { "text_embeds", "text_features", "pooler_output", "sentence_embedding" },
+      EmbeddingModelProfile.Qwen3 => new[] { "sentence_embedding", "embeddings" },
+      _ => new[] { "sentence_embedding" }
+    };
 
-      if (TryExtractRank2Rows(result, batchSize, out var sentenceEmbeddings))
-        return sentenceEmbeddings;
+    foreach (var preferredName in preferredNames)
+    {
+      foreach (var result in results)
+      {
+        if (!string.Equals(result.Name, preferredName, StringComparison.OrdinalIgnoreCase))
+          continue;
+        if (TryExtractRank2Rows(result, batchSize, out var sentenceEmbeddings))
+          return sentenceEmbeddings;
+      }
+    }
+
+    if (_profile == EmbeddingModelProfile.SigLip2)
+      throw new InvalidOperationException(
+        "SigLIP2 ONNX model must expose a projected rank-2 output named text_embeds, text_features, pooler_output or sentence_embedding.");
+
+    if (_profile is EmbeddingModelProfile.Nomic or EmbeddingModelProfile.Custom)
+    {
+      foreach (var result in results)
+      {
+        if (TryExtractRank2Rows(result, batchSize, out var pooled))
+          return pooled;
+      }
     }
 
     foreach (var result in results)
     {
-      if (TryExtractRank2Rows(result, batchSize, out var pooled))
-        return pooled;
-    }
-
-    foreach (var result in results)
-    {
-      if (TryExtractRank3MeanPooledRows(result, tokenCounts, out var meanPooled))
-        return meanPooled;
+      if (TryExtractRank3Rows(result, tokenCounts, out var extracted))
+        return extracted;
     }
 
     // Last-resort fallback (unknown output layout): only safe without batching,
@@ -385,7 +420,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       {
         try
         {
-          return [result.AsTensor<float>().ToArray()];
+          return [FinalizeEmbedding(result.AsTensor<float>().ToArray())];
         }
         catch
         {
@@ -400,7 +435,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     return empty;
   }
 
-  private static bool TryExtractRank2Rows(DisposableNamedOnnxValue output, int batchSize, out float[][] rows)
+  private bool TryExtractRank2Rows(DisposableNamedOnnxValue output, int batchSize, out float[][] rows)
   {
     rows = null;
 
@@ -419,7 +454,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       {
         var embedding = new float[hiddenSize];
         Array.Copy(values, row * hiddenSize, embedding, 0, hiddenSize);
-        rows[row] = LayerNormAndL2Normalize(embedding);
+        rows[row] = FinalizeEmbedding(embedding);
       }
 
       return true;
@@ -430,7 +465,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     }
   }
 
-  private static bool TryExtractRank3MeanPooledRows(DisposableNamedOnnxValue output, int[] tokenCounts, out float[][] rows)
+  private bool TryExtractRank3Rows(DisposableNamedOnnxValue output, int[] tokenCounts, out float[][] rows)
   {
     rows = null;
 
@@ -452,6 +487,16 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
         var baseOffset = row * sequenceLength * hiddenSize;
         var pooled = new float[hiddenSize];
 
+        if (_profile is EmbeddingModelProfile.Qwen3 or EmbeddingModelProfile.SigLip2)
+        {
+          var tokenIndex = _profile == EmbeddingModelProfile.Qwen3
+            ? sequenceLength - 1
+            : effectiveTokens - 1;
+          Array.Copy(values, baseOffset + tokenIndex * hiddenSize, pooled, 0, hiddenSize);
+          rows[row] = FinalizeEmbedding(pooled);
+          continue;
+        }
+
         for (var token = 0; token < effectiveTokens; token++)
         {
           var offset = baseOffset + token * hiddenSize;
@@ -466,7 +511,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
         // nomic-embed-text-v1.5's reference post-processing is mean pooling,
         // feature-wise layer normalization, then L2 normalization. The vision
         // encoder returns an L2-normalized CLS vector in the same space.
-        rows[row] = LayerNormAndL2Normalize(pooled);
+        rows[row] = FinalizeEmbedding(pooled);
       }
 
       return true;
@@ -511,7 +556,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     return chunks;
   }
 
-  private static float[] WeightedAverage(List<(float[] Vector, int Weight)> vectors)
+  private float[] WeightedAverage(List<(float[] Vector, int Weight)> vectors)
   {
     var dimension = vectors[0].Vector.Length;
     var accumulator = new double[dimension];
@@ -538,7 +583,34 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     // Averaging unit chunk vectors no longer produces a unit vector. Apply the
     // same final contract returned for a single text so every public embedding
     // can be compared directly with image embeddings using dot product/cosine.
-    return LayerNormAndL2Normalize(pooled);
+    return FinalizeEmbedding(pooled);
+  }
+
+  private float[] FinalizeEmbedding(float[] vector)
+  {
+    if (_outputDimension > vector.Length)
+      throw new InvalidOperationException(
+        $"Configured OutputDimension {_outputDimension} exceeds model output dimension {vector.Length}.");
+    if (_outputDimension > 0 && _outputDimension < vector.Length)
+      vector = vector.Take(_outputDimension).ToArray();
+
+    return _profile == EmbeddingModelProfile.Nomic
+      ? LayerNormAndL2Normalize(vector)
+      : L2Normalize(vector);
+  }
+
+  private static float[] L2Normalize(float[] vector)
+  {
+    var normSquared = 0d;
+    foreach (var value in vector)
+      normSquared += (double)value * value;
+    if (normSquared <= 0d)
+      return vector;
+
+    var inverseNorm = 1d / Math.Sqrt(normSquared);
+    for (var i = 0; i < vector.Length; i++)
+      vector[i] = (float)(vector[i] * inverseNorm);
+    return vector;
   }
 
   /// <summary>

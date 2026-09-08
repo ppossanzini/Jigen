@@ -193,6 +193,7 @@ message IngestResult {
 message EmbeddingRequest {
   string Message = 1;
   string Task = 2;
+  string Model = 3;
 }
 
 message EmbeddingResponse {
@@ -202,6 +203,7 @@ message EmbeddingResponse {
 message EmbeddingBatchRequest {
   repeated string Messages = 1;
   string Task = 2;
+  string Model = 3;
 }
 
 message EmbeddingBatchResponse {

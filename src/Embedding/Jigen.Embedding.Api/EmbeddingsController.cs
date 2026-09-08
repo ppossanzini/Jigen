@@ -22,16 +22,37 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
   [ProducesResponseType(typeof(float[]), StatusCodes.Status200OK)]
   [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
   [ProducesResponseType(typeof(string), StatusCodes.Status422UnprocessableEntity)]
-  public async Task<IActionResult> CalculateEmbeddings([FromBody] string text, string task = null)
+  public async Task<IActionResult> CalculateEmbeddings([FromBody] string text, string task = null, string model = null,
+    CancellationToken cancellationToken = default)
   {
     if (string.IsNullOrWhiteSpace(text))
       return BadRequest("Text cannot be empty.");
 
-    var result = await hikyaku.Send(new Core.Commands.CalculateEmbeddings() { Sentence = text, Task = task });
+    var result = await hikyaku.Send(new Core.Commands.CalculateEmbeddings { Sentence = text, Task = task, Model = model }, cancellationToken);
 
     if (result.Length == 0)
       return UnprocessableEntity("Unable to generate embeddings. Input may exceed model token limits.");
 
+    return Ok(result);
+  }
+
+  [HttpPost("calculate/multi")]
+  [ProducesResponseType(typeof(Dictionary<string, float[]>), StatusCodes.Status200OK)]
+  [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> CalculateEmbeddingsMulti([FromBody] CalculateEmbeddingsMultiRequest request,
+    CancellationToken cancellationToken)
+  {
+    if (request == null || string.IsNullOrWhiteSpace(request.Text))
+      return BadRequest("Text cannot be empty.");
+    if (request.Models == null || request.Models.Length == 0 || request.Models.Any(string.IsNullOrWhiteSpace))
+      return BadRequest("At least one valid model is required.");
+
+    var result = await hikyaku.Send(new Core.Commands.CalculateEmbeddingsMulti
+    {
+      Sentence = request.Text,
+      Task = request.Task,
+      Models = request.Models
+    }, cancellationToken);
     return Ok(result);
   }
 
@@ -157,4 +178,11 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
 
     return Ok(result);
   }
+}
+
+public class CalculateEmbeddingsMultiRequest
+{
+  public string Text { get; set; }
+  public string Task { get; set; }
+  public string[] Models { get; set; }
 }

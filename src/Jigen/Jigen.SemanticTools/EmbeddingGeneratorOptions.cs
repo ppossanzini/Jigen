@@ -1,7 +1,16 @@
 namespace Jigen.SemanticTools;
 
+public enum EmbeddingModelProfile
+{
+  Nomic,
+  Qwen3,
+  SigLip2,
+  Custom
+}
+
 public sealed class EmbeddingGeneratorOptions
 {
+  public EmbeddingModelProfile Profile { get; set; } = EmbeddingModelProfile.Nomic;
   public int MaxTokens { get; set; } = 384;
   public bool UseChunking { get; set; } = true;
   public int ChunkSize { get; set; } = 320;
@@ -22,6 +31,15 @@ public sealed class EmbeddingGeneratorOptions
   /// helps; raise this when running on a GPU execution provider.
   /// </summary>
   public int MaxBatchSize { get; set; } = 1;
+
+  /// <summary>
+  /// Optional Matryoshka output dimension. Zero keeps the model's full output.
+  /// For Qwen3 this may be set between 32 and the checkpoint's native size.
+  /// </summary>
+  public int OutputDimension { get; set; }
+
+  /// <summary>Token id written in padded positions.</summary>
+  public long PaddingTokenId { get; set; }
 
   /// <summary>
   /// Execution provider for the embedding model: "cpu" (default), "cuda", "dml",

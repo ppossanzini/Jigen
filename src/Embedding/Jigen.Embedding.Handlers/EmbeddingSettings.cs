@@ -4,6 +4,14 @@ namespace Jigen.Embedding.Handlers;
 
 public class EmbeddingSettings
 {
+  public string DefaultModel { get; set; } = "default";
+
+  /// <summary>
+  /// Named text embedding models. When empty, the legacy TokenizerPath and
+  /// EmbeddingsModelPath settings are exposed as the "default" model.
+  /// </summary>
+  public Dictionary<string, TextEmbeddingModelSettings> Models { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
   public string TokenizerPath { get; set; }
   public string EmbeddingsModelPath { get; set; }
 
@@ -27,4 +35,15 @@ public class EmbeddingSettings
   public int ImageEmbeddingsMaxConcurrency { get; set; } = 2;
   public int ImageEmbeddingsQueueCapacity { get; set; } = 256;
   public int ImageEmbeddingsQueueTimeoutSeconds { get; set; } = 60;
+}
+
+public class TextEmbeddingModelSettings
+{
+  public string TokenizerPath { get; set; }
+  public string ModelPath { get; set; }
+  public EmbeddingGeneratorOptions GeneratorOptions { get; set; } = new();
+  public int MaxConcurrency { get; set; } = 2;
+  public int QueueCapacity { get; set; } = 256;
+  public int QueueTimeoutSeconds { get; set; } = 60;
+  public string DefaultTask { get; set; }
 }

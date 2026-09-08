@@ -18,21 +18,57 @@ public class Module: IModule
     var settings = configuration.GetSection("JigenEmbeddings").Get<EmbeddingSettings>();
     services.Configure<EmbeddingSettings>(configuration.GetSection("JigenEmbeddings"));
 
-    var generatorOptions = settings.GeneratorOptions ?? new EmbeddingGeneratorOptions();
-    if (generatorOptions.IntraOpNumThreads <= 0)
-      generatorOptions.IntraOpNumThreads =
-        Math.Max(1, Environment.ProcessorCount / Math.Max(settings.EmbeddingsMaxConcurrency, 1));
+    services.AddSingleton<IEmbeddingGeneratorRegistry>(provider =>
+    {
+      var configuredModels = settings.Models is { Count: > 0 }
+        ? settings.Models
+        : new Dictionary<string, TextEmbeddingModelSettings>(StringComparer.OrdinalIgnoreCase)
+        {
+          ["default"] = new()
+          {
+            TokenizerPath = settings.TokenizerPath,
+            ModelPath = settings.EmbeddingsModelPath,
+            GeneratorOptions = settings.GeneratorOptions ?? new EmbeddingGeneratorOptions(),
+            MaxConcurrency = settings.EmbeddingsMaxConcurrency,
+            QueueCapacity = settings.EmbeddingsQueueCapacity,
+            QueueTimeoutSeconds = settings.EmbeddingsQueueTimeoutSeconds,
+            DefaultTask = settings.DefaultTask
+          }
+        };
 
-    services.AddSingleton<IEmbeddingGenerator>(_ => new QueuedEmbeddingGenerator(
-      new OnnxEmbeddingGenerator(
-        settings.TokenizerPath,
-        settings.EmbeddingsModelPath,
-        _.GetService<ILogger<OnnxEmbeddingGenerator>>(),
-        generatorOptions),
-      settings.EmbeddingsMaxConcurrency,
-      settings.EmbeddingsQueueCapacity,
-      TimeSpan.FromSeconds(settings.EmbeddingsQueueTimeoutSeconds),
-      generatorOptions.MaxBatchSize));
+      var generators = new Dictionary<string, IEmbeddingGenerator>(StringComparer.OrdinalIgnoreCase);
+      var defaultTasks = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+      var profiles = new Dictionary<string, EmbeddingModelProfile>(StringComparer.OrdinalIgnoreCase);
+      foreach (var (name, model) in configuredModels)
+      {
+        if (string.IsNullOrWhiteSpace(name))
+          throw new InvalidOperationException("Embedding model names cannot be empty.");
+
+        var options = model.GeneratorOptions ?? new EmbeddingGeneratorOptions();
+        if (options.IntraOpNumThreads <= 0)
+          options.IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / Math.Max(model.MaxConcurrency, 1));
+
+        generators.Add(name, new QueuedEmbeddingGenerator(
+          new OnnxEmbeddingGenerator(
+            model.TokenizerPath,
+            model.ModelPath,
+            provider.GetService<ILogger<OnnxEmbeddingGenerator>>(),
+            options),
+          model.MaxConcurrency,
+          model.QueueCapacity,
+          TimeSpan.FromSeconds(model.QueueTimeoutSeconds),
+          options.MaxBatchSize));
+        defaultTasks[name] = model.DefaultTask;
+        profiles[name] = options.Profile;
+      }
+
+      var defaultModel = settings.Models is { Count: > 0 } ? settings.DefaultModel : "default";
+      if (!generators.ContainsKey(defaultModel))
+        throw new InvalidOperationException($"Default embedding model '{defaultModel}' is not configured.");
+
+      return new EmbeddingGeneratorRegistry(defaultModel, generators, defaultTasks, profiles);
+    });
+    services.AddSingleton<IEmbeddingGenerator, DefaultEmbeddingGenerator>();
 
     // Image embeddings are opt-in: without ImagesModelPath the server keeps
     // working (text only) and image requests fail with a clear error.

@@ -9,6 +9,7 @@
 - ADR-0006 | Accepted | Backend | Explicit route windows for Metrics status endpoint | docs/ProjectInfo.md
 - ADR-0007 | Accepted | Backend | Embeddings bulkhead with bounded queue and concurrency cap | docs/ProjectInfo.md
 - ADR-0008 | Accepted | Backend | gRPC direct image embedding RPCs | docs/ProjectInfo.md
+- ADR-0009 | Accepted | Embeddings | Named multi-model embedding profiles | docs/ProjectInfo.md
 
 ## ADR-0001 - Database access control and DB details endpoint baseline
 - Date: 2026-06-18
@@ -142,3 +143,20 @@
 - Consequences:
   - Image and text vectors can be produced through a single gRPC channel for clients already using the store service.
   - Behavior depends on the vision model being configured (ImagesModelPath), otherwise image RPCs fail with the existing configuration error.
+
+## ADR-0009 - Named multi-model embedding profiles
+- Date: 2026-09-08
+- Status: Accepted
+- Context:
+  - Text retrieval and cross-modal retrieval require embeddings from independent, incompatible vector spaces.
+  - Qwen3 requires last-token pooling, left padding and L2 normalization; SigLIP2 requires its projected text output, fixed-length preprocessing and L2 normalization; the existing pipeline is Nomic-specific.
+  - The current scope explicitly excludes store, WAL, index and search changes.
+- Decision:
+  - Add named embedding models under `JigenEmbeddings:Models`, with one configurable default model and an isolated bounded queue per model.
+  - Introduce explicit `Nomic`, `Qwen3`, `SigLip2` and `Custom` ONNX processing profiles.
+  - Allow single and batch calls to select a model, and add a multi-model command/API that embeds the same text concurrently in requested spaces.
+  - Preserve all legacy settings and behavior when `Models` is absent.
+- Consequences:
+  - Consumers can obtain one query vector per configured vector space without changing storage.
+  - Model/tokenizer ONNX exports remain deployment assets and must expose inputs/outputs compatible with the selected profile.
+  - Combining rankings remains outside the embedding subsystem and is deferred.

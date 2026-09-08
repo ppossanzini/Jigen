@@ -14,6 +14,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
   {
     var result =  await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddings()
     {
+      Model = request.Model,
       Task = request.Task,
       Sentence = request.Message
     });
@@ -40,6 +41,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
 
     var vectors = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddingsBatch
     {
+      Model = request.Model,
       Task = request.Task,
       Sentences = indexes.Select(i => request.Messages[i]).ToArray()
     }, context.CancellationToken);

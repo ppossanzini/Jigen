@@ -10,6 +10,7 @@ namespace Jigen.Embedding.Core.Commands;
 /// </summary>
 public class CalculateEmbeddingsBatch : IRequest<float[][]>
 {
+  public string Model { get; set; }
   public string Task { get; set; }
   public string[] Sentences { get; set; }
 }

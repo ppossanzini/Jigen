@@ -2,6 +2,9 @@ namespace Jigen.SemanticTools;
 
 public sealed class ImageEmbeddingGeneratorOptions
 {
+  /// <summary>Model-specific output contract. SigLip2 expects a projected rank-2 image output.</summary>
+  public EmbeddingModelProfile Profile { get; set; } = EmbeddingModelProfile.Nomic;
+
   /// <summary>
   /// Target width the input image is resized (and center-cropped) to before
   /// inference. Defaults to the nomic-embed-vision-v1.5 input size (224).
