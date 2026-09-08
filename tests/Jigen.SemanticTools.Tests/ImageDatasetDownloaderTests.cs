@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
 using System.Text.Json;
-using SixLabors.ImageSharp;
+using OpenCvSharp;
 
 namespace Jigen.SemanticTools.Tests;
 
@@ -45,7 +45,9 @@ public class ImageDatasetDownloaderTests
 
         // The file must be a decodable image, or the vision model and the
         // indexing tests downstream would fail on a corrupted download.
-        using var _ = Image.Load(bytes);
+        using var probe = Cv2.ImDecode(bytes, ImreadModes.Color);
+        if (probe.Empty())
+          throw new InvalidOperationException($"Downloaded file is not a decodable image: {sample.FileName}");
 
         await File.WriteAllBytesAsync(targetPath, bytes);
       }

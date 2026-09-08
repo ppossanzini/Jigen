@@ -94,4 +94,92 @@ public class CrossModalSearchTests
   {
     Assert.Empty(CrossModalSearch.MergeCalibrated<Entity1>());
   }
+
+  [Fact]
+  public void MergeAndCalibrate_extension_produces_the_same_ranking_as_MergeCalibrated()
+  {
+    var imageHits = new List<VectorSearchResult<Entity1>>
+    {
+      Hit(100, 0.0968f), // own image
+      Hit(101, 0.0580f),
+      Hit(102, 0.0282f),
+      Hit(103, 0.0279f),
+      Hit(104, 0.0240f)
+    };
+    var textHits = new List<VectorSearchResult<Entity1>>
+    {
+      Hit(200, 0.9050f), // own text
+      Hit(201, 0.4742f),
+      Hit(202, 0.4557f),
+      Hit(203, 0.4396f),
+      Hit(204, 0.4315f)
+    };
+
+    // The extension needs no labels: each IEnumerable is one group.
+    var merged = imageHits.MergeAndCalibrate(textHits);
+
+    Assert.Equal(10, merged.Count);
+
+    // Own text (group "1") first, own image (group "0", the receiver) second.
+    Assert.Equal("1", merged[0].Modality);
+    Assert.Equal(200, VectorKey.ToInt(merged[0].Result.Key));
+    Assert.Equal("0", merged[1].Modality);
+    Assert.Equal(100, VectorKey.ToInt(merged[1].Result.Key));
+
+    // Same scores as the labelled version for the same groups.
+    var labelled = CrossModalSearch.MergeCalibrated(
+      ("image", imageHits),
+      ("text", textHits));
+    Assert.Equal(
+      labelled.Select(r => VectorKey.ToInt(r.Result.Key)),
+      merged.Select(r => VectorKey.ToInt(r.Result.Key)));
+    Assert.Equal(
+      labelled.Select(r => MathF.Round(r.CalibratedScore, 4)),
+      merged.Select(r => MathF.Round(r.CalibratedScore, 4)));
+  }
+
+  [Fact]
+  public void MergeAndCalibrate_supports_three_or_more_groups_and_null_others()
+  {
+    var audioHits = new List<VectorSearchResult<Entity1>>
+    {
+      Hit(300, 0.2000f),
+      Hit(301, 0.1200f),
+      Hit(302, 0.1000f)
+    };
+    var imageHits = new List<VectorSearchResult<Entity1>> { Hit(100, 0.0968f), Hit(101, 0.0580f) };
+    var textHits = new List<VectorSearchResult<Entity1>> { Hit(200, 0.9050f), Hit(201, 0.4742f) };
+
+    var merged = audioHits.MergeAndCalibrate(imageHits, null, textHits);
+
+    // Null groups are skipped; the remaining three groups merge to 7 hits.
+    Assert.Equal(7, merged.Count);
+
+    // The z-score is relative to the group: a 2-element group always gives its
+    // best exactly +1.0 std, while the 3-element audio group gives its best
+    // z ≈ +1.39 (tightest relative spread) — so the audio best ranks first,
+    // followed by the image best and the text best (tied at +1.0, stable order
+    // keeps the earlier group first).
+    Assert.Equal("0", merged[0].Modality); // audio best (z ≈ 1.39)
+    Assert.Equal(300, VectorKey.ToInt(merged[0].Result.Key));
+    Assert.Equal("1", merged[1].Modality); // image best (z = 1.0)
+    Assert.Equal(100, VectorKey.ToInt(merged[1].Result.Key));
+    Assert.Equal("2", merged[2].Modality); // text best (z = 1.0)
+    Assert.Equal(200, VectorKey.ToInt(merged[2].Result.Key));
+
+    Assert.Equal([300, 100, 200],
+      merged.Take(3).Select(r => VectorKey.ToInt(r.Result.Key)).ToArray());
+  }
+
+  [Fact]
+  public void MergeAndCalibrate_on_an_empty_receiver_returns_empty()
+  {
+    var empty = new List<VectorSearchResult<Entity1>>();
+    var hits = new List<VectorSearchResult<Entity1>> { Hit(1, 0.5f), Hit(2, 0.4f) };
+
+    var merged = empty.MergeAndCalibrate(hits);
+
+    Assert.Equal(2, merged.Count);
+    Assert.Equal("1", merged[0].Modality);
+  }
 }

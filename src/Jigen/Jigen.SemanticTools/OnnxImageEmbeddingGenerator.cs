@@ -11,9 +11,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using OpenCvSharp;
 
 namespace Jigen.SemanticTools;
 
@@ -129,9 +127,9 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
         throw new ArgumentException($"Image at index {i} is null or empty.", nameof(images));
     }
 
-    var decoded = new Image<Rgba32>[images.Count];
+    var decoded = new Mat[images.Count];
     for (var i = 0; i < images.Count; i++)
-      decoded[i] = Image.Load<Rgba32>(images[i]);
+      decoded[i] = DecodeImage(images[i]);
 
     try
     {
@@ -156,10 +154,10 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
     if (imageBytes.Length == 0)
       throw new ArgumentException("Image data cannot be empty.", nameof(imageBytes));
 
-    using var image = Image.Load<Rgba32>(imageBytes);
+    using var image = DecodeImage(imageBytes);
 
     var tiles = BuildTiles(image);
-    var all = new List<Image<Rgba32>>(tiles.Count + 1);
+    var all = new List<Mat>(tiles.Count + 1);
     all.AddRange(tiles);
     all.Add(image); // whole-image embedding, appended last
 
@@ -182,7 +180,7 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
   /// <see cref="ImageEmbeddingGeneratorOptions.MaxBatchSize"/>, returning one
   /// L2-normalized vector per image (same order).
   /// </summary>
-  private float[][] RunInferenceBatch(IReadOnlyList<Image<Rgba32>> images)
+  private float[][] RunInferenceBatch(IReadOnlyList<Mat> images)
   {
     var results = new float[images.Count][];
 
@@ -212,7 +210,7 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
   /// with no gaps. With <see cref="_tileOverlap"/> &gt; 0 the tile edge is
   /// reduced so tiles overlap while the grid keeps the same extent.
   /// </summary>
-  private List<Image<Rgba32>> BuildTiles(Image<Rgba32> image)
+  private List<Mat> BuildTiles(Mat image)
   {
     var width = image.Width;
     var height = image.Height;
@@ -228,12 +226,13 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
     // vertical axis — i.e. the same tile size stepped over the height.
     var positionsY = AxisPositions(height, tileSize, strideX);
 
-    var tiles = new List<Image<Rgba32>>(positionsX.Count * positionsY.Count);
+    var tiles = new List<Mat>(positionsX.Count * positionsY.Count);
     foreach (var y in positionsY)
     {
       foreach (var x in positionsX)
       {
-        tiles.Add(image.Clone(ctx => ctx.Crop(new Rectangle(x, y, tileSize, tileSize))));
+        using var roi = image[new Rect(x, y, tileSize, tileSize)];
+        tiles.Add(roi.Clone());
       }
     }
 
@@ -285,38 +284,62 @@ public sealed class OnnxImageEmbeddingGenerator : IDisposable, IImageEmbeddingGe
   }
 
   /// <summary>
-  /// CLIPImageProcessor-equivalent preprocessing: resize to the target size with
-  /// bicubic resampling (a no-op when already at the input size), rescale to
-  /// [0,1] and normalize per-channel. The center crop is a no-op because the
-  /// resize already produces the crop size.
+  /// Decodes raw image bytes into a BGR <see cref="Mat"/> (OpenCV's native
+  /// channel order), throwing when the data is not a supported image. Supported
+  /// formats come from OpenCV's <c>imgcodecs</c>: PNG, JPEG, WebP, BMP, TIFF...
+  /// OpenCV applies EXIF orientation automatically (like the previous
+  /// AutoOrient step) unless IMREAD_IGNORE_ORIENTATION is passed.
   /// </summary>
-  private void Preprocess(Image<Rgba32> image, DenseTensor<float> tensor, int batchIndex)
+  private static Mat DecodeImage(byte[] imageBytes)
   {
+    var mat = Cv2.ImDecode(imageBytes, ImreadModes.Color);
+    if (mat.Empty())
+      throw new ArgumentException("Image data could not be decoded as a supported image format (PNG, JPEG, WebP, BMP, TIFF...).");
+
+    return mat;
+  }
+
+  /// <summary>
+  /// CLIPImageProcessor-equivalent preprocessing: resize to cover the target
+  /// size with bicubic resampling (a no-op when already at the input size),
+  /// center-crop, rescale to [0,1] and normalize per-channel. The crop is a
+  /// no-op when the cover resize already produced the target size.
+  /// </summary>
+  private void Preprocess(Mat image, DenseTensor<float> tensor, int batchIndex)
+  {
+    var source = image;
+    using var resized = new Mat();
     if (image.Width != _inputWidth || image.Height != _inputHeight)
     {
-      image.Mutate(context => context.Resize(new ResizeOptions
-      {
-        Size = new Size(_inputWidth, _inputHeight),
-        Mode = ResizeMode.Stretch,
-        Sampler = KnownResamplers.Bicubic
-      }));
+      // ImageSharp ResizeMode.Crop equivalent: cover the target size keeping
+      // the aspect ratio, then center-crop (CLIPImageProcessor behavior).
+      var scale = Math.Max((float)_inputWidth / image.Width, (float)_inputHeight / image.Height);
+      var coverWidth = Math.Max(_inputWidth, (int)Math.Round(image.Width * scale));
+      var coverHeight = Math.Max(_inputHeight, (int)Math.Round(image.Height * scale));
+      Cv2.Resize(image, resized, new Size(coverWidth, coverHeight), 0, 0, InterpolationFlags.Cubic);
+      source = resized;
     }
 
-    image.ProcessPixelRows(accessor =>
+    // OpenCV decodes as BGR; the model expects RGB (NCHW).
+    using var rgb = new Mat();
+    Cv2.CvtColor(source, rgb, ColorConversionCodes.BGR2RGB);
+
+    rgb.GetArray(out Vec3b[] pixels); // Rows*Cols pixels, row-major
+
+    var cropX = Math.Max(0, (source.Width - _inputWidth) / 2);
+    var cropY = Math.Max(0, (source.Height - _inputHeight) / 2);
+
+    for (var y = 0; y < _inputHeight; y++)
     {
-      for (var y = 0; y < _inputHeight; y++)
+      var rowOffset = (cropY + y) * source.Width + cropX;
+      for (var x = 0; x < _inputWidth; x++)
       {
-        var row = accessor.GetRowSpan(y);
-        for (var x = 0; x < _inputWidth; x++)
-        {
-          ref var pixel = ref row[x];
-          // Rgba32 stores channels in RGBA order; the model expects RGB (NCHW).
-          tensor[batchIndex, 0, y, x] = (pixel.R / 255f - _mean[0]) / _std[0];
-          tensor[batchIndex, 1, y, x] = (pixel.G / 255f - _mean[1]) / _std[1];
-          tensor[batchIndex, 2, y, x] = (pixel.B / 255f - _mean[2]) / _std[2];
-        }
+        ref var pixel = ref pixels[rowOffset + x];
+        tensor[batchIndex, 0, y, x] = (pixel.Item0 / 255f - _mean[0]) / _std[0];
+        tensor[batchIndex, 1, y, x] = (pixel.Item1 / 255f - _mean[1]) / _std[1];
+        tensor[batchIndex, 2, y, x] = (pixel.Item2 / 255f - _mean[2]) / _std[2];
       }
-    });
+    }
   }
 
   private static float[][] ExtractEmbeddingVectors(IReadOnlyList<DisposableNamedOnnxValue> results, int batchSize)

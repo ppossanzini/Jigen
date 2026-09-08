@@ -67,7 +67,7 @@ Both synchronous and asynchronous overloads are available, with and without an e
 
 Generating an embedding for an image goes through the following stages:
 
-1. **Decode.** The image is decoded with ImageSharp (`Rgba32`), so all common formats are supported (PNG, JPEG, WebP, BMP, GIF, TIFF...).
+1. **Decode.** The image is decoded with OpenCvSharp (OpenCV's `imgcodecs`), so PNG, JPEG, WebP, BMP and TIFF are supported. GIF is not decodable — OpenCV's codecs don't include it.
 2. **Resize.** The image is resized to `InputWidth` × `InputHeight` (default 224×224) with bicubic resampling. CLIP-style, the resize already produces the target size, so the model's center-crop step is a no-op.
 3. **Rescale + normalize.** Pixel values are scaled to `[0, 1]` and normalized per channel with `ImageMean`/`ImageStd`, which default to the CLIP ImageNet values used by the model's own `preprocessor_config.json` (`mean = [0.48145466, 0.4578275, 0.40821073]`, `std = [0.26862954, 0.26130258, 0.27577711]`).
 4. **Batched inference.** The preprocessed images are packed into an NCHW tensor `[B, 3, H, W]` and run through the ONNX vision model, in batches of up to `MaxBatchSize`.

@@ -56,6 +56,19 @@ public static class CrossModalSearch
   {
     ArgumentNullException.ThrowIfNull(groups);
 
+    return MergeCore(groups
+      .Select(g => (g.Modality, (IEnumerable<VectorSearchResult<T>>)g.Results))
+      .ToArray());
+  }
+
+  /// <summary>
+  /// Shared merge + z-score core used by <see cref="MergeCalibrated{T}"/> and
+  /// the <c>MergeAndCalibrate</c> extension method.
+  /// </summary>
+  internal static List<CalibratedSearchResult<T>> MergeCore<T>(
+    IReadOnlyList<(string Modality, IEnumerable<VectorSearchResult<T>> Results)> groups)
+    where T : class, new()
+  {
     var flattened = new List<(string Modality, VectorSearchResult<T> Result)>();
     foreach (var (modality, results) in groups)
     {

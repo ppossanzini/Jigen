@@ -22,7 +22,12 @@
     <PackageReference Include="Intel.ML.OnnxRuntime.OpenVino" Version="1.24.1" Condition="'$(JigenOnnxRuntimeFlavor)' == 'OpenVino'" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.Extensions" Version="0.14.0"/>
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0"/>
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <!-- Image processing: OpenCvSharp5 (Apache-2.0) replaces SixLabors.ImageSharp, which
+         switched to a paid license in 3.x. The slim runtime profile ships core + imgproc +
+         imgcodecs with no highgui/GTK3 dependency (container-friendly); native libs are built
+         on manylinux_2_28, so they run on Debian 10+ (the aspnet:10.0 image is Debian 12). -->
+    <PackageReference Include="OpenCvSharp5" Version="5.0.0.20260806" />
+    <PackageReference Include="OpenCvSharp5.official.runtime.linux-x64.slim" Version="5.0.0.20260806" />
     <PackageReference Include="System.Numerics.Tensors" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.9" />
   </ItemGroup>

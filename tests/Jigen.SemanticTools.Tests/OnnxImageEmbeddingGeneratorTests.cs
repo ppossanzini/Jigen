@@ -1,7 +1,5 @@
 using Jigen.SemanticTools;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using OpenCvSharp;
 
 namespace Jigen.SemanticTools.Tests;
 
@@ -254,11 +252,10 @@ public class OnnxImageEmbeddingGeneratorTests
 
   private static byte[] CreateSolidPng(int width, int height, byte r, byte g, byte b)
   {
-    using var image = new Image<Rgba32>(width, height);
-    image.Mutate(context => context.BackgroundColor(new Rgba32(r, g, b, 255)));
-
-    using var stream = new MemoryStream();
-    image.SaveAsPng(stream);
-    return stream.ToArray();
+    // Scalar is in BGR order for a CV_8UC3 Mat.
+    using var image = new Mat(height, width, MatType.CV_8UC3, new Scalar(b, g, r));
+    if (!Cv2.ImEncode(".png", image, out var bytes))
+      throw new InvalidOperationException("Failed to encode the test PNG.");
+    return bytes;
   }
 }

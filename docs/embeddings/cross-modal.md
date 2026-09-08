@@ -122,20 +122,21 @@ Store image and text vectors side by side after correcting the image side at ind
 
 ## Using it from the .NET client
 
-`Jigen.Client` exposes `CrossModalSearch.MergeCalibrated`, which searches nothing itself — it takes the already-searched results of each collection and merges them on the common z-scale:
+### One-liner: `MergeAndCalibrate` (extension method)
+
+`Jigen.Client` exposes `MergeAndCalibrate` as an extension method on
+`IEnumerable<VectorSearchResult<T>>`: every result set passed is treated as one
+collection/modality, z-scored independently, and merged into a single ranking:
 
 ```csharp
 using Jigen.Client;
-using Jigen.Client.BaseTypes;
 
 // 1. Search each collection separately, with its own tuning.
 var imageHits = images.Search(query, top: 5, options: new SearchOptions { EfSearch = 64 });
 var textHits  = texts .Search(query, top: 5, options: new SearchOptions { EfSearch = 8 });
 
-// 2. Merge on a common scale (group = collection/modality).
-var merged = CrossModalSearch.MergeCalibrated(
-    ("image", imageHits),
-    ("text",  textHits));
+// 2. Merge on a common scale — no labels needed: each IEnumerable is one group.
+var merged = imageHits.MergeAndCalibrate(textHits);
 
 foreach (var hit in merged)  // ordered by CalibratedScore (descending)
 {
@@ -143,9 +144,22 @@ foreach (var hit in merged)  // ordered by CalibratedScore (descending)
 }
 ```
 
-`CalibratedSearchResult<T>` carries:
+Any number of groups works (`imageHits.MergeAndCalibrate(textHits, audioHits, ...)`);
+`null` groups are skipped. `CalibratedSearchResult<T>.Modality` carries the
+group's zero-based position among the non-null groups ("0" = the receiver, "1" = the first
+argument, ...) — if you prefer meaningful labels, use the labelled variant below.
 
-- `Modality` — the group label you passed in;
+### Labelled: `CrossModalSearch.MergeCalibrated`
+
+```csharp
+var merged = CrossModalSearch.MergeCalibrated(
+    ("image", imageHits),
+    ("text",  textHits));
+```
+
+Both variants return `CalibratedSearchResult<T>`, which carries:
+
+- `Modality` — the group label/position you passed in;
 - `RawScore` — the score returned by the server (only comparable within the modality);
 - `CalibratedScore` — the z-score of `RawScore` within its group (the field the merge is ordered by).
 
@@ -169,7 +183,7 @@ collection.Add(textKey,  textContent,  textVector);   // texts stay as they are
 | Assembly | Contents |
 |---|---|
 | `Jigen.Calibration` (net8.0 + net10.0, no external dependencies) | `ModalityGapCalibrator`, `CrossModalScoreCalibrator` |
-| `Jigen.Client` | `CrossModalSearch.MergeCalibrated`, `CalibratedSearchResult<T>` |
+| `Jigen.Client` | `VectorSearchResultExtensions.MergeAndCalibrate`, `CrossModalSearch.MergeCalibrated`, `CalibratedSearchResult<T>` |
 | `Jigen.SemanticTools` | the ONNX text/image embedding generators (`OnnxEmbeddingGenerator`, `OnnxImageEmbeddingGenerator`) |
 
 The calibrators are pure math and deliberately dependency-free, so they can be referenced from both the net8.0 client and the net10.0 server/tools without pulling in ONNX Runtime.
