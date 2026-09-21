@@ -51,6 +51,9 @@ jobs:
       - name: Pack Jigen.Store
         run: dotnet pack src/Jigen/Jigen.Store/Jigen.Store.csproj --configuration Release --no-build -o artifacts/nuget ${PACK_ARGS}
 
+      - name: Pack Jigen.SemanticTools
+        run: dotnet pack src/Jigen/Jigen.SemanticTools/Jigen.SemanticTools.csproj --configuration Release --no-build -o artifacts/nuget ${PACK_ARGS}
+
       - name: Pack Jigen.Indexer.HNSW
         run: dotnet pack src/Jigen/Jigen.Indexer.HNSW/Jigen.Indexer.HNSW.csproj --configuration Release --no-build -o artifacts/nuget ${PACK_ARGS}
 
