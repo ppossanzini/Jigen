@@ -5,6 +5,7 @@ public enum EmbeddingModelProfile
   Nomic,
   Qwen3,
   SigLip2,
+  BgeM3,
   Custom
 }
 

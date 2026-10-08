@@ -85,7 +85,7 @@ Fixed-resolution checkpoints are supported; NaFlex exports requiring
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `Profile` | enum | `Nomic` | Model contract: `Nomic`, `Qwen3`, `SigLip2`, or `Custom`. Controls padding, pooling, input formatting and normalization. |
+| `Profile` | enum | `Nomic` | Model contract: `Nomic`, `Qwen3`, `SigLip2`, `BgeM3`, or `Custom`. Controls padding, pooling, input formatting and normalization. `BgeM3` uses right padding, CLS pooling and L2 normalization. |
 | `MaxTokens` | int | `384` | Maximum tokens per inference sequence; longer inputs are chunked or truncated (see below). Clamped to a minimum of 8. |
 | `UseChunking` | bool | `true` | When `true`, inputs longer than `MaxTokens` are split into overlapping chunks and their embeddings combined by weighted average. When `false`, Nomic uses head-tail truncation; Qwen3 and SigLIP2 use right truncation. |
 | `ChunkSize` | int | `320` | Tokens per chunk when chunking is enabled. Clamped between 8 and `MaxTokens`. |
@@ -97,6 +97,33 @@ Fixed-resolution checkpoints are supported; NaFlex exports requiring
 | `PaddingTokenId` | long | `0` | Token id written into padded positions; set it from the checkpoint tokenizer configuration. |
 | `ExecutionProvider` | string | `"cpu"` | ONNX Runtime execution provider. See [execution providers](execution-providers.md) for the full list and build requirements. |
 | `GpuDeviceId` | int | `0` | Device index used by GPU execution providers (`cuda`, `dml`, `rocm`, `migraphx`). |
+
+## Example: BGE-M3
+
+The official `BAAI/bge-m3` ONNX export can be configured directly with its
+`onnx/model.onnx`, `onnx/model.onnx_data`, `onnx/tokenizer.json`, and
+`onnx/sentencepiece.bpe.model` files kept in the same directory:
+
+```json
+{
+  "JigenEmbeddings": {
+    "TokenizerPath": "/data/onnx/bge-m3/tokenizer.json",
+    "EmbeddingsModelPath": "/data/onnx/bge-m3/model.onnx",
+    "GeneratorOptions": {
+      "Profile": "BgeM3",
+      "MaxTokens": 8192,
+      "UseChunking": false,
+      "OutputDimension": 1024,
+      "PaddingTokenId": 1,
+      "ExecutionProvider": "cpu",
+      "MaxBatchSize": 1
+    }
+  }
+}
+```
+
+The profile exposes BGE-M3 dense embeddings only. Sparse lexical weights and
+ColBERT multi-vector outputs are not part of Jigen's embedding contract.
 
 ## `ImageEmbeddingGeneratorOptions`
 

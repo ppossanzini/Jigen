@@ -487,11 +487,14 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
         var baseOffset = row * sequenceLength * hiddenSize;
         var pooled = new float[hiddenSize];
 
-        if (_profile is EmbeddingModelProfile.Qwen3 or EmbeddingModelProfile.SigLip2)
+        if (_profile is EmbeddingModelProfile.Qwen3 or EmbeddingModelProfile.SigLip2 or EmbeddingModelProfile.BgeM3)
         {
-          var tokenIndex = _profile == EmbeddingModelProfile.Qwen3
-            ? sequenceLength - 1
-            : effectiveTokens - 1;
+          var tokenIndex = _profile switch
+          {
+            EmbeddingModelProfile.Qwen3 => sequenceLength - 1,
+            EmbeddingModelProfile.BgeM3 => 0,
+            _ => effectiveTokens - 1
+          };
           Array.Copy(values, baseOffset + tokenIndex * hiddenSize, pooled, 0, hiddenSize);
           rows[row] = FinalizeEmbedding(pooled);
           continue;
