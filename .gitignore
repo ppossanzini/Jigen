@@ -6,6 +6,9 @@
 # dotenv files
 .env
 
+# Agent and test temporary workspace
+.temp/
+
 # User-specific files
 *.rsuser
 *.suo

@@ -217,7 +217,9 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     if (_jsonTokenizer != null)
     {
       var ids = _jsonTokenizer.EncodeToIds(text, true, true);
-      return ids.Select(static id => (long)id).ToArray();
+      return _profile == EmbeddingModelProfile.BgeM3
+        ? ids.Select(static id => (long)MapSentencePieceIdToXlmRobertaId(id)).ToArray()
+        : ids.Select(static id => (long)id).ToArray();
     }
 
     var tokenizerInputs = new List<NamedOnnxValue>
@@ -322,6 +324,14 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     using var stream = File.OpenRead(sentencePiecePath);
     return SentencePieceTokenizer.Create(stream, addBeginningOfSentence: true, addEndOfSentence: true, specialTokens: null);
   }
+
+  private static int MapSentencePieceIdToXlmRobertaId(int id) => id switch
+  {
+    0 => 3,
+    1 => 0,
+    2 => 2,
+    _ => id + 1
+  };
 
   private float[][] RunModelBatch(IReadOnlyList<long[]> sequences)
   {
