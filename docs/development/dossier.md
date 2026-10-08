@@ -45,3 +45,13 @@ Status: Completed.
 - Verification: the Nomic Store/HNSW test passed. The unrelated query scored `0.530176`, the relevant query scored `0.634335`, and both HNSW scores matched their direct cosine values.
 - Existing xUnit analyzer warnings in `VectorCollectionTests.cs` remain outside this task.
 - Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-BGE-M3-IGNORE-TASK
+
+Status: Production code verified; awaiting code-quality approval before the separate test update.
+
+- BGE-M3 now ignores task text during input preparation, including explicit client values and stale non-empty defaults.
+- Nomic and Qwen task formatting remains unchanged; SigLIP2 continues to ignore tasks.
+- Verification: `Jigen.Embedding.Handlers` built with 0 errors. Two existing ONNX Runtime RID warnings remain.
+- Verification: the BGE-M3 Store/HNSW regression test passed.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
