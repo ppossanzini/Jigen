@@ -122,7 +122,11 @@ public class CollectionQueryHandlers(
         throw new ArgumentException("Provide a sentence or embeddings");
 
       embeddingsTimer.Start();
-      embeddings =  await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Data.Sentence }, cancellationToken);
+      embeddings = await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings
+      {
+        Sentence = request.Data.Sentence,
+        Task = "search_query"
+      }, cancellationToken);
       embeddingsTimer.Stop();
     }
 

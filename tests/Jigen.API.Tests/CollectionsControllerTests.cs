@@ -239,4 +239,22 @@ public class CollectionsControllerTests
 
     Assert.IsType<BadRequestObjectResult>(result);
   }
+
+  [Fact]
+  public async Task SearchCollection_UsesSearchQueryTask_ForSentence()
+  {
+    var request = new SearchData { Sentence = "broken street light" };
+    _mediatorMock.Setup(m => m.Send(
+        It.Is<Embedding.Core.Commands.CalculateEmbeddings>(c =>
+          c.Sentence == request.Sentence && c.Task == "search_query"),
+        It.IsAny<CancellationToken>()))
+      .ReturnsAsync([0.1f, 0.2f]);
+    _mediatorMock.Setup(m => m.Send(It.IsAny<SearchVector>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([]);
+
+    var result = await CreateController().SearchCollection(DbName, Collection, request, CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result);
+    _mediatorMock.VerifyAll();
+  }
 }

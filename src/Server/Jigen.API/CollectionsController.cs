@@ -442,7 +442,8 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     {
       queryEmbeddings = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddings
       {
-        Sentence = request.Sentence
+        Sentence = request.Sentence,
+        Task = "search_query"
       }, cancellationToken);
     }
 

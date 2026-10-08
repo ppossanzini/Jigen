@@ -87,6 +87,15 @@ Status: Completed.
 - Verification: JSON constraints and server build succeeded. The environment file was copied to the runtime output.
 - Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, and `capabilities-dev-problem-solving-methodology`.
 
+## DEV-NOMIC-TASK-ROUTING
+
+Status: Completed.
+
+- Confirmed that document ingestion and sentence search previously omitted the embedding task and both inherited `search_document` from `DefaultTask`.
+- Document ingestion now requests `search_document`. REST and gRPC sentence searches request `search_query`.
+- Server build succeeded. The focused API test was added but execution is blocked by a pre-existing constructor error in `EmbeddingControllerTests`.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, and `capabilities-dev-problem-solving-methodology`.
+
 ## Technology resolution
 
 | Slot | Technology | Implementation skill |

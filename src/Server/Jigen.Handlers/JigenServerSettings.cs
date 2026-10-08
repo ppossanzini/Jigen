@@ -25,6 +25,9 @@ public class JigenServerSettings
   /// </summary>
   public bool ReconcileOnUncleanShutdown { get; set; } = true;
 
+  public string EmbeddingCostructionTask { get; set; } = "search_document";
+  public string EmbeddingQueryTask { get; set; } = "search_query";
+
   public JigenIndexSettings Index { get; set; } = new();
 }
 

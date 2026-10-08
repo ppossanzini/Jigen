@@ -8,7 +8,7 @@ using Microsoft.Extensions.Options;
 
 namespace Jigen.Handlers.CQRS;
 
-public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hikyaku) :
+public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hikyaku, IOptions<JigenServerSettings> serverSettings) :
   IRequestHandler<Core.Command.collections.AppendDocument>,
   IRequestHandler<Core.Command.collections.SetDocument>,
   IRequestHandler<Core.Command.collections.AppendVector>,
@@ -25,7 +25,7 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     float[] embeddings = request.Embeddings ?? ( request.Sentence != null
-      ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence }, cancellationToken)
+      ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence, Task = serverSettings.Value.EmbeddingCostructionTask }, cancellationToken)
       : null);
 
     await store.AppendContent(
@@ -43,7 +43,7 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var embeddings = request.Embeddings ?? ( request.Sentence != null
-      ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence }, cancellationToken)
+      ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence, Task = serverSettings.Value.EmbeddingCostructionTask  }, cancellationToken)
       : null);
 
     await store.AppendContent(

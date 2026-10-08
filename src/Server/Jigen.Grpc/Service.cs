@@ -6,10 +6,11 @@ using Jigen.Filtering;
 using Jigen.Proto;
 using Jigen.Embedding.Core.Options;
 using Microsoft.Extensions.Options;
+using Jigen.Handlers;
 
 namespace Jigen.Grpc;
 
-public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplittingOptions> passageOptions)
+public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplittingOptions> passageOptions, IOptions<JigenServerSettings> serverSettings)
   : Jigen.Proto.StoreCollectionService.StoreCollectionServiceBase
 {
   public override async Task<EmbeddingResponse> CalculateEmbeddings(EmbeddingRequest request, ServerCallContext context)
@@ -343,7 +344,11 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     if (string.IsNullOrWhiteSpace(request.Sentence))
       return new SearchVectorResponse();
 
-    var embeddings =  await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence });
+    var embeddings = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddings
+    {
+      Sentence = request.Sentence,
+      Task = serverSettings.Value.EmbeddingQueryTask
+    }, context.CancellationToken);
     var filter = ToFilterExpression(request.Filter);
     var result = await mediator.Send(ApplyTuning(new Core.Query.collections.SearchVector
     {
