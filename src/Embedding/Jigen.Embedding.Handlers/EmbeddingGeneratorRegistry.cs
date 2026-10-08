@@ -67,6 +67,7 @@ internal sealed class DefaultEmbeddingGenerator(IEmbeddingGeneratorRegistry regi
   public float[] GenerateEmbedding(string input) => Inner.GenerateEmbedding(input);
   public float[] GenerateEmbedding(string task, string input) => Inner.GenerateEmbedding(task, input);
   public float[][] GenerateEmbeddings(IReadOnlyList<string> inputs) => Inner.GenerateEmbeddings(inputs);
+  public int CountTokens(string input) => Inner.CountTokens(input);
   public Task<float[]> GenerateEmbeddingAsync(string input, CancellationToken cancellationToken = default) =>
     Inner.GenerateEmbeddingAsync(input, cancellationToken);
   public Task<float[]> GenerateEmbeddingAsync(string task, string input, CancellationToken cancellationToken = default) =>

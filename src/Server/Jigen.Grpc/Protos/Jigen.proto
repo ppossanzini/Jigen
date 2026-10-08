@@ -29,6 +29,8 @@ service StoreCollectionService {
 
   rpc CalculateEmbeddings (EmbeddingRequest) returns (EmbeddingResponse);
   rpc CalculateEmbeddingsBatch (EmbeddingBatchRequest) returns (EmbeddingBatchResponse);
+  rpc CalculatePassageEmbeddings (PassageEmbeddingRequest) returns (PassageEmbeddingResponse);
+  rpc CalculatePassageSplitCount (PassageSplitCountRequest) returns (PassageSplitCountResponse);
 
   // ── Direct image embedding: raw image bytes in, vision model vector out ──
   rpc CalculateImageEmbedding (ImageEmbeddingRequest) returns (EmbeddingResponse);
@@ -210,6 +212,36 @@ message EmbeddingBatchResponse {
   // One entry per input message, same order. An input the model could not
   // embed yields an entry with an empty Embeddings list.
   repeated EmbeddingResponse Results = 1;
+}
+
+message PassageEmbeddingRequest {
+  string Message = 1;
+  string Task = 2;
+  string Model = 3;
+  optional int32 PassageTokenSize = 4;
+  optional int32 PassageOverlapSize = 5;
+}
+
+message PassageEmbeddingResult {
+  string Text = 1;
+  int32 StartToken = 2;
+  int32 TokenCount = 3;
+  repeated float Embeddings = 4;
+}
+
+message PassageEmbeddingResponse {
+  repeated PassageEmbeddingResult Results = 1;
+}
+
+message PassageSplitCountRequest {
+  string Message = 1;
+  string Model = 2;
+  optional int32 PassageTokenSize = 3;
+  optional int32 PassageOverlapSize = 4;
+}
+
+message PassageSplitCountResponse {
+  int32 Count = 1;
 }
 
 // Direct image embedding: raw image bytes in, the vision model's vector out,

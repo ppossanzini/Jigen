@@ -208,6 +208,14 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     return results;
   }
 
+  public int CountTokens(string input)
+  {
+    if (string.IsNullOrWhiteSpace(input))
+      return 0;
+
+    return TokenizeToInputIds(input).Length;
+  }
+
 
   private long[] TokenizeToInputIds(string text)
   {

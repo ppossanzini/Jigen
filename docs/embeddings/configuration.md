@@ -81,6 +81,15 @@ Fixed-resolution checkpoints are supported; NaFlex exports requiring
 | `DefaultTask` | string | `null` | Task/instruction used when a request does not specify one explicitly. Null and empty request values both fall back to this setting. |
 | `Tasks` | string[] | — | List of task names advertised by the `/api/embeddings/tasks` endpoint (e.g. `search_document`, `search_query`, `clustering`, `classification`). Informational — any string can still be passed as a task. |
 
+## `PassageSplitting`
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `DefaultTokenSize` | int | `128` | Passage size used when the request omits it. |
+| `DefaultOverlapSize` | int | `32` | Passage overlap used when the request omits it. |
+| `MaxTokenSize` | int | `512` | Maximum passage size accepted from a client. |
+| `MaxOverlapSize` | int | `128` | Maximum passage overlap accepted from a client. The overlap must also be lower than the effective passage size. |
+
 ## `EmbeddingGeneratorOptions`
 
 | Parameter | Type | Default | Description |

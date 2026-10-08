@@ -82,6 +82,14 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.PassageEmbeddingRequest> __Marshaller_jigen_PassageEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageEmbeddingRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.PassageEmbeddingResponse> __Marshaller_jigen_PassageEmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageEmbeddingResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.PassageSplitCountRequest> __Marshaller_jigen_PassageSplitCountRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageSplitCountRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.PassageSplitCountResponse> __Marshaller_jigen_PassageSplitCountResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageSplitCountResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.ImageEmbeddingRequest> __Marshaller_jigen_ImageEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageEmbeddingRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.ImageEmbeddingBatchRequest> __Marshaller_jigen_ImageEmbeddingBatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageEmbeddingBatchRequest.Parser));
@@ -237,6 +245,22 @@ namespace Jigen.Proto {
         "CalculateEmbeddingsBatch",
         __Marshaller_jigen_EmbeddingBatchRequest,
         __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse> __Method_CalculatePassageEmbeddings = new grpc::Method<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculatePassageEmbeddings",
+        __Marshaller_jigen_PassageEmbeddingRequest,
+        __Marshaller_jigen_PassageEmbeddingResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.PassageSplitCountRequest, global::Jigen.Proto.PassageSplitCountResponse> __Method_CalculatePassageSplitCount = new grpc::Method<global::Jigen.Proto.PassageSplitCountRequest, global::Jigen.Proto.PassageSplitCountResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculatePassageSplitCount",
+        __Marshaller_jigen_PassageSplitCountRequest,
+        __Marshaller_jigen_PassageSplitCountResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse> __Method_CalculateImageEmbedding = new grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(
@@ -732,6 +756,46 @@ namespace Jigen.Proto {
       public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingBatchResponse> CalculateEmbeddingsBatchAsync(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncUnaryCall(__Method_CalculateEmbeddingsBatch, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.PassageEmbeddingResponse CalculatePassageEmbeddings(global::Jigen.Proto.PassageEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculatePassageEmbeddings(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.PassageEmbeddingResponse CalculatePassageEmbeddings(global::Jigen.Proto.PassageEmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_CalculatePassageEmbeddings, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.PassageEmbeddingResponse> CalculatePassageEmbeddingsAsync(global::Jigen.Proto.PassageEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculatePassageEmbeddingsAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.PassageEmbeddingResponse> CalculatePassageEmbeddingsAsync(global::Jigen.Proto.PassageEmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_CalculatePassageEmbeddings, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.PassageSplitCountResponse CalculatePassageSplitCount(global::Jigen.Proto.PassageSplitCountRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculatePassageSplitCount(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.PassageSplitCountResponse CalculatePassageSplitCount(global::Jigen.Proto.PassageSplitCountRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_CalculatePassageSplitCount, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.PassageSplitCountResponse> CalculatePassageSplitCountAsync(global::Jigen.Proto.PassageSplitCountRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculatePassageSplitCountAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.PassageSplitCountResponse> CalculatePassageSplitCountAsync(global::Jigen.Proto.PassageSplitCountRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_CalculatePassageSplitCount, null, options, request);
       }
       /// <summary>
       /// ── Direct image embedding: raw image bytes in, vision model vector out ──

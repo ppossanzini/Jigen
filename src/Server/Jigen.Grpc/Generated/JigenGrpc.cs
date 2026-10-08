@@ -82,6 +82,14 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.PassageEmbeddingRequest> __Marshaller_jigen_PassageEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageEmbeddingRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.PassageEmbeddingResponse> __Marshaller_jigen_PassageEmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageEmbeddingResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.PassageSplitCountRequest> __Marshaller_jigen_PassageSplitCountRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageSplitCountRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.PassageSplitCountResponse> __Marshaller_jigen_PassageSplitCountResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageSplitCountResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.ImageEmbeddingRequest> __Marshaller_jigen_ImageEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageEmbeddingRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.ImageEmbeddingBatchRequest> __Marshaller_jigen_ImageEmbeddingBatchRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.ImageEmbeddingBatchRequest.Parser));
@@ -237,6 +245,22 @@ namespace Jigen.Proto {
         "CalculateEmbeddingsBatch",
         __Marshaller_jigen_EmbeddingBatchRequest,
         __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse> __Method_CalculatePassageEmbeddings = new grpc::Method<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculatePassageEmbeddings",
+        __Marshaller_jigen_PassageEmbeddingRequest,
+        __Marshaller_jigen_PassageEmbeddingResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.PassageSplitCountRequest, global::Jigen.Proto.PassageSplitCountResponse> __Method_CalculatePassageSplitCount = new grpc::Method<global::Jigen.Proto.PassageSplitCountRequest, global::Jigen.Proto.PassageSplitCountResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculatePassageSplitCount",
+        __Marshaller_jigen_PassageSplitCountRequest,
+        __Marshaller_jigen_PassageSplitCountResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse> __Method_CalculateImageEmbedding = new grpc::Method<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(
@@ -461,6 +485,18 @@ namespace Jigen.Proto {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.PassageEmbeddingResponse> CalculatePassageEmbeddings(global::Jigen.Proto.PassageEmbeddingRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.PassageSplitCountResponse> CalculatePassageSplitCount(global::Jigen.Proto.PassageSplitCountRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
       /// <summary>
       /// ── Direct image embedding: raw image bytes in, vision model vector out ──
       /// </summary>
@@ -599,6 +635,8 @@ namespace Jigen.Proto {
           .AddMethod(__Method_Count, serviceImpl.Count)
           .AddMethod(__Method_CalculateEmbeddings, serviceImpl.CalculateEmbeddings)
           .AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl.CalculateEmbeddingsBatch)
+          .AddMethod(__Method_CalculatePassageEmbeddings, serviceImpl.CalculatePassageEmbeddings)
+          .AddMethod(__Method_CalculatePassageSplitCount, serviceImpl.CalculatePassageSplitCount)
           .AddMethod(__Method_CalculateImageEmbedding, serviceImpl.CalculateImageEmbedding)
           .AddMethod(__Method_CalculateImageEmbeddingBatch, serviceImpl.CalculateImageEmbeddingBatch)
           .AddMethod(__Method_CalculateImageTileEmbeddings, serviceImpl.CalculateImageTileEmbeddings)
@@ -636,6 +674,8 @@ namespace Jigen.Proto {
       serviceBinder.AddMethod(__Method_Count, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CountResult>(serviceImpl.Count));
       serviceBinder.AddMethod(__Method_CalculateEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.CalculateEmbeddings));
       serviceBinder.AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse>(serviceImpl.CalculateEmbeddingsBatch));
+      serviceBinder.AddMethod(__Method_CalculatePassageEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse>(serviceImpl.CalculatePassageEmbeddings));
+      serviceBinder.AddMethod(__Method_CalculatePassageSplitCount, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.PassageSplitCountRequest, global::Jigen.Proto.PassageSplitCountResponse>(serviceImpl.CalculatePassageSplitCount));
       serviceBinder.AddMethod(__Method_CalculateImageEmbedding, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.CalculateImageEmbedding));
       serviceBinder.AddMethod(__Method_CalculateImageEmbeddingBatch, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ImageEmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse>(serviceImpl.CalculateImageEmbeddingBatch));
       serviceBinder.AddMethod(__Method_CalculateImageTileEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.ImageTileEmbeddingsResponse>(serviceImpl.CalculateImageTileEmbeddings));

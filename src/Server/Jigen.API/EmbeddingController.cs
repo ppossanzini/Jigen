@@ -2,13 +2,15 @@ using Hikyaku;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Jigen.Embedding.Core.Options;
+using Microsoft.Extensions.Options;
 
 namespace Jigen.API;
 
 [ApiController]
 [Route("~/api/embeddings")]
 [Authorize]
-public class EmbeddingController(IHikyaku mediator) : ControllerBase
+public class EmbeddingController(IHikyaku mediator, IOptions<PassageSplittingOptions> passageOptions) : ControllerBase
 {
   /// <summary>Compute embeddings for a single sentence.</summary>
   [HttpPost]
@@ -88,6 +90,66 @@ public class EmbeddingController(IHikyaku mediator) : ControllerBase
 
     return Ok(new EmbeddingBatchResult { Results = results });
   }
+
+  /// <summary>Split text into overlapping token passages and compute one embedding per passage.</summary>
+  /// <param name="request">Text, model and passage sizing options.</param>
+  /// <param name="cancellationToken">Request cancellation token.</param>
+  /// <returns>The ordered passages and their embeddings.</returns>
+  [HttpPost("passages")]
+  [ProducesResponseType(typeof(Embedding.Core.Dto.PassageEmbedding[]), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> CalculatePassageEmbeddings(
+    [FromBody] CalculatePassageEmbeddingsRequest request,
+    CancellationToken cancellationToken)
+  {
+    if (request == null || string.IsNullOrWhiteSpace(request.Message))
+      return BadRequest("Message is required");
+    var size = request.PassageTokenSize ?? passageOptions.Value.DefaultTokenSize;
+    var overlap = request.PassageOverlapSize ?? passageOptions.Value.DefaultOverlapSize;
+    if (size <= 0 || size > passageOptions.Value.MaxTokenSize)
+      return BadRequest($"PassageTokenSize must be between 1 and {passageOptions.Value.MaxTokenSize}");
+    if (overlap < 0 || overlap > passageOptions.Value.MaxOverlapSize || overlap >= size)
+      return BadRequest($"PassageOverlapSize must be non-negative, lower than PassageTokenSize and not exceed {passageOptions.Value.MaxOverlapSize}");
+
+    var result = await mediator.Send(new Embedding.Core.Commands.CalculatePassageEmbeddings
+    {
+      Model = request.Model,
+      Task = request.Task,
+      Sentence = request.Message,
+      PassageTokenSize = size,
+      PassageOverlapSize = overlap
+    }, cancellationToken);
+
+    return Ok(result);
+  }
+
+  /// <summary>Return how many passages the server would produce without calculating embeddings.</summary>
+  [HttpPost("passages/count")]
+  [ProducesResponseType(typeof(PassageSplitCountResult), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> CalculatePassageSplitCount(
+    [FromBody] CalculatePassageSplitCountRequest request,
+    CancellationToken cancellationToken)
+  {
+    if (request == null || string.IsNullOrWhiteSpace(request.Message))
+      return BadRequest("Message is required");
+    var size = request.PassageTokenSize ?? passageOptions.Value.DefaultTokenSize;
+    var overlap = request.PassageOverlapSize ?? passageOptions.Value.DefaultOverlapSize;
+    if (size <= 0 || size > passageOptions.Value.MaxTokenSize)
+      return BadRequest($"PassageTokenSize must be between 1 and {passageOptions.Value.MaxTokenSize}");
+    if (overlap < 0 || overlap > passageOptions.Value.MaxOverlapSize || overlap >= size)
+      return BadRequest($"PassageOverlapSize must be non-negative, lower than PassageTokenSize and not exceed {passageOptions.Value.MaxOverlapSize}");
+
+    var count = await mediator.Send(new Embedding.Core.Commands.CalculatePassageSplitCount
+    {
+      Model = request.Model,
+      Sentence = request.Message,
+      PassageTokenSize = size,
+      PassageOverlapSize = overlap
+    }, cancellationToken);
+
+    return Ok(new PassageSplitCountResult { Count = count });
+  }
 }
 
 public class CalculateEmbeddingsRequest
@@ -114,4 +176,26 @@ public class CalculateEmbeddingsMultiRequest
 public class EmbeddingBatchResult
 {
   public float[][] Results { get; set; }
+}
+
+public class CalculatePassageEmbeddingsRequest
+{
+  public string Message { get; set; }
+  public string Model { get; set; }
+  public string Task { get; set; }
+  public int? PassageTokenSize { get; set; }
+  public int? PassageOverlapSize { get; set; }
+}
+
+public class CalculatePassageSplitCountRequest
+{
+  public string Message { get; set; }
+  public string Model { get; set; }
+  public int? PassageTokenSize { get; set; }
+  public int? PassageOverlapSize { get; set; }
+}
+
+public class PassageSplitCountResult
+{
+  public int Count { get; set; }
 }

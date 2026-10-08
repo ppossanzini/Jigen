@@ -49,6 +49,74 @@ public static class EmbeddingExtensions
     return response.Results.Select(result => result.Embeddings.ToArray());
   }
 
+  public static IReadOnlyList<Proto.PassageEmbeddingResult> CalculatePassageEmbeddings(
+    this Context store,
+    string sentence,
+    int? passageTokenSize = null,
+    int? passageOverlapSize = null,
+    string task = null,
+    string model = null)
+  {
+    var request = new Proto.PassageEmbeddingRequest
+    {
+      Message = sentence,
+      Task = task ?? "",
+      Model = model ?? ""
+    };
+    if (passageTokenSize.HasValue)
+      request.PassageTokenSize = passageTokenSize.Value;
+    if (passageOverlapSize.HasValue)
+      request.PassageOverlapSize = passageOverlapSize.Value;
+    return store.ServiceClient.CalculatePassageEmbeddings(request).Results;
+  }
+
+  public static async Task<IReadOnlyList<Proto.PassageEmbeddingResult>> CalculatePassageEmbeddingsAsync(
+    this Context store,
+    string sentence,
+    int? passageTokenSize = null,
+    int? passageOverlapSize = null,
+    string task = null,
+    string model = null,
+    CancellationToken cancellationToken = default)
+  {
+    var request = new Proto.PassageEmbeddingRequest
+    {
+      Message = sentence,
+      Task = task ?? "",
+      Model = model ?? ""
+    };
+    if (passageTokenSize.HasValue)
+      request.PassageTokenSize = passageTokenSize.Value;
+    if (passageOverlapSize.HasValue)
+      request.PassageOverlapSize = passageOverlapSize.Value;
+    var response = await store.ServiceClient.CalculatePassageEmbeddingsAsync(request, cancellationToken: cancellationToken);
+    return response.Results;
+  }
+
+  public static int CalculatePassageSplitCount(
+    this Context store,
+    string sentence,
+    int? passageTokenSize = null,
+    int? passageOverlapSize = null,
+    string model = null)
+  {
+    var request = CreatePassageSplitCountRequest(sentence, passageTokenSize, passageOverlapSize, model);
+    return store.ServiceClient.CalculatePassageSplitCount(request).Count;
+  }
+
+  public static async Task<int> CalculatePassageSplitCountAsync(
+    this Context store,
+    string sentence,
+    int? passageTokenSize = null,
+    int? passageOverlapSize = null,
+    string model = null,
+    CancellationToken cancellationToken = default)
+  {
+    var request = CreatePassageSplitCountRequest(sentence, passageTokenSize, passageOverlapSize, model);
+    var response = await store.ServiceClient.CalculatePassageSplitCountAsync(request, cancellationToken: cancellationToken);
+    return response.Count;
+  }
+
   public static float[] CalculateImageEmbedding(this Context store, byte[] image)
   {
     return store.ServiceClient.CalculateImageEmbedding(new Proto.ImageEmbeddingRequest()
@@ -98,5 +166,23 @@ public static class EmbeddingExtensions
       Image = Google.Protobuf.ByteString.CopyFrom(image)
     });
     return response.Tiles.Select(tile => tile.Embeddings.ToArray());
+  }
+
+  private static Proto.PassageSplitCountRequest CreatePassageSplitCountRequest(
+    string sentence,
+    int? passageTokenSize,
+    int? passageOverlapSize,
+    string model)
+  {
+    var request = new Proto.PassageSplitCountRequest
+    {
+      Message = sentence,
+      Model = model ?? ""
+    };
+    if (passageTokenSize.HasValue)
+      request.PassageTokenSize = passageTokenSize.Value;
+    if (passageOverlapSize.HasValue)
+      request.PassageOverlapSize = passageOverlapSize.Value;
+    return request;
   }
 }

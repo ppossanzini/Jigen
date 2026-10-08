@@ -51,6 +51,8 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
   public float[][] GenerateEmbeddings(IReadOnlyList<string> inputs) =>
     GenerateEmbeddingsAsync(inputs).GetAwaiter().GetResult();
 
+  public int CountTokens(string input) => _inner.CountTokens(input);
+
   public Task<float[]> GenerateEmbeddingAsync(string input, CancellationToken cancellationToken = default) =>
     EnqueueAsync(input, cancellationToken);
 

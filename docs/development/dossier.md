@@ -55,3 +55,48 @@ Status: Production code verified; awaiting code-quality approval before the sepa
 - Verification: `Jigen.Embedding.Handlers` built with 0 errors. Two existing ONNX Runtime RID warnings remain.
 - Verification: the BGE-M3 Store/HNSW regression test passed.
 - Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-PASSAGE-EMBEDDING-CONTRACT
+
+Status: Production code verified; awaiting code-quality approval before the separate test task.
+
+- Added `CalculatePassageEmbeddings` with model, task, text, passage-size and overlap parameters.
+- Added the structured `PassageEmbedding` result with text, start token, token count and embedding.
+- Added token-aware passage splitting at word boundaries and batch generation of one vector per passage.
+- Existing single-vector and batch contracts remain unchanged. Store and HNSW are not involved yet.
+- Verification: `Jigen.Embedding.Handlers` and its dependencies built with 0 warnings and 0 errors.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-PASSAGE-EMBEDDING-TRANSPORTS
+
+Status: Production code verified; awaiting code-quality approval before the separate test task.
+
+- Added `POST /api/embeddings/passages` to both REST embedding hosts.
+- Added the `CalculatePassageEmbeddings` unary gRPC operation and synchronized server/client protobuf contracts.
+- Added synchronous and asynchronous passage helpers to `Jigen.Client`.
+- REST and gRPC reject empty text, non-positive passage size, negative overlap and overlap greater than or equal to passage size.
+- Store and HNSW remain unchanged and are not called by the new transport operations.
+- Verification: both REST projects, the gRPC server and `Jigen.Client` built successfully with 0 errors. Existing generated-source, nullable and ONNX runtime warnings remain.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-PASSAGE-SERVER-LIMITS
+
+Status: Production code verified; awaiting code-quality approval before the separate test task.
+
+- Added centralized passage defaults (`128` tokens, `32` overlap) and server limits (`512` tokens, `128` overlap) under `JigenEmbeddings:PassageSplitting`.
+- REST request sizes are nullable; omitted values use server defaults and explicit values are checked against server limits.
+- gRPC passage size and overlap are optional scalar fields with presence tracking; the .NET client helpers accept nullable overrides.
+- Startup validates the configured defaults and maximums before accepting requests.
+- Verification: handlers, both REST projects, the gRPC server and `Jigen.Client` built with 0 errors. Existing protobuf generated-source, nullable and unused-import warnings remain.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-PASSAGE-SPLIT-COUNT
+
+Status: Production code verified; awaiting code-quality approval before the separate test task.
+
+- Added `CalculatePassageSplitCount`, which applies the same tokenizer-aware splitter as passage embedding without running model inference.
+- Added `POST /api/embeddings/passages/count` to both REST hosts.
+- Added `CalculatePassageSplitCount` to gRPC and synchronous/asynchronous helpers to `Jigen.Client`.
+- Optional passage sizing uses the same server defaults and limits as passage embedding.
+- Verification: handlers, both REST projects, the gRPC server and `Jigen.Client` built with 0 errors. Existing generated-source, nullable and unused protobuf import warnings remain.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.

@@ -4,10 +4,12 @@ using Hikyaku;
 using Jigen.DataStructures;
 using Jigen.Filtering;
 using Jigen.Proto;
+using Jigen.Embedding.Core.Options;
+using Microsoft.Extensions.Options;
 
 namespace Jigen.Grpc;
 
-public class Server(IHikyaku mediator, IHikyaku hikyaku)
+public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplittingOptions> passageOptions)
   : Jigen.Proto.StoreCollectionService.StoreCollectionServiceBase
 {
   public override async Task<EmbeddingResponse> CalculateEmbeddings(EmbeddingRequest request, ServerCallContext context)
@@ -50,6 +52,71 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku)
       response.Results[indexes[i]].Embeddings.AddRange(vectors[i]);
 
     return response;
+  }
+
+  public override async Task<PassageEmbeddingResponse> CalculatePassageEmbeddings(
+    PassageEmbeddingRequest request,
+    ServerCallContext context)
+  {
+    if (string.IsNullOrWhiteSpace(request.Message))
+      throw new RpcException(new Status(StatusCode.InvalidArgument, "Message is required."));
+    var size = request.HasPassageTokenSize ? request.PassageTokenSize : passageOptions.Value.DefaultTokenSize;
+    var overlap = request.HasPassageOverlapSize ? request.PassageOverlapSize : passageOptions.Value.DefaultOverlapSize;
+    if (size <= 0 || size > passageOptions.Value.MaxTokenSize)
+      throw new RpcException(new Status(StatusCode.InvalidArgument,
+        $"PassageTokenSize must be between 1 and {passageOptions.Value.MaxTokenSize}."));
+    if (overlap < 0 || overlap > passageOptions.Value.MaxOverlapSize || overlap >= size)
+      throw new RpcException(new Status(StatusCode.InvalidArgument,
+        $"PassageOverlapSize must be non-negative, lower than PassageTokenSize and not exceed {passageOptions.Value.MaxOverlapSize}."));
+
+    var passages = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculatePassageEmbeddings
+    {
+      Model = request.Model,
+      Task = request.Task,
+      Sentence = request.Message,
+      PassageTokenSize = size,
+      PassageOverlapSize = overlap
+    }, context.CancellationToken);
+
+    var response = new PassageEmbeddingResponse();
+    response.Results.AddRange(passages.Select(passage =>
+    {
+      var result = new PassageEmbeddingResult
+      {
+        Text = passage.Text,
+        StartToken = passage.StartToken,
+        TokenCount = passage.TokenCount
+      };
+      result.Embeddings.AddRange(passage.Embedding);
+      return result;
+    }));
+    return response;
+  }
+
+  public override async Task<PassageSplitCountResponse> CalculatePassageSplitCount(
+    PassageSplitCountRequest request,
+    ServerCallContext context)
+  {
+    if (string.IsNullOrWhiteSpace(request.Message))
+      throw new RpcException(new Status(StatusCode.InvalidArgument, "Message is required."));
+    var size = request.HasPassageTokenSize ? request.PassageTokenSize : passageOptions.Value.DefaultTokenSize;
+    var overlap = request.HasPassageOverlapSize ? request.PassageOverlapSize : passageOptions.Value.DefaultOverlapSize;
+    if (size <= 0 || size > passageOptions.Value.MaxTokenSize)
+      throw new RpcException(new Status(StatusCode.InvalidArgument,
+        $"PassageTokenSize must be between 1 and {passageOptions.Value.MaxTokenSize}."));
+    if (overlap < 0 || overlap > passageOptions.Value.MaxOverlapSize || overlap >= size)
+      throw new RpcException(new Status(StatusCode.InvalidArgument,
+        $"PassageOverlapSize must be non-negative, lower than PassageTokenSize and not exceed {passageOptions.Value.MaxOverlapSize}."));
+
+    var count = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculatePassageSplitCount
+    {
+      Model = request.Model,
+      Sentence = request.Message,
+      PassageTokenSize = size,
+      PassageOverlapSize = overlap
+    }, context.CancellationToken);
+
+    return new PassageSplitCountResponse { Count = count };
   }
 
   public override async Task<EmbeddingResponse> CalculateImageEmbedding(ImageEmbeddingRequest request, ServerCallContext context)

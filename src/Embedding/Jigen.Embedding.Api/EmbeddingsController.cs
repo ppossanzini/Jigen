@@ -2,12 +2,17 @@ using Hikyaku;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Jigen.Embedding.Core.Options;
+using Microsoft.Extensions.Options;
 
 namespace Jigen.Embedding.Api;
 
 [ApiController]
 [Route("~/api/embeddings")]
-public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration) : ControllerBase
+public class EmbeddingsController(
+  IHikyaku hikyaku,
+  IConfiguration configuration,
+  IOptions<PassageSplittingOptions> passageOptions) : ControllerBase
 {
   [HttpGet("tasks")]
   [ProducesResponseType(typeof(string[]), StatusCodes.Status200OK)]
@@ -54,6 +59,61 @@ public class EmbeddingsController(IHikyaku hikyaku, IConfiguration configuration
       Models = request.Models
     }, cancellationToken);
     return Ok(result);
+  }
+
+  [HttpPost("passages")]
+  [ProducesResponseType(typeof(Core.Dto.PassageEmbedding[]), StatusCodes.Status200OK)]
+  [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> CalculatePassageEmbeddings(
+    [FromBody] CalculatePassageEmbeddingsRequest request,
+    CancellationToken cancellationToken)
+  {
+    if (request == null || string.IsNullOrWhiteSpace(request.Text))
+      return BadRequest("Text cannot be empty.");
+    var size = request.PassageTokenSize ?? passageOptions.Value.DefaultTokenSize;
+    var overlap = request.PassageOverlapSize ?? passageOptions.Value.DefaultOverlapSize;
+    if (size <= 0 || size > passageOptions.Value.MaxTokenSize)
+      return BadRequest($"PassageTokenSize must be between 1 and {passageOptions.Value.MaxTokenSize}.");
+    if (overlap < 0 || overlap > passageOptions.Value.MaxOverlapSize || overlap >= size)
+      return BadRequest($"PassageOverlapSize must be non-negative, lower than PassageTokenSize and not exceed {passageOptions.Value.MaxOverlapSize}.");
+
+    var result = await hikyaku.Send(new Core.Commands.CalculatePassageEmbeddings
+    {
+      Model = request.Model,
+      Task = request.Task,
+      Sentence = request.Text,
+      PassageTokenSize = size,
+      PassageOverlapSize = overlap
+    }, cancellationToken);
+
+    return Ok(result);
+  }
+
+  [HttpPost("passages/count")]
+  [ProducesResponseType(typeof(PassageSplitCountResult), StatusCodes.Status200OK)]
+  [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> CalculatePassageSplitCount(
+    [FromBody] CalculatePassageSplitCountRequest request,
+    CancellationToken cancellationToken)
+  {
+    if (request == null || string.IsNullOrWhiteSpace(request.Text))
+      return BadRequest("Text cannot be empty.");
+    var size = request.PassageTokenSize ?? passageOptions.Value.DefaultTokenSize;
+    var overlap = request.PassageOverlapSize ?? passageOptions.Value.DefaultOverlapSize;
+    if (size <= 0 || size > passageOptions.Value.MaxTokenSize)
+      return BadRequest($"PassageTokenSize must be between 1 and {passageOptions.Value.MaxTokenSize}.");
+    if (overlap < 0 || overlap > passageOptions.Value.MaxOverlapSize || overlap >= size)
+      return BadRequest($"PassageOverlapSize must be non-negative, lower than PassageTokenSize and not exceed {passageOptions.Value.MaxOverlapSize}.");
+
+    var count = await hikyaku.Send(new Core.Commands.CalculatePassageSplitCount
+    {
+      Model = request.Model,
+      Sentence = request.Text,
+      PassageTokenSize = size,
+      PassageOverlapSize = overlap
+    }, cancellationToken);
+
+    return Ok(new PassageSplitCountResult { Count = count });
   }
 
   [HttpPost("calculate-image")]
@@ -185,4 +245,26 @@ public class CalculateEmbeddingsMultiRequest
   public string Text { get; set; }
   public string Task { get; set; }
   public string[] Models { get; set; }
+}
+
+public class CalculatePassageEmbeddingsRequest
+{
+  public string Text { get; set; }
+  public string Model { get; set; }
+  public string Task { get; set; }
+  public int? PassageTokenSize { get; set; }
+  public int? PassageOverlapSize { get; set; }
+}
+
+public class CalculatePassageSplitCountRequest
+{
+  public string Text { get; set; }
+  public string Model { get; set; }
+  public int? PassageTokenSize { get; set; }
+  public int? PassageOverlapSize { get; set; }
+}
+
+public class PassageSplitCountResult
+{
+  public int Count { get; set; }
 }

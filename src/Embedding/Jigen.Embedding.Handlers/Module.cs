@@ -1,6 +1,7 @@
 using System.Composition;
 using System.Runtime.InteropServices.JavaScript;
 using Jigen.SemanticTools;
+using Jigen.Embedding.Core.Options;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,6 +18,17 @@ public class Module: IModule
   {
     var settings = configuration.GetSection("JigenEmbeddings").Get<EmbeddingSettings>();
     services.Configure<EmbeddingSettings>(configuration.GetSection("JigenEmbeddings"));
+    services.AddOptions<PassageSplittingOptions>()
+      .Bind(configuration.GetSection("JigenEmbeddings:PassageSplitting"))
+      .Validate(options => options.DefaultTokenSize > 0, "DefaultTokenSize must be greater than zero.")
+      .Validate(options => options.DefaultOverlapSize >= 0, "DefaultOverlapSize must be non-negative.")
+      .Validate(options => options.MaxTokenSize >= options.DefaultTokenSize,
+        "MaxTokenSize must be greater than or equal to DefaultTokenSize.")
+      .Validate(options => options.MaxOverlapSize >= options.DefaultOverlapSize,
+        "MaxOverlapSize must be greater than or equal to DefaultOverlapSize.")
+      .Validate(options => options.DefaultOverlapSize < options.DefaultTokenSize,
+        "DefaultOverlapSize must be lower than DefaultTokenSize.")
+      .ValidateOnStart();
 
     services.AddSingleton<IEmbeddingGeneratorRegistry>(provider =>
     {
