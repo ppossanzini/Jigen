@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
 using Microsoft.ML.Tokenizers;
+using HuggingFaceTokenizer = Tokenizers.HuggingFace.Tokenizer.Tokenizer;
 
 namespace Jigen.SemanticTools;
 
@@ -14,6 +15,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 {
   private readonly InferenceSession _tokenizerSession;
   private readonly Tokenizer _jsonTokenizer;
+  private readonly HuggingFaceTokenizer _huggingFaceTokenizer;
   private readonly string _tokenizerInputName;
 
   private readonly InferenceSession _modelSession;
@@ -42,11 +44,20 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   {
     _logger = logger;
     options ??= new EmbeddingGeneratorOptions();
+    _profile = options.Profile;
 
     if (tokenizerPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
     {
-      _jsonTokenizer = CreateSentencePieceTokenizerFromJsonPath(tokenizerPath);
-      _logger?.LogInformation("Loaded tokenizer from JSON path {TokenizerPath}", tokenizerPath);
+      if (_profile == EmbeddingModelProfile.BgeM3)
+      {
+        _jsonTokenizer = CreateSentencePieceTokenizerFromJsonPath(tokenizerPath);
+        _logger?.LogInformation("Loaded SentencePiece tokenizer from JSON path {TokenizerPath}", tokenizerPath);
+      }
+      else
+      {
+        _huggingFaceTokenizer = HuggingFaceTokenizer.FromFile(tokenizerPath);
+        _logger?.LogInformation("Loaded Hugging Face tokenizer from JSON path {TokenizerPath}", tokenizerPath);
+      }
     }
     else
     {
@@ -84,7 +95,6 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     _chunkOverlap = Math.Clamp(options.ChunkOverlap, 0, _chunkSize - 1);
     _headTokens = Math.Clamp(options.HeadTailHeadTokens, 1, _maxTokens - 1);
     _maxBatchSize = Math.Max(options.MaxBatchSize, 1);
-    _profile = options.Profile;
     _outputDimension = Math.Max(options.OutputDimension, 0);
     _paddingTokenId = options.PaddingTokenId;
     if (_profile == EmbeddingModelProfile.Qwen3 && _outputDimension is > 0 and < 32)
@@ -112,6 +122,8 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 
   public Task<float[][]> GenerateEmbeddingsAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken = default) =>
     Task.Run(() => GenerateEmbeddings(inputs), cancellationToken);
+
+  public int CountTokens(string input) => TokenizeToInputIds(input).Length;
 
   /// <summary>
   /// Generates embeddings for multiple input texts, fusing token sequences
@@ -208,19 +220,14 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     return results;
   }
 
-  public int CountTokens(string input)
-  {
-    if (string.IsNullOrWhiteSpace(input))
-      return 0;
-
-    return TokenizeToInputIds(input).Length;
-  }
-
 
   private long[] TokenizeToInputIds(string text)
   {
     if (_profile == EmbeddingModelProfile.SigLip2)
       text = text.ToLowerInvariant();
+
+    if (_huggingFaceTokenizer != null)
+      return _huggingFaceTokenizer.Encode(text, true).First().Ids.Select(static id => (long)id).ToArray();
 
     if (_jsonTokenizer != null)
     {
@@ -505,12 +512,12 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
         var baseOffset = row * sequenceLength * hiddenSize;
         var pooled = new float[hiddenSize];
 
-        if (_profile is EmbeddingModelProfile.Qwen3 or EmbeddingModelProfile.SigLip2 or EmbeddingModelProfile.BgeM3)
+        if (_profile is EmbeddingModelProfile.Qwen3 or EmbeddingModelProfile.SigLip2 or EmbeddingModelProfile.BgeM3 or EmbeddingModelProfile.Granite)
         {
           var tokenIndex = _profile switch
           {
             EmbeddingModelProfile.Qwen3 => sequenceLength - 1,
-            EmbeddingModelProfile.BgeM3 => 0,
+            EmbeddingModelProfile.BgeM3 or EmbeddingModelProfile.Granite => 0,
             _ => effectiveTokens - 1
           };
           Array.Copy(values, baseOffset + tokenIndex * hiddenSize, pooled, 0, hiddenSize);
@@ -685,6 +692,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   public void Dispose()
   {
     _tokenizerSession?.Dispose();
+    _huggingFaceTokenizer?.Dispose();
     _modelSession.Dispose();
   }
 }

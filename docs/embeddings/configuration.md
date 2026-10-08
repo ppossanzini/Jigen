@@ -72,7 +72,7 @@ Fixed-resolution checkpoints are supported; NaFlex exports requiring
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `TokenizerPath` | string | — (required) | Path to the ONNX tokenizer model (`tokenizer.onnx`), or to a `tokenizer.json` to use the SentencePiece code path instead (requires a sibling `sentencepiece.bpe.model` file). |
+| `TokenizerPath` | string | — (required) | Path to an ONNX tokenizer model (`tokenizer.onnx`) or a Hugging Face `tokenizer.json`. The `BgeM3` profile retains its SentencePiece-specific JSON path and requires a sibling `sentencepiece.bpe.model`. |
 | `EmbeddingsModelPath` | string | — (required) | Path to the ONNX embedding model. |
 | `GeneratorOptions` | `EmbeddingGeneratorOptions` | see below | Tokenization, chunking, batching, and execution provider settings, see next table. |
 | `EmbeddingsMaxConcurrency` | int | `2` | Number of worker tasks draining the internal request queue; effectively the number of concurrent ONNX inference calls in flight. |
@@ -81,20 +81,11 @@ Fixed-resolution checkpoints are supported; NaFlex exports requiring
 | `DefaultTask` | string | `null` | Task/instruction used when a request does not specify one explicitly. Null and empty request values both fall back to this setting. |
 | `Tasks` | string[] | — | List of task names advertised by the `/api/embeddings/tasks` endpoint (e.g. `search_document`, `search_query`, `clustering`, `classification`). Informational — any string can still be passed as a task. |
 
-## `PassageSplitting`
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `DefaultTokenSize` | int | `128` | Passage size used when the request omits it. |
-| `DefaultOverlapSize` | int | `32` | Passage overlap used when the request omits it. |
-| `MaxTokenSize` | int | `512` | Maximum passage size accepted from a client. |
-| `MaxOverlapSize` | int | `128` | Maximum passage overlap accepted from a client. The overlap must also be lower than the effective passage size. |
-
 ## `EmbeddingGeneratorOptions`
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `Profile` | enum | `Nomic` | Model contract: `Nomic`, `Qwen3`, `SigLip2`, `BgeM3`, or `Custom`. Controls padding, pooling, input formatting and normalization. `BgeM3` uses right padding, CLS pooling and L2 normalization. |
+| `Profile` | enum | `Nomic` | Model contract: `Nomic`, `Qwen3`, `SigLip2`, `BgeM3`, `Granite`, or `Custom`. Controls padding, pooling, input formatting and normalization. `BgeM3` and `Granite` use right padding, CLS pooling and L2 normalization; only `BgeM3` applies its XLM-R SentencePiece id mapping. |
 | `MaxTokens` | int | `384` | Maximum tokens per inference sequence; longer inputs are chunked or truncated (see below). Clamped to a minimum of 8. |
 | `UseChunking` | bool | `true` | When `true`, inputs longer than `MaxTokens` are split into overlapping chunks and their embeddings combined by weighted average. When `false`, Nomic uses head-tail truncation; Qwen3 and SigLIP2 use right truncation. |
 | `ChunkSize` | int | `320` | Tokens per chunk when chunking is enabled. Clamped between 8 and `MaxTokens`. |

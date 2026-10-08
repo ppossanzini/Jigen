@@ -22,6 +22,7 @@
     <PackageReference Include="Intel.ML.OnnxRuntime.OpenVino" Version="1.24.1" Condition="'$(JigenOnnxRuntimeFlavor)' == 'OpenVino'" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime.Extensions" Version="0.14.0"/>
     <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0"/>
+    <PackageReference Include="Tokenizers.HuggingFace" Version="3.23.1" />
     <!-- Image processing: OpenCvSharp5 (Apache-2.0) replaces SixLabors.ImageSharp, which
          switched to a paid license in 3.x. The slim runtime profile ships core + imgproc +
          imgcodecs with no highgui/GTK3 dependency (container-friendly); native libs are built

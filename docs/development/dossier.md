@@ -1,5 +1,92 @@
 # Development Dossier
 
+## DEV-GRANITE-R2-CONFIGURATION
+
+Status: Completed.
+
+- Added standalone CPU configurations for Granite Embedding 311M and 97M Multilingual R2.
+- Added a dedicated `Granite` processing profile with right padding, CLS pooling and L2 normalization, without the BGE-M3-specific token-id mapping.
+- Set passage defaults to 512 tokens with 64-token overlap for the accuracy-oriented 311M model and 384 tokens with 64-token overlap for the latency-oriented 97M model.
+- Added direct Hugging Face `tokenizer.json` loading through the official Rust tokenizer bindings for .NET. Both configurations now use the tokenizer asset published by IBM.
+- Verification: both files parsed as JSON and satisfied all `PassageSplittingOptions` startup constraints. `Jigen.SemanticTools` and `Jigen.Embedding.Handlers` build successfully.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, `implementation-be-dotnet-dev`, and `capabilities-dev-problem-solving-methodology`.
+
+## DEV-GRANITE-R2-MODEL-VALIDATION
+
+Status: Completed.
+
+- Deployed the official 97M and 311M tokenizer JSON and quantized AVX2 ONNX assets under `/data/onnx`.
+- Verified all four assets against the published Hugging Face LFS SHA-256 hashes.
+- Added real-model tests for tokenization, output dimensions, finite values, L2 normalization, Italian semantic ranking, and batch generation.
+- Verification: 8 Granite tests passed. The complete `Jigen.SemanticTools.Tests` suite passed 32 tests.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`, and `run-tests`.
+
+## DEV-GRANITE-97M-INDEX-BENCHMARK
+
+Status: Completed.
+
+- Indexed 1,000 texts with Granite 97M and Jigen HNSW.
+- Executed 2,000 generated searches against the persisted index.
+- Expected-document top-1 accuracy was 57.40%. First-query accuracy was 50.50%. Second-query accuracy was 66.00%.
+- Cosine score minimum, average, and maximum were 0.757785, 0.865203, and 0.965269.
+- Generated `/data/score.txt` and persisted the index under `/data/granite-97m-test-index`.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, and `capabilities-dev-problem-solving-methodology`.
+
+## DEV-GRANITE-PARAMETER-EVALUATION
+
+Status: Completed.
+
+- Compared Granite 97M at 384 dimensions with Granite 311M at 128, 256, 384, 512, and 768 dimensions over 2,000 searches.
+- Granite 311M at 768 dimensions reached 69.30% exact top-1. Granite 97M reached 58.70%.
+- HNSW with `M=32`, `EfConstruction=400`, and `EfSearch=128` reached 68.95% top-1 and 98.75% exact-result agreement.
+- Granite 311M at 512 dimensions reached 69.05% exact top-1.
+- A 512-token passage size splits 9 of 1,000 documents. No document exceeds 1,024 tokens.
+- Generated `/data/granite-parameter-results.txt`.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, and `capabilities-dev-problem-solving-methodology`.
+
+## DEV-EMBEDDING-MODEL-COMPARISON-FIRST100
+
+Status: Completed.
+
+- Compared exact retrieval over the first 100 documents and 200 generated queries.
+- BGE-M3 reached 96.50% top-1. Nomic v1.5 INT8 reached 96.00%.
+- Granite 311M reached 85.00% at both 512 and 768 dimensions. Granite 97M reached 81.00%.
+- Nomic encoded the sample in 12.170 seconds. BGE-M3 required 50.526 seconds.
+- Generated `/data/model-comparison-first100.txt`.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, and `capabilities-dev-problem-solving-methodology`.
+
+## DEV-HNSW-BALANCED-PRODUCTION-PROFILE
+
+Status: Completed.
+
+- Configured `M=32`, `EfConstruction=400`, and `EfSearch=128` in the server appsettings.
+- Kept graph quantization disabled and exact reranking enabled.
+- The measured profile reached 98.75% exact-result agreement on 2,000 searches.
+- Existing HNSW graphs require rebuilding before `M` and `EfConstruction` take full effect.
+- Verification: server configuration validation and server build succeeded.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, and `capabilities-dev-problem-solving-methodology`.
+
+## DEV-NOMIC-OPTIMIZED-CONFIGURATION
+
+Status: Completed.
+
+- Added a standalone Nomic INT8 CPU configuration with explicit `Nomic` profile and 768-dimensional output.
+- Allocated two embedding workers with 10 ONNX intra-op threads each on the 22-logical-CPU host.
+- Set 512-token passages with 64-token overlap for the short-report corpus.
+- Set `search_document` as the default task and exposed the four Nomic task prefixes.
+- Verification: JSON constraints, embedding worker build, and the real-model Nomic HNSW score test succeeded.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`, and `run-tests`.
+
+## DEV-NOMIC-SERVER-CONFIGURATION
+
+Status: Completed.
+
+- Added a standalone all-in-one server profile for the Nomic INT8 text model.
+- Combined the optimized Nomic worker settings with the balanced HNSW `32/400/128` profile.
+- Preserved server identity, storage, and RabbitMQ settings. Image embeddings remain disabled.
+- Verification: JSON constraints and server build succeeded. The environment file was copied to the runtime output.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, `base-dossier-writing`, `implementation-be-dotnet-dev`, and `capabilities-dev-problem-solving-methodology`.
+
 ## Technology resolution
 
 | Slot | Technology | Implementation skill |
@@ -54,49 +141,4 @@ Status: Production code verified; awaiting code-quality approval before the sepa
 - Nomic and Qwen task formatting remains unchanged; SigLIP2 continues to ignore tasks.
 - Verification: `Jigen.Embedding.Handlers` built with 0 errors. Two existing ONNX Runtime RID warnings remain.
 - Verification: the BGE-M3 Store/HNSW regression test passed.
-- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
-
-## DEV-PASSAGE-EMBEDDING-CONTRACT
-
-Status: Production code verified; awaiting code-quality approval before the separate test task.
-
-- Added `CalculatePassageEmbeddings` with model, task, text, passage-size and overlap parameters.
-- Added the structured `PassageEmbedding` result with text, start token, token count and embedding.
-- Added token-aware passage splitting at word boundaries and batch generation of one vector per passage.
-- Existing single-vector and batch contracts remain unchanged. Store and HNSW are not involved yet.
-- Verification: `Jigen.Embedding.Handlers` and its dependencies built with 0 warnings and 0 errors.
-- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
-
-## DEV-PASSAGE-EMBEDDING-TRANSPORTS
-
-Status: Production code verified; awaiting code-quality approval before the separate test task.
-
-- Added `POST /api/embeddings/passages` to both REST embedding hosts.
-- Added the `CalculatePassageEmbeddings` unary gRPC operation and synchronized server/client protobuf contracts.
-- Added synchronous and asynchronous passage helpers to `Jigen.Client`.
-- REST and gRPC reject empty text, non-positive passage size, negative overlap and overlap greater than or equal to passage size.
-- Store and HNSW remain unchanged and are not called by the new transport operations.
-- Verification: both REST projects, the gRPC server and `Jigen.Client` built successfully with 0 errors. Existing generated-source, nullable and ONNX runtime warnings remain.
-- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
-
-## DEV-PASSAGE-SERVER-LIMITS
-
-Status: Production code verified; awaiting code-quality approval before the separate test task.
-
-- Added centralized passage defaults (`128` tokens, `32` overlap) and server limits (`512` tokens, `128` overlap) under `JigenEmbeddings:PassageSplitting`.
-- REST request sizes are nullable; omitted values use server defaults and explicit values are checked against server limits.
-- gRPC passage size and overlap are optional scalar fields with presence tracking; the .NET client helpers accept nullable overrides.
-- Startup validates the configured defaults and maximums before accepting requests.
-- Verification: handlers, both REST projects, the gRPC server and `Jigen.Client` built with 0 errors. Existing protobuf generated-source, nullable and unused-import warnings remain.
-- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
-
-## DEV-PASSAGE-SPLIT-COUNT
-
-Status: Production code verified; awaiting code-quality approval before the separate test task.
-
-- Added `CalculatePassageSplitCount`, which applies the same tokenizer-aware splitter as passage embedding without running model inference.
-- Added `POST /api/embeddings/passages/count` to both REST hosts.
-- Added `CalculatePassageSplitCount` to gRPC and synchronous/asynchronous helpers to `Jigen.Client`.
-- Optional passage sizing uses the same server defaults and limits as passage embedding.
-- Verification: handlers, both REST projects, the gRPC server and `Jigen.Client` built with 0 errors. Existing generated-source, nullable and unused protobuf import warnings remain.
 - Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.

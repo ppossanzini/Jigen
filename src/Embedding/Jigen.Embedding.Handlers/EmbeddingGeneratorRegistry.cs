@@ -47,7 +47,7 @@ internal sealed class EmbeddingGeneratorRegistry(
     return profiles[name] switch
     {
       EmbeddingModelProfile.Qwen3 => $"Instruct: {task}\nQuery:{input}",
-      EmbeddingModelProfile.SigLip2 or EmbeddingModelProfile.BgeM3 => input,
+      EmbeddingModelProfile.SigLip2 or EmbeddingModelProfile.BgeM3 or EmbeddingModelProfile.Granite => input,
       _ => $"{task}: {input}"
     };
   }

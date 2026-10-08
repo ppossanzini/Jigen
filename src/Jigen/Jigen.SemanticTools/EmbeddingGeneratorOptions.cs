@@ -6,6 +6,7 @@ public enum EmbeddingModelProfile
   Qwen3,
   SigLip2,
   BgeM3,
+  Granite,
   Custom
 }
 
