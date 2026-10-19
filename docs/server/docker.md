@@ -1,12 +1,15 @@
 # Docker
 
-Jigen publishes three Docker images to Docker Hub, all Linux images built from `mcr.microsoft.com/dotnet/aspnet:10.0`. Each exposes ports `3223` (gRPC) and `13223` (REST/UI) as described in the [server overview](overview.md).
+Jigen publishes server images and embedding worker variants to Docker Hub. Each image exposes ports `3223` (gRPC) and `13223` (REST/UI) as described in the [server overview](overview.md).
 
 | Image | Contents | Data volumes |
 |---|---|---|
 | `ppossanzini/jigendb` | Database server only; embedding generation delegated to remote workers over RabbitMQ | `/data/jigendb` |
 | `ppossanzini/jigendb-all-in-one` | Database server + in-process ONNX embedding generation | `/data/jigendb`, `/data/onnx` |
 | `ppossanzini/jigen-embeddings` | Standalone embedding worker (ONNX Runtime), consumes requests from RabbitMQ, also exposes its own `/api/embeddings` REST endpoint | `/data/onnx` |
+| `ppossanzini/jigen-embeddings-gpu` | Standalone NVIDIA CUDA embedding worker | `/data/onnx` |
+
+DirectML and OpenVINO release artifacts are described in [Execution providers](../embeddings/execution-providers.md).
 
 ## Running a single container
 
@@ -51,6 +54,35 @@ docker run -d \
 ```
 
 The worker's own REST/gRPC ports are only useful if you call its `/api/embeddings` endpoint directly; in the distributed topology, requests normally arrive through RabbitMQ from the database server.
+
+### NVIDIA GPU embedding worker
+
+```bash
+docker run -d \
+  --name jigen-embeddings-gpu \
+  --gpus all \
+  -v jigendb-models:/data/onnx \
+  -e JigenEmbeddings__GeneratorOptions__ExecutionProvider=cuda \
+  -e JigenEmbeddings__GeneratorOptions__GpuDeviceId=0 \
+  -e JigenEmbeddings__GeneratorOptions__MaxBatchSize=16 \
+  -e JigenEmbeddings__EmbeddingsMaxConcurrency=2 \
+  -e RabbitMQ__HostName=rabbitmq \
+  -e RabbitMQ__UserName=jigen \
+  -e RabbitMQ__Password=change-me \
+  ppossanzini/jigen-embeddings-gpu:latest
+```
+
+Use one worker replica per GPU. See [Execution providers](../embeddings/execution-providers.md) for CUDA, driver, model precision, and batching requirements.
+
+For Kubernetes, request one GPU in both resource sections:
+
+```yaml
+resources:
+  requests:
+    nvidia.com/gpu: "1"
+  limits:
+    nvidia.com/gpu: "1"
+```
 
 ## docker compose: all-in-one
 

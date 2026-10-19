@@ -82,9 +82,6 @@ public partial class Store
       // Validate the complete referenced records, not only their starting
       // positions. Plausible values in a torn index tail must not survive load
       // and trigger partial reads or oversized allocations later.
-      var contentRecordSize = contentPosition > 0
-        ? ContentRecordSize(idsize, size)
-        : 0;
       var embeddingRecordSize = embeddingsPosition > 0
         ? EmbeddingRecordSize(idsize, dimensions)
         : 0;
@@ -93,9 +90,7 @@ public partial class Store
            dimensions < 0 || size < 0 || size > int.MaxValue ||
            (contentPosition == 0 && size != 0) ||
            (embeddingsPosition == 0 && dimensions != 0) ||
-           (contentPosition > 0 &&
-            (contentRecordSize > ContentFileStream.Length ||
-             contentPosition > ContentFileStream.Length - contentRecordSize)) ||
+           contentPosition > SharedMetadata.ContentRecordCount ||
            (embeddingsPosition > 0 &&
             (embeddingRecordSize > EmbeddingFileStream.Length ||
              embeddingsPosition > EmbeddingFileStream.Length - embeddingRecordSize))))
@@ -158,41 +153,14 @@ public partial class Store
   public bool TryGetContent(string collection, byte[] id, out byte[] content)
   {
     content = this.GetContent(collection, id);
-    return content is { Length: > 0 };
+    return content is not null;
   }
 
 
   public byte[] GetContent(string collection, byte[] id)
   {
-    if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
-          out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
-
-    int headerSize = 2 * sizeof(int) + id.Length;
-    byte[] rented = null;
-    Span<byte> headerBuffer = headerSize <= 512 
-        ? stackalloc byte[headerSize] 
-        : (rented = System.Buffers.ArrayPool<byte>.Shared.Rent(headerSize)).AsSpan(0, headerSize);
-
-    try
-    {
-      ReadExactly(ContentFileStream.SafeFileHandle, headerBuffer, item.contentposition);
-      
-      var idsize = BitConverter.ToInt32(headerBuffer.Slice(0, sizeof(int)));
-      if (idsize != id.Length || !headerBuffer.Slice(sizeof(int), id.Length).SequenceEqual(id))
-        throw new InvalidConstraintException("Content ID mismatch");
-      var contentSize = BitConverter.ToInt32(headerBuffer.Slice(sizeof(int) + id.Length, sizeof(int)));
-      if (contentSize != item.size)
-        throw new InvalidDataException("Content length does not match the index record.");
-    }
-    finally
-    {
-      if (rented != null)
-        System.Buffers.ArrayPool<byte>.Shared.Return(rented);
-    }
-
-    byte[] buffer = new byte[checked((int)item.size)];
-    ReadExactly(ContentFileStream.SafeFileHandle, buffer, item.contentposition + 2 * sizeof(int) + id.Length);
-    return buffer;
+    if (!GetCollectionIndexOf(collection, out var index) || !index.ContainsKey(id)) return null;
+    return SharedMetadata.GetContent(collection, id);
   }
 
   public float[] GetEmbedding(string collection, byte[] id)

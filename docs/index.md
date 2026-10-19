@@ -67,5 +67,6 @@
 | [`ppossanzini/jigendb`](https://hub.docker.com/r/ppossanzini/jigendb) | Docker | Database server (embeddings delegated to workers) |
 | [`ppossanzini/jigendb-all-in-one`](https://hub.docker.com/r/ppossanzini/jigendb-all-in-one) | Docker | Database server with in-process embedding generation |
 | [`ppossanzini/jigen-embeddings`](https://hub.docker.com/r/ppossanzini/jigen-embeddings) | Docker | Standalone embedding worker |
+| [`ppossanzini/jigen-embeddings-gpu`](https://hub.docker.com/r/ppossanzini/jigen-embeddings-gpu) | Docker | Standalone NVIDIA CUDA embedding worker |
 
 Jigen DB is open source under the [Apache-2.0 license](https://github.com/ppossanzini/Jigen/blob/main/LICENSE.txt).

@@ -69,7 +69,7 @@ docker run -d -p 3223:3223 -p 13223:13223 \
   ppossanzini/jigendb-all-in-one
 ```
 
-Three images are published: `ppossanzini/jigendb` (server only), `ppossanzini/jigendb-all-in-one` (server + embeddings) and `ppossanzini/jigen-embeddings` (embedding worker). See [Docker deployment](docs/server/docker.md).
+Published images include `ppossanzini/jigendb` (server only), `ppossanzini/jigendb-all-in-one` (server + embeddings), `ppossanzini/jigen-embeddings` (CPU worker), and `ppossanzini/jigen-embeddings-gpu` (NVIDIA CUDA worker). See [Docker deployment](docs/server/docker.md).
 
 ## Quick taste
 

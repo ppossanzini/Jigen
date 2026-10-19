@@ -53,6 +53,7 @@ public partial class Store : IStore, IDisposable
   public long IngestionQueueLength => IngestionQueue.Count;
   
   public readonly StoreOptions Options;
+  public SharedMetadataStore SharedMetadata { get; private set; }
   internal readonly StoreHeader VectorStoreHeader = new();
 
   // Sentinel for index-log records marking a deletion: real positions are
@@ -96,11 +97,11 @@ public partial class Store : IStore, IDisposable
 
   internal readonly Writer Writer;
 
-  internal string ContentFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.ContentSuffix}.jigen");
-  internal string IndexFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.index.jigen");
-  internal string EmbeddingsFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.{StoreOptions.EmbeddingSuffix}.jigen");
+  internal string ContentFullFileName => ResolveDataFile($"{this.Options.DataBaseName}.{StoreOptions.ContentSuffix}.jigen");
+  internal string IndexFullFileName => ResolveDataFile($"{this.Options.DataBaseName}.index.jigen");
+  internal string EmbeddingsFullFileName => ResolveDataFile($"{this.Options.DataBaseName}.{StoreOptions.EmbeddingSuffix}.jigen");
   internal string LockFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.lock.jigen");
-  internal string WalFullFileName => Path.Combine(this.Options.DataBasePath, $"{this.Options.DataBaseName}.wal.jigen");
+  internal string WalFullFileName => ResolveDataFile($"{this.Options.DataBaseName}.wal.jigen");
 
   // Held exclusively for the Store lifetime: the data files themselves are
   // opened with FileShare.ReadWrite (the read mappings need it), so without
@@ -132,9 +133,15 @@ public partial class Store : IStore, IDisposable
 
   public IEnumerable<string> GetFileNames()
   {
+    var sharedFiles = SharedMetadata.GetFileNames();
     yield return IndexFullFileName;
-    yield return ContentFullFileName;
+    yield return sharedFiles[0];
     yield return EmbeddingsFullFileName;
+    foreach (var file in sharedFiles.Skip(1))
+      yield return file;
+    yield return ContentFullFileName;
+    if (_activeStoreGeneration is not null)
+      yield return Path.Combine(Options.DataBasePath, MigrationManifestName + ".json");
     if (Options.Wal?.Enabled == true)
       yield return WalFullFileName;
   }
@@ -152,7 +159,7 @@ public partial class Store : IStore, IDisposable
       Name = name,
       Vectors = PositionIndex[name].Count,
       Dimensions = PositionIndex[name].Values.FirstOrDefault().dimensions,
-      ContentSize = PositionIndex[name].Values.Sum(i => i.size),
+      ContentSize = SharedMetadata.GetContentSize(name, PositionIndex[name].Keys),
       VectorSize = PositionIndex[name].Values.Sum(i => i.embeddingsposition > 0 ? i.dimensions * sizeof(float) : 0)
     };
 
@@ -169,11 +176,21 @@ public partial class Store : IStore, IDisposable
 
     try
     {
+      OpenOrMigrateGeneration();
       EnsureFileCreated();
 
       EnableWriting();
       EnableReading();
 
+      SharedMetadata = new(
+        new Jigen.Persistance.StoreListOptions
+        {
+          FilePath = ResolveDataFile(Options.DataBaseName + ".shared.contents.jigen")
+        },
+        new Jigen.Persistance.StoreListOptions
+        {
+          FilePath = ResolveDataFile(Options.DataBaseName + ".shared.associations.jigen")
+        });
       this.LoadIndex();
       this.ReadHeader();
 
@@ -206,6 +223,8 @@ public partial class Store : IStore, IDisposable
       try { EmbeddingFileStream?.Dispose(); } catch { }
       try { IndexFileStream?.Dispose(); } catch { }
       try { WalFileStream?.Dispose(); } catch { }
+      try { SharedMetadata?.DisposeAsync().AsTask().GetAwaiter().GetResult(); } catch { }
+      try { _migrationGeneration?.Dispose(); } catch { }
       _databaseLock?.Dispose();
       throw;
     }
@@ -364,7 +383,7 @@ public partial class Store : IStore, IDisposable
     return found;
   }
 
-  public long ContentSize => ContentFileStream.Length;
+  public long ContentSize => SharedMetadata.ContentSize;
 
   private int _closed;
 
@@ -389,6 +408,8 @@ public partial class Store : IStore, IDisposable
     if (Options.Indexer is not null)
       await Options.Indexer.CloseAsync();
 
+    await SharedMetadata.DisposeAsync();
+
     // fsync WAL before the data files: the WAL is authoritative.
     if (WalFileStream is not null)
       lock (WalLock)
@@ -407,6 +428,8 @@ public partial class Store : IStore, IDisposable
 
     if (WalFileStream is not null)
       WalFileStream.Close();
+
+    _migrationGeneration?.Dispose();
 
     // Clean shutdown: release the exclusive lock and remove the file, which
     // doubles as the crash marker (its survival triggers reconciliation).

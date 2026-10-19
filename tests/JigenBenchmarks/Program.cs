@@ -14,6 +14,12 @@ using Jigen.Extensions;
 using Jigen.Indexer;
 using Jigen.Indexers;
 
+if (args.Length > 0 && args[0].StartsWith("disk-lookup", StringComparison.Ordinal))
+{
+  await JigenBenchmarks.DiskLookupExperiment.RunAsync(args);
+  return;
+}
+
 var n = args.Length > 0 && int.TryParse(args[0], out var argN) ? argN : 10_000;
 var dim = args.Length > 1 && int.TryParse(args[1], out var argD) ? argD : 128;
 var sq8 = args.Contains("sq8", StringComparer.OrdinalIgnoreCase);

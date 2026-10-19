@@ -282,8 +282,10 @@ public static class StoreWritingExtensions
     lock (store.IndexAppendLock)
     {
       if (store.PositionIndex.TryGetValue(collection, out var index) &&
-          index.TryRemove(key, out var old))
+          index.TryGetValue(key, out var old))
       {
+        store.SharedMetadata.DeleteEmbedding(collection, key);
+        index.TryRemove(key, out _);
         if (old.contentposition > 0)
           store.DeadContentBytes += Store.ContentRecordSize(key.Length, old.size);
         if (old.embeddingsposition > 0)
@@ -342,6 +344,7 @@ public static class StoreWritingExtensions
       {
         foreach (var (key, old) in index)
         {
+          store.SharedMetadata.DeleteEmbedding(collection, key);
           if (old.contentposition > 0)
             store.DeadContentBytes += Store.ContentRecordSize(key.Length, old.size);
           if (old.embeddingsposition > 0)
@@ -379,24 +382,16 @@ public static class StoreWritingExtensions
     if (entries.Count == 0) return results;
 
     // ── Calculate total byte sizes ──
-    long contentTotal = 0, embeddingTotal = 0;
+    long embeddingTotal = 0;
     foreach (var e in entries)
     {
-      if (e.Content.Length > 0)
-        contentTotal += Store.ContentRecordSize(e.Id.Length, e.Content.Length);
       if (e.Embedding.Length > 0)
         embeddingTotal += Store.EmbeddingRecordSize(e.Id.Length, e.Embedding.Length);
     }
 
     // ── Allocate pooled buffers ──
-    byte[] contentBuf = null!, embedBuf = null!;
-    int contentOff = 0, embedOff = 0;
-
-    if (contentTotal > 0)
-    {
-      contentBuf = System.Buffers.ArrayPool<byte>.Shared.Rent((int)contentTotal);
-      contentOff = 0;
-    }
+    byte[] embedBuf = null!;
+    int embedOff = 0;
     if (embeddingTotal > 0)
     {
       embedBuf = System.Buffers.ArrayPool<byte>.Shared.Rent((int)embeddingTotal);
@@ -406,30 +401,16 @@ public static class StoreWritingExtensions
     try
     {
       // ── Acquire file positions once ──
-      var contentStream = store.ContentFileStream;
       var embedStream = store.EmbeddingFileStream;
 
-      long contentBasePos = contentTotal > 0 ? contentStream.Seek(0, SeekOrigin.End) : 0;
       long embedBasePos = embeddingTotal > 0 ? embedStream.Seek(0, SeekOrigin.End) : 0;
 
       // ── Serialize all entries into buffers ──
       foreach (var entry in entries)
       {
-        long cp = 0, ep = 0;
-
-        if (entry.Content.Length > 0)
-        {
-          cp = contentBasePos + contentOff;
-          var span = contentBuf.AsSpan(contentOff);
-          BinaryPrimitives.WriteInt32LittleEndian(span, entry.Id.Length);
-          contentOff += 4;
-          entry.Id.CopyTo(contentBuf.AsSpan(contentOff));
-          contentOff += entry.Id.Length;
-          BinaryPrimitives.WriteInt32LittleEndian(contentBuf.AsSpan(contentOff), entry.Content.Length);
-          contentOff += 4;
-          entry.Content.Span.CopyTo(contentBuf.AsSpan(contentOff));
-          contentOff += entry.Content.Length;
-        }
+        long cp = store.SharedMetadata.SetEmbeddingContent(entry.CollectionName, entry.Id,
+          entry.Content.ToArray()) + 1L;
+        long ep = 0;
 
         if (entry.Embedding.Length > 0)
         {
@@ -449,11 +430,6 @@ public static class StoreWritingExtensions
       }
 
       // ── Single Write per file ──
-      if (contentTotal > 0)
-      {
-        contentStream.Write(contentBuf, 0, contentOff);
-        store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
-      }
       if (embeddingTotal > 0)
       {
         embedStream.Write(embedBuf, 0, embedOff);
@@ -462,8 +438,6 @@ public static class StoreWritingExtensions
     }
     finally
     {
-      if (contentTotal > 0)
-        System.Buffers.ArrayPool<byte>.Shared.Return(contentBuf);
       if (embeddingTotal > 0)
         System.Buffers.ArrayPool<byte>.Shared.Return(embedBuf);
     }
@@ -488,18 +462,8 @@ public static class StoreWritingExtensions
     var contentPosition = actualindex.contentPosition;
     if (content != null)
     {
-      var contentStream = store.ContentFileStream;
-
-      contentStream.Seek(0, SeekOrigin.End);
-      contentPosition = contentStream.Position;
-
-      contentStream.WriteInt32Le(id.Length);
-      contentStream.Write(id, 0, id.Length);
-      contentStream.WriteInt32Le(content.Value.Length);
-      
-      contentStream.Write(content.Value.Span);
-
-      store.VectorStoreHeader.ContentCurrentPosition = contentStream.Position;
+      contentPosition = store.SharedMetadata.SetEmbeddingContent(collection, id,
+        content.Value.ToArray()) + 1L;
     }
 
     var embeddingPosition = actualindex.embeddingPosition;
