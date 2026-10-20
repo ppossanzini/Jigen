@@ -489,7 +489,7 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   /// the same type: pass ?keyType=string|int|long|guid to force it, or rely
   /// on detection (guid, then long for integers, then string).
   /// </summary>
-  private static bool TryResolveKey(string key, string keyType, out VectorKey result)
+  internal static bool TryResolveKey(string key, string keyType, out VectorKey result)
   {
     result = default;
     if (string.IsNullOrEmpty(key))

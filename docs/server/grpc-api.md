@@ -28,6 +28,11 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 | `CalculateImageEmbedding` | `ImageEmbeddingRequest` | `EmbeddingResponse` | Compute the embedding of an image from its raw bytes. Requires `ImagesModelPath` configured (vision model). |
 | `CalculateImageEmbeddingBatch` | `ImageEmbeddingBatchRequest` | `EmbeddingBatchResponse` | Compute embeddings for many images in one call; results keep the input order (empty images yield an empty row). |
 | `CalculateImageTileEmbeddings` | `ImageEmbeddingRequest` | `ImageTileEmbeddingsResponse` | Compute tile embeddings of an image: overlapping tiles each embedded separately, plus the whole-image embedding as the last entry. |
+| `CreateMetadata` | `CreateMetadataRequest` | `CreateMetadataResponse` | Create a shared metadata record. Returns the opaque `MetadataIndex`. |
+| `UpdateMetadata` | `UpdateMetadataRequest` | `UpdateMetadataResponse` | Replace the content of a shared metadata record; `Updated` is false when the index is unknown. |
+| `GetEmbeddingMetadata` | `EmbeddingMetadataRequest` | `EmbeddingMetadataResponse` | Read the metadata index associated to an embedding key; `-1` when the key is absent or not associated. |
+| `AssociateEmbedding` | `AssociateEmbeddingRequest` | `Result` | Associate or reassociate an existing embedding key to a metadata record. |
+| `SearchByMetadata` | `SearchByMetadataRequest` | `SearchByMetadataResponse` | Grouped search: one result per metadata record, best score wins, `CandidateBudget` mandatory. |
 
 `IngestResult.Accepted` counts the entries accepted into the server's ingestion pipeline; durability follows the server's group-commit policy, exactly like the unary `Set` operations.
 
@@ -191,6 +196,90 @@ message FilterValue {
   }
 }
 ```
+
+## Shared metadata
+
+A metadata record is content shared by several embeddings — the parent passage behind two chunk vectors, or an article indexed by both its title and its body. The content is global to the **database**; the association is per **collection and embedding key**. Many embeddings reference one record, and updating the record once changes what every associated embedding reads.
+
+`MetadataIndex` is an opaque `int32` assigned by the server. It is stable across reopen and compaction, never reused after retirement, and `-1` always means "no association".
+
+```proto
+message CreateMetadataRequest {
+  string Database = 1;
+  bytes Content = 2;
+}
+
+message CreateMetadataResponse {
+  int32 MetadataIndex = 1;
+}
+
+message UpdateMetadataRequest {
+  string Database = 1;
+  int32 MetadataIndex = 2;
+  bytes Content = 3;
+}
+
+message UpdateMetadataResponse {
+  bool Updated = 1;  // false when the metadata index does not exist
+}
+
+message EmbeddingMetadataRequest {
+  string Database = 1;
+  string Collection = 2;
+  bytes Key = 3;
+}
+
+message EmbeddingMetadataResponse {
+  int32 MetadataIndex = 1;  // -1 when the key is absent or not associated
+}
+
+message AssociateEmbeddingRequest {
+  string Database = 1;
+  string Collection = 2;
+  bytes Key = 3;
+  int32 MetadataIndex = 4;
+}
+
+message SearchByMetadataRequest {
+  string Database = 1;
+  string Collection = 2;
+  repeated float Embeddings = 3;
+  int32 Top = 4;
+  // Mandatory: caps the sum of requested candidates across attempts,
+  // repeated candidates included. 0 is rejected.
+  int32 CandidateBudget = 5;
+  FilterNode Filter = 6;
+  SearchTuning Tuning = 7;
+  // Used only when Embeddings is empty: the server calculates the query vector.
+  string Sentence = 8;
+}
+
+message SearchByMetadataResult {
+  int32 MetadataIndex = 1;
+  bytes Key = 2;      // winning embedding of the group
+  bytes Content = 3;  // empty with NoContent
+  float Score = 4;    // highest score observed in the group
+}
+
+message SearchByMetadataResponse {
+  repeated SearchByMetadataResult Results = 1;
+}
+```
+
+`Content` is the raw serialized content, exactly the bytes `GetContent` returns, so a metadata record and a document payload stay interchangeable.
+
+Behaviour of the surrounding operations:
+
+- `GetContent` on an associated key returns the **shared** content, not a per-vector copy.
+- `SetVector`/`SetDocument` and the streaming bulk variants on an already associated key update the shared record; every associated embedding sees the change.
+- `DeleteVector` and `Clear` make the key read as absent. The record is not dropped — not even by compaction — and can be associated again.
+- A write is visible when the call returns; durability follows the store's own save policy.
+- `SearchByMetadata` ranks groups by the highest observed embedding score. Ties are ordered by metadata index. Results are shaped like `SearchVectorResponse` items, plus the group identity.
+- `CandidateBudget` is bound per query and rejects `0`. When the budget is exhausted **fewer than `Top` groups may be returned**, and approximate indexes make **no promise of exact grouped top-k** — raise `EfSearch` or the budget to improve recall.
+- The predicate in `SearchByMetadataRequest.Filter` uses the same [filter AST](#filter-ast) as `SearchDocumentRequest.Filter`.
+- Rejections raised by the server (missing embedding key, unknown metadata index, non-positive `Top` or `CandidateBudget`, neither `Embeddings` nor `Sentence`) surface as `InvalidArgument`.
+
+Grouped search is single-collection. Bulk ingestion attached to a shared record, transactions over metadata and cross-modal grouped search are not part of this contract.
 
 ## Error handling
 

@@ -10,6 +10,7 @@ from .models import (
     CollectionIndexInfo,
     CollectionInfo,
     Key,
+    MetadataSearchResult,
     SearchOptions,
     SearchResult,
     encode_key,
@@ -138,6 +139,53 @@ class _CollectionBase(Generic[T]):
             for item in response.Results
         ]
 
+    def _metadata_request(
+        self,
+        query: str | Sequence[float],
+        top: int,
+        candidate_budget: int,
+        filter: Filter | None,
+        options: SearchOptions | None,
+    ) -> pb.SearchByMetadataRequest:
+        if top <= 0:
+            raise ValueError("top must be greater than zero")
+        if candidate_budget <= 0:
+            raise ValueError("candidate_budget must be greater than zero")
+
+        request = pb.SearchByMetadataRequest(
+            Database=self.database,
+            Collection=self.name,
+            Top=top,
+            CandidateBudget=candidate_budget,
+        )
+        if isinstance(query, str):
+            if not query.strip():
+                raise ValueError("query is required")
+            request.Sentence = query
+        else:
+            if not query:
+                raise ValueError("query embeddings are required")
+            request.Embeddings.extend(query)
+        if filter is not None:
+            request.Filter.CopyFrom(filter.node)
+        tuning = _tuning(options)
+        if tuning is not None:
+            request.Tuning.CopyFrom(tuning)
+        return request
+
+    def _metadata_results(
+        self, response: pb.SearchByMetadataResponse
+    ) -> list[MetadataSearchResult[T]]:
+        return [
+            MetadataSearchResult(
+                metadata_index=item.MetadataIndex,
+                key=item.Key,
+                content=self.serializer.deserialize(item.Content) if item.Content else None,
+                score=item.Score,
+            )
+            for item in response.Results
+        ]
+
 
 class VectorCollection(_CollectionBase[T]):
     """Synchronous, typed collection facade mirroring Jigen.Client."""
@@ -219,6 +267,68 @@ class VectorCollection(_CollectionBase[T]):
             Database=self.database, Collection=self.name, Filter=filter.node
         )
         return self._results(self._stub.SearchFilter(request))
+
+    # ── Shared metadata: many embeddings reference one metadata record. ──
+
+    def create_metadata(self, content: T) -> int:
+        """Creates a shared metadata record and returns its opaque index."""
+        response = self._stub.CreateMetadata(
+            pb.CreateMetadataRequest(
+                Database=self.database, Content=self.serializer.serialize(content)
+            )
+        )
+        return response.MetadataIndex
+
+    def update_metadata(self, metadata_index: int, content: T) -> bool:
+        """Replaces the content read by every embedding associated to the record."""
+        response = self._stub.UpdateMetadata(
+            pb.UpdateMetadataRequest(
+                Database=self.database,
+                MetadataIndex=metadata_index,
+                Content=self.serializer.serialize(content),
+            )
+        )
+        return response.Updated
+
+    def get_metadata_index(self, key: Key) -> int:
+        """Returns the associated metadata index, or -1 when absent."""
+        response = self._stub.GetEmbeddingMetadata(
+            pb.EmbeddingMetadataRequest(
+                Database=self.database, Collection=self.name, Key=encode_key(key)
+            )
+        )
+        return response.MetadataIndex
+
+    def associate_metadata(self, key: Key, metadata_index: int) -> bool:
+        """Associates or reassociates an existing key to a metadata record."""
+        response = self._stub.AssociateEmbedding(
+            pb.AssociateEmbeddingRequest(
+                Database=self.database,
+                Collection=self.name,
+                Key=encode_key(key),
+                MetadataIndex=metadata_index,
+            )
+        )
+        if not response.Success:
+            raise JigenOperationError(response.Message)
+        return response.Success
+
+    def search_by_metadata(
+        self,
+        query: str | Sequence[float],
+        *,
+        top: int = 10,
+        candidate_budget: int,
+        filter: Filter | None = None,
+        options: SearchOptions | None = None,
+    ) -> list[MetadataSearchResult[T]]:
+        """Grouped search: one result per metadata record, best score wins.
+
+        ``candidate_budget`` is mandatory and caps the sum of requested
+        candidates across attempts; fewer than ``top`` groups may be returned.
+        """
+        request = self._metadata_request(query, top, candidate_budget, filter, options)
+        return self._metadata_results(self._stub.SearchByMetadata(request))
 
     def get(self, key: Key) -> T | None:
         response = self._stub.GetContent(self._item_key(key))
@@ -318,6 +428,64 @@ class AsyncVectorCollection(_CollectionBase[T]):
     async def get(self, key: Key) -> T | None:
         response = await self._stub.GetContent(self._item_key(key))
         return self.serializer.deserialize(response.content) if response.content else None
+
+    # ── Shared metadata: many embeddings reference one metadata record. ──
+
+    async def create_metadata(self, content: T) -> int:
+        """Creates a shared metadata record and returns its opaque index."""
+        response = await self._stub.CreateMetadata(
+            pb.CreateMetadataRequest(
+                Database=self.database, Content=self.serializer.serialize(content)
+            )
+        )
+        return response.MetadataIndex
+
+    async def update_metadata(self, metadata_index: int, content: T) -> bool:
+        """Replaces the content read by every embedding associated to the record."""
+        response = await self._stub.UpdateMetadata(
+            pb.UpdateMetadataRequest(
+                Database=self.database,
+                MetadataIndex=metadata_index,
+                Content=self.serializer.serialize(content),
+            )
+        )
+        return response.Updated
+
+    async def get_metadata_index(self, key: Key) -> int:
+        """Returns the associated metadata index, or -1 when absent."""
+        response = await self._stub.GetEmbeddingMetadata(
+            pb.EmbeddingMetadataRequest(
+                Database=self.database, Collection=self.name, Key=encode_key(key)
+            )
+        )
+        return response.MetadataIndex
+
+    async def associate_metadata(self, key: Key, metadata_index: int) -> bool:
+        """Associates or reassociates an existing key to a metadata record."""
+        response = await self._stub.AssociateEmbedding(
+            pb.AssociateEmbeddingRequest(
+                Database=self.database,
+                Collection=self.name,
+                Key=encode_key(key),
+                MetadataIndex=metadata_index,
+            )
+        )
+        if not response.Success:
+            raise JigenOperationError(response.Message)
+        return response.Success
+
+    async def search_by_metadata(
+        self,
+        query: str | Sequence[float],
+        *,
+        top: int = 10,
+        candidate_budget: int,
+        filter: Filter | None = None,
+        options: SearchOptions | None = None,
+    ) -> list[MetadataSearchResult[T]]:
+        """Grouped search: one result per metadata record, best score wins."""
+        request = self._metadata_request(query, top, candidate_budget, filter, options)
+        return self._metadata_results(await self._stub.SearchByMetadata(request))
 
     async def get_embedding(self, key: Key) -> list[float] | None:
         values = (await self._stub.GetEmbedding(self._item_key(key))).Embeddings

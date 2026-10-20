@@ -49,6 +49,20 @@ class SearchResult(Generic[DocumentT]):
     score: float
 
 
+@dataclass(slots=True)
+class MetadataSearchResult(Generic[DocumentT]):
+    """One result per shared metadata record.
+
+    ``metadata_index`` is the opaque, stable metadata identity; ``key`` and
+    ``score`` describe the winning embedding of the group.
+    """
+
+    metadata_index: int
+    key: bytes
+    content: DocumentT | None
+    score: float
+
+
 @dataclass(slots=True, frozen=True)
 class CollectionIndexInfo:
     size_bytes: int

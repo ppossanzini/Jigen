@@ -149,10 +149,119 @@ Composizione minima: SharedMetadataStore in Jigen.Store.
 
 M2-M6 richiedono la definizione dei contratti mancanti senza nuovi file writer, WAL o motori di compattazione in Jigen.Store.
 Le regole di migrazione sono requisiti da verificare sulla composizione, non autorizzano un nuovo motore storage.
-Le nuove API server/client richiedono un task separato con contratti approvati.
+Le nuove API server/client seguono il piano C0-C9 in Remote alignment tasks. L'implementazione richiede contratti approvati in C0.
 M4: punteggio massimo osservato degli embedding per metadato e ampliamento candidati fino ai gruppi richiesti o al budget esplicito approvati. API separata SearchByMetadata con candidateBudget obbligatorio per query; Search invariata. Nessuna promessa di top-k esatto ANN.
 Le nuove verifiche sono task separati dalle modifiche di produzione.
 La nuova versione dello Store non e rilasciabile prima di M6-T; M3-T da solo non verifica l'apertura di database legacy.
+
+## Remote alignment tasks
+
+Stato: pianificato. Nessuna implementazione remota autorizzata dalla sola presenza del piano.
+
+Contesto: lo Store espone metadati condivisi e SearchByMetadata. I canali REST/gRPC e i client .NET/Python espongono ancora contenuto per vettore. I contratti remoti per l'identita condivisa non sono approvati.
+
+Ambito: creazione, lettura, aggiornamento del metadato; associazione e riassociazione degli embedding; ricerca raggruppata; comportamento delle operazioni esistenti. Il punteggio e il massimo osservato. candidateBudget resta obbligatorio per query. Non si promette top-k esatto ANN.
+
+C0 appartiene all'architetto. I task di produzione restano bloccati fino all'approvazione esplicita dei contratti. Ogni task -T richiede implementazione completata e approvazione esplicita della qualita del codice del task corrispondente. L'esecuzione procede un task alla volta.
+
+### Contratti remoti approvati
+
+Stato: approvati il 2026-10-19 per l'esecuzione di C1-C7 su comando diretto dell'utente.
+
+- `MetadataIndex` e un `int32` opaco assegnato dal server. Resta stabile tra riapertura e compattazione. Non viene riutilizzato dopo il ritiro. `-1` significa nessuna associazione.
+- Il contenuto del metadato e globale per database. L'associazione e per collezione e chiave embedding.
+- Una chiave embedding assente e una associazione assente sono casi distinti.
+
+| Operazione | REST | gRPC | Semantica | Errore |
+| --- | --- | --- | --- | --- |
+| Crea metadato | `POST /api/database/{db}/metadata` | `CreateMetadata` | Crea il metadato senza associazione e restituisce l'ID. | Contenuto nullo: 400 / InvalidArgument. |
+| Aggiorna metadato | `PUT /api/database/{db}/metadata/{id}` | `UpdateMetadata` | Sostituisce il contenuto per tutti gli embedding associati. | ID assente: 404 con `updated=false` / risposta `updated=false`. |
+| Leggi associazione | `GET /api/database/{db}/collections/{c}/documents/{key}/metadata` | `GetEmbeddingMetadata` | Restituisce l'ID associato, `-1` se assente. | Chiave embedding assente: 404 / `-1`. |
+| Associa embedding | `PUT /api/database/{db}/collections/{c}/documents/{key}/metadata` | `AssociateEmbedding` | Associa o riassocia la chiave al metadato. | Embedding o metadato assente: 400 / InvalidArgument. |
+| Ricerca raggruppata | `POST /api/database/{db}/collections/{c}/search/metadata` | `SearchByMetadata` | Gruppi per ID, punteggio massimo osservato, budget dei candidati obbligatorio. | `top` o `candidateBudget` non positivo: 400 / InvalidArgument. |
+
+Regole di comportamento.
+
+- `SetVector`, `SetDocument`, `AppendVector` e `AppendDocument` su una chiave gia associata aggiornano il metadato condiviso. La modifica e visibile a tutti gli embedding associati.
+- `DeleteVector` e `Clear` rimuovono l'associazione. Il metadato resta finche la compattazione non lo ritira.
+- Una scrittura e visibile al ritorno della chiamata. La durabilita resta quella dello Store: salvataggio successivo.
+- `SearchByMetadata` restituisce l'embedding vincente di ogni gruppo. Con `NoContent` il contenuto e nullo. I pareggi sono ordinati per ID. Il numero di gruppi puo essere inferiore a `top` quando il budget si esaurisce.
+- La ricerca raggruppata accetta vettori precalcolati o una frase. La frase viene convertita in vettore dal server.
+- Il filtro e supportato solo su gRPC con `FilterNode`. REST resta senza filtro finche non esiste una traduzione approvata.
+- Esclusi da questo incremento: ricerca raggruppata multi-collezione, ingestione bulk con metadato condiviso, transazioni con metadati, ricerca cross-modale raggruppata.
+
+| ID | Titolo | Ambito e risultato atteso | Dipendenze | Verifica | Esclusioni |
+| --- | --- | --- | --- | --- | --- |
+| C0 | Approva i contratti remoti | Fissa contratti Core, REST e protobuf per le operazioni in ambito. Definisci identita remota, ambito database/collezione, payload, assenza/null/vuoto, validazioni, errori, permessi, conferma delle scritture e visibilita dopo riapertura. Fissa effetto di delete/clear/upsert esistenti sui metadati condivisi. Specifica risultato raggruppato, embedding rappresentativo, pareggi, top, budget, filtro ed efSearch. Classifica bulk, transazioni, ricerca testuale, cross-modal e multi-collezione come coperti o esclusi senza estendere lo Store. | M6-T | Approvazione utente; ogni operazione ha richiesta, risposta, errore e caso di accettazione; nessuna scelta di contratto residua | Codice di produzione, nuove garanzie storage |
+| C1 | Esponi il primo flusso REST | In Jigen.Core, Jigen.Handlers e Jigen.API realizza il minimo verticale approvato: crea un metadato, associa due embedding, rileggi il contenuto. Usa lo Store esistente e i controlli di accesso condivisi. | C0 | Build dei progetti toccati; smoke HTTP del flusso minimo con riapertura del database | Altre mutazioni, gRPC, client, nuovi test automatici |
+| C1-T | Verifica il flusso REST minimo | In Jigen.API.Tests verifica il flusso C1 con database isolato; copri assenza, isolamento e accesso negato senza rivelare altri database. | C1 | Test mirati passati senza servizi di embedding esterni | Altri endpoint |
+| C2 | Completa le mutazioni condivise | In Core e Handlers realizza aggiornamento, riassociazione e le altre mutazioni approvate in C0. Mantieni un solo percorso applicativo verso lo Store. | C1-T | Build; regressioni C1-T passate | Trasporti aggiuntivi, nuova persistenza, nuovi test |
+| C2-T | Verifica le mutazioni applicative | Verifica aggiornamento visibile a tutti gli embedding associati, riassociazione, riferimenti inesistenti, isolamento e semantica approvata di delete/clear/upsert; includi riapertura. | C2 | Test mirati dei handler passati usando le fixture esistenti | Garanzie di atomicita non offerte dallo Store |
+| C3 | Esponi la ricerca raggruppata applicativa | In Core e Handlers delega a SearchByMetadata; propaga budget, filtro e parametri approvati; restituisci identita e punteggio senza nuova aggregazione nel trasporto. | C2-T | Build; regressioni applicative passate | Modifiche HNSW, nuovi test, ranking globale multi-collezione non approvato |
+| C3-T | Verifica la ricerca applicativa | Copri gruppi condivisi, filtro dopo aggiornamento, pareggi, budget esaurito e input invalidi secondo C0. Confronta il risultato con lo Store sulla stessa fixture. | C3 | Test mirati passati | Promessa di top-k esatto ANN |
+| C4 | Completa il canale REST | In Jigen.API esponi le operazioni C2-C3 con DTO e codici HTTP approvati; mantieni invariati gli endpoint esistenti salvo modifiche esplicite di C0. | C3-T | Build API; regressioni C1-T passate | Logica storage nei controller, nuovi test |
+| C4-T | Verifica il canale REST | In Jigen.API.Tests copri payload, errori, autorizzazione e round-trip delle operazioni aggiunte; verifica la ricerca ordinaria esistente. | C4 | Suite REST mirata passata | Client SDK |
+| C5 | Completa il canale gRPC | In Jigen.Grpc aggiorna il proto server e Service; delega agli stessi handler REST; preserva numeri dei campi e RPC esistenti. | C4-T | Build gRPC; generazione dei contratti riuscita | Duplicazione delle regole applicative, client, nuovi test |
+| C5-T | Verifica la parita dei canali | In Jigen.Grpc.Tests esegui gli stessi scenari REST; verifica identita, contenuti, punteggi, ordine ed errori semanticamente equivalenti, inclusi i permessi. | C5 | Test gRPC mirati passati; confronto con gli esiti C4-T | Benchmark, equivalenza dei codici HTTP e gRPC |
+| C6 | Allinea il client .NET | In Jigen.Client allinea il proto locale; esponi tipi e metodi sync/async per le operazioni approvate, incluso candidateBudget obbligatorio. Mantieni serializzatore, cancellazione e API precedenti. | C5-T | Build client; confronto strutturale dei contratti proto server/client | Client REST nuovo, sharding non approvato, nuovi test |
+| C6-T | Verifica il client .NET | In JigenClientTest copri il ciclo condiviso tramite server gRPC: creazione, associazione, aggiornamento, riassociazione, ricerca filtrata/raggruppata e riapertura. Verifica cancellazione e chiamate precedenti. | C6 | Test mirati passati con server isolato e vettori precomputati | Dipendenze da modelli ONNX esterni |
+| C7 | Allinea il client Python | In Jigen.Python rigenera gli stub dal proto approvato; esponi modelli e metodi sync/async equivalenti al client .NET. Mantieni serializzazione e API precedenti. | C6-T | Import e compilazione Python riusciti; rigenerazione stub riproducibile | Modifiche manuali agli stub generati, integrazioni RAG non approvate, nuovi test |
+| C7-T | Verifica il client Python | Nei test Python copri gli scenari C6-T, parametri obbligatori, errori e cancellazione async secondo le convenzioni del client. | C7 | Test unitari e integrazione mirati passati contro server isolato | Benchmark |
+| C8 | Documenta i contratti pubblici | Aggiorna docs/server/rest-api.md, docs/server/grpc-api.md e le guide client pertinenti; aggiungi esempi equivalenti .NET/Python con due embedding per metadato, aggiornamento condiviso e budget esplicito. Indica i limiti approvati in C0. | C7-T | Ogni operazione pubblica documentata; esempi coerenti con firme e payload verificati nei test | Nuove funzionalita |
+| C9 | Verifica la consegna remota | Esegui le suite REST, gRPC, client .NET/Python per lo scope C0. Registra esiti, blocchi ambientali e compatibilita delle API precedenti; aggiorna lo stato dei task nel dossier. | C8 | Tutti i casi C0 tracciati a test passati; nessuna divergenza di contratto; eventuali gate falliti impediscono la chiusura | Rilascio automatico, correzioni estranee, dichiarazione di affidabilita storage |
+
+Le verifiche usano i singoli progetti. Il problema MSB5004 della soluzione e i test dipendenti da /data/jigendb o localhost:13223 restano fuori da questo piano. Non sostituiscono i test isolati richiesti da C1-T a C9.
+
+### Stato esecuzione
+
+- C0: closed. Contratti remoti approvati il 2026-10-19.
+- C1, C2, C3: implemented. Comandi e query in Jigen.Core, handler in SharedMetadataHandlers. Build Jigen.Handlers riuscita. Verifica comportamentale in C1-T, C2-T e C3-T.
+- C4: implemented. MetadataController e DTO REST. Build Jigen.API riuscita.
+- C5: implemented. Proto e Service gRPC. Build Jigen.Grpc riuscita. Le due copie del proto sono identiche.
+- C6: implemented. MetadataSearchResult e metodi di VectorCollection. Build Jigen.Client riuscita.
+- C7: implemented. Stub Python rigenerati dal proto; modelli e metodi sync/async. Import del pacchetto e cinque test esistenti passati.
+- C8: implemented. Contratti pubblici documentati su REST, gRPC e guide client .NET/Python.
+- Modifica abilitante: `SharedMetadataStore.TryGetMetadataIndex` diventa pubblico. Nessun cambio di formato o di persistenza.
+- Regressione: ventuno test Store su metadati condivisi e migrazione passati.
+
+#### Adeguamento dei test (2026-10-19)
+
+Comandi eseguiti per singolo progetto; MSB5004 della soluzione resta fuori ambito.
+
+| Suite | Comando | Esito |
+| --- | --- | --- |
+| JigenStoreTests | `dotnet test tests/JigenStoreTests` | 90 passed, 3 skipped, 0 failed |
+| Jigen.API.Tests | `dotnet test tests/Jigen.API.Tests` | 57 passed, 0 failed |
+| Jigen.Grpc.Tests | `dotnet test tests/Jigen.Grpc.Tests` | 17 passed, 0 failed |
+| JigenClientTest | `dotnet test tests/JigenClientTest` | 22 passed, 4 skipped, 0 failed |
+| HnswTest (FilteredSearchTest) | `dotnet test tests/HnswTest --filter FilteredSearchTest` | 11 passed, 0 failed |
+| Jigen.Python | `pytest tests` nel pacchetto client | 10 passed, 0 failed |
+
+- C4-T: parziale. `MetadataControllerTests` copre tredici casi con mediatore simulato. Autorizzazione per database e round-trip con Store reale restano da verificare.
+- C5-T: chiuso parzialmente. `ServiceTests` estesa a sei casi sui nuovi rpc con mediatore simulato: identita, budget, flag di aggiornamento, valore negativo in assenza di associazione, mapping dei gruppi e mapping di `InvalidArgument`. Non copre server vivo ne confronto con gli esiti REST; la parita resta verificata a livello di contratto.
+- C6-T: chiuso parzialmente. Nuovo `VectorCollectionMetadataTests` (dieci casi) contro client gRPC simulato: ambito database, indice di creazione, aggiornamento assente, associazione, mapping dei gruppi con budget, budget non positivo, ricerca da frase, traduzione del predicato su entrambi gli overload e assenza di filtro quando il predicato e omesso. Non copre il ciclo contro server isolato.
+- C7-T: parziale. `tests/test_metadata.py` copre sei casi piu i test esistenti. Il ciclo contro server isolato resta non coperto.
+- C1-T, C2-T, C3-T: non eseguiti. Richiedono una fixture con Store reale e `DatabasesManager`; i comportamenti di Store sottostanti sono gia coperti dai test esistenti sui metadati condivisi.
+- Test adattati al lavoro svolto: costruttori di `EmbeddingControllerTests` e `ServiceTests`; `TornIndexLogTests` ora tronca il file vettori, perche il contenuto risiede nei metadati condivisi; `IngestionTests` usa una directory temporanea per istanza, per evitare il database gia aperto tra classi parallele; `SeedDemoDatabaseTest` e `JigenClientTest.UnitTest1` marcati `Skip` perche richiedono servizi live; i casi da 10.000 e 1.000.000 append spostati in test `*_Benchmark` con `Skip`.
+- Difetto corretto in produzione durante l'adeguamento: `VectorCollection.Add(VectorKey, VectorEntry<T>)` assegnava `Key` prima di validare `value` e restituiva `NullReferenceException` invece di `ArgumentNullException`.
+- Non eseguiti: C1-T, C2-T, C3-T e C9.
+
+#### C8 Documentazione (2026-10-19)
+
+- Stato: implemented. Documenti aggiornati: `docs/server/rest-api.md` (sezione Shared metadata con i cinque endpoint, semantica, errori ed esempio curl), `docs/server/grpc-api.md` (cinque rpc in tabella, messaggi proto, regole di comportamento, mapping `InvalidArgument`), `docs/client/usage.md` (superficie .NET sync/async, aggiornamento condiviso, budget esplicito e suo dimensionamento), `docs/client/python.md` e `src/Client/Jigen.Python/README.md` (superficie Python e ricerca raggruppata).
+- Motore in-process documentato nella stessa occasione: `docs/in-process/collections.md` (nuova sezione Shared metadata: API `store.SharedMetadata`, `store.SearchByMetadata`, semantica del budget e housekeeping), `docs/in-process/overview.md` e `docs/in-process/store-options.md` (mappa dei file su disco portata da cinque a sette, con `{name}.shared.contents.jigen` e `{name}.shared.associations.jigen`), `docs/index.md` (voci di indice).
+- Affermazioni corrette dopo verifica sul codice: `Compact()` non elimina i record senza associazione (li conserva per una riassociazione futura) e non e invocato da `ShrinkAsync()`; recupera le versioni di contenuto superate e i record di associazione obsoleti. Ogni scrittura di contenuto crea o aggiorna comunque un record condiviso tramite `SetEmbeddingContent`, quindi `AddMetadata` serve solo per condividere un record tra piu chiavi o crearlo prima degli embedding.
+- Divergenza corretta in produzione per rendere la documentazione vera: il contratto C0 promette `400`/`InvalidArgument` per i rifiuti del dominio, ma nessun canale mappava le `ArgumentException` degli handler (REST 500, gRPC `Unknown`). Ora `MetadataController` restituisce `400` e `Service` restituisce `InvalidArgument` sulle cinque operazioni. Il `404` di aggiornamento porta il corpo `{ updated: false }` come da contratto. Nessun'altra area del servizio e stata toccata.
+- Differenza residua tra client: nessuna. Il client .NET espone il predicato su `SearchByMetadata`, allineato al proto e al client Python. Aggiornamento eseguito fuori dai task C1-C9 su richiesta diretta dell'utente: quattro overload filtrabili piu il parametro in `BuildSearchByMetadataRequest`, e tre casi in `VectorCollectionMetadataTests`. Suite client 22 passed, 4 skipped, 0 failed.
+- Limite di verifica: `mkdocs` non e installato nell'ambiente, quindi la build del sito non e stata eseguita. I collegamenti aggiunti sono stati verificati a mano e i nomi di campo, i percorsi e i codici di stato sono confrontati con controller, proto, `ServiceTests` e `MetadataControllerTests`.
+
+### Correzioni aperte multiembedding (2026-10-20)
+
+Stato: da aggiustare. Nessuna correzione applicata. C9 resta aperto.
+
+- ME-F1 - Autorizzazione per database. Priorita alta. `SharedMetadataHandlers.GetStore` seleziona il database per nome senza usare `DatabaseOwnershipGuard`. Integrare i controlli sulle operazioni remote. Verifica: un utente senza accesso non puo leggere, modificare o associare metadati di un altro database e non ne ricava l'esistenza.
+- ME-F2 - Ordine tra ingestione e associazione. Priorita alta. `AppendContent` restituisce dopo l'accodamento; `AssociateEmbedding` richiede una chiave gia leggibile. La sequenza immediata puo fallire o consentire a una scrittura pendente di modificare il record appena associato. Rendere deterministico l'ordine. Verifica: inserimento seguito da associazione con writer ritardato, senza errore e senza sovrascrittura del contenuto condiviso.
+- ME-F3 - Copertura end-to-end. Priorita media. Completare C1-T, C2-T, C3-T e le verifiche mancanti di C4-T, C5-T, C6-T e C7-T con Store reale e server isolato. Verifica: creazione, due embedding per documento, aggiornamento condiviso, riassociazione, ricerca filtrata e raggruppata, cancellazione, permessi e riapertura. I test con mediatore o trasporto simulato non chiudono questi criteri.
 
 ## NuGet impact
 
@@ -161,7 +270,7 @@ La nuova versione dello Store non e rilasciabile prima di M6-T; M3-T da solo non
 | Jigen.Store | Eventuale logica di integrazione e aggregazione; nessuna nuova persistenza |
 | Jigen.Indexer.HNSW | Solo lettura metadato, se GetContent non basta |
 | Jigen.Primitives | Array e B+ tree su disco implementati; primitive esistenti invariate |
-| Jigen.Client | Differito al task dei contratti remoti |
+| Jigen.Client | Allineamento remoto implementato in C6; contratto verificato in C6-T e documentato in C8 |
 | Jigen.SemanticTools | Nessuna modifica funzionale |
 | Jigen.Calibration | Nessuna modifica funzionale |
 

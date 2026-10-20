@@ -2,8 +2,11 @@ using Google.Protobuf;
 using Grpc.Core;
 using Hikyaku;
 using Jigen.DataStructures;
+using Jigen.Embedding.Core.Options;
 using Jigen.Grpc;
+using Jigen.Handlers;
 using Jigen.Proto;
+using Microsoft.Extensions.Options;
 
 namespace Jigen.Grpc.Tests;
 
@@ -13,8 +16,11 @@ public class ServiceTests
   private readonly Mock<IHikyaku> _hikyakuMock = new();
   private const string DbName = "testdb";
   private const string Collection = "testcoll";
+  private static readonly byte[] DocBytes = "doc"u8.ToArray();
+  private static readonly byte[] KeyBytes = "k"u8.ToArray();
 
-  private Server CreateServer() => new(_mediatorMock.Object, _hikyakuMock.Object);
+  private Server CreateServer() => new(_mediatorMock.Object, _hikyakuMock.Object,
+    Options.Create(new PassageSplittingOptions()), Options.Create(new JigenServerSettings()));
 
   private static ServerCallContext CreateContext() =>
     new TestServerCallContext();
@@ -276,6 +282,131 @@ public class ServiceTests
       It.Is<Core.Command.collections.SetRawVector>(c =>
         c.Database == DbName && c.Collection == Collection),
       It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  // ── Shared metadata ──
+
+  [Fact]
+  public async Task CreateMetadata_ReturnsIndexFromHandler()
+  {
+    _mediatorMock.Setup(m => m.Send(
+        It.Is<Core.Command.metadata.CreateMetadata>(c =>
+          c.Database == DbName && c.Content.SequenceEqual(DocBytes)),
+        It.IsAny<CancellationToken>()))
+      .ReturnsAsync(42);
+
+    var response = await CreateServer().CreateMetadata(
+      new CreateMetadataRequest { Database = DbName, Content = ByteString.CopyFromUtf8("doc") },
+      CreateContext());
+
+    Assert.Equal(42, response.MetadataIndex);
+  }
+
+  [Fact]
+  public async Task UpdateMetadata_ReturnsUpdatedFlag()
+  {
+    _mediatorMock.Setup(m => m.Send(
+        It.Is<Core.Command.metadata.UpdateMetadata>(c => c.MetadataIndex == 8 && c.Database == DbName),
+        It.IsAny<CancellationToken>()))
+      .ReturnsAsync(true);
+
+    var response = await CreateServer().UpdateMetadata(
+      new UpdateMetadataRequest { Database = DbName, MetadataIndex = 8, Content = ByteString.CopyFromUtf8("new") },
+      CreateContext());
+
+    Assert.True(response.Updated);
+  }
+
+  [Fact]
+  public async Task GetEmbeddingMetadata_ReturnsNegativeOne_WhenNotAssociated()
+  {
+    _mediatorMock.Setup(m => m.Send(
+        It.Is<Core.Query.metadata.GetMetadataIndex>(q =>
+          q.Collection == Collection && q.Key.SequenceEqual(KeyBytes)),
+        It.IsAny<CancellationToken>()))
+      .ReturnsAsync(-1);
+
+    var response = await CreateServer().GetEmbeddingMetadata(
+      new EmbeddingMetadataRequest { Database = DbName, Collection = Collection, Key = ByteString.CopyFromUtf8("k") },
+      CreateContext());
+
+    Assert.Equal(-1, response.MetadataIndex);
+  }
+
+  [Fact]
+  public async Task AssociateEmbedding_SendsCommand()
+  {
+    Jigen.Core.Command.metadata.AssociateEmbedding captured = null;
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Jigen.Core.Command.metadata.AssociateEmbedding>(), It.IsAny<CancellationToken>()))
+      .Callback<object, CancellationToken>((command, _) =>
+        captured = command as Jigen.Core.Command.metadata.AssociateEmbedding)
+      .Returns(Task.CompletedTask);
+
+    var response = await CreateServer().AssociateEmbedding(
+      new AssociateEmbeddingRequest
+      {
+        Database = DbName, Collection = Collection, Key = ByteString.CopyFromUtf8("k"), MetadataIndex = 12
+      },
+      CreateContext());
+
+    Assert.True(response.Success);
+    Assert.NotNull(captured);
+    Assert.Equal(12, captured.MetadataIndex);
+    Assert.Equal(KeyBytes, captured.Key);
+  }
+
+  [Fact]
+  public async Task AssociateEmbedding_MapsRejectionToInvalidArgument()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Jigen.Core.Command.metadata.AssociateEmbedding>(), It.IsAny<CancellationToken>()))
+      .ThrowsAsync(new ArgumentException("Metadata not found"));
+
+    var ex = await Assert.ThrowsAsync<RpcException>(() =>
+      CreateServer().AssociateEmbedding(
+        new AssociateEmbeddingRequest
+        {
+          Database = DbName, Collection = Collection, Key = ByteString.CopyFromUtf8("k"), MetadataIndex = 99
+        },
+        CreateContext()));
+
+    Assert.Equal(StatusCode.InvalidArgument, ex.StatusCode);
+    Assert.Equal("Metadata not found", ex.Status.Detail);
+  }
+
+  [Fact]
+  public async Task SearchByMetadata_MapsGroupsAndPassesBudget()
+  {
+    Core.Query.metadata.SearchByMetadata captured = null;
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Query.metadata.SearchByMetadata>(), It.IsAny<CancellationToken>()))
+      .Callback<object, CancellationToken>((query, _) => captured = query as Core.Query.metadata.SearchByMetadata)
+      .ReturnsAsync(new[]
+      {
+        new Core.Query.metadata.SearchByMetadataResultItem
+        {
+          MetadataIndex = 3, Key = [7], Content = [1, 2], Score = 0.75f
+        }
+      });
+
+    var response = await CreateServer().SearchByMetadata(
+      new SearchByMetadataRequest
+      {
+        Database = DbName,
+        Collection = Collection,
+        Embeddings = { 0.1f },
+        Top = 5,
+        CandidateBudget = 40,
+        Tuning = new SearchTuning { EfSearch = 64, NoContent = true }
+      },
+      CreateContext());
+
+    Assert.NotNull(captured);
+    Assert.Equal(40, captured.CandidateBudget);
+    Assert.Equal(64, captured.EfSearch);
+    Assert.True(captured.NoContent);
+    var result = Assert.Single(response.Results);
+    Assert.Equal(3, result.MetadataIndex);
+    Assert.Equal(0.75f, result.Score);
+    Assert.Equal([7], result.Key.ToByteArray());
   }
 
   // ── Transaction (placeholder) ──

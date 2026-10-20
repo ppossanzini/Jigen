@@ -24,7 +24,9 @@ public class UnitTest1
     });
   }
 
-  [Fact]
+  // Live integration tests: they call a Jigen server on localhost:3223. They
+  // are excluded from the automated suite and run manually against a server.
+  [Fact(Skip = "Integration: requires a live Jigen server on localhost:3223")]
   public void Insert()
   {
     db.Sentences.Add(1, new VectorEntry<Entity1>()
@@ -33,7 +35,7 @@ public class UnitTest1
     });
   }
   
-  [Theory]
+  [Theory(Skip = "Integration: requires a live Jigen server on localhost:3223")]
   [InlineData(1)]
   [InlineData(10)]
   [InlineData(100)]
@@ -63,7 +65,7 @@ public class UnitTest1
     _testOutputHelper.WriteLine($"Elapsed: {sw.ElapsedMilliseconds}");
   }
 
-  [Fact]
+  [Fact(Skip = "Integration: requires a live Jigen server on localhost:3223")]
   public void SerializationRoundTripTest()
   {
     // Arrange
@@ -107,7 +109,7 @@ public class UnitTest1
     _testOutputHelper.WriteLine("✓ Serialization round-trip verified: content is identical");
   }
 
-  [Fact]
+  [Fact(Skip = "Integration: requires a live Jigen server on localhost:3223")]
   public void SearchBySemanticSimilarityTest()
   {
     // Arrange

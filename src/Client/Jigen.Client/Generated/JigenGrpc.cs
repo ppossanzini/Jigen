@@ -106,6 +106,24 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.SearchFilterRequest> __Marshaller_jigen_SearchFilterRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchFilterRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.CreateMetadataRequest> __Marshaller_jigen_CreateMetadataRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CreateMetadataRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.CreateMetadataResponse> __Marshaller_jigen_CreateMetadataResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.CreateMetadataResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.UpdateMetadataRequest> __Marshaller_jigen_UpdateMetadataRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.UpdateMetadataRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.UpdateMetadataResponse> __Marshaller_jigen_UpdateMetadataResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.UpdateMetadataResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingMetadataRequest> __Marshaller_jigen_EmbeddingMetadataRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingMetadataRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingMetadataResponse> __Marshaller_jigen_EmbeddingMetadataResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingMetadataResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.AssociateEmbeddingRequest> __Marshaller_jigen_AssociateEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.AssociateEmbeddingRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SearchByMetadataRequest> __Marshaller_jigen_SearchByMetadataRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchByMetadataRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SearchByMetadataResponse> __Marshaller_jigen_SearchByMetadataResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchByMetadataResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.TransactionOp> __Marshaller_jigen_TransactionOp = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.TransactionOp.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.TransactionResult> __Marshaller_jigen_TransactionResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.TransactionResult.Parser));
@@ -341,6 +359,46 @@ namespace Jigen.Proto {
         "SetRawVector",
         __Marshaller_jigen_Vector,
         __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.CreateMetadataRequest, global::Jigen.Proto.CreateMetadataResponse> __Method_CreateMetadata = new grpc::Method<global::Jigen.Proto.CreateMetadataRequest, global::Jigen.Proto.CreateMetadataResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CreateMetadata",
+        __Marshaller_jigen_CreateMetadataRequest,
+        __Marshaller_jigen_CreateMetadataResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.UpdateMetadataRequest, global::Jigen.Proto.UpdateMetadataResponse> __Method_UpdateMetadata = new grpc::Method<global::Jigen.Proto.UpdateMetadataRequest, global::Jigen.Proto.UpdateMetadataResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "UpdateMetadata",
+        __Marshaller_jigen_UpdateMetadataRequest,
+        __Marshaller_jigen_UpdateMetadataResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.EmbeddingMetadataRequest, global::Jigen.Proto.EmbeddingMetadataResponse> __Method_GetEmbeddingMetadata = new grpc::Method<global::Jigen.Proto.EmbeddingMetadataRequest, global::Jigen.Proto.EmbeddingMetadataResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetEmbeddingMetadata",
+        __Marshaller_jigen_EmbeddingMetadataRequest,
+        __Marshaller_jigen_EmbeddingMetadataResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.AssociateEmbeddingRequest, global::Jigen.Proto.Result> __Method_AssociateEmbedding = new grpc::Method<global::Jigen.Proto.AssociateEmbeddingRequest, global::Jigen.Proto.Result>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "AssociateEmbedding",
+        __Marshaller_jigen_AssociateEmbeddingRequest,
+        __Marshaller_jigen_Result);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.SearchByMetadataRequest, global::Jigen.Proto.SearchByMetadataResponse> __Method_SearchByMetadata = new grpc::Method<global::Jigen.Proto.SearchByMetadataRequest, global::Jigen.Proto.SearchByMetadataResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "SearchByMetadata",
+        __Marshaller_jigen_SearchByMetadataRequest,
+        __Marshaller_jigen_SearchByMetadataResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult> __Method_Transaction = new grpc::Method<global::Jigen.Proto.TransactionOp, global::Jigen.Proto.TransactionResult>(
@@ -1172,6 +1230,142 @@ namespace Jigen.Proto {
       public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> SetRawVectorAsync(global::Jigen.Proto.Vector request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncUnaryCall(__Method_SetRawVector, null, options, request);
+      }
+      /// <summary>
+      /// ── Shared metadata: many embeddings reference one metadata record.
+      ///     MetadataIndex is opaque and stable across reopen and compaction;
+      ///     -1 means no association. CandidateBudget is mandatory on search. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.CreateMetadataResponse CreateMetadata(global::Jigen.Proto.CreateMetadataRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CreateMetadata(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Shared metadata: many embeddings reference one metadata record.
+      ///     MetadataIndex is opaque and stable across reopen and compaction;
+      ///     -1 means no association. CandidateBudget is mandatory on search. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.CreateMetadataResponse CreateMetadata(global::Jigen.Proto.CreateMetadataRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_CreateMetadata, null, options, request);
+      }
+      /// <summary>
+      /// ── Shared metadata: many embeddings reference one metadata record.
+      ///     MetadataIndex is opaque and stable across reopen and compaction;
+      ///     -1 means no association. CandidateBudget is mandatory on search. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.CreateMetadataResponse> CreateMetadataAsync(global::Jigen.Proto.CreateMetadataRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CreateMetadataAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Shared metadata: many embeddings reference one metadata record.
+      ///     MetadataIndex is opaque and stable across reopen and compaction;
+      ///     -1 means no association. CandidateBudget is mandatory on search. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.CreateMetadataResponse> CreateMetadataAsync(global::Jigen.Proto.CreateMetadataRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_CreateMetadata, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.UpdateMetadataResponse UpdateMetadata(global::Jigen.Proto.UpdateMetadataRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return UpdateMetadata(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.UpdateMetadataResponse UpdateMetadata(global::Jigen.Proto.UpdateMetadataRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_UpdateMetadata, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.UpdateMetadataResponse> UpdateMetadataAsync(global::Jigen.Proto.UpdateMetadataRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return UpdateMetadataAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.UpdateMetadataResponse> UpdateMetadataAsync(global::Jigen.Proto.UpdateMetadataRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_UpdateMetadata, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.EmbeddingMetadataResponse GetEmbeddingMetadata(global::Jigen.Proto.EmbeddingMetadataRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return GetEmbeddingMetadata(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.EmbeddingMetadataResponse GetEmbeddingMetadata(global::Jigen.Proto.EmbeddingMetadataRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_GetEmbeddingMetadata, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingMetadataResponse> GetEmbeddingMetadataAsync(global::Jigen.Proto.EmbeddingMetadataRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return GetEmbeddingMetadataAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingMetadataResponse> GetEmbeddingMetadataAsync(global::Jigen.Proto.EmbeddingMetadataRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_GetEmbeddingMetadata, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.Result AssociateEmbedding(global::Jigen.Proto.AssociateEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return AssociateEmbedding(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.Result AssociateEmbedding(global::Jigen.Proto.AssociateEmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_AssociateEmbedding, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> AssociateEmbeddingAsync(global::Jigen.Proto.AssociateEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return AssociateEmbeddingAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.Result> AssociateEmbeddingAsync(global::Jigen.Proto.AssociateEmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_AssociateEmbedding, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.SearchByMetadataResponse SearchByMetadata(global::Jigen.Proto.SearchByMetadataRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return SearchByMetadata(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.SearchByMetadataResponse SearchByMetadata(global::Jigen.Proto.SearchByMetadataRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_SearchByMetadata, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.SearchByMetadataResponse> SearchByMetadataAsync(global::Jigen.Proto.SearchByMetadataRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return SearchByMetadataAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.SearchByMetadataResponse> SearchByMetadataAsync(global::Jigen.Proto.SearchByMetadataRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_SearchByMetadata, null, options, request);
       }
       /// <summary>
       /// ── Multi-entry atomic transaction with WAL durability guarantees.

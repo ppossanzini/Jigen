@@ -9,35 +9,46 @@ using Xunit.Abstractions;
 
 namespace JigenTests;
 
-public class IngestionTests
+public class IngestionTests : IDisposable
 {
   private readonly ITestOutputHelper _testOutputHelper;
+  private readonly string _path;
   private Store _store = null;
 
   public IngestionTests(ITestOutputHelper testOutputHelper)
   {
     _testOutputHelper = testOutputHelper;
+
+    // Each test instance owns its directory: xUnit creates one instance per
+    // theory case and runs classes in parallel, so a shared path would make the
+    // exclusive database lock fail.
+    _path = Path.Combine(Path.GetTempPath(), $"jigen-ingestion-test-{Guid.NewGuid():N}");
+    Directory.CreateDirectory(_path);
+
     _store = new Store(new StoreOptions()
     {
       DataBaseName = "tests",
-      DataBasePath = "/data/jigendb"
-      , Indexer = new SmallWorldIndexer(new SmallWorldOptions()
+      DataBasePath = _path,
+      Indexer = new SmallWorldIndexer(new SmallWorldOptions()
       {
         M = 16,
         EfConstruction = 200,
         EfSearch = 80,
-        StoragePath = "/data/jigendb/hnsw"
+        StoragePath = Path.Combine(_path, "hnsw")
       })
-      
-      
     });
+  }
+
+  public void Dispose()
+  {
+    _store.Dispose();
+    try { Directory.Delete(_path, recursive: true); }
+    catch (IOException) { }
   }
 
   [Theory]
   [InlineData(1)]
   [InlineData(1000)]
-  [InlineData(10_000)]
-  // [InlineData(1_000_000)]
   public async Task SimpleAppend(int count)
   {
     _testOutputHelper.WriteLine("\n SimpleAppend");
@@ -227,8 +238,6 @@ public class IngestionTests
   [InlineData(1)]
   [InlineData(2)]
   [InlineData(1000)]
-  [InlineData(10_000)]
-  [InlineData(1_000_000)]
   public async Task ParallelAppend(int count)
   {
     _testOutputHelper.WriteLine("\n ParallelAppend");
@@ -414,4 +423,16 @@ public class IngestionTests
     await _store.SaveChangesAsync();
     _testOutputHelper.WriteLine($" ParallelAppend: Elapsed Time for {count}: {sw.Elapsed.ToString("G")}");
   }
+
+  // Heavy loads stay out of the automated suite: they were never executed while
+  // the shared database lock made every instance fail at construction. Remove
+  // Skip to measure them on a dedicated machine.
+  [Theory(Skip = "Benchmark: heavy ingestion, run manually")]
+  [InlineData(10_000)]
+  public Task SimpleAppend_Benchmark(int count) => SimpleAppend(count);
+
+  [Theory(Skip = "Benchmark: heavy ingestion, run manually")]
+  [InlineData(10_000)]
+  [InlineData(1_000_000)]
+  public Task ParallelAppend_Benchmark(int count) => ParallelAppend(count);
 }

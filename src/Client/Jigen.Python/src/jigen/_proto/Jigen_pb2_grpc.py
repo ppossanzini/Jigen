@@ -99,6 +99,16 @@ class StoreCollectionServiceStub:
                 request_serializer=Jigen__pb2.EmbeddingBatchRequest.SerializeToString,
                 response_deserializer=Jigen__pb2.EmbeddingBatchResponse.FromString,
                 _registered_method=True)
+        self.CalculatePassageEmbeddings = channel.unary_unary(
+                '/jigen.StoreCollectionService/CalculatePassageEmbeddings',
+                request_serializer=Jigen__pb2.PassageEmbeddingRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.PassageEmbeddingResponse.FromString,
+                _registered_method=True)
+        self.CalculatePassageSplitCount = channel.unary_unary(
+                '/jigen.StoreCollectionService/CalculatePassageSplitCount',
+                request_serializer=Jigen__pb2.PassageSplitCountRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.PassageSplitCountResponse.FromString,
+                _registered_method=True)
         self.CalculateImageEmbedding = channel.unary_unary(
                 '/jigen.StoreCollectionService/CalculateImageEmbedding',
                 request_serializer=Jigen__pb2.ImageEmbeddingRequest.SerializeToString,
@@ -148,6 +158,31 @@ class StoreCollectionServiceStub:
                 '/jigen.StoreCollectionService/SetRawVector',
                 request_serializer=Jigen__pb2.Vector.SerializeToString,
                 response_deserializer=Jigen__pb2.Result.FromString,
+                _registered_method=True)
+        self.CreateMetadata = channel.unary_unary(
+                '/jigen.StoreCollectionService/CreateMetadata',
+                request_serializer=Jigen__pb2.CreateMetadataRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.CreateMetadataResponse.FromString,
+                _registered_method=True)
+        self.UpdateMetadata = channel.unary_unary(
+                '/jigen.StoreCollectionService/UpdateMetadata',
+                request_serializer=Jigen__pb2.UpdateMetadataRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.UpdateMetadataResponse.FromString,
+                _registered_method=True)
+        self.GetEmbeddingMetadata = channel.unary_unary(
+                '/jigen.StoreCollectionService/GetEmbeddingMetadata',
+                request_serializer=Jigen__pb2.EmbeddingMetadataRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.EmbeddingMetadataResponse.FromString,
+                _registered_method=True)
+        self.AssociateEmbedding = channel.unary_unary(
+                '/jigen.StoreCollectionService/AssociateEmbedding',
+                request_serializer=Jigen__pb2.AssociateEmbeddingRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.Result.FromString,
+                _registered_method=True)
+        self.SearchByMetadata = channel.unary_unary(
+                '/jigen.StoreCollectionService/SearchByMetadata',
+                request_serializer=Jigen__pb2.SearchByMetadataRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.SearchByMetadataResponse.FromString,
                 _registered_method=True)
         self.Transaction = channel.stream_stream(
                 '/jigen.StoreCollectionService/Transaction',
@@ -268,6 +303,18 @@ class StoreCollectionServiceServicer:
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def CalculatePassageEmbeddings(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CalculatePassageSplitCount(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
     def CalculateImageEmbedding(self, request, context):
         """── Direct image embedding: raw image bytes in, vision model vector out ──
         """
@@ -332,6 +379,39 @@ class StoreCollectionServiceServicer:
     def SetRawVector(self, request, context):
         """── Raw vector storage without server-side normalization or processing. ──
         """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CreateMetadata(self, request, context):
+        """── Shared metadata: many embeddings reference one metadata record.
+        MetadataIndex is opaque and stable across reopen and compaction;
+        -1 means no association. CandidateBudget is mandatory on search. ──
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def UpdateMetadata(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetEmbeddingMetadata(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def AssociateEmbedding(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SearchByMetadata(self, request, context):
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
@@ -433,6 +513,16 @@ def add_StoreCollectionServiceServicer_to_server(servicer, server):
                     request_deserializer=Jigen__pb2.EmbeddingBatchRequest.FromString,
                     response_serializer=Jigen__pb2.EmbeddingBatchResponse.SerializeToString,
             ),
+            'CalculatePassageEmbeddings': grpc.unary_unary_rpc_method_handler(
+                    servicer.CalculatePassageEmbeddings,
+                    request_deserializer=Jigen__pb2.PassageEmbeddingRequest.FromString,
+                    response_serializer=Jigen__pb2.PassageEmbeddingResponse.SerializeToString,
+            ),
+            'CalculatePassageSplitCount': grpc.unary_unary_rpc_method_handler(
+                    servicer.CalculatePassageSplitCount,
+                    request_deserializer=Jigen__pb2.PassageSplitCountRequest.FromString,
+                    response_serializer=Jigen__pb2.PassageSplitCountResponse.SerializeToString,
+            ),
             'CalculateImageEmbedding': grpc.unary_unary_rpc_method_handler(
                     servicer.CalculateImageEmbedding,
                     request_deserializer=Jigen__pb2.ImageEmbeddingRequest.FromString,
@@ -482,6 +572,31 @@ def add_StoreCollectionServiceServicer_to_server(servicer, server):
                     servicer.SetRawVector,
                     request_deserializer=Jigen__pb2.Vector.FromString,
                     response_serializer=Jigen__pb2.Result.SerializeToString,
+            ),
+            'CreateMetadata': grpc.unary_unary_rpc_method_handler(
+                    servicer.CreateMetadata,
+                    request_deserializer=Jigen__pb2.CreateMetadataRequest.FromString,
+                    response_serializer=Jigen__pb2.CreateMetadataResponse.SerializeToString,
+            ),
+            'UpdateMetadata': grpc.unary_unary_rpc_method_handler(
+                    servicer.UpdateMetadata,
+                    request_deserializer=Jigen__pb2.UpdateMetadataRequest.FromString,
+                    response_serializer=Jigen__pb2.UpdateMetadataResponse.SerializeToString,
+            ),
+            'GetEmbeddingMetadata': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetEmbeddingMetadata,
+                    request_deserializer=Jigen__pb2.EmbeddingMetadataRequest.FromString,
+                    response_serializer=Jigen__pb2.EmbeddingMetadataResponse.SerializeToString,
+            ),
+            'AssociateEmbedding': grpc.unary_unary_rpc_method_handler(
+                    servicer.AssociateEmbedding,
+                    request_deserializer=Jigen__pb2.AssociateEmbeddingRequest.FromString,
+                    response_serializer=Jigen__pb2.Result.SerializeToString,
+            ),
+            'SearchByMetadata': grpc.unary_unary_rpc_method_handler(
+                    servicer.SearchByMetadata,
+                    request_deserializer=Jigen__pb2.SearchByMetadataRequest.FromString,
+                    response_serializer=Jigen__pb2.SearchByMetadataResponse.SerializeToString,
             ),
             'Transaction': grpc.stream_stream_rpc_method_handler(
                     servicer.Transaction,
@@ -959,6 +1074,60 @@ class StoreCollectionService:
             _registered_method=True)
 
     @staticmethod
+    def CalculatePassageEmbeddings(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/CalculatePassageEmbeddings',
+            Jigen__pb2.PassageEmbeddingRequest.SerializeToString,
+            Jigen__pb2.PassageEmbeddingResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CalculatePassageSplitCount(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/CalculatePassageSplitCount',
+            Jigen__pb2.PassageSplitCountRequest.SerializeToString,
+            Jigen__pb2.PassageSplitCountResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
     def CalculateImageEmbedding(request,
             target,
             options=(),
@@ -1218,6 +1387,141 @@ class StoreCollectionService:
             '/jigen.StoreCollectionService/SetRawVector',
             Jigen__pb2.Vector.SerializeToString,
             Jigen__pb2.Result.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CreateMetadata(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/CreateMetadata',
+            Jigen__pb2.CreateMetadataRequest.SerializeToString,
+            Jigen__pb2.CreateMetadataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def UpdateMetadata(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/UpdateMetadata',
+            Jigen__pb2.UpdateMetadataRequest.SerializeToString,
+            Jigen__pb2.UpdateMetadataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetEmbeddingMetadata(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/GetEmbeddingMetadata',
+            Jigen__pb2.EmbeddingMetadataRequest.SerializeToString,
+            Jigen__pb2.EmbeddingMetadataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def AssociateEmbedding(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/AssociateEmbedding',
+            Jigen__pb2.AssociateEmbeddingRequest.SerializeToString,
+            Jigen__pb2.Result.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SearchByMetadata(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/SearchByMetadata',
+            Jigen__pb2.SearchByMetadataRequest.SerializeToString,
+            Jigen__pb2.SearchByMetadataResponse.FromString,
             options,
             channel_credentials,
             insecure,

@@ -26,7 +26,7 @@
 - [Overview](in-process/overview.md) — architecture, storage model, durability
 - [Getting started](in-process/getting-started.md) — install from NuGet, first database
 - [Store options](in-process/store-options.md) — all `StoreOptions` parameters, files on disk, crash recovery
-- [Collections](in-process/collections.md) — `VectorCollection<T>`, `DocumentCollection<T>`, keys, serialization, filtering
+- [Collections](in-process/collections.md) — `VectorCollection<T>`, `DocumentCollection<T>`, shared metadata, keys, serialization, filtering
 
 ### Indexes
 
@@ -50,7 +50,7 @@
 ### Client
 
 - [Getting started](client/getting-started.md) — install, connection options
-- [Usage](client/usage.md) — inserting, searching, filtering
+- [Usage](client/usage.md) — inserting, searching, filtering, shared metadata and grouped search
 - [Python client](client/python.md) — sync/async API and LLM framework integrations
 
 ### Reference

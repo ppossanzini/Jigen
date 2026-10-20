@@ -151,6 +151,72 @@ The filter is evaluated against the document's MessagePack payload converted to 
 - Property paths are limited to member-access chains (`x.Prop`, `x.Nested.Prop`); the right-hand side of a comparison must be a constant or a captured local/field/property, not another document property.
 - Without a filter, brute-force search picks the top-k directly from ranked scores; with a filter, the brute-force indexer ranks candidates first and then applies the filter, while the HNSW indexer evaluates the filter *during* graph traversal (ACORN-1 style): non-matching nodes stay navigable but never enter the result window, and the traversal keeps expanding — bounded by `FilteredSearchExpansionFactor × ef` node visits — until it collects `top` matches. Either way, a highly selective filter over a large collection costs more than an unfiltered search.
 
+## Shared metadata
+
+Sometimes several embeddings belong to the same unit of content: overlapping chunks of one passage, or one article indexed by both its title and its body. Storing a copy of the content per vector wastes space and makes updates error-prone. A **shared metadata record** holds the content once; any number of embeddings reference it by an opaque integer index.
+
+The metadata content is global to the `Store`; the association is per collection and embedding key.
+
+| Member | Returns | Description |
+|---|---|---|
+| `store.SharedMetadata.AddMetadata(byte[] content)` | `int` | Creates a record and returns its index. The record is not associated yet. |
+| `store.SharedMetadata.UpdateMetadata(int index, byte[] content)` | `bool` | Replaces the content read by every associated key. `false` when the index is unknown. |
+| `store.SharedMetadata.TryGetMetadataIndex(string collection, byte[] key, out int index)` | `bool` | The index associated to a key, if any. |
+| `store.SharedMetadata.AssociateEmbedding(string collection, byte[] key, int index)` | — | Associates or reassociates a key. Throws `ArgumentOutOfRangeException` for an unknown index. |
+| `store.SharedMetadata.DeleteEmbedding(string collection, byte[] key)` | `bool` | Drops the association; the record survives. `false` when there was no association. |
+| `store.SharedMetadata.GetContent(string collection, byte[] key)` | `byte[]` | The **shared** content for a key, or `null`. `TryGetContent` is the non-throwing variant. |
+| `store.SharedMetadata.Compact()` | — | Rewrites the metadata files, reclaiming superseded content versions and stale association records. |
+
+The content is a raw `byte[]`, like the rest of the `Store` surface: serialize with the same serializer you use for the entry.
+
+```csharp
+using Jigen;
+using Jigen.DataStructures;
+using Jigen.Extensions;
+
+var passage = store.SharedMetadata.AddMetadata(
+  MessagePackDocumentSerializer.Instance.Serialize(parentArticle).ToArray());
+
+await store.AppendContent(new VectorEntry
+{
+  Id = chunk1Key, CollectionName = "chunks", Content = chunk1Bytes, Embedding = chunk1Vector
+});
+
+store.SharedMetadata.AssociateEmbedding("chunks", chunk1Key, passage);
+
+// Reads of the key return the parent article, not the chunk payload.
+byte[] content = store.GetContent("chunks", chunk1Key);
+```
+
+Because writes to an associated key update the shared record, appending a new payload to `chunk1Key` rewrites the content that every key associated to `passage` reads.
+
+Every content write goes through that same path: `AppendContent` creates a record and associates the key when none exists, and updates the associated record otherwise. A record therefore exists for every entry with content — `AddMetadata` is only needed when you want one record shared by several keys, or created before the embeddings.
+
+### Grouped search
+
+`store.SearchByMetadata(...)` returns **one result per metadata record** instead of one per vector, ranked by the highest score observed among the record's embeddings:
+
+```csharp
+var groups = store.SearchByMetadata(
+  "chunks", queryVector, top: 10, candidateBudget: 400);
+
+foreach (var (metadataIndex, entry, score) in groups)
+  Console.WriteLine($"{metadataIndex} {score:F3} {entry.Id.Length} bytes");
+```
+
+`candidateBudget` is mandatory and caps the sum of candidates requested across the internal attempts (repeated candidates included) — it is not multiplied by `top`. When the budget is exhausted the call returns **fewer than `top` groups**, and an approximate index makes **no promise of exact grouped top-k**. Ties are ordered by metadata index. `efSearch` and an `IFilterExpression` are accepted as optional arguments, exactly as in `Search`.
+
+Reading the two ranks:
+
+| Operation | Ranking unit |
+|---|---|
+| `store.Search("chunks", queryVector, top)` | One result per embedding. |
+| `store.SearchByMetadata("chunks", queryVector, top, budget)` | One result per metadata record, best embedding wins. |
+
+### Housekeeping
+
+`DeleteEmbedding` drops the association, and deleting a store entry does the same. The metadata record itself survives — compaction does not drop records that no association points at, so an index handed out earlier stays valid and can be associated again later. What `Compact()` reclaims is the space of superseded content versions (each overwrite or `UpdateMetadata` appends a new one) and stale association records. It is not called by `ShrinkAsync()`, so schedule it yourself after many overwrites.
+
 ## Sharded collections
 
 The in-process API provides two sharded wrappers that follow the same naming-convention pattern as the [client's `ShardedCollection<T>`](../client/usage.md#sharded-collections):

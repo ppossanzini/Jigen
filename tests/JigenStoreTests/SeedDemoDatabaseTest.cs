@@ -20,7 +20,10 @@ public class SeedDemoDatabaseTest
   private const string Collection = "articles";
   private const int SentencesPerTopic = 40;
 
-  [Fact]
+  // Manual dev tool: it needs a running Jigen-AllInOne server with embeddings
+  // enabled on localhost:13223, so it is excluded from the automated suite.
+  // Remove Skip to run it against a live server.
+  [Fact(Skip = "Manual tool: requires a live Jigen server with embeddings on localhost:13223")]
   public async Task Seed_demo_database_with_random_topic_sentences()
   {
     var handler = new HttpClientHandler { CookieContainer = new CookieContainer(), UseCookies = true };

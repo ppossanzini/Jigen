@@ -84,6 +84,52 @@ hits = articles.search(
 Filter paths refer to fields in the serialized document. Supported operations
 match Jigen's protocol: equality, collection membership, AND and OR.
 
+## Shared metadata
+
+One metadata record can back several embeddings. The record is database-scoped
+and addressed by an opaque index; the association is per collection and key.
+Reading an associated key returns the shared content, so updating the record
+once updates every embedding that points at it.
+
+```python
+passage = articles.create_metadata(
+    {"title": "Vector search", "body": "A practical introduction to vector search in .NET."}
+)
+
+articles.upsert("chunk-1", {"text": "first chunk"}, embedding=chunk_1_vector)
+articles.upsert("chunk-2", {"text": "second chunk"}, embedding=chunk_2_vector)
+articles.associate_metadata("chunk-1", passage)
+articles.associate_metadata("chunk-2", passage)
+
+articles.get_metadata_index("chunk-1")   # -> passage; -1 when not associated
+articles.update_metadata(passage, {"title": "Vector search", "body": "Revised once, read by both chunks."})
+```
+
+Grouped search returns one result per metadata record, ranked by the best score
+observed among its embeddings. `candidate_budget` is keyword-only and
+mandatory, because it is what bounds the work the server may do to complete
+groups:
+
+```python
+groups = articles.search_by_metadata(
+    "vector database for .NET",
+    top=10,
+    candidate_budget=400,
+    filter=equals("category", "guide"),
+    options=SearchOptions(ef_search=200),
+)
+
+for group in groups:
+    print(group.metadata_index, group.score, group.content)
+```
+
+`MetadataSearchResult` exposes `metadata_index`, `key`, `content` and `score`.
+Iterables of vectors work as the query too (`search_by_metadata(chunk_vector, ...)`).
+Fewer than `top` groups may come back when the budget is exhausted, and
+approximate indexes make no promise of exact grouped top-k. A non-positive
+`top` or `candidate_budget` raises `ValueError` before any call. The async
+client exposes the same methods as coroutines.
+
 ## LangChain
 
 ```python

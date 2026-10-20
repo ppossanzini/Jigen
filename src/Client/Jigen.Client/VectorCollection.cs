@@ -80,6 +80,7 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
 
   public void Add(VectorKey key, VectorEntry<T> value)
   {
+    ArgumentNullException.ThrowIfNull(value);
     value.Key = key;
     Add(value);
   }
@@ -347,6 +348,239 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     {
       Key = i.Key.ToByteArray(),
       // Empty content = requested with NoContent (or a content-less entry).
+      Content = i.Content.IsEmpty ? null : _options.DocumentSerializer.Deserialize<T>(i.Content.Memory),
+      Score = i.Score
+    }).ToList();
+  }
+
+  // ── Shared metadata: many embeddings reference one metadata record. ──
+
+  /// <summary>
+  /// Creates a shared metadata record and returns its opaque index. The index
+  /// is stable across reopen and compaction and is never reused.
+  /// </summary>
+  public int CreateMetadata(T content)
+  {
+    ArgumentNullException.ThrowIfNull(content);
+    return store.ServiceClient.CreateMetadata(new CreateMetadataRequest
+    {
+      Database = GetDatabaseName(),
+      Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(content).Span)
+    }).MetadataIndex;
+  }
+
+  /// <summary>Async counterpart of <see cref="CreateMetadata"/>.</summary>
+  public async Task<int> CreateMetadataAsync(T content, CancellationToken cancellationToken = default)
+  {
+    ArgumentNullException.ThrowIfNull(content);
+    var result = await store.ServiceClient.CreateMetadataAsync(new CreateMetadataRequest
+    {
+      Database = GetDatabaseName(),
+      Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(content).Span)
+    }, cancellationToken: cancellationToken).ConfigureAwait(false);
+    return result.MetadataIndex;
+  }
+
+  /// <summary>
+  /// Replaces the content of a shared metadata record. Every embedding
+  /// associated to it reads the new content. False when the index is unknown.
+  /// </summary>
+  public bool UpdateMetadata(int metadataIndex, T content)
+  {
+    ArgumentNullException.ThrowIfNull(content);
+    return store.ServiceClient.UpdateMetadata(new UpdateMetadataRequest
+    {
+      Database = GetDatabaseName(),
+      MetadataIndex = metadataIndex,
+      Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(content).Span)
+    }).Updated;
+  }
+
+  /// <summary>Async counterpart of <see cref="UpdateMetadata"/>.</summary>
+  public async Task<bool> UpdateMetadataAsync(int metadataIndex, T content, CancellationToken cancellationToken = default)
+  {
+    ArgumentNullException.ThrowIfNull(content);
+    var result = await store.ServiceClient.UpdateMetadataAsync(new UpdateMetadataRequest
+    {
+      Database = GetDatabaseName(),
+      MetadataIndex = metadataIndex,
+      Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(content).Span)
+    }, cancellationToken: cancellationToken).ConfigureAwait(false);
+    return result.Updated;
+  }
+
+  /// <summary>
+  /// Returns the metadata index associated to a key, or -1 when the key is
+  /// absent or not associated.
+  /// </summary>
+  public int GetMetadataIndex(VectorKey key)
+  {
+    return store.ServiceClient.GetEmbeddingMetadata(new EmbeddingMetadataRequest
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Key = ByteString.CopyFrom(key.Value)
+    }).MetadataIndex;
+  }
+
+  /// <summary>Async counterpart of <see cref="GetMetadataIndex"/>.</summary>
+  public async Task<int> GetMetadataIndexAsync(VectorKey key, CancellationToken cancellationToken = default)
+  {
+    var result = await store.ServiceClient.GetEmbeddingMetadataAsync(new EmbeddingMetadataRequest
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Key = ByteString.CopyFrom(key.Value)
+    }, cancellationToken: cancellationToken).ConfigureAwait(false);
+    return result.MetadataIndex;
+  }
+
+  /// <summary>
+  /// Associates an existing key to a shared metadata record, moving it when it
+  /// was already associated to another record.
+  /// </summary>
+  public bool AssociateMetadata(VectorKey key, int metadataIndex)
+  {
+    return store.ServiceClient.AssociateEmbedding(new AssociateEmbeddingRequest
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Key = ByteString.CopyFrom(key.Value),
+      MetadataIndex = metadataIndex
+    }).Success;
+  }
+
+  /// <summary>Async counterpart of <see cref="AssociateMetadata"/>.</summary>
+  public async Task<bool> AssociateMetadataAsync(VectorKey key, int metadataIndex, CancellationToken cancellationToken = default)
+  {
+    var result = await store.ServiceClient.AssociateEmbeddingAsync(new AssociateEmbeddingRequest
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Key = ByteString.CopyFrom(key.Value),
+      MetadataIndex = metadataIndex
+    }, cancellationToken: cancellationToken).ConfigureAwait(false);
+    return result.Success;
+  }
+
+  /// <summary>
+  /// Grouped search: one result per shared metadata record, ranked by the
+  /// highest observed embedding score. <paramref name="candidateBudget"/> is
+  /// mandatory and caps the sum of requested candidates across attempts,
+  /// repeated candidates included. Fewer than <paramref name="top"/> groups may
+  /// be returned; exact grouped top-k is not guaranteed by approximate indexes.
+  /// </summary>
+  public List<MetadataSearchResult<T>> SearchByMetadata(float[] embeddings, int top, int candidateBudget, SearchOptions options = null)
+  {
+    return SearchByMetadata(embeddings, predicate: null, top, candidateBudget, options);
+  }
+
+  /// <summary>
+  /// Grouped search restricted by a predicate. The predicate is translated
+  /// client-side into the filter AST and evaluated server-side, exactly like
+  /// <see cref="Search(float[], Expression{Func{T, bool}}, int, SearchOptions)"/>.
+  /// </summary>
+  public List<MetadataSearchResult<T>> SearchByMetadata(float[] embeddings, Expression<Func<T, bool>> predicate,
+    int top, int candidateBudget, SearchOptions options = null)
+  {
+    if (embeddings == null || embeddings.Length == 0)
+      throw new ArgumentException("Embeddings are required", nameof(embeddings));
+
+    return MapMetadataResults(store.ServiceClient.SearchByMetadata(
+      BuildSearchByMetadataRequest(embeddings, sentence: null, predicate, top, candidateBudget, options)));
+  }
+
+  /// <summary>Async counterpart of the embedding overload.</summary>
+  public Task<List<MetadataSearchResult<T>>> SearchByMetadataAsync(float[] embeddings, int top, int candidateBudget,
+    SearchOptions options = null, CancellationToken cancellationToken = default)
+  {
+    return SearchByMetadataAsync(embeddings, predicate: null, top, candidateBudget, options, cancellationToken);
+  }
+
+  /// <summary>Async counterpart of the filtered embedding overload.</summary>
+  public async Task<List<MetadataSearchResult<T>>> SearchByMetadataAsync(float[] embeddings, Expression<Func<T, bool>> predicate,
+    int top, int candidateBudget, SearchOptions options = null, CancellationToken cancellationToken = default)
+  {
+    if (embeddings == null || embeddings.Length == 0)
+      throw new ArgumentException("Embeddings are required", nameof(embeddings));
+
+    var result = await store.ServiceClient.SearchByMetadataAsync(
+      BuildSearchByMetadataRequest(embeddings, sentence: null, predicate, top, candidateBudget, options),
+      cancellationToken: cancellationToken).ConfigureAwait(false);
+    return MapMetadataResults(result);
+  }
+
+  /// <summary>
+  /// Grouped search from a sentence: the server calculates the query vector.
+  /// </summary>
+  public List<MetadataSearchResult<T>> SearchByMetadata(string sentence, int top, int candidateBudget, SearchOptions options = null)
+  {
+    return SearchByMetadata(sentence, predicate: null, top, candidateBudget, options);
+  }
+
+  /// <summary>Filtered counterpart of the sentence overload.</summary>
+  public List<MetadataSearchResult<T>> SearchByMetadata(string sentence, Expression<Func<T, bool>> predicate,
+    int top, int candidateBudget, SearchOptions options = null)
+  {
+    if (string.IsNullOrWhiteSpace(sentence))
+      throw new ArgumentException("A sentence is required", nameof(sentence));
+
+    return MapMetadataResults(store.ServiceClient.SearchByMetadata(
+      BuildSearchByMetadataRequest(embeddings: null, sentence, predicate, top, candidateBudget, options)));
+  }
+
+  /// <summary>Async counterpart of the sentence overload.</summary>
+  public Task<List<MetadataSearchResult<T>>> SearchByMetadataAsync(string sentence, int top, int candidateBudget,
+    SearchOptions options = null, CancellationToken cancellationToken = default)
+  {
+    return SearchByMetadataAsync(sentence, predicate: null, top, candidateBudget, options, cancellationToken);
+  }
+
+  /// <summary>Async counterpart of the filtered sentence overload.</summary>
+  public async Task<List<MetadataSearchResult<T>>> SearchByMetadataAsync(string sentence, Expression<Func<T, bool>> predicate,
+    int top, int candidateBudget, SearchOptions options = null, CancellationToken cancellationToken = default)
+  {
+    if (string.IsNullOrWhiteSpace(sentence))
+      throw new ArgumentException("A sentence is required", nameof(sentence));
+
+    var result = await store.ServiceClient.SearchByMetadataAsync(
+      BuildSearchByMetadataRequest(embeddings: null, sentence, predicate, top, candidateBudget, options),
+      cancellationToken: cancellationToken).ConfigureAwait(false);
+    return MapMetadataResults(result);
+  }
+
+  private SearchByMetadataRequest BuildSearchByMetadataRequest(float[] embeddings, string sentence,
+    Expression<Func<T, bool>> predicate, int top, int candidateBudget, SearchOptions options)
+  {
+    ArgumentOutOfRangeException.ThrowIfNegativeOrZero(top);
+    ArgumentOutOfRangeException.ThrowIfNegativeOrZero(candidateBudget);
+
+    var request = new SearchByMetadataRequest
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Top = top,
+      CandidateBudget = candidateBudget,
+      Tuning = BuildTuning(options)
+    };
+
+    if (predicate != null)
+      request.Filter = ProtoExpressionTranslator.Translate(predicate);
+
+    if (embeddings is { Length: > 0 })
+      request.Embeddings.AddRange(embeddings);
+    if (!string.IsNullOrWhiteSpace(sentence))
+      request.Sentence = sentence;
+
+    return request;
+  }
+
+  private List<MetadataSearchResult<T>> MapMetadataResults(SearchByMetadataResponse response)
+  {
+    return response.Results.Select(i => new MetadataSearchResult<T>
+    {
+      MetadataIndex = i.MetadataIndex,
+      Key = i.Key.ToByteArray(),
       Content = i.Content.IsEmpty ? null : _options.DocumentSerializer.Deserialize<T>(i.Content.Memory),
       Score = i.Score
     }).ToList();

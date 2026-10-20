@@ -113,9 +113,14 @@ public class TornIndexLogTests
     try
     {
       var (first, second, indexFile) = await CreateStoreWithTwoEntries(path);
-      var contentFile = Path.Combine(path, "tornlog.content.jigen");
-      using (var content = new FileStream(contentFile, FileMode.Open, FileAccess.Write, FileShare.Read))
-        content.SetLength(content.Length - 2); // tear only the second payload
+
+      // Content payloads live in the shared metadata list, not at the byte
+      // offset stored in the index log. The embedding file is still addressed
+      // by position and length, so tearing it produces the index record whose
+      // payload extends past its data file.
+      var embeddingFile = Path.Combine(path, "tornlog.vectors.jigen");
+      using (var embeddings = new FileStream(embeddingFile, FileMode.Open, FileAccess.Write, FileShare.Read))
+        embeddings.SetLength(embeddings.Length - 2); // tear only the second payload
 
       using var reopened = new Store(OptionsFor(path));
       Assert.True(reopened.TryGetContent("docs", first, out _));

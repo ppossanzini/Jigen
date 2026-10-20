@@ -55,6 +55,15 @@ service StoreCollectionService {
   // ── Raw vector storage without server-side normalization or processing. ──
   rpc SetRawVector(Vector) returns (Result);
 
+  // ── Shared metadata: many embeddings reference one metadata record.
+  //     MetadataIndex is opaque and stable across reopen and compaction;
+  //     -1 means no association. CandidateBudget is mandatory on search. ──
+  rpc CreateMetadata(CreateMetadataRequest) returns (CreateMetadataResponse);
+  rpc UpdateMetadata(UpdateMetadataRequest) returns (UpdateMetadataResponse);
+  rpc GetEmbeddingMetadata(EmbeddingMetadataRequest) returns (EmbeddingMetadataResponse);
+  rpc AssociateEmbedding(AssociateEmbeddingRequest) returns (Result);
+  rpc SearchByMetadata(SearchByMetadataRequest) returns (SearchByMetadataResponse);
+
   // ── Multi-entry atomic transaction with WAL durability guarantees.
   //     Bidirectional stream: client sends Begin → Append*/Delete → Commit/Rollback;
   //     server acknowledges each step and commits atomically on Commit. ──
@@ -396,4 +405,72 @@ message TransactionRolledBack {}
 
 message TransactionError {
   string Message = 1;
+}
+
+// ── Shared metadata ──
+
+message CreateMetadataRequest {
+  string Database = 1;
+  bytes Content = 2;
+}
+
+message CreateMetadataResponse {
+  // Opaque metadata identity: stable across reopen and compaction, never
+  // reused after retirement.
+  int32 MetadataIndex = 1;
+}
+
+message UpdateMetadataRequest {
+  string Database = 1;
+  int32 MetadataIndex = 2;
+  bytes Content = 3;
+}
+
+message UpdateMetadataResponse {
+  // false when the metadata index does not exist.
+  bool Updated = 1;
+}
+
+message EmbeddingMetadataRequest {
+  string Database = 1;
+  string Collection = 2;
+  bytes Key = 3;
+}
+
+message EmbeddingMetadataResponse {
+  // -1 when the key is absent or not associated.
+  int32 MetadataIndex = 1;
+}
+
+message AssociateEmbeddingRequest {
+  string Database = 1;
+  string Collection = 2;
+  bytes Key = 3;
+  int32 MetadataIndex = 4;
+}
+
+message SearchByMetadataRequest {
+  string Database = 1;
+  string Collection = 2;
+  repeated float Embeddings = 3;
+  int32 Top = 4;
+  // Mandatory: caps the sum of requested candidates across attempts,
+  // repeated candidates included. 0 is rejected.
+  int32 CandidateBudget = 5;
+  FilterNode Filter = 6;
+  SearchTuning Tuning = 7;
+  // Used only when Embeddings is empty: the server calculates the query vector.
+  string Sentence = 8;
+}
+
+message SearchByMetadataResult {
+  int32 MetadataIndex = 1;
+  // Winning embedding of the group.
+  bytes Key = 2;
+  bytes Content = 3;
+  float Score = 4;
+}
+
+message SearchByMetadataResponse {
+  repeated SearchByMetadataResult Results = 1;
 }

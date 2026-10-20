@@ -120,6 +120,95 @@ await foreach (var key in articles.StreamKeysAsync())
   Process(key);
 ```
 
+## Shared metadata
+
+One metadata record can back several embeddings: the parent passage behind two chunk vectors, or an article indexed by both its title and its body. The record is database-scoped and addressed by an opaque `MetadataIndex`; the association is per collection and key. Reading any associated key returns the shared content, and one update changes what all of them read.
+
+```csharp
+// One record for the whole passage.
+int passage = articles.CreateMetadata(new Article
+{
+  Title = "Jigen DB",
+  Body = "Jigen is a vector database written in C#."
+});
+
+// Two chunk embeddings pointing at it.
+articles.Add("chunk-1", firstChunk, firstVector);
+articles.Add("chunk-2", secondChunk, secondVector);
+articles.AssociateMetadata("chunk-1", passage);
+articles.AssociateMetadata("chunk-2", passage);
+
+// Both reads return the passage, not the per-chunk content.
+Article a = articles["chunk-1"];
+Article b = articles["chunk-2"];
+```
+
+| Method | Returns | Notes |
+|---|---|---|
+| `CreateMetadata(content)` | `int` | Creates the record; it is not associated to anything yet. |
+| `UpdateMetadata(index, content)` | `bool` | Replaces the content read by every associated embedding. `false` when the index is unknown. |
+| `GetMetadataIndex(key)` | `int` | The associated index, or `-1` when the key is absent or not associated. |
+| `AssociateMetadata(key, index)` | `bool` | Associates or moves an existing key. The key must exist and the index must be known. |
+| `SearchByMetadata(...)` | `List<MetadataSearchResult<T>>` | Grouped search, see below. |
+
+Every method has an `...Async` counterpart taking a `CancellationToken`.
+
+Deleting a key (`Remove`) or clearing the collection makes the key read as absent; the record itself is not dropped, so it can be associated again.
+
+A content write already creates its own record and associates the key, so `AssociateMetadata` normally *moves* a key from its own record to the shared one. The previous record is left unassociated and stays readable if you kept its index.
+
+### Grouped search
+
+`SearchByMetadata` returns **one result per metadata record**, ranked by the best score observed among its embeddings. It is a separate operation from `Search`: `Search` still returns one result per embedding.
+
+`candidateBudget` is mandatory and has no default, because it is what bounds the work the server may do to complete groups:
+
+```csharp
+var groups = await articles.SearchByMetadataAsync(
+  queryVector,
+  top: 10,
+  candidateBudget: 400,
+  options: new SearchOptions { EfSearch = 200 });
+
+foreach (var group in groups)
+  Console.WriteLine($"{group.MetadataIndex} {group.Score:F3} {group.Content?.Title}");
+```
+
+```csharp
+// Sentence overload: the server computes the query vector.
+var groups = await articles.SearchByMetadataAsync("vector databases in .NET", top: 10, candidateBudget: 400);
+```
+
+A predicate restricts the candidates the server collects, exactly like `Search`. It is translated client-side into the filter AST and evaluated server-side:
+
+```csharp
+var groups = await articles.SearchByMetadataAsync(
+  queryVector,
+  predicate: a => a.Category == "news",
+  top: 10,
+  candidateBudget: 400);
+```
+
+The supported predicate shapes are the same subset documented under [Searching](#searching): property equality, collection membership, and `&&`/`||` combinations.
+
+Reading the result:
+
+| Member | Description |
+|---|---|
+| `MetadataIndex` | Identity of the group. |
+| `Key` | The winning embedding of the group. |
+| `Content` | The shared content of the record; null with `NoContent`. |
+| `Score` | Highest score observed in the group. |
+
+Sizing the budget:
+
+- The budget caps the sum of candidates requested across the internal attempts, repeated candidates included. It is **not** multiplied by `top`.
+- When the budget is exhausted, **fewer than `top` groups may come back**. That is a legitimate answer, not an error: raise the budget or `EfSearch` when recall matters more than latency.
+- Approximate indexes make **no promise of exact grouped top-k**. Ties are ordered by metadata index.
+- Grouped search is single-collection.
+
+Invalid arguments fail before any call: empty embeddings or a blank sentence throw `ArgumentException`, and a non-positive `top` or `candidateBudget` throws `ArgumentOutOfRangeException`.
+
 ## Embedding calculation
 
 The `Context` also exposes extension methods to call the server's embedding endpoint directly — useful when you need embeddings for operations outside of `VectorCollection<T>` (e.g. precomputing, caching, or combining with other pipelines):

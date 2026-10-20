@@ -413,7 +413,7 @@ public sealed class SharedMetadataStore : IAsyncDisposable
     }
   }
 
-  internal bool TryGetMetadataIndex(string collection, byte[] embeddingId, out int metadataIndex)
+  public bool TryGetMetadataIndex(string collection, byte[] embeddingId, out int metadataIndex)
   {
     lock (_gate)
     {

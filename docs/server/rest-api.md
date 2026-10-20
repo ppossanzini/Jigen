@@ -57,6 +57,91 @@ Note: the server's Newtonsoft.Json configuration does not add a camelCase contra
 | `Payload` | object | The document content, serialized server-side with the collection's configured `IDocumentSerializer` (MessagePack by default). |
 | `Sentence` | string | Text to embed and store as the document's vector. Requires an embedding module, same as search by sentence. |
 
+## Shared metadata
+
+A metadata record is content shared by several embeddings — for example the parent passage behind two chunk vectors, or an article indexed by both its title and its body. The content is global to the **database**; the association is per **collection and embedding key**. Many embeddings may reference the same record, and updating the record once changes what every associated embedding reads.
+
+The record is addressed by `MetadataIndex`, an opaque `int32` assigned by the server. It is stable across reopen and compaction and never reused after retirement. The value `-1` means "no association" and is never a valid index.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/database/{db}/metadata` | Create a metadata record. Body: `MetadataPayload`. Returns `201` with `{ "metadataIndex": n }`. |
+| `PUT` | `/api/database/{db}/metadata/{metadataIndex}` | Replace the content of a record. Every associated embedding reads the new content. |
+| `GET` | `/api/database/{db}/collections/{collection}/documents/{key}/metadata` | Read the metadata index associated to an embedding key. |
+| `PUT` | `/api/database/{db}/collections/{collection}/documents/{key}/metadata` | Associate or reassociate an existing embedding key. Body: `MetadataAssociationPayload`. |
+| `POST` | `/api/database/{db}/collections/{collection}/search/metadata` | Grouped search: one result per metadata record. Body: `MetadataSearchData`. |
+
+`MetadataPayload` is the same shape used for document inserts — `{ "Payload": {...} }` — and is serialized with the collection's document serializer, so the record content and the document content remain interchangeable.
+
+`MetadataAssociationPayload` carries `MetadataIndex`. The key is resolved like every other document route: pass `?keyType=string|int|long|guid` when the automatic detection would pick the wrong layout.
+
+### Behaviour
+
+- Reading a document (`GET .../documents/{key}`) of an associated key returns the **shared** metadata content, not a per-vector copy. Two embeddings associated to the same record therefore read identical content.
+- `SetVector`/`SetDocument` and the bulk equivalents on an already associated key update the shared record, and the change is visible to every associated embedding.
+- `DELETE .../documents/{key}` and `Clear` make the key read as absent. The record itself is not dropped — not even by compaction — so it can be associated again later.
+- A write is visible when the call returns. Durability follows the store's own policy (subsequent save), as for every other write.
+- `PUT /api/database/{db}/metadata/{metadataIndex}` answers `200` on success and `404` with `{ "updated": false }` when the index is unknown.
+- `GET .../documents/{key}/metadata` answers `404` when the key has no association, including when the key does not exist.
+- `PUT .../documents/{key}/metadata` answers `400` when the key is not valid for the requested key type, the embedding key does not exist, or the metadata index does not exist.
+
+### `MetadataSearchData` (grouped search body)
+
+| Field | Type | Description |
+|---|---|---|
+| `Sentence` | string | Query text; the server computes the vector. One of `Sentence`/`Embeddings` is required. |
+| `Embeddings` | float[] | Precomputed query vector; avoids depending on the server's embedding module. |
+| `Top` | int | Requested number of groups. Defaults to `10`; must be greater than zero. |
+| `CandidateBudget` | int | **Mandatory.** Caps the sum of candidates requested across the internal attempts, repeated candidates included. Must be greater than zero. |
+| `EfSearch` | int | HNSW beam width for this query; `0` keeps the server default. |
+| `NoContent` | bool | Return identity and score only; each result's `Content` is null. |
+| `MinScore` | float? | Drop groups whose winning score is below this similarity. |
+
+The response is an array of result items: `MetadataIndex`, `Key` (base64 of the winning embedding key), `Content` (base64 of the serialized content, null with `NoContent`), `Score` (highest score observed in the group). Ties are ordered by metadata index.
+
+Two properties of the contract matter when sizing a query:
+
+- `CandidateBudget` is bound per query, so grouped search cannot silently widen to the whole collection. When the budget is exhausted, **fewer than `Top` groups may come back**.
+- Grouped search is ranked by the best observed embedding score, not by a global multi-collection ranking, and it makes **no promise of exact top-k** on approximate indexes. Raise `EfSearch` or the budget to improve recall.
+
+Grouped search here is single-collection. Filtering is available on the gRPC channel only (see [gRPC API](grpc-api.md#shared-metadata)); the REST channel has no approved predicate translation for it.
+
+### curl example
+
+Create a record, associate two embeddings to it, then read one back:
+
+```bash
+# 1. Create the shared content — the response carries the opaque index.
+curl -X POST http://localhost:13223/api/database/mydb/metadata \
+  -H "Content-Type: application/json" \
+  -d '{ "Payload": { "title": "Jigen DB", "body": "A vector database written in C#." } }'
+# → 201 {"metadataIndex":12}
+
+# 2. Associate two different embeddings to the same record.
+#    Both keys must already exist in the collection.
+curl -X PUT "http://localhost:13223/api/database/mydb/collections/chunks/documents/chunk-1/metadata" \
+  -H "Content-Type: application/json" -d '{ "MetadataIndex": 12 }'
+curl -X PUT "http://localhost:13223/api/database/mydb/collections/chunks/documents/chunk-2/metadata" \
+  -H "Content-Type: application/json" -d '{ "MetadataIndex": 12 }'
+
+# 3. Read the association, then update the content once for both.
+curl "http://localhost:13223/api/database/mydb/collections/chunks/documents/chunk-1/metadata"
+# → 200 {"metadataIndex":12}
+
+curl -X PUT http://localhost:13223/api/database/mydb/metadata/12 \
+  -H "Content-Type: application/json" \
+  -d '{ "Payload": { "title": "Jigen DB", "body": "Updated once, read by every associated embedding." } }'
+
+# 4. Grouped search: the budget is mandatory.
+curl -X POST http://localhost:13223/api/database/mydb/collections/chunks/search/metadata \
+  -H "Content-Type: application/json" \
+  -d '{
+        "Sentence": "vector databases in .NET",
+        "Top": 10,
+        "CandidateBudget": 400
+      }'
+```
+
 ## Embeddings
 
 | Method | Path | Description |

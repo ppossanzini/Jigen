@@ -640,6 +640,136 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     return new Result() { Success = true };
   }
 
+  // ── Shared metadata ──
+
+  // Input rejections raised by the handlers (missing embedding, unknown
+  // metadata index, invalid paging) map to InvalidArgument, as fixed by the
+  // approved remote contract.
+  private static RpcException AsInvalidArgument(ArgumentException ex) =>
+    new(new Status(StatusCode.InvalidArgument, ex.Message));
+
+  public override async Task<CreateMetadataResponse> CreateMetadata(CreateMetadataRequest request, ServerCallContext context)
+  {
+    int metadataIndex;
+    try
+    {
+      metadataIndex = await mediator.Send(new Core.Command.metadata.CreateMetadata
+      {
+        Database = request.Database,
+        Content = request.Content.ToByteArray()
+      }, context.CancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+      throw AsInvalidArgument(ex);
+    }
+
+    return new CreateMetadataResponse { MetadataIndex = metadataIndex };
+  }
+
+  public override async Task<UpdateMetadataResponse> UpdateMetadata(UpdateMetadataRequest request, ServerCallContext context)
+  {
+    bool updated;
+    try
+    {
+      updated = await mediator.Send(new Core.Command.metadata.UpdateMetadata
+      {
+        Database = request.Database,
+        MetadataIndex = request.MetadataIndex,
+        Content = request.Content.ToByteArray()
+      }, context.CancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+      throw AsInvalidArgument(ex);
+    }
+
+    return new UpdateMetadataResponse { Updated = updated };
+  }
+
+  public override async Task<EmbeddingMetadataResponse> GetEmbeddingMetadata(EmbeddingMetadataRequest request, ServerCallContext context)
+  {
+    int metadataIndex;
+    try
+    {
+      metadataIndex = await mediator.Send(new Core.Query.metadata.GetMetadataIndex
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Key = request.Key.ToByteArray()
+      }, context.CancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+      throw AsInvalidArgument(ex);
+    }
+
+    return new EmbeddingMetadataResponse { MetadataIndex = metadataIndex };
+  }
+
+  public override async Task<Result> AssociateEmbedding(AssociateEmbeddingRequest request, ServerCallContext context)
+  {
+    try
+    {
+      await mediator.Send(new Core.Command.metadata.AssociateEmbedding
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Key = request.Key.ToByteArray(),
+        MetadataIndex = request.MetadataIndex
+      }, context.CancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+      throw AsInvalidArgument(ex);
+    }
+
+    return new Result { Success = true };
+  }
+
+  public override async Task<SearchByMetadataResponse> SearchByMetadata(SearchByMetadataRequest request, ServerCallContext context)
+  {
+    var query = new Core.Query.metadata.SearchByMetadata
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Embeddings = request.Embeddings.ToArray(),
+      Sentence = request.Sentence,
+      Top = request.Top,
+      CandidateBudget = request.CandidateBudget,
+      Filter = ToFilterExpression(request.Filter),
+      EfSearch = request.Tuning?.EfSearch ?? 0,
+      NoContent = request.Tuning?.NoContent ?? false
+    };
+
+    if (request.Tuning?.HasMinScore == true)
+      query.MinScore = request.Tuning.MinScore;
+
+    IEnumerable<Core.Query.metadata.SearchByMetadataResultItem> result;
+    try
+    {
+      result = await mediator.Send(query, context.CancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+      throw AsInvalidArgument(ex);
+    }
+
+    return new SearchByMetadataResponse
+    {
+      Results =
+      {
+        result.Select(i => new SearchByMetadataResult
+        {
+          MetadataIndex = i.MetadataIndex,
+          Key = ByteString.CopyFrom(i.Key),
+          Content = i.Content is null ? ByteString.Empty : ByteString.CopyFrom(i.Content),
+          Score = i.Score
+        })
+      }
+    };
+  }
+
   public override async Task Transaction(
     IAsyncStreamReader<TransactionOp> requestStream,
     IServerStreamWriter<TransactionResult> responseStream,

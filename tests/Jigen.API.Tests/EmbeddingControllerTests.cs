@@ -1,6 +1,8 @@
 using Hikyaku;
 using Jigen.API;
+using Jigen.Embedding.Core.Options;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace Jigen.API.Tests;
 
@@ -8,7 +10,8 @@ public class EmbeddingControllerTests
 {
   private readonly Mock<IHikyaku> _mediatorMock = new();
 
-  private EmbeddingController CreateController() => new(_mediatorMock.Object);
+  private EmbeddingController CreateController() =>
+    new(_mediatorMock.Object, Options.Create(new PassageSplittingOptions()));
 
   // ── CalculateEmbeddings ──
 

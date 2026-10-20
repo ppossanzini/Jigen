@@ -26,6 +26,8 @@ A `Store` named `{name}` under `DataBasePath` creates:
 | `{name}.vectors.jigen` | Embeddings (append-only; layout `[id length][id][dimensions × float]`). |
 | `{name}.index.jigen` | Position index log: one record per write/delete, mapping a key to its content and embedding offsets (or a tombstone). Replayed in full at startup to rebuild the in-memory position index. |
 | `{name}.lock.jigen` | Exclusive lock for the database's lifetime; also the crash marker (see below). |
+| `{name}.shared.contents.jigen` | Shared metadata content records, append-only, addressed by a stable metadata index (see [Shared metadata](collections.md#shared-metadata)). |
+| `{name}.shared.associations.jigen` | Association log: one record per association, metadata update, embedding deletion and retirement. Replayed at startup to rebuild the association index. |
 | `{name}.wal.jigen` | **Optional** Write-Ahead Log: CRC32-protected, append-only, written *before* the ingestion queue for per-record durability. Truncated after each checkpoint. Only created when `WalOptions.Enabled = true`. |
 
 If an HNSW indexer is configured, it maintains its own files per collection under its `StoragePath` — see [HNSW index](../indexes/hnsw.md).
@@ -177,6 +179,8 @@ Deletes and overwrites leave old content/embedding records unreachable ("dead by
 - `FragmentationRatio` — dead/total ratio of the content and embeddings files.
 - `NeedsShrink` — true once both `ShrinkMinDeadBytes` and `ShrinkFragmentationThreshold` are exceeded.
 - `ShrinkAsync()` — compacts the content, embeddings, and index files by copying live records to fresh files and swapping them in with atomic renames. Crash-safe: the originals stay intact until the rename. Ingestion is paused for the duration.
+
+`ShrinkAsync()` does not touch the shared metadata files: their dead bytes (superseded content versions and stale association records) are reclaimed by `store.SharedMetadata.Compact()`, which is not automatic — see [Shared metadata](collections.md#shared-metadata).
 
 With `AutoShrink = true`, `SaveChangesAsync` calls `ShrinkAsync()` automatically whenever `NeedsShrink` is true. With the default `AutoShrink = false`, call `ShrinkAsync()` yourself when appropriate.
 
