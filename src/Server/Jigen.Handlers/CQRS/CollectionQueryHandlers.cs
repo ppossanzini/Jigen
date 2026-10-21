@@ -199,7 +199,7 @@ public class CollectionQueryHandlers(
     logger.LogDebug($"Executing SearchSparse for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var query = RequireSparseQuery(request.Sparse);
+    var query = RequireSparseQuery(store, request.Sparse);
     var top = request.Top <= 0 ? 10 : request.Top;
     var results = store.SearchSparse(request.Collection, query, top, request.Filter);
 
@@ -226,7 +226,7 @@ public class CollectionQueryHandlers(
     logger.LogDebug($"Executing SearchSparseByMetadata for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var query = RequireSparseQuery(request.Sparse);
+    var query = RequireSparseQuery(store, request.Sparse);
     if (request.CandidateBudget <= 0)
       throw new ArgumentException("CandidateBudget must be greater than zero.", nameof(request));
 
@@ -253,7 +253,7 @@ public class CollectionQueryHandlers(
     if (request.Embeddings is not { Length: > 0 } && request.Sparse is null)
       throw new ArgumentException("A hybrid search needs at least one of the two vectors.", nameof(request));
 
-    var sparse = request.Sparse is null ? null : RequireSparseQuery(request.Sparse);
+    var sparse = request.Sparse is null ? null : RequireSparseQuery(store, request.Sparse);
     var top = request.Top <= 0 ? 10 : request.Top;
     var results = store.SearchHybrid(request.Collection, request.Embeddings, sparse, top,
       request.DenseWeight, request.SparseWeight, request.Filter);
@@ -274,11 +274,18 @@ public class CollectionQueryHandlers(
 
   /// <summary>
   /// A lexical query needs terms: an absent vector is a caller mistake, not an
-  /// empty result. The shape (ordering, signs, finiteness) is validated when
-  /// the vector is built, so an instance here is already well formed.
+  /// empty result. The shape is validated again against the store's cap, which
+  /// the surfaces cannot know: a query with more terms than the configured
+  /// maximum is refused here instead of entering the index.
   /// </summary>
-  private static SparseVector RequireSparseQuery(SparseVector sparse) =>
-    sparse is { Count: > 0 }
-      ? sparse
-      : throw new ArgumentException("A lexical search needs at least one term.", nameof(sparse));
+  private static SparseVector RequireSparseQuery(Store store, SparseVector sparse)
+  {
+    if (sparse is not { Count: > 0 })
+      throw new ArgumentException("A lexical search needs at least one term.", nameof(sparse));
+
+    SparseVector.Validate(sparse.TermsSpan, sparse.WeightsSpan,
+      store.Options.Sparse?.MaxTerms ?? SparseVector.DefaultMaxTerms);
+
+    return sparse;
+  }
 }

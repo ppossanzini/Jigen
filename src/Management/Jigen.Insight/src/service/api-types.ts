@@ -37,6 +37,55 @@ export type UserDetail = components['schemas']['UserDetail'];
 export type UserSummary = components['schemas']['UserSummary'];
 
 /**
+ * Sparse (lexical) payload: caller-defined term ids with their weights. Present
+ * in `VectorPayload`, `DocumentPayload` and the sparse/hybrid search bodies.
+ *
+ * Hand-written rather than aliased: `api-schema.d.ts` is generated against a
+ * running server, and these bodies are read through the typed helpers below.
+ */
+export interface SparsePayload {
+  /** Unique, strictly increasing, non-negative term ids. */
+  terms: number[];
+  /** One per term, in the same order: finite, non-negative, at least one above zero. */
+  weights: number[];
+}
+
+export interface SparseSearchData {
+  sparse: SparsePayload;
+  top?: number;
+  noContent?: boolean;
+  minScore?: number;
+}
+
+export interface SparseByMetadataData {
+  sparse: SparsePayload;
+  top?: number;
+  candidateBudget: number;
+  noContent?: boolean;
+}
+
+export interface HybridSearchData {
+  sentence?: string;
+  embeddings?: number[];
+  sparse?: SparsePayload;
+  top?: number;
+  denseWeight?: number;
+  sparseWeight?: number;
+  noContent?: boolean;
+}
+
+/** One hit of a sparse or hybrid search, with its modality provenance. */
+export interface SparseSearchResultItem {
+  key?: string;
+  content?: unknown;
+  score?: number;
+  inDense?: boolean;
+  inSparse?: boolean;
+  denseScore?: number;
+  sparseScore?: number;
+}
+
+/**
  * Key interpretation for document endpoints. Matches `CollectionsController.TryResolveKey`: guid =
  * 16 bytes, long = 8, int = 4, otherwise UTF-8 string; omitted = server auto-detection. The schema
  * types the `keyType` query param as a plain `string`; this union narrows it to the valid values.

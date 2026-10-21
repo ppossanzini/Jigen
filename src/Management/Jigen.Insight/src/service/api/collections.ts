@@ -2,9 +2,12 @@ import type {
   CollectionInfo,
   DocumentKeyType,
   DocumentPayload,
+  HybridSearchData,
   IndexGraphSnapshot,
   SearchCollectionsData,
-  SearchCollectionsResult
+  SearchCollectionsResult,
+  SparseSearchData,
+  SparseSearchResultItem
 } from '../api-types';
 import { request } from '../request';
 
@@ -57,6 +60,31 @@ export function fetchCollectionGraph(
 export function fetchSearchCollections(dbname: string, data: SearchCollectionsData) {
   return request<SearchCollectionsResult>({
     url: `${collectionsBase(dbname)}/search`,
+    method: 'post',
+    data
+  });
+}
+
+/**
+ * Exact lexical search — `POST /api/database/{dbname}/collections/{collection}/search/sparse`
+ *
+ * Runs on one collection: the server answers per collection, not across them.
+ */
+export function fetchSearchSparse(dbname: string, collection: string, data: SparseSearchData) {
+  return request<SparseSearchResultItem[]>({
+    url: `${collectionsBase(dbname)}/${encodeURIComponent(collection)}/search/sparse`,
+    method: 'post',
+    data
+  });
+}
+
+/**
+ * Fusion of the dense and the lexical ranking — `POST
+ * /api/database/{dbname}/collections/{collection}/search/hybrid`
+ */
+export function fetchSearchHybrid(dbname: string, collection: string, data: HybridSearchData) {
+  return request<SparseSearchResultItem[]>({
+    url: `${collectionsBase(dbname)}/${encodeURIComponent(collection)}/search/hybrid`,
     method: 'post',
     data
   });

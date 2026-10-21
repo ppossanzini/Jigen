@@ -316,6 +316,24 @@ public class ServiceSparseTests
   }
 
   [Fact]
+  public async Task SearchHybrid_WithBothVectorsAndOnlyOneWeight_IsInvalidArgument()
+  {
+    var ex = await Assert.ThrowsAsync<RpcException>(() =>
+      CreateServer().SearchHybrid(new SearchHybridRequest
+      {
+        Database = DbName,
+        Collection = Collection,
+        Embeddings = { 0.1f },
+        Sparse = Wire([1], [1f]),
+        Top = 5,
+        DenseWeight = 1f
+      }, CreateContext()));
+
+    Assert.Equal(StatusCode.InvalidArgument, ex.StatusCode);
+    Assert.Contains("SparseWeight", ex.Status.Detail);
+  }
+
+  [Fact]
   public async Task SearchHybrid_WithBothWeightsZero_IsInvalidArgument()
   {
     _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Query.collections.SearchHybrid>(), It.IsAny<CancellationToken>()))
@@ -351,6 +369,78 @@ public class ServiceSparseTests
       }, CreateContext()));
 
     Assert.Equal(StatusCode.InvalidArgument, ex.StatusCode);
+  }
+
+  [Fact]
+  public async Task GetCollectionInfo_ReportsTheTermIndex()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Query.collections.GetCollectionInfo>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new DataStructures.CollectionInfo
+      {
+        Name = Collection, Vectors = 10, Dimensions = 4,
+        Sparse = new DataStructures.SparseIndexInfo
+        {
+          Terms = 120, Postings = 480, AveragePostingsPerTerm = 4, MemoryBytes = 8192,
+          RetiredTerms = 3, Built = true
+        }
+      });
+
+    var response = await CreateServer().GetCollectionInfo(
+      new CollectionKey { Database = DbName, Collection = Collection }, CreateContext());
+
+    Assert.NotNull(response.Sparse);
+    Assert.Equal(120, response.Sparse.Terms);
+    Assert.Equal(480, response.Sparse.Postings);
+    Assert.Equal(4, response.Sparse.AveragePostingsPerTerm);
+    Assert.Equal(8192, response.Sparse.MemoryBytes);
+    Assert.Equal(3, response.Sparse.RetiredTerms);
+    Assert.True(response.Sparse.Built);
+  }
+
+  [Fact]
+  public async Task GetCollectionInfo_LeavesSparseAbsent_WhenTheIndexIsDisabled()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Query.collections.GetCollectionInfo>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new DataStructures.CollectionInfo { Name = Collection, Vectors = 1, Dimensions = 4 });
+
+    var response = await CreateServer().GetCollectionInfo(
+      new CollectionKey { Database = DbName, Collection = Collection }, CreateContext());
+
+    Assert.Null(response.Sparse);
+  }
+
+  [Fact]
+  public async Task SetDocuments_KeepsTheSparseSlotOfEveryStreamedDocument()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Command.collections.SetDocument>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var documents = new TestAsyncStreamReader(new[]
+    {
+      new Document
+      {
+        Database = DbName, Collection = Collection, Key = ByteString.CopyFrom(KeyBytes),
+        Content = ByteString.CopyFrom("doc"u8.ToArray()), Sparse = Wire([1, 4], [0.5f, 2f])
+      }
+    });
+
+    await CreateServer().SetDocuments(documents, CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Command.collections.SetDocument>(c =>
+        c.Sparse != null && c.Sparse.Count == 2 && c.Sparse.Terms.ToArray()[1] == 4),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  /// <summary>Minimal client-streaming reader over a fixed list.</summary>
+  private sealed class TestAsyncStreamReader(IReadOnlyList<Document> documents) : IAsyncStreamReader<Document>
+  {
+    private int _index = -1;
+
+    public Document Current => documents[_index];
+
+    public Task<bool> MoveNext(CancellationToken cancellationToken) =>
+      Task.FromResult(++_index < documents.Count);
   }
 
   [Fact]

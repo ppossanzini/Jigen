@@ -33,10 +33,49 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 | `GetEmbeddingMetadata` | `EmbeddingMetadataRequest` | `EmbeddingMetadataResponse` | Read the metadata index associated to an embedding key; `-1` when the key is absent or not associated. |
 | `AssociateEmbedding` | `AssociateEmbeddingRequest` | `Result` | Associate or reassociate an existing embedding key to a metadata record. |
 | `SearchByMetadata` | `SearchByMetadataRequest` | `SearchByMetadataResponse` | Grouped search: one result per metadata record, best score wins, `CandidateBudget` mandatory. |
+| `GetSparse` | `ItemKey` | `SparseVector` | Read the sparse vector of a key; an empty message when the entry has none. |
+| `SearchSparse` | `SearchSparseRequest` | `SearchVectorResponse` | Exact lexical search over caller-supplied term weights. |
+| `SearchSparseByMetadata` | `SearchSparseByMetadataRequest` | `SearchSparseByMetadataResponse` | Grouped lexical search, one result per metadata record, `CandidateBudget` mandatory and greater than zero. |
+| `SearchHybrid` | `SearchHybridRequest` | `SearchVectorResponse` | Dense search, lexical search and their fusion by position. |
 
 `IngestResult.Accepted` counts the entries accepted into the server's ingestion pipeline; durability follows the server's group-commit policy, exactly like the unary `Set` operations.
 
 `SetDocument`, `SetDocuments` and `SearchDocument` require an embedding module reachable from the server process (in-process on the all-in-one image, or remote over RabbitMQ from a `jigendb` server) — see [embeddings overview](../embeddings/overview.md). The image RPCs additionally require the vision model to be configured (`JigenEmbeddings:ImagesModelPath`); without it the server runs text-only and image RPCs fail with a clear configuration error.
+
+### Sparse (lexical) slot
+
+`Vector` and `Document` carry an optional `Sparse` field (tag 6 — tag 5 stays the
+dense `Embeddings` and is never reused), so one write stores both vectors and the
+two slots always describe the same revision of the entry.
+
+```proto
+message SparseVector {
+  repeated int32 Terms = 1;
+  repeated float Weights = 2;
+}
+```
+
+Terms are unique, strictly increasing and non-negative; weights are finite,
+non-negative with at least one above zero. An **absent** message means "no
+lexical slot"; an **empty** one is refused with `InvalidArgument`. A request with
+more terms than the server's configured cap (`SparseMaxTerms`) is refused too.
+
+`SearchHybridRequest` takes `DenseWeight` and `SparseWeight` as `optional`: when
+both vectors are supplied both must be present, a zero weight excludes that
+modality, and both at zero is `InvalidArgument`. With a single vector the missing
+weight defaults to one.
+
+`SearchVectorResult` carries the provenance of every hit: `Score` is the fused
+score on a hybrid search, `DenseScore`/`SparseScore` keep the original modality
+scores, and `InDense`/`InSparse` report which search found the entry.
+
+`CollectionInfoResponse` reports the term index in `Sparse`
+(`terms`, `postings`, `averagePostingsPerTerm`, `memoryBytes`, `retiredTerms`,
+`built`); the field is absent when the lexical index is disabled.
+
+**Writes need the write-ahead log.** A write carrying terms with
+`JigenServer:Wal:Enabled = false` is refused with `FailedPrecondition`: without
+the log the slot could not be recovered after a crash. The log is on by default.
 
 ## Proto excerpts
 

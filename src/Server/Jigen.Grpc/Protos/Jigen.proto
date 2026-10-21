@@ -369,6 +369,20 @@ message CollectionInfoResponse {
   int64 VectorSize = 5;
   // Vector-index metrics; absent when the indexer does not expose them.
   CollectionIndexInfoResponse Index = 6;
+  // Term-index metrics; absent when the lexical index is disabled.
+  CollectionSparseInfoResponse Sparse = 7;
+}
+
+// Observation of the term index (R-41): how many terms the collection carries,
+// how long their lists are, the memory the index occupies and how many terms
+// were retired by deletes.
+message CollectionSparseInfoResponse {
+  int32 Terms = 1;                   // distinct terms currently indexed
+  int64 Postings = 2;                // term/entry pairs, i.e. sum of list lengths
+  double AveragePostingsPerTerm = 3;
+  int64 MemoryBytes = 4;             // measured footprint of the in-memory index
+  int32 RetiredTerms = 5;            // terms whose list emptied after a delete
+  bool Built = 6;                    // false until the first lexical search builds it
 }
 
 message CollectionIndexInfoResponse {

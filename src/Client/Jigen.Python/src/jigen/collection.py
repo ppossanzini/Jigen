@@ -9,10 +9,12 @@ from .filters import Filter
 from .models import (
     CollectionIndexInfo,
     CollectionInfo,
+    CollectionSparseInfo,
     Key,
     MetadataSearchResult,
     SearchOptions,
     SearchResult,
+    SparseVector,
     encode_key,
 )
 from .serialization import DocumentSerializer, MessagePackSerializer
@@ -42,8 +44,25 @@ def _map_info(info: pb.CollectionInfoResponse) -> CollectionInfo:
             raw.AverageDegree,
             raw.Quantization,
         )
+    sparse = None
+    if info.HasField("Sparse"):
+        raw = info.Sparse
+        sparse = CollectionSparseInfo(
+            raw.Terms,
+            raw.Postings,
+            raw.AveragePostingsPerTerm,
+            raw.MemoryBytes,
+            raw.RetiredTerms,
+            raw.Built,
+        )
     return CollectionInfo(
-        info.Name, info.Vectors, info.Dimensions, info.ContentSize, info.VectorSize, index
+        info.Name,
+        info.Vectors,
+        info.Dimensions,
+        info.ContentSize,
+        info.VectorSize,
+        index,
+        sparse,
     )
 
 
@@ -71,23 +90,100 @@ class _CollectionBase(Generic[T]):
     def _item_key(self, key: Key) -> pb.ItemKey:
         return pb.ItemKey(Database=self.database, Collection=self.name, Key=encode_key(key))
 
-    def _vector(self, key: Key, content: T, embedding: Sequence[float] | None) -> pb.Vector:
-        return pb.Vector(
+    @staticmethod
+    def _sparse_message(sparse: SparseVector) -> pb.SparseVector:
+        return pb.SparseVector(Terms=sparse.terms, Weights=sparse.weights)
+
+    def _vector(
+        self,
+        key: Key,
+        content: T,
+        embedding: Sequence[float] | None,
+        sparse: SparseVector | None = None,
+    ) -> pb.Vector:
+        vector = pb.Vector(
             Database=self.database,
             Collection=self.name,
             Key=encode_key(key),
             Content=self.serializer.serialize(content),
             Embeddings=embedding or (),
         )
+        if sparse is not None:
+            vector.Sparse.CopyFrom(self._sparse_message(sparse))
+        return vector
 
-    def _document(self, key: Key, content: T, text: str) -> pb.Document:
-        return pb.Document(
+    def _document(
+        self, key: Key, content: T, text: str, sparse: SparseVector | None = None
+    ) -> pb.Document:
+        document = pb.Document(
             Database=self.database,
             Collection=self.name,
             Key=encode_key(key),
             Content=self.serializer.serialize(content),
             Sentence=text,
         )
+        if sparse is not None:
+            document.Sparse.CopyFrom(self._sparse_message(sparse))
+        return document
+
+    def _sparse_request(
+        self,
+        sparse: SparseVector,
+        top: int,
+        filter: Filter | None,
+        options: SearchOptions | None,
+    ) -> pb.SearchSparseRequest:
+        request = pb.SearchSparseRequest(
+            Database=self.database,
+            Collection=self.name,
+            Sparse=self._sparse_message(sparse),
+            Top=top,
+        )
+        if filter is not None:
+            request.Filter.CopyFrom(filter.node)
+        tuning = _tuning(options)
+        if tuning is not None:
+            request.Tuning.CopyFrom(tuning)
+        return request
+
+    def _hybrid_request(
+        self,
+        embedding: Sequence[float] | None,
+        sparse: SparseVector | None,
+        top: int,
+        dense_weight: float,
+        sparse_weight: float,
+        filter: Filter | None,
+        options: SearchOptions | None,
+    ) -> pb.SearchHybridRequest:
+        dense_supplied = bool(embedding)
+        if not dense_supplied and sparse is None:
+            raise ValueError("a hybrid search needs at least one of the two vectors")
+
+        request = pb.SearchHybridRequest(
+            Database=self.database, Collection=self.name, Top=top
+        )
+        if dense_supplied:
+            request.Embeddings.extend(embedding or ())
+        if sparse is not None:
+            request.Sparse.CopyFrom(self._sparse_message(sparse))
+
+        # The server refuses both vectors without both weights: declare them
+        # here so a caller that forgot one fails before the round trip.
+        if dense_supplied and sparse is not None:
+            request.DenseWeight = dense_weight
+            request.SparseWeight = sparse_weight
+        elif dense_supplied:
+            request.DenseWeight = dense_weight
+        else:
+            request.SparseWeight = sparse_weight
+
+        if filter is not None:
+            request.Filter.CopyFrom(filter.node)
+        tuning = _tuning(options)
+        if tuning is not None:
+            request.Tuning.CopyFrom(tuning)
+        return request
 
     def _vector_request(
         self,
@@ -135,6 +231,10 @@ class _CollectionBase(Generic[T]):
                 key=item.Key,
                 content=self.serializer.deserialize(item.Content) if item.Content else None,
                 score=item.Score,
+                in_dense=item.InDense,
+                in_sparse=item.InSparse,
+                dense_score=item.DenseScore,
+                sparse_score=item.SparseScore,
             )
             for item in response.Results
         ]
@@ -197,13 +297,22 @@ class VectorCollection(_CollectionBase[T]):
         *,
         embedding: Sequence[float] | None = None,
         text: str | None = None,
+        sparse: SparseVector | None = None,
     ) -> None:
-        if (embedding is None) == (text is None):
-            raise ValueError("provide exactly one of embedding or text")
+        """Stores one entry, optionally with both vectors in the same write.
+
+        Either ``embedding`` or ``text`` supplies the dense side (``text`` is
+        embedded server-side); ``sparse`` is independent of both and is never
+        derived from the text. ``sparse`` alone stores a lexical-only entry.
+        """
+        if embedding is None and text is None and sparse is None:
+            raise ValueError("provide embedding, text or sparse")
+        if embedding is not None and text is not None:
+            raise ValueError("provide at most one of embedding or text")
         response = (
-            self._stub.SetVector(self._vector(key, content, embedding))
-            if embedding is not None
-            else self._stub.SetDocument(self._document(key, content, text or ""))
+            self._stub.SetVector(self._vector(key, content, embedding, sparse))
+            if embedding is not None or text is None
+            else self._stub.SetDocument(self._document(key, content, text or "", sparse))
         )
         if not response.Success:
             raise JigenOperationError(response.Message)
@@ -330,6 +439,48 @@ class VectorCollection(_CollectionBase[T]):
         request = self._metadata_request(query, top, candidate_budget, filter, options)
         return self._metadata_results(self._stub.SearchByMetadata(request))
 
+    # ── Lexical slot ──
+
+    def get_sparse(self, key: Key) -> SparseVector | None:
+        """Reads the sparse vector stored with a key; ``None`` when absent."""
+        message = self._stub.GetSparse(self._item_key(key))
+        if not message.Terms:
+            return None
+        return SparseVector(terms=tuple(message.Terms), weights=tuple(message.Weights))
+
+    def search_sparse(
+        self,
+        sparse: SparseVector,
+        *,
+        top: int = 10,
+        filter: Filter | None = None,
+        options: SearchOptions | None = None,
+    ) -> list[SearchResult[T]]:
+        """Exact lexical search over the entries sharing a term with the query."""
+        return self._results(
+            self._stub.SearchSparse(self._sparse_request(sparse, top, filter, options))
+        )
+
+    def search_hybrid(
+        self,
+        embedding: Sequence[float] | None = None,
+        sparse: SparseVector | None = None,
+        *,
+        top: int = 10,
+        dense_weight: float = 1.0,
+        sparse_weight: float = 1.0,
+        filter: Filter | None = None,
+        options: SearchOptions | None = None,
+    ) -> list[SearchResult[T]]:
+        """Fuses the dense and the lexical ranking by position.
+
+        A single modality needs no weight; both together need both, declared.
+        """
+        request = self._hybrid_request(
+            embedding, sparse, top, dense_weight, sparse_weight, filter, options
+        )
+        return self._results(self._stub.SearchHybrid(request))
+
     def get(self, key: Key) -> T | None:
         response = self._stub.GetContent(self._item_key(key))
         return self.serializer.deserialize(response.content) if response.content else None
@@ -374,13 +525,17 @@ class AsyncVectorCollection(_CollectionBase[T]):
         *,
         embedding: Sequence[float] | None = None,
         text: str | None = None,
+        sparse: SparseVector | None = None,
     ) -> None:
-        if (embedding is None) == (text is None):
-            raise ValueError("provide exactly one of embedding or text")
+        """Stores one entry, optionally with both vectors in the same write."""
+        if embedding is None and text is None and sparse is None:
+            raise ValueError("provide embedding, text or sparse")
+        if embedding is not None and text is not None:
+            raise ValueError("provide at most one of embedding or text")
         response = await (
-            self._stub.SetVector(self._vector(key, content, embedding))
-            if embedding is not None
-            else self._stub.SetDocument(self._document(key, content, text or ""))
+            self._stub.SetVector(self._vector(key, content, embedding, sparse))
+            if embedding is not None or text is None
+            else self._stub.SetDocument(self._document(key, content, text or "", sparse))
         )
         if not response.Success:
             raise JigenOperationError(response.Message)
@@ -424,6 +579,45 @@ class AsyncVectorCollection(_CollectionBase[T]):
         return self._results(
             await self._stub.SearchVector(self._vector_request(query, top, filter, options))
         )
+
+    # ── Lexical slot ──
+
+    async def get_sparse(self, key: Key) -> SparseVector | None:
+        """Reads the sparse vector stored with a key; ``None`` when absent."""
+        message = await self._stub.GetSparse(self._item_key(key))
+        if not message.Terms:
+            return None
+        return SparseVector(terms=tuple(message.Terms), weights=tuple(message.Weights))
+
+    async def search_sparse(
+        self,
+        sparse: SparseVector,
+        *,
+        top: int = 10,
+        filter: Filter | None = None,
+        options: SearchOptions | None = None,
+    ) -> list[SearchResult[T]]:
+        """Exact lexical search over the entries sharing a term with the query."""
+        return self._results(
+            await self._stub.SearchSparse(self._sparse_request(sparse, top, filter, options))
+        )
+
+    async def search_hybrid(
+        self,
+        embedding: Sequence[float] | None = None,
+        sparse: SparseVector | None = None,
+        *,
+        top: int = 10,
+        dense_weight: float = 1.0,
+        sparse_weight: float = 1.0,
+        filter: Filter | None = None,
+        options: SearchOptions | None = None,
+    ) -> list[SearchResult[T]]:
+        """Fuses the dense and the lexical ranking by position."""
+        request = self._hybrid_request(
+            embedding, sparse, top, dense_weight, sparse_weight, filter, options
+        )
+        return self._results(await self._stub.SearchHybrid(request))
 
     async def get(self, key: Key) -> T | None:
         response = await self._stub.GetContent(self._item_key(key))

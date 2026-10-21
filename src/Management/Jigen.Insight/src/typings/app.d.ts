@@ -624,10 +624,20 @@ declare namespace App {
             mode: {
               sentence: string;
               embeddings: string;
+              sparse: string;
+              hybrid: string;
             };
             sentencePlaceholder: string;
             embeddingsPlaceholder: string;
             embeddingsInvalid: string;
+            sparsePlaceholder: string;
+            sparseInvalid: string;
+            sparseRequired: string;
+            sparseSingleCollection: string;
+            sparseSentence: string;
+            weightsRequired: string;
+            denseWeight: string;
+            sparseWeight: string;
             top: string;
             search: string;
             collectionsRequired: string;
@@ -639,11 +649,18 @@ declare namespace App {
             search: string;
             merge: string;
             sort: string;
+            sparse: string;
             perCollection: string;
           };
           results: {
             title: string;
             score: string;
+            denseScore: string;
+            sparseScore: string;
+            foundBy: string;
+            foundByDense: string;
+            foundBySparse: string;
+            foundByBoth: string;
             key: string;
             collection: string;
             content: string;

@@ -15,6 +15,12 @@ export interface ResultRow {
   key: string;
   score: number;
   content: unknown;
+  /** Which modality found the entry; both false on a dense-only search. */
+  inDense?: boolean;
+  inSparse?: boolean;
+  /** Original modality scores; the fused `score` orders the list. */
+  denseScore?: number;
+  sparseScore?: number;
 }
 
 interface Props {
@@ -44,6 +50,29 @@ const rawColumns: DataTableColumns<ResultRow> = [
     key: 'score',
     width: 100,
     render: row => toNum(row.score).toFixed(4)
+  },
+  {
+    title: () => $t('page.workbench.results.foundBy'),
+    key: 'foundBy',
+    width: 110,
+    render: row => {
+      if (row.inDense && row.inSparse) return $t('page.workbench.results.foundByBoth');
+      if (row.inSparse) return $t('page.workbench.results.foundBySparse');
+      if (row.inDense) return $t('page.workbench.results.foundByDense');
+      return '—';
+    }
+  },
+  {
+    title: () => $t('page.workbench.results.denseScore'),
+    key: 'denseScore',
+    width: 110,
+    render: row => (row.inDense ? toNum(row.denseScore).toFixed(4) : '—')
+  },
+  {
+    title: () => $t('page.workbench.results.sparseScore'),
+    key: 'sparseScore',
+    width: 110,
+    render: row => (row.inSparse ? toNum(row.sparseScore).toFixed(4) : '—')
   },
   {
     title: () => $t('page.workbench.results.key'),

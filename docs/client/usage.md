@@ -23,6 +23,48 @@ articles.Add(42, article, sentence: "Jigen is a vector database written in C#.")
 
 This calls the gRPC `SetDocument` method, which requires the server to have a reachable embedding module (all-in-one server, or a distributed server with a reachable `jigen-embeddings` worker). See [server overview](../server/overview.md) for the two topologies.
 
+### With a sparse (lexical) vector
+
+The sparse slot is a **second, independent vector** on the same entry: term ids
+with their weights, supplied by the caller. The server never derives it from the
+text, and it is written in the **same call** as the dense vector, so the two
+slots always describe the same revision of the entry.
+
+```csharp
+using Jigen.Client.BaseTypes;
+
+var entry = new VectorEntry<Article>
+{
+    Content = article,
+    Embedding = denseVector,                                  // optional
+    Sparse = SparseVector.Create(
+        terms:   [12, 98, 450],
+        weights: [0.8f, 1.2f, 0.4f])
+};
+
+await articles.AddAsync(42, entry);
+
+// Both vectors in one line, same effect:
+await articles.AddAsync(42, article, denseVector, SparseVector.Create([12, 98], [0.8f, 1.2f]));
+```
+
+A sparse-only entry is valid — `Embedding` may be null:
+
+```csharp
+await articles.AddAsync(42, article, embeddings: null, sparse: SparseVector.Create([7], [1f]));
+```
+
+Terms must be **unique, strictly increasing and non-negative**; weights **finite,
+non-negative, with at least one above zero**. `FromPairs` sorts the pairs for you
+and rejects duplicates; an empty vector is rejected, because `null` is what means
+"no sparse slot". The client validates the shape before the call, and the server
+validates again against its configured cap (`SparseMaxTerms`, 1024 by default),
+so an over-long vector fails with the server's message.
+
+**Writes need the write-ahead log.** A sparse vector cannot be recovered after a
+crash without it, so the server refuses such a write when the log is disabled
+(`JigenServer:Wal:Enabled`). It is enabled by default.
+
 ### Bulk insert
 
 `Add` pays one network round trip per entry. For batches, `AddRangeAsync` streams every entry over a single gRPC call and returns the number of entries the server accepted:
@@ -94,6 +136,52 @@ The predicate is a LINQ expression tree; it is translated client-side into the g
 ```csharp
 var vector = await articles.GetEmbeddingAsync(42);
 var similar = await articles.SearchAsync(vector, top: 10);
+```
+
+### By sparse (lexical) vector
+
+Exact lexical search: the entries sharing at least one term with the query,
+ranked by the sum of the shared weight products. No graph, no approximation.
+
+```csharp
+var lexical = await articles.SearchAsync(
+    SparseVector.Create(terms: [12, 98], weights: [0.8f, 1.2f]), top: 10);
+
+// With a filter predicate, same subset as the dense search:
+var filtered = await articles.SearchAsync(sparseQuery, x => x.Category == "database", top: 10);
+```
+
+### Hybrid: fusing the dense and the lexical ranking
+
+Similarity scores and lexical weights live on **different scales**, so summing
+them would bury one modality. `SearchHybrid` runs both searches and fuses the
+**positions** (reciprocal rank fusion), returning one ordering plus the
+provenance of each hit.
+
+```csharp
+var hits = await articles.SearchHybridAsync(
+    denseVector,
+    SparseVector.Create([12, 98], [0.8f, 1.2f]),
+    top: 10,
+    denseWeight: 1f,
+    sparseWeight: 1f);
+
+foreach (var hit in hits)
+{
+    Console.WriteLine($"{hit.Key} fused={hit.Score:F4} dense={hit.DenseScore} sparse={hit.SparseScore}");
+    // InDense / InSparse tell which modality found the entry; a hit found by
+    // both precedes one found by a single modality at the same position.
+}
+```
+
+Either vector may be omitted. **When both are supplied, both weights must be
+declared**; a weight of zero excludes that modality from the fusion, and both
+at zero is an error.
+
+### Reading the sparse vector back
+
+```csharp
+SparseVector sparse = await articles.GetSparseAsync(42);   // null when the entry has none
 ```
 
 ### Per-query tuning

@@ -244,7 +244,7 @@ Requisiti: R-40, K-41. Casi d'uso: UC-19, UC-20, UC-21. Dipendenze: T-16.3, T-17
 - [x] **T-18.1.4** Implementare i metodi nel servizio `Jigen.Grpc/Service.cs`, traducendo gli errori di validazione in `Status.InvalidArgument` con il termine in errore.
 - [x] **T-18.1.5** Aggiungere le rotte REST accanto alle esistenti in `CollectionsController`, con i DTO in `Jigen.API/Dto`, e la mappatura degli errori in `400`.
 - [x] **T-18.1.6** Aggiornare l'OpenAPI: le nuove rotte devono comparire nella documentazione generata.
-- [ ] **T-18.1.7** **Gate di qualità**: chiedere approvazione del codice.
+- [x] **T-18.1.7** **Gate di qualità**: chiedere approvazione del codice.
 - [x] **T-18.1.8** Matrice di test in `tests/Jigen.API.Tests` e `tests/Jigen.Grpc.Tests`: tre operazioni per due superfici, confronto degli esiti.
 - [x] **T-18.1.9** Test di errore: termini non ordinati, peso negativo, oltre il massimo, pesi a zero nella fusione.
 - [x] **T-18.1.10** Verificare: build e i due progetti di test.
@@ -261,14 +261,14 @@ Requisiti: R-40. Casi d'uso: UC-19, UC-20, UC-21. Dipendenze: T-18.1. Skill Pyth
 
 ### Passi
 
-- [ ] **T-18.2.1** In `src/Client/Jigen.Client/BaseTypes/VectorEntry.cs`, aggiungere `Sparse` con il tipo condiviso, senza duplicare la validazione.
-- [ ] **T-18.2.2** In `VectorCollection.cs`, aggiungere scrittura con termini, ricerca sparsa e ricerca ibrida, con la stessa forma dei metodi densi.
-- [ ] **T-18.2.3** In `src/Client/Jigen.Python/src/jigen/`, aggiungere i tipi e i metodi equivalenti, seguendo la struttura dei moduli esistenti.
-- [ ] **T-18.2.4** Aggiornare gli esempi in `src/Client/Jigen.Python/examples/` e in `docs/client/`.
+- [x] **T-18.2.1** In `src/Client/Jigen.Client/BaseTypes/VectorEntry.cs`, aggiungere `Sparse` con il tipo condiviso, senza duplicare la validazione.
+- [x] **T-18.2.2** In `VectorCollection.cs`, aggiungere scrittura con termini, ricerca sparsa e ricerca ibrida, con la stessa forma dei metodi densi.
+- [x] **T-18.2.3** In `src/Client/Jigen.Python/src/jigen/`, aggiungere i tipi e i metodi equivalenti, seguendo la struttura dei moduli esistenti.
+- [x] **T-18.2.4** Aggiornare gli esempi in `src/Client/Jigen.Python/examples/` e in `docs/client/`.
 - [ ] **T-18.2.5** **Gate di qualità**: chiedere approvazione del codice.
-- [ ] **T-18.2.6** Test .NET in `tests/JigenClientTest/`: andata e ritorno, errore di validazione propagato con il messaggio del server.
-- [ ] **T-18.2.7** Test Python in `src/Client/Jigen.Python/tests/`: gli stessi due casi.
-- [ ] **T-18.2.8** Verificare: `dotnet test tests/JigenClientTest/...` e `pytest`.
+- [x] **T-18.2.6** Test .NET in `tests/JigenClientTest/`: andata e ritorno, errore di validazione propagato con il messaggio del server.
+- [x] **T-18.2.7** Test Python in `src/Client/Jigen.Python/tests/`: gli stessi due casi.
+- [x] **T-18.2.8** Verificare: `dotnet test tests/JigenClientTest/...` e `pytest`.
 
 ### Fine card
 
@@ -284,15 +284,15 @@ Skill: `capabilities-interface-design` dichiarata per estendere una superficie c
 
 ### Passi
 
-- [ ] **T-18.3.1** In `src/Management/Jigen.Insight/src/service/api/collections.ts`, aggiungere le chiamate alle nuove rotte.
-- [ ] **T-18.3.2** In `src/Management/Jigen.Insight/src/views/workbench/index.vue`, aggiungere il selettore di modalità (densa, sparsa, ibrida) riusando il controllo già usato per le collezioni.
-- [ ] **T-18.3.3** Aggiungere i campi dei termini e dei pesi della fusione, con validazione locale che ripete quella del server solo dove serve a evitare un invio inutile.
-- [ ] **T-18.3.4** In `results-table.vue`, aggiungere le colonne della provenienza e del punteggio originale; in `timing-strip.vue`, il tempo della ricerca sparsa.
-- [ ] **T-18.3.5** Aggiungere le etichette in `src/Management/Jigen.Insight/src/locales/langs/en-us.ts`, usando i termini congelati nel [riferimento all'esperienza](../ux-reference.md) (ux-reference.md). Nessuna seconda lingua.
-- [ ] **T-18.3.6** Verifica della tastiera sulle nuove parti: selettore, campi, invio, tabella.
+- [x] **T-18.3.1** In `src/Management/Jigen.Insight/src/service/api/collections.ts`, aggiungere le chiamate alle nuove rotte.
+- [x] **T-18.3.2** In `src/Management/Jigen.Insight/src/views/workbench/index.vue`, aggiungere il selettore di modalità (densa, sparsa, ibrida) riusando il controllo già usato per le collezioni.
+- [x] **T-18.3.3** Aggiungere i campi dei termini e dei pesi della fusione, con validazione locale che ripete quella del server solo dove serve a evitare un invio inutile.
+- [x] **T-18.3.4** In `results-table.vue`, aggiungere le colonne della provenienza e del punteggio originale; in `timing-strip.vue`, il tempo della ricerca sparsa.
+- [x] **T-18.3.5** Aggiungere le etichette in `src/Management/Jigen.Insight/src/locales/langs/en-us.ts`, usando i termini congelati nel [riferimento all'esperienza](../ux-reference.md) (ux-reference.md). Nessuna seconda lingua.
+- [x] **T-18.3.6** Verifica della tastiera sulle nuove parti: selettore, campi, invio, tabella.
 - [ ] **T-18.3.7** **Gate di qualità**: chiedere approvazione del codice.
-- [ ] **T-18.3.8** Aggiornare `docs/server/rest-api.md`, `docs/server/grpc-api.md`, `docs/in-process/store-options.md` e `docs/concepts/` con le nuove operazioni e opzioni.
-- [ ] **T-18.3.9** Verificare: `npm run typecheck`, `npm run build`, e una prova manuale dal workbench sulle tre modalità.
+- [x] **T-18.3.8** Aggiornare `docs/server/rest-api.md`, `docs/server/grpc-api.md`, `docs/in-process/store-options.md` e `docs/concepts/` con le nuove operazioni e opzioni.
+- [x] **T-18.3.9** Verificare: `npm run typecheck`, `npm run build`, e una prova manuale dal workbench sulle tre modalità.
 
 ### Fine card
 

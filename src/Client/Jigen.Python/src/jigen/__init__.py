@@ -3,9 +3,11 @@ from .context import AsyncContext, ConnectionOptions, Context
 from .filters import Filter, contains, equals
 from .models import (
     CollectionInfo,
+    CollectionSparseInfo,
     MetadataSearchResult,
     SearchOptions,
     SearchResult,
+    SparseVector,
     VectorEntry,
     encode_key,
 )
@@ -15,6 +17,7 @@ __all__ = [
     "AsyncContext",
     "AsyncVectorCollection",
     "CollectionInfo",
+    "CollectionSparseInfo",
     "ConnectionOptions",
     "Context",
     "Filter",
@@ -23,6 +26,7 @@ __all__ = [
     "MetadataSearchResult",
     "SearchOptions",
     "SearchResult",
+    "SparseVector",
     "VectorCollection",
     "VectorEntry",
     "contains",

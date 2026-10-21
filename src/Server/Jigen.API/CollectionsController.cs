@@ -275,8 +275,10 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   public async Task<IActionResult> SetVector(string dbname, string collection, string key,
     [FromBody] VectorPayload payload, [FromQuery] string keyType = null)
   {
-    if (payload == null || payload.Embeddings == null || payload.Embeddings.Length == 0)
-      return BadRequest("Vector payload with embeddings array is required");
+    // Either vector is enough: an entry with only the lexical slot is valid,
+    // and the store validates the pair.
+    if (payload == null || (payload.Embeddings is not { Length: > 0 } && payload.Sparse == null))
+      return BadRequest("Provide either the embeddings array or the sparse terms and weights");
 
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
@@ -345,8 +347,10 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   public async Task<IActionResult> AppendVector(string dbname, string collection, string key,
     [FromBody] VectorPayload payload, [FromQuery] string keyType = null)
   {
-    if (payload == null || payload.Embeddings == null || payload.Embeddings.Length == 0)
-      return BadRequest("Vector payload with embeddings array is required");
+    // Either vector is enough: an entry with only the lexical slot is valid,
+    // and the store validates the pair.
+    if (payload == null || (payload.Embeddings is not { Length: > 0 } && payload.Sparse == null))
+      return BadRequest("Provide either the embeddings array or the sparse terms and weights");
 
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
@@ -378,8 +382,10 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   public async Task<IActionResult> SetRawVector(string dbname, string collection, string key,
     [FromBody] VectorPayload payload, [FromQuery] string keyType = null)
   {
-    if (payload == null || payload.Embeddings == null || payload.Embeddings.Length == 0)
-      return BadRequest("Vector payload with embeddings array is required");
+    // Either vector is enough: an entry with only the lexical slot is valid,
+    // and the store validates the pair.
+    if (payload == null || (payload.Embeddings is not { Length: > 0 } && payload.Sparse == null))
+      return BadRequest("Provide either the embeddings array or the sparse terms and weights");
 
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
@@ -630,13 +636,13 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
       var sparse = ToSparse(request.Sparse);
 
       // A declared weight is authoritative, including an explicit zero, which
-      // excludes that modality. Without one, the supplied modality carries the
-      // whole ranking; both vectors with no weight at all is a caller mistake.
+      // excludes that modality. A single modality needs no weight at all; the
+      // two together need both, declared.
       var denseSupplied = !string.IsNullOrWhiteSpace(request.Sentence)
                           || request.Embeddings is { Length: > 0 };
       if (denseSupplied && sparse is not null
-          && request.DenseWeight is null && request.SparseWeight is null)
-        return BadRequest("Declare denseWeight and sparseWeight when both vectors are supplied");
+          && (request.DenseWeight is null || request.SparseWeight is null))
+        return BadRequest("Declare both denseWeight and sparseWeight when both vectors are supplied");
 
       float[] queryEmbeddings = request.Embeddings;
       if (!string.IsNullOrWhiteSpace(request.Sentence))

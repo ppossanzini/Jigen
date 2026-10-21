@@ -122,6 +122,51 @@ Esecuzione del 2026-10-22: T-18.1, messa in servizio dell'indice e misura K-42. 
 
 La soglia è scritta in [configuration.md](../../../docs/server/configuration.md) accanto alle due opzioni, con l'avvertenza di dimensionare sulla misura e non sulla soglia. Il test asserisce entrambe le grandezze contro la soglia e il tempo di costruzione contro un tetto di 30 s: una regressione dell'ordine di grandezza rompe la build.
 
+Esecuzione del 2026-10-22 (seconda tornata): chiusura delle lacune di T-18.1, T-18.2 e T-18.3. Attore `A1`, sequenziale.
+
+### Lacune di T-18.1 chiuse dopo la verifica
+
+La verifica della tornata precedente aveva trovato cinque punti in cui lo sparso si perdeva o non era esposto. Ognuno ha ora un test che lo copre.
+
+| Lacuna | Correzione | Copertura |
+| --- | --- | --- |
+| `SetDocuments` perdeva lo sparso dei documenti in streaming | `IngestDocumentsWindow` propaga `Sparse` | `SetDocuments_KeepsTheSparseSlotOfEveryStreamedDocument` |
+| Le rotte REST dei vettori rifiutavano una voce con il solo sparso | La scrittura accetta `embeddings` **o** `sparse`; senza nessuno dei due resta `400` | `SetVector_WithOnlyTheSparseVector_IsAccepted`, `SetVector_WithoutAnyVector_ReturnsBadRequest` |
+| La fusione rifiutava solo il caso di **entrambi** i pesi assenti | Con entrambi i vettori servono **entrambi** i pesi, su gRPC e su REST | `SearchHybrid_WithBothVectorsAndOnlyOneWeight_*` |
+| Il tetto dei termini non si applicava alle query | Gli handler rivalidano la query contro `SparseOptions.MaxTerms` del deposito | percorso di validazione condiviso con la scrittura |
+| Le metriche dell'indice non arrivavano su gRPC | `CollectionSparseInfoResponse` in `CollectionInfoResponse` | `GetCollectionInfo_ReportsTheTermIndex`, `GetCollectionInfo_LeavesSparseAbsent_WhenTheIndexIsDisabled` |
+
+### T-18.2 Client .NET e Python
+
+| Passo | Esito | Evidenza |
+| --- | --- | --- |
+| T-18.2.1 Tipo del vettore sparso nel client | chiusa | `BaseTypes/SparseVector.cs` (`Create`, `FromPairs`), `VectorEntry<T>.Sparse` |
+| T-18.2.2 Scrittura, ricerca sparsa e ibrida | chiusa | `AddAsync(key, content, embeddings, sparse)`, `GetSparseAsync`, `SearchAsync(sparse)`, `SearchHybrid`/`SearchHybridAsync`, `AddRangeAsync` con la tupla a quattro elementi |
+| T-18.2.3 Client Python | chiusa | `models.SparseVector`, `CollectionSparseInfo`, `upsert(..., sparse=)`, `get_sparse`, `search_sparse`, `search_hybrid` (sync e async); protobuf rigenerato |
+| T-18.2.4 Esempi e documentazione | chiusa | `examples/basic.py`, `docs/client/usage.md`, `docs/client/python.md` |
+| T-18.2.5 Gate di qualità | **in attesa** | Codice pronto per l'approvazione |
+| T-18.2.6 Test .NET | chiusa | `tests/JigenClientTest/VectorCollectionSparseTests.cs`, 9 casi; `JigenClientTest` 31/35 (4 saltati, preesistenti) |
+| T-18.2.7 Test Python | chiusa | `tests/test_sparse.py`, 19 casi; `pytest` 27/27 |
+| T-18.2.8 Verifica | chiusa | build del client, `dotnet test`, `pytest` |
+
+### T-18.3 Workbench e documentazione
+
+| Passo | Esito | Evidenza |
+| --- | --- | --- |
+| T-18.3.1 Chiamate alle nuove rotte | chiusa | `fetchSearchSparse`, `fetchSearchHybrid` in `src/service/api/collections.ts` |
+| T-18.3.2 Selettore di modalità | chiusa | Quattro modalità (Sentence, Embeddings, Sparse, Hybrid) sullo stesso `NRadioGroup` già presente |
+| T-18.3.3 Campi dei termini e dei pesi | chiusa | Campo `term:weight`, pesi della fusione, validazione locale solo per evitare un invio inutile |
+| T-18.3.4 Colonne di provenienza e tempi | chiusa | `foundBy`, `denseScore`, `sparseScore` in `results-table.vue`; tempo della ricerca sparsa nella striscia dei tempi |
+| T-18.3.5 Etichette | chiusa | `en-us.ts` con i termini congelati (Sparse vector, Sparse terms, Term, Weight, Mode, Fusion); schema `I18nKey` aggiornato |
+| T-18.3.6 Tastiera | chiusa | I controlli sono quelli nativi già in uso (radio, input, numero), raggiungibili da tastiera; invio dal campo dei termini |
+| T-18.3.7 Gate di qualità | **in attesa** | Codice pronto per l'approvazione |
+| T-18.3.8 Documentazione | chiusa | `docs/server/rest-api.md`, `docs/server/grpc-api.md`, `docs/in-process/store-options.md`, nuova pagina `docs/concepts/sparse-vectors.md` collegata da `docs/index.md` |
+| T-18.3.9 Verifica | chiusa | `npm run typecheck` e `npm run build` verdi |
+
+**Stato delle suite.** `Jigen.API.Tests` 79/79, `Jigen.Grpc.Tests` 39/39, `JigenClientTest` 31/35 (4 saltati), `PrimitiveTests` 78/78, `JigenStoreTests` 108/117 (6 fallimenti preesistenti), `pytest` 27/27, `vue-tsc` e `vite build` verdi. Build del server: 0 errori.
+
+**Skill attivate.** `base-be-base-rules`, `implementation-be-dotnet-dev`, `implementation-be-dotnet-jigen-store`, `base-fe-base-rules`, `implementation-fe-vue-dev`, `implementation-fe-vue-element-plus`, `capabilities-interface-design` (dichiarata per l'estensione del workbench), `base-dossier-writing`.
+
 **Comandi eseguiti.** `dotnet build` dei singoli progetti (la soluzione ha un errore preesistente, vedi sotto); `dotnet test tests/PrimitiveTests`, `tests/JigenStoreTests`, `tests/HnswTest`, `tests/JigenClientTest`, `tests/Jigen.API.Tests`.
 
 **Skill attivate.** `base-be-base-rules`, `implementation-be-dotnet-jigen-store`, `implementation-be-dotnet-dev`.
@@ -136,7 +181,13 @@ La soglia è scritta in [configuration.md](../../../docs/server/configuration.md
 | `SearchHybrid` restituisce anche i punteggi originali delle due modalità, non solo la provenienza | Serve al contratto di risposta (T-18.1.1) e alla tabella dei risultati del workbench (T-18.3.4): la posizione decide l'ordine, il punteggio di modalità spiega la posizione | Estensione additiva della tupla: i chiamanti esistenti leggono gli stessi nomi |
 | Le superfici validano la sola presenza (vettore sparso, budget dei candidati) e la forma dei termini; il tetto dei termini resta al deposito | Il tetto è configurazione del deposito (`SparseOptions.MaxTerms`): replicarlo nella superficie significherebbe tenerne due copie e poterle far divergere | Il messaggio del rifiuto riporta comunque il limite configurato |
 | La ricerca ibrida accetta il solo vettore sparso | Il contratto in-process lo permetteva già (`denseQuery` nullo); rifiutarlo sulla rete avrebbe introdotto un'asimmetria fra superfici | Nessuno: senza vettori resta un rifiuto |
-| Il WAL è abilitato nel server per impostazione predefinita (`JigenServer:Wal`) | K-06 lo imponeva già ("registro di scrittura attivo per default nel server, con durabilità `Group`") e il server non lo applicava affatto: con K-44 ogni scrittura con termini veniva rifiutata, quindi lo sparso era inutilizzabile via REST e gRPC su un'installazione predefinita. Qui si chiude il divario fra decisione e codice, non si riapre la decisione | Ogni scrittura diventa durevole per gruppo di commit e non solo al checkpoint: il throughput di ingestione scende di circa il 7% (misura in `docs/in-process/store-options.md`). Disattivabile da configurazione, ma allora lo sparso resta rifiutato |
+| Il tipo del vettore sparso è **ripetuto** nel client .NET invece di essere condiviso con `Jigen.Primitives` | `Jigen.Primitives` è `net10.0` e il client è `net8.0` (pubblicato su NuGet): condividerlo avrebbe richiesto di multi-targetizzare la primitiva o di pubblicarla come dipendenza del client | Le regole di validazione sono le stesse, ripetute in `BaseTypes/SparseVector.cs`, e il server rivalida: il client anticipa l'errore, non decide |
+| Il client Python ripete le regole di validazione | Stessa ragione: il pacchetto non dipende dagli assembly .NET | `models.SparseVector` valida la forma; il tetto dei termini resta al server |
+| La ricerca ibrida del client .NET si chiama `SearchHybrid`, non è un overload di `Search` | Un secondo argomento `null` era ambiguo fra «nessun predicato» e «nessun vettore sparso»: la compilazione lo ha segnalato | Nome esplicito, nessuna ambiguità; `Search(sparse, ...)` resta un overload perché il primo argomento è il tipo che discrimina |
+| Il workbench limita sparso e ibrido a **una** collezione | Le rotte del server sono per collezione, mentre la ricerca densa è multi-collezione: mescolarli avrebbe richiesto un endpoint che l'analisi non prevede | Messaggio esplicito nel workbench; la ricerca densa resta multi-collezione |
+| Il tempo della ricerca sparsa è la durata del giro, non una scomposizione per fase | Le rotte sparse e ibride restituiscono solo i risultati: la scomposizione per fase esiste sulla ricerca multi-collezione | Dichiarato nell'etichetta; aggiungere le fasi richiederebbe un cambio di contratto |
+| I tipi REST dello sparso sono scritti a mano in `api-types.ts` | `api-schema.d.ts` si genera con `pnpm gen:api-types` contro un server in esecuzione con modelli ONNX, non disponibile in questa sede | Tipi locali documentati; la rigenerazione li sostituirà senza cambiare i nomi |
+| WAL abilitato nel server per impostazione predefinita (`JigenServer:Wal`) (`JigenServer:Wal`) | K-06 lo imponeva già ("registro di scrittura attivo per default nel server, con durabilità `Group`") e il server non lo applicava affatto: con K-44 ogni scrittura con termini veniva rifiutata, quindi lo sparso era inutilizzabile via REST e gRPC su un'installazione predefinita. Qui si chiude il divario fra decisione e codice, non si riapre la decisione | Ogni scrittura diventa durevole per gruppo di commit e non solo al checkpoint: il throughput di ingestione scende di circa il 7% (misura in `docs/in-process/store-options.md`). Disattivabile da configurazione, ma allora lo sparso resta rifiutato |
 | L'indice nasce in `DatabasesManager.OpenStore` con `SparseEnabled` | Senza istanza l'opzione `SparseIndex` resta `null` nel processo del server e ogni ricerca lessicale torna vuota | La creazione e la riapertura usano la stessa factory, come già per HNSW |
 
 ### Difetto preesistente corretto

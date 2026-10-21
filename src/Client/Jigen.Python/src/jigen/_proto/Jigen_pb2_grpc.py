@@ -59,6 +59,26 @@ class StoreCollectionServiceStub:
                 request_serializer=Jigen__pb2.SearchDocumentRequest.SerializeToString,
                 response_deserializer=Jigen__pb2.SearchVectorResponse.FromString,
                 _registered_method=True)
+        self.GetSparse = channel.unary_unary(
+                '/jigen.StoreCollectionService/GetSparse',
+                request_serializer=Jigen__pb2.ItemKey.SerializeToString,
+                response_deserializer=Jigen__pb2.SparseVector.FromString,
+                _registered_method=True)
+        self.SearchSparse = channel.unary_unary(
+                '/jigen.StoreCollectionService/SearchSparse',
+                request_serializer=Jigen__pb2.SearchSparseRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.SearchVectorResponse.FromString,
+                _registered_method=True)
+        self.SearchSparseByMetadata = channel.unary_unary(
+                '/jigen.StoreCollectionService/SearchSparseByMetadata',
+                request_serializer=Jigen__pb2.SearchSparseByMetadataRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.SearchSparseByMetadataResponse.FromString,
+                _registered_method=True)
+        self.SearchHybrid = channel.unary_unary(
+                '/jigen.StoreCollectionService/SearchHybrid',
+                request_serializer=Jigen__pb2.SearchHybridRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.SearchVectorResponse.FromString,
+                _registered_method=True)
         self.DeleteVector = channel.unary_unary(
                 '/jigen.StoreCollectionService/DeleteVector',
                 request_serializer=Jigen__pb2.ItemKey.SerializeToString,
@@ -248,6 +268,32 @@ class StoreCollectionServiceServicer:
         raise NotImplementedError('Method not implemented!')
 
     def SearchDocument(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def GetSparse(self, request, context):
+        """── Sparse (lexical) slot: exact search over caller-provided term weights,
+        grouped search, and the fusion of the two modalities. ──
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SearchSparse(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SearchSparseByMetadata(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SearchHybrid(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -471,6 +517,26 @@ def add_StoreCollectionServiceServicer_to_server(servicer, server):
             'SearchDocument': grpc.unary_unary_rpc_method_handler(
                     servicer.SearchDocument,
                     request_deserializer=Jigen__pb2.SearchDocumentRequest.FromString,
+                    response_serializer=Jigen__pb2.SearchVectorResponse.SerializeToString,
+            ),
+            'GetSparse': grpc.unary_unary_rpc_method_handler(
+                    servicer.GetSparse,
+                    request_deserializer=Jigen__pb2.ItemKey.FromString,
+                    response_serializer=Jigen__pb2.SparseVector.SerializeToString,
+            ),
+            'SearchSparse': grpc.unary_unary_rpc_method_handler(
+                    servicer.SearchSparse,
+                    request_deserializer=Jigen__pb2.SearchSparseRequest.FromString,
+                    response_serializer=Jigen__pb2.SearchVectorResponse.SerializeToString,
+            ),
+            'SearchSparseByMetadata': grpc.unary_unary_rpc_method_handler(
+                    servicer.SearchSparseByMetadata,
+                    request_deserializer=Jigen__pb2.SearchSparseByMetadataRequest.FromString,
+                    response_serializer=Jigen__pb2.SearchSparseByMetadataResponse.SerializeToString,
+            ),
+            'SearchHybrid': grpc.unary_unary_rpc_method_handler(
+                    servicer.SearchHybrid,
+                    request_deserializer=Jigen__pb2.SearchHybridRequest.FromString,
                     response_serializer=Jigen__pb2.SearchVectorResponse.SerializeToString,
             ),
             'DeleteVector': grpc.unary_unary_rpc_method_handler(
@@ -846,6 +912,114 @@ class StoreCollectionService:
             target,
             '/jigen.StoreCollectionService/SearchDocument',
             Jigen__pb2.SearchDocumentRequest.SerializeToString,
+            Jigen__pb2.SearchVectorResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def GetSparse(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/GetSparse',
+            Jigen__pb2.ItemKey.SerializeToString,
+            Jigen__pb2.SparseVector.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SearchSparse(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/SearchSparse',
+            Jigen__pb2.SearchSparseRequest.SerializeToString,
+            Jigen__pb2.SearchVectorResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SearchSparseByMetadata(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/SearchSparseByMetadata',
+            Jigen__pb2.SearchSparseByMetadataRequest.SerializeToString,
+            Jigen__pb2.SearchSparseByMetadataResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SearchHybrid(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/SearchHybrid',
+            Jigen__pb2.SearchHybridRequest.SerializeToString,
             Jigen__pb2.SearchVectorResponse.FromString,
             options,
             channel_credentials,

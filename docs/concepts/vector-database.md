@@ -28,7 +28,7 @@ A vector index alone is not a vector database. The database adds:
 
 - **Persistence and durability** — vectors survive restarts; writes are checkpointed and crash-recovered (Jigen reconciles the index with the store after an unclean shutdown).
 - **Concurrency** — safe parallel reads and writes, background indexing workers.
-- **A query language** — similarity search, filters, multi-collection search, key-based access.
+- **A query language** — similarity search, lexical (sparse) search, hybrid fusion, filters, multi-collection search, key-based access.
 - **APIs** — Jigen runs **in-process** inside your .NET application (like SQLite for vectors) or as a **standalone server** with gRPC and REST endpoints and an official .NET client.
 
 ## Where Jigen fits
@@ -40,11 +40,13 @@ A vector index alone is not a vector database. The database adds:
 | Exact search | Default `BruteForceIndexer` — linear scan, perfect recall |
 | Approximate search | `SmallWorldIndexer` (HNSW) — sublinear search time, small recall trade-off |
 | Access | In-process `Store` API, or gRPC/REST server + `Jigen.Client` |
-| Similarity | Cosine similarity throughout |
+| Similarity | Cosine similarity for dense vectors; dot product over shared terms for sparse ones |
+| Hybrid | Dense and lexical rankings fused by position |
 
 ## See also
 
 - [ANN](ann.md) — why approximate search exists and when to use it
 - [HNSW](hnsw.md) — the graph algorithm Jigen uses for approximate search
+- [Sparse vectors](sparse-vectors.md) — the second vector slot and hybrid search
 - [In-process overview](../in-process/overview.md) — the Jigen engine architecture
 - [Server overview](../server/overview.md) — deployment topologies

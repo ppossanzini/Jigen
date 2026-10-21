@@ -343,7 +343,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         Content = document.Content.ToByteArray(),
         Embeddings = embeddingsByDocument.TryGetValue(document, out var embedding) && embedding is { Length: > 0 }
           ? embedding
-          : null
+          : null,
+        Sparse = ToSparseVector(document.Sparse)
       }, cancellationToken);
 
       ingested++;
@@ -505,9 +506,9 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       if (denseWeightDeclared) query.DenseWeight = request.DenseWeight;
       if (sparseWeightDeclared) query.SparseWeight = request.SparseWeight;
 
-      if (!denseWeightDeclared && !sparseWeightDeclared
-          && query.Embeddings is { Length: > 0 } && query.Sparse is not null)
-        throw new ArgumentException("Declare DenseWeight and SparseWeight when both vectors are supplied.");
+      if (query.Embeddings is { Length: > 0 } && query.Sparse is not null
+          && (!denseWeightDeclared || !sparseWeightDeclared))
+        throw new ArgumentException("Declare both DenseWeight and SparseWeight when both vectors are supplied.");
 
       result = await mediator.Send(query, context.CancellationToken);
     }
@@ -1021,6 +1022,19 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         Quantization = info.Index.Quantization
       };
       response.Index.NodesPerLevel.AddRange(info.Index.NodesPerLevel);
+    }
+
+    if (info.Sparse is not null)
+    {
+      response.Sparse = new CollectionSparseInfoResponse
+      {
+        Terms = info.Sparse.Terms,
+        Postings = info.Sparse.Postings,
+        AveragePostingsPerTerm = info.Sparse.AveragePostingsPerTerm,
+        MemoryBytes = info.Sparse.MemoryBytes,
+        RetiredTerms = info.Sparse.RetiredTerms,
+        Built = info.Sparse.Built
+      };
     }
 
     return response;

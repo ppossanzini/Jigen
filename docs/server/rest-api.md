@@ -34,6 +34,10 @@ User/database access management is part of the identity module; it is only menti
 | `GET` | `/api/database/{db}/collections/{collection}/documents/{key}` | Get the raw serialized content for a key. |
 | `GET` | `/api/database/{db}/collections/{collection}/documents/{key}/json` | Get the content deserialized to JSON. |
 | `DELETE` | `/api/database/{db}/collections/{collection}/documents/{key}` | Delete a document/vector by key. |
+| `GET` | `/api/database/{db}/collections/{collection}/vectors/{key}/sparse` | Read the sparse vector of a key as `{"terms":[...],"weights":[...]}`; empty arrays when the entry has none. |
+| `POST` | `/api/database/{db}/collections/{collection}/search/sparse` | Exact lexical search. Body: `SparseSearchData`. |
+| `POST` | `/api/database/{db}/collections/{collection}/search/sparse-by-metadata` | Grouped lexical search, one result per shared metadata record. Body: `SparseByMetadataData`; `candidateBudget` is mandatory. |
+| `POST` | `/api/database/{db}/collections/{collection}/search/hybrid` | Dense search, lexical search and their fusion. Body: `HybridSearchData`. |
 
 `{key}` is converted to the binary `VectorKey` layout the document was stored with, which depends on the CLR type used at insert time (`int` = 4 bytes, `long` = 8, `guid` = 16, `string` = UTF-8). By default the type is detected from the value (GUID-shaped → `guid`, integer → `long`, anything else → `string`); pass `?keyType=string|int|long|guid` to force a specific layout — e.g. `?keyType=int` to read a document inserted with a 4-byte `int` key, or `?keyType=string` for a key like `"42"` that would otherwise be detected as a number.
 
@@ -56,6 +60,72 @@ Note: the server's Newtonsoft.Json configuration does not add a camelCase contra
 |---|---|---|
 | `Payload` | object | The document content, serialized server-side with the collection's configured `IDocumentSerializer` (MessagePack by default). |
 | `Sentence` | string | Text to embed and store as the document's vector. Requires an embedding module, same as search by sentence. |
+| `Sparse` | `SparseVector` | Optional lexical slot, independent of `Sentence`: the server never derives it from the text. |
+
+### Sparse (lexical) vectors
+
+A sparse vector is a **second, independent vector** on the same entry: term ids
+with their weights. The same object appears in `VectorPayload`, `DocumentPayload`,
+`BulkVectorItem` and `BulkDocumentItem`, so a document can be written with a
+precomputed embedding, a sentence, a sparse vector, or any combination.
+
+```json
+{
+  "payload": { "title": "Il documento" },
+  "embeddings": [0.12, -0.34, 0.56],
+  "sparse": { "terms": [12, 98, 450], "weights": [0.8, 1.2, 0.4] }
+}
+```
+
+`POST` / `PUT /vectors/{key}` accepts **either vector**: an entry with only
+`sparse` is valid, and so is one with only `embeddings`.
+
+| Field | Type | Description |
+|---|---|---|
+| `terms` | int[] | Caller-defined term ids: unique, strictly increasing, non-negative. |
+| `weights` | float[] | One per term, in the same order: finite, non-negative, at least one above zero. |
+
+A malformed vector is refused with `400` and a message naming the offending term
+or the configured cap (`JigenServer:Index:SparseMaxTerms`, 1024 by default).
+An **empty** vector is refused as well: omit `sparse` to store no lexical slot.
+
+**Writes need the write-ahead log** (`JigenServer:Wal:Enabled`, on by default).
+Without it the server refuses a write carrying terms with `400`, because the
+slot could not be recovered after a crash.
+
+### `SparseSearchData` (lexical search body)
+
+| Field | Type | Description |
+|---|---|---|
+| `Sparse` | `SparseVector` | The query terms and weights (required). |
+| `Top` | int | Number of results to return. |
+| `NoContent` | bool | Return keys and scores only. |
+| `MinScore` | float? | Drop results scoring below this value. |
+
+### `SparseByMetadataData` (grouped lexical search body)
+
+Same as above plus **`CandidateBudget`** (required, greater than zero): it caps
+the entries requested from the term lists, so a group-rich collection cannot turn
+one query into a full scan.
+
+### `HybridSearchData` (fusion body)
+
+| Field | Type | Description |
+|---|---|---|
+| `Sentence` | string | Dense query embedded server-side. |
+| `Embeddings` | float[] | Dense query vector, already computed. |
+| `Sparse` | `SparseVector` | Lexical query. |
+| `Top` | int | Number of fused results. |
+| `DenseWeight` | float? | Weight of the dense ranking in the fusion. |
+| `SparseWeight` | float? | Weight of the lexical ranking in the fusion. |
+| `NoContent` | bool | Return keys and scores only. |
+
+At least one of `sentence`, `embeddings` or `sparse` is required. **When both
+vectors are supplied, both weights must be declared**; a weight of zero excludes
+that modality, and both at zero is refused. Fusion is by **position**
+(reciprocal rank fusion), because a similarity score and a lexical weight are not
+comparable: `Score` is the fused score, while `DenseScore` and `SparseScore` keep
+the original ones and `InDense`/`InSparse` report which modality found the entry.
 
 ## Shared metadata
 

@@ -20,6 +20,7 @@
 - [Vector databases](concepts/vector-database.md) — what they are, how they work, where Jigen fits
 - [ANN](concepts/ann.md) — approximate nearest neighbor search and the recall/latency trade-off
 - [HNSW](concepts/hnsw.md) — the graph algorithm behind Jigen's approximate index, explained
+- [Sparse vectors and hybrid search](concepts/sparse-vectors.md) — the lexical slot, the term index, fusion by position
 
 ### In-process engine
 

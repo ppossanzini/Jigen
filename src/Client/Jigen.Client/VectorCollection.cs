@@ -7,6 +7,10 @@ using Grpc.Core;
 using Jigen.Client.BaseTypes;
 using Jigen.Client.Filtering;
 using Jigen.Proto;
+// Both the wire contract and this client define a sparse vector: the aliases
+// keep every call site explicit about which one it holds.
+using SparseVector = Jigen.Client.BaseTypes.SparseVector;
+using ProtoSparseVector = Jigen.Proto.SparseVector;
 
 namespace Jigen.Client;
 
@@ -111,6 +115,7 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
 
   public async Task AddAsync(VectorKey key, T content, string sentence, CancellationToken cancellationToken = default)
   {
+    
     await store.ServiceClient.SetDocumentAsync(BuildDocument(key, content, sentence), cancellationToken: cancellationToken).ConfigureAwait(false);
   }
 
@@ -119,6 +124,20 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     return AddAsync(key, new VectorEntry<T>()
     {
       Content = content, Embedding = embeddings
+    }, cancellationToken);
+  }
+
+  /// <summary>
+  /// Stores one entry with both vectors in a single write, so the dense and the
+  /// lexical slot always describe the same revision of the entry. Either vector
+  /// may be null; both null is a content-only entry.
+  /// </summary>
+  public Task AddAsync(VectorKey key, T content, float[] embeddings, SparseVector sparse,
+    CancellationToken cancellationToken = default)
+  {
+    return AddAsync(key, new VectorEntry<T>()
+    {
+      Content = content, Embedding = embeddings, Sparse = sparse
     }, cancellationToken);
   }
 
@@ -139,6 +158,9 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     if (value.Embedding != null)
       vector.Embeddings.AddRange(value.Embedding);
 
+    if (value.Sparse != null)
+      vector.Sparse = ToProtoSparseVector(value.Sparse);
+
     return vector;
   }
 
@@ -157,6 +179,19 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
       Sentence = sentence
     };
   }
+
+  private static ProtoSparseVector ToProtoSparseVector(SparseVector sparse)
+  {
+    var message = new ProtoSparseVector();
+    message.Terms.AddRange(sparse.Terms.ToArray());
+    message.Weights.AddRange(sparse.Weights.ToArray());
+    return message;
+  }
+
+  private static SparseVector FromProtoSparseVector(ProtoSparseVector sparse) =>
+    sparse is null || sparse.Terms.Count == 0
+      ? null
+      : SparseVector.Create(sparse.Terms.ToArray(), sparse.Weights.ToArray());
 
   /// <summary>
   /// Bulk insert over a single client-streaming call: one round trip for the
@@ -194,25 +229,42 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   /// sentence are stored without a vector. Returns the number of entries
   /// accepted by the server.
   /// </summary>
-  public async Task<int> AddRangeAsync(IEnumerable<(VectorKey Key, T Content, string Sentence)> entries, CancellationToken cancellationToken = default)
+  public Task<int> AddRangeAsync(IEnumerable<(VectorKey Key, T Content, string Sentence)> entries,
+    CancellationToken cancellationToken = default) =>
+    AddRangeAsync(entries.Select(e => (e.Key, e.Content, e.Sentence, Sparse: (SparseVector)null)),
+      cancellationToken);
+
+  /// <summary>
+  /// Bulk insert of documents with an optional lexical slot. The embedding is
+  /// computed server-side from the sentence when one is given; the sparse vector
+  /// is never derived from it.
+  /// </summary>
+  public async Task<int> AddRangeAsync(
+    IEnumerable<(VectorKey Key, T Content, string Sentence, SparseVector Sparse)> entries,
+    CancellationToken cancellationToken = default)
   {
     ArgumentNullException.ThrowIfNull(entries);
 
     using var call = store.ServiceClient.SetDocuments(cancellationToken: cancellationToken);
 
-    foreach (var (key, content, sentence) in entries)
+    foreach (var (key, content, sentence, sparse) in entries)
     {
       ArgumentNullException.ThrowIfNull(key.Value);
       ArgumentNullException.ThrowIfNull(content);
 
-      await call.RequestStream.WriteAsync(new Document()
+      var document = new Document()
       {
         Database = GetDatabaseName(),
         Collection = GetCollectionName(),
         Key = ByteString.CopyFrom(key.Value),
         Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(content).Span),
         Sentence = sentence ?? string.Empty
-      }, cancellationToken).ConfigureAwait(false);
+      };
+
+      if (sparse != null)
+        document.Sparse = ToProtoSparseVector(sparse);
+
+      await call.RequestStream.WriteAsync(document, cancellationToken).ConfigureAwait(false);
     }
 
     await call.RequestStream.CompleteAsync().ConfigureAwait(false);
@@ -291,6 +343,161 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     return MapResults(result);
   }
 
+  // ── Lexical slot ──
+
+  /// <summary>
+  /// Reads the sparse vector stored with a key. Null when the key does not
+  /// exist or the entry was written without a lexical slot.
+  /// </summary>
+  public SparseVector GetSparse(VectorKey key)
+  {
+    var result = store.ServiceClient.GetSparse(ToItemKey(key));
+    return FromProtoSparseVector(result);
+  }
+
+  /// <summary>Async counterpart of <see cref="GetSparse"/>.</summary>
+  public async Task<SparseVector> GetSparseAsync(VectorKey key, CancellationToken cancellationToken = default)
+  {
+    var result = await store.ServiceClient.GetSparseAsync(ToItemKey(key), cancellationToken: cancellationToken).ConfigureAwait(false);
+    return FromProtoSparseVector(result);
+  }
+
+  /// <summary>
+  /// Exact lexical search: the entries sharing at least one term with the query,
+  /// ranked by the sum of the shared weight products.
+  /// </summary>
+  public List<VectorSearchResult<T>> Search(SparseVector sparse, int top = 10, SearchOptions options = null)
+  {
+    return Search(sparse, predicate: null, top: top, options: options);
+  }
+
+  public List<VectorSearchResult<T>> Search(SparseVector sparse, Expression<Func<T, bool>> predicate, int top = 10,
+    SearchOptions options = null)
+  {
+    ArgumentNullException.ThrowIfNull(sparse);
+    return MapResults(store.ServiceClient.SearchSparse(BuildSearchSparseRequest(sparse, predicate, top, options)));
+  }
+
+  public Task<List<VectorSearchResult<T>>> SearchAsync(SparseVector sparse, int top = 10,
+    SearchOptions options = null, CancellationToken cancellationToken = default)
+  {
+    return SearchAsync(sparse, predicate: null, top: top, options: options, cancellationToken: cancellationToken);
+  }
+
+  public async Task<List<VectorSearchResult<T>>> SearchAsync(SparseVector sparse,
+    Expression<Func<T, bool>> predicate, int top = 10, SearchOptions options = null,
+    CancellationToken cancellationToken = default)
+  {
+    ArgumentNullException.ThrowIfNull(sparse);
+
+    var result = await store.ServiceClient
+      .SearchSparseAsync(BuildSearchSparseRequest(sparse, predicate, top, options), cancellationToken: cancellationToken)
+      .ConfigureAwait(false);
+    return MapResults(result);
+  }
+
+  /// <summary>
+  /// Hybrid search: the dense and the lexical ranking are fused by position.
+  /// At least one vector must be supplied; when both are, both weights are
+  /// required, and a zero weight leaves that modality out.
+  /// </summary>
+  // Named SearchHybrid, not an overload of Search: a null second argument would
+  // otherwise be ambiguous between "no predicate" and "no sparse vector".
+  public List<VectorSearchResult<T>> SearchHybrid(float[] embeddings, SparseVector sparse, int top = 10,
+    float denseWeight = 1f, float sparseWeight = 1f, SearchOptions options = null)
+  {
+    return SearchHybrid(embeddings, sparse, predicate: null, top: top,
+      denseWeight: denseWeight, sparseWeight: sparseWeight, options: options);
+  }
+
+  public List<VectorSearchResult<T>> SearchHybrid(float[] embeddings, SparseVector sparse,
+    Expression<Func<T, bool>> predicate, int top = 10, float denseWeight = 1f, float sparseWeight = 1f,
+    SearchOptions options = null)
+  {
+    return MapResults(store.ServiceClient.SearchHybrid(
+      BuildSearchHybridRequest(embeddings, sparse, predicate, top, denseWeight, sparseWeight, options)));
+  }
+
+  public Task<List<VectorSearchResult<T>>> SearchHybridAsync(float[] embeddings, SparseVector sparse, int top = 10,
+    float denseWeight = 1f, float sparseWeight = 1f, SearchOptions options = null,
+    CancellationToken cancellationToken = default)
+  {
+    return SearchHybridAsync(embeddings, sparse, predicate: null, top: top, denseWeight: denseWeight,
+      sparseWeight: sparseWeight, options: options, cancellationToken: cancellationToken);
+  }
+
+  public async Task<List<VectorSearchResult<T>>> SearchHybridAsync(float[] embeddings, SparseVector sparse,
+    Expression<Func<T, bool>> predicate, int top = 10, float denseWeight = 1f, float sparseWeight = 1f,
+    SearchOptions options = null, CancellationToken cancellationToken = default)
+  {
+    var result = await store.ServiceClient
+      .SearchHybridAsync(BuildSearchHybridRequest(embeddings, sparse, predicate, top, denseWeight, sparseWeight, options),
+        cancellationToken: cancellationToken)
+      .ConfigureAwait(false);
+    return MapResults(result);
+  }
+
+  private SearchSparseRequest BuildSearchSparseRequest(SparseVector sparse,
+    Expression<Func<T, bool>> predicate, int top, SearchOptions options)
+  {
+    var request = new SearchSparseRequest
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Sparse = ToProtoSparseVector(sparse),
+      Top = top,
+      Tuning = BuildTuning(options)
+    };
+
+    if (predicate != null)
+      request.Filter = ProtoExpressionTranslator.Translate(predicate);
+
+    return request;
+  }
+
+  private SearchHybridRequest BuildSearchHybridRequest(float[] embeddings, SparseVector sparse,
+    Expression<Func<T, bool>> predicate, int top, float denseWeight, float sparseWeight, SearchOptions options)
+  {
+    var denseSupplied = embeddings is { Length: > 0 };
+    if (!denseSupplied && sparse is null)
+      throw new ArgumentException("A hybrid search needs at least one of the two vectors.");
+
+    var request = new SearchHybridRequest
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Top = top,
+      Tuning = BuildTuning(options)
+    };
+
+    if (denseSupplied)
+      request.Embeddings.AddRange(embeddings);
+
+    if (sparse != null)
+      request.Sparse = ToProtoSparseVector(sparse);
+
+    // The server refuses both vectors without both weights: declare them here
+    // so a caller that forgot one gets the error before the round trip.
+    if (denseSupplied && sparse != null)
+    {
+      request.DenseWeight = denseWeight;
+      request.SparseWeight = sparseWeight;
+    }
+    else if (denseSupplied)
+    {
+      request.DenseWeight = denseWeight;
+    }
+    else
+    {
+      request.SparseWeight = sparseWeight;
+    }
+
+    if (predicate != null)
+      request.Filter = ProtoExpressionTranslator.Translate(predicate);
+
+    return request;
+  }
+
   private SearchVectorRequest BuildSearchVectorRequest(float[] embeddings, Expression<Func<T, bool>> predicate, int top, SearchOptions options)
   {
     var request = new SearchVectorRequest
@@ -349,7 +556,11 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
       Key = i.Key.ToByteArray(),
       // Empty content = requested with NoContent (or a content-less entry).
       Content = i.Content.IsEmpty ? null : _options.DocumentSerializer.Deserialize<T>(i.Content.Memory),
-      Score = i.Score
+      Score = i.Score,
+      InDense = i.InDense,
+      InSparse = i.InSparse,
+      DenseScore = i.DenseScore,
+      SparseScore = i.SparseScore
     }).ToList();
   }
 

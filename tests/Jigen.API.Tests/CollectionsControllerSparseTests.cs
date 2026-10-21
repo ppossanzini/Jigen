@@ -64,6 +64,32 @@ public class CollectionsControllerSparseTests
   }
 
   [Fact]
+  public async Task SetVector_WithOnlyTheSparseVector_IsAccepted()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<SetVector>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var result = await CreateController().SetVector(DbName, Collection, "k", new VectorPayload
+    {
+      Sparse = Payload([5], [2f])
+    }, "string");
+
+    Assert.IsType<OkResult>(result);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<SetVector>(c => c.Embeddings == null && c.Sparse != null),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetVector_WithoutAnyVector_ReturnsBadRequest()
+  {
+    var result = await CreateController().SetVector(DbName, Collection, "k", new VectorPayload(), "string");
+
+    var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+    Assert.Contains("sparse", badRequest.Value as string);
+  }
+
+  [Fact]
   public async Task SetVector_WithUnorderedTerms_ReturnsBadRequestNamingTheTerm()
   {
     var payload = new VectorPayload
@@ -279,6 +305,22 @@ public class CollectionsControllerSparseTests
   {
     var result = await CreateController().SearchHybrid(DbName, Collection,
       new HybridSearchData { Embeddings = [0.1f], Sparse = Payload([1], [1f]) }, CancellationToken.None);
+
+    var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+    Assert.Contains("sparseWeight", badRequest.Value as string);
+    _mediatorMock.Verify(m => m.Send(It.IsAny<SearchHybrid>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task SearchHybrid_WithBothVectorsAndOnlyOneWeight_ReturnsBadRequest()
+  {
+    var result = await CreateController().SearchHybrid(DbName, Collection,
+      new HybridSearchData
+      {
+        Embeddings = [0.1f],
+        Sparse = Payload([1], [1f]),
+        DenseWeight = 1f
+      }, CancellationToken.None);
 
     var badRequest = Assert.IsType<BadRequestObjectResult>(result);
     Assert.Contains("sparseWeight", badRequest.Value as string);

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onActivated, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
-import { fetchListCollections, fetchSearchCollections } from '@/service/api';
-import type { SearchCollectionsResult } from '@/service/api-types';
+import { fetchListCollections, fetchSearchCollections, fetchSearchHybrid, fetchSearchSparse } from '@/service/api';
+import type { SearchCollectionsResult, SparsePayload, SparseSearchResultItem } from '@/service/api-types';
 import type { DocumentKeyType } from '@/service/api-types';
 import { useAppStore } from '@/store/modules/app';
 import { useDatabaseStore } from '@/store/modules/database';
@@ -49,11 +49,53 @@ async function loadCollections() {
 
 watch(() => databaseStore.current, loadCollections);
 
-const mode = ref<'sentence' | 'embeddings'>('sentence');
+// Dense modes search across the selected collections; sparse and hybrid run on
+// one collection, because the server answers per collection for those.
+const mode = ref<'sentence' | 'embeddings' | 'sparse' | 'hybrid'>('sentence');
 const sentenceInput = ref('');
 const embeddingsInput = ref('');
+const sparseInput = ref('');
+const hybridSentenceInput = ref('');
+const denseWeight = ref(1);
+const sparseWeight = ref(1);
 const topK = ref(10);
 const validationError = ref('');
+
+const sparseMode = computed(() => mode.value === 'sparse' || mode.value === 'hybrid');
+
+/** Parses "12:0.8, 98:1.2" into the wire form, or null when it is malformed. */
+function parseSparse(): SparsePayload | null {
+  const parts = sparseInput.value
+    .split(',')
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  if (!parts.length) return null;
+
+  const terms: number[] = [];
+  const weights: number[] = [];
+
+  for (const part of parts) {
+    const [rawTerm, rawWeight] = part.split(':').map(piece => piece.trim());
+    const term = Number(rawTerm);
+    const weight = Number(rawWeight);
+
+    if (!Number.isInteger(term) || rawWeight === undefined || Number.isNaN(weight)) return null;
+
+    terms.push(term);
+    weights.push(weight);
+  }
+
+  // The server requires strictly increasing terms: sort here so the field
+  // reads naturally, and let the server own the remaining rules (cap, weights).
+  const ordered = terms.map((term, index) => ({ term, weight: weights[index] })).sort((a, b) => a.term - b.term);
+
+  return { terms: ordered.map(pair => pair.term), weights: ordered.map(pair => pair.weight) };
+}
+
+// Result shape shared by the dense and the sparse/hybrid surfaces.
+const sparseRows = ref<ResultRow[]>([]);
+const sparseElapsedMs = ref(0);
 
 const searching = ref(false);
 const searchError = ref('');
@@ -71,12 +113,23 @@ function parseEmbeddings(): number[] | null {
   return parts;
 }
 
+function errorText(error: { response?: { data?: unknown } }) {
+  return error.response?.data && typeof error.response.data === 'string'
+    ? error.response.data
+    : $t('request.serverUnreachable');
+}
+
 async function handleSearch() {
   validationError.value = '';
   searchError.value = '';
 
   if (!selectedCollections.value.length) {
     validationError.value = $t('page.workbench.query.collectionsRequired');
+    return;
+  }
+
+  if (sparseMode.value) {
+    await handleSparseSearch();
     return;
   }
 
@@ -105,7 +158,7 @@ async function handleSearch() {
   searching.value = false;
 
   if (error) {
-    searchError.value = error.response?.data && typeof error.response.data === 'string' ? error.response.data : $t('request.serverUnreachable');
+    searchError.value = errorText(error);
     result.value = null;
     return;
   }
@@ -113,9 +166,98 @@ async function handleSearch() {
   result.value = data;
 }
 
+/**
+ * Sparse and hybrid search: one collection at a time, since the server answers
+ * per collection here. The hybrid mode needs both weights declared, exactly as
+ * the contract requires when the two vectors are supplied together.
+ */
+async function handleSparseSearch() {
+  if (selectedCollections.value.length !== 1) {
+    validationError.value = $t('page.workbench.query.sparseSingleCollection');
+    return;
+  }
+
+  if (!sparseInput.value.trim()) {
+    validationError.value = $t('page.workbench.query.sparseRequired');
+    return;
+  }
+
+  const sparse = parseSparse();
+
+  if (!sparse) {
+    validationError.value = $t('page.workbench.query.sparseInvalid');
+    return;
+  }
+
+  // Both weights at zero would leave nothing to rank: the server refuses it, so
+  // refuse it here instead of spending a round trip.
+  if (mode.value === 'hybrid' && denseWeight.value <= 0 && sparseWeight.value <= 0) {
+    validationError.value = $t('page.workbench.query.weightsRequired');
+    return;
+  }
+
+  const collection = selectedCollections.value[0];
+  searching.value = true;
+  const startedAt = performance.now();
+
+  if (mode.value === 'sparse') {
+    const { data, error } = await fetchSearchSparse(databaseStore.current, collection, {
+      sparse,
+      top: topK.value
+    });
+
+    sparseElapsedMs.value = performance.now() - startedAt;
+    searching.value = false;
+
+    if (error) {
+      searchError.value = errorText(error);
+      sparseRows.value = [];
+      return;
+    }
+
+    sparseRows.value = toSparseRows(collection, data ?? []);
+    return;
+  }
+
+  const { data, error } = await fetchSearchHybrid(databaseStore.current, collection, {
+    sentence: hybridSentenceInput.value.trim() || undefined,
+    sparse,
+    top: topK.value,
+    denseWeight: denseWeight.value,
+    sparseWeight: sparseWeight.value
+  });
+
+  sparseElapsedMs.value = performance.now() - startedAt;
+  searching.value = false;
+
+  if (error) {
+    searchError.value = errorText(error);
+    sparseRows.value = [];
+    return;
+  }
+
+  sparseRows.value = toSparseRows(collection, data ?? []);
+}
+
+function toSparseRows(collection: string, items: SparseSearchResultItem[]): ResultRow[] {
+  return items.map((item, index) => ({
+    id: `${collection}:${item.key}:${index}`,
+    collection,
+    key: item.key ?? '',
+    score: Number(item.score ?? 0),
+    content: item.content,
+    inDense: Boolean(item.inDense),
+    inSparse: Boolean(item.inSparse),
+    denseScore: Number(item.denseScore ?? 0),
+    sparseScore: Number(item.sparseScore ?? 0)
+  }));
+}
+
 // flatten per-collection results (kept collection-attributed, unlike the server's anonymous
 // `mergedResults`) and sort by score so the table reads like a single merged/ranked result set
 const rows = computed<ResultRow[]>(() => {
+  if (sparseMode.value) return sparseRows.value;
+
   const groups = result.value?.collectionsResults ?? [];
 
   const flat = groups.flatMap(group =>
@@ -240,6 +382,8 @@ onActivated(async () => {
             <NRadioGroup v-model:value="mode">
               <NRadioButton value="sentence">{{ $t('page.workbench.query.mode.sentence') }}</NRadioButton>
               <NRadioButton value="embeddings">{{ $t('page.workbench.query.mode.embeddings') }}</NRadioButton>
+              <NRadioButton value="sparse">{{ $t('page.workbench.query.mode.sparse') }}</NRadioButton>
+              <NRadioButton value="hybrid">{{ $t('page.workbench.query.mode.hybrid') }}</NRadioButton>
             </NRadioGroup>
           </NFormItem>
         </div>
@@ -255,12 +399,21 @@ onActivated(async () => {
             @keyup.enter.exact="handleSearch"
           />
           <NInput
-            v-else
+            v-else-if="mode === 'embeddings'"
             v-model:value="embeddingsInput"
             type="textarea"
             :autosize="{ minRows: 1, maxRows: 3 }"
             :placeholder="$t('page.workbench.query.embeddingsPlaceholder')"
             class="flex-1"
+          />
+          <NInput
+            v-else
+            v-model:value="sparseInput"
+            type="textarea"
+            :autosize="{ minRows: 1, maxRows: 3 }"
+            :placeholder="$t('page.workbench.query.sparsePlaceholder')"
+            class="flex-1"
+            @keyup.enter.exact="handleSearch"
           />
 
           <NButton type="primary" :loading="searching" :disabled="!databaseStore.current" @click="handleSearch">
@@ -269,14 +422,38 @@ onActivated(async () => {
           </NButton>
         </div>
 
+        <div v-if="mode === 'hybrid'" class="grid grid-cols-1 gap-12px md:grid-cols-2 xl:grid-cols-4">
+          <NFormItem class="xl:col-span-2" :label="$t('page.workbench.query.sparseSentence')" :show-feedback="false">
+            <NInput
+              v-model:value="hybridSentenceInput"
+              :placeholder="$t('page.workbench.query.sentencePlaceholder')"
+            />
+          </NFormItem>
+          <NFormItem :label="$t('page.workbench.query.denseWeight')" :show-feedback="false">
+            <NInputNumber v-model:value="denseWeight" :min="0" :step="0.1" class="w-full" />
+          </NFormItem>
+          <NFormItem :label="$t('page.workbench.query.sparseWeight')" :show-feedback="false">
+            <NInputNumber v-model:value="sparseWeight" :min="0" :step="0.1" class="w-full" />
+          </NFormItem>
+        </div>
+
         <NAlert v-if="validationError" type="warning" :show-icon="true" :bordered="false" closable @close="validationError = ''">
           {{ validationError }}
         </NAlert>
       </div>
     </NCard>
 
-    <NCard v-if="result" :bordered="false" size="small" class="card-wrapper">
+    <NCard v-if="result && !sparseMode" :bordered="false" size="small" class="card-wrapper">
       <TimingStrip :result="result" />
+    </NCard>
+
+    <NCard v-else-if="sparseRows.length" :bordered="false" size="small" class="card-wrapper">
+      <div class="flex shrink-0 flex-nowrap items-center gap-16px overflow-x-auto">
+        <div class="flex shrink-0 items-baseline gap-6px">
+          <span class="text-12px text-gray-500">{{ $t('page.workbench.timing.sparse') }}:</span>
+          <span class="text-16px font-600">{{ sparseElapsedMs.toFixed(1) }} ms</span>
+        </div>
+      </div>
     </NCard>
 
     <NCard
@@ -317,7 +494,7 @@ onActivated(async () => {
         class="flex-1 flex-center"
       />
       <NEmpty
-        v-else-if="!result"
+        v-else-if="!result && !sparseRows.length"
         :description="$t('page.workbench.results.selectPrompt')"
         class="flex-1 flex-center"
       />
