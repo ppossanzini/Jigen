@@ -59,7 +59,12 @@ public class DatabasesManager
       DataBaseName = name,
       DataBasePath = _settings.DataFolderPath,
       ReconcileOnUncleanShutdown = _settings.ReconcileOnUncleanShutdown,
-      Indexer = indexer
+      Indexer = indexer,
+      Sparse = new SparseOptions { MaxTerms = index.SparseMaxTerms },
+      // Null disables sparse search: the slot is still stored, it is just not
+      // indexed. One instance per database, since collections live there.
+      SparseIndex = index.SparseEnabled ? new SparseIndex() : null,
+      Wal = BuildWalOptions()
     };
 
     if (_settings.IndexerWorkers > 0)
@@ -74,6 +79,23 @@ public class DatabasesManager
       store.ReconcileIndexAsync().GetAwaiter().GetResult();
 
     return store;
+  }
+
+  /// <summary>
+  /// The log is written before the data files, and a sparse vector is refused
+  /// without it, so every database of this server gets the configured policy.
+  /// </summary>
+  private WalOptions BuildWalOptions()
+  {
+    var wal = _settings.Wal ?? new JigenWalSettings();
+    return new WalOptions
+    {
+      Enabled = wal.Enabled,
+      Durability = wal.Durability,
+      MaxGroupDelay = TimeSpan.FromMilliseconds(Math.Max(0, wal.MaxGroupDelayMs)),
+      MaxGroupBatchCount = Math.Max(1, wal.MaxGroupBatchCount),
+      CheckpointInterval = TimeSpan.FromSeconds(Math.Max(1, _settings.CheckpointIntervalSeconds))
+    };
   }
 
   public void Init()

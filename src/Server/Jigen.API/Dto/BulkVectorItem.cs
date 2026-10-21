@@ -6,4 +6,6 @@ public class BulkVectorItem
   public string KeyType { get; set; }
   public object Payload { get; set; }
   public float[] Embeddings { get; set; }
+
+  public SparsePayload Sparse { get; set; }
 }

@@ -262,7 +262,7 @@ Il prossimo ciclo si concentra sull’engine embedded, sulla prova like-for-like
 - Indice KMeans/IVF.
 - Espansione dei provider GPU oltre la validazione CUDA già avviata.
 - Sharding e replica lato server.
-- Ricerca ibrida con parole chiave.
+- Ricerca ibrida con parole chiave. **Riaperta** dal giro dedicato ai vettori sparsi: il requisito esiste ora, con lo scope ridotto dei pesi forniti dal chiamante. Vedi [Sparse vectors — scouting dossier](sparse-vectors/dossier.md) (sparse-vectors/dossier.md).
 - Documentazione della UI amministrativa Jigen Insight.
 - Client ulteriori oltre .NET, Python e MEVD.
 - Pannello di controllo e offerta gestita.

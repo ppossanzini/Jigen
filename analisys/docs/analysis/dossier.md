@@ -51,6 +51,13 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | Chiave | Identificatore binario di una voce, di lunghezza dipendente dal tipo usato alla scrittura. | id, pk |
 | Contenuto | Payload serializzato di una voce. | body, payload |
 | Vettore | Sequenza di numeri reali associata a una voce o a una query. | embedding, feature |
+| Vettore sparso | Vettore rappresentato come coppie di un termine e di un peso; i termini assenti valgono zero. | embedding sparso, sparse vector |
+| Termine | Dimensione di un vettore sparso, identificata da un numero intero. | dimensione, token, feature |
+| Peso | Valore associato a un termine in un vettore sparso. | impatto, rilevanza |
+| Indice dei termini | Struttura che, per ogni termine, elenca le voci che lo contengono con il loro peso. | indice invertito |
+| Elenco dei termini | Insieme delle voci che contengono un termine, con il peso di ciascuna. | posting list |
+| Fusione | Unione di due elenchi ordinati in un solo ordinamento, secondo pesi dichiarati. | hybrid ranking, merge |
+| Slot vettoriale | Nome che distingue i vettori portati dalla stessa voce. | campo vettoriale, named vector |
 | Embedding | Operazione che produce un vettore da un testo o da un'immagine. | vettorizzazione, encoding |
 | Spazio vettoriale | Insieme di vettori prodotti dallo stesso profilo di embedding, confrontabili fra loro. | modello, dominio |
 | Profilo di embedding | Configurazione che lega un nome a un modello, a un tokenizzatore e a opzioni di generazione. | modello, pipeline |
@@ -129,6 +136,9 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | F-16 | Eseguire una transazione | S-01, S-02, S-03 | Apertura, operazioni, conferma | Confermata, annullata, scaduta |
 | F-17 | Distribuire e aggiornare | S-05 artefatti di distribuzione | Installazione e avvio | Successo, avvio negato |
 | F-18 | Combinare risultati di più modalità | S-01 client .NET | Fusione dei risultati di più ricerche | Successo, gruppi non comparabili |
+| F-19 | Scrivere e rileggere un vettore sparso | S-01, S-02, S-03 | Scrittura di una voce con pesi lessicali | Accettata, rifiutata per termini duplicati o incoerenti |
+| F-20 | Cercare per vettore sparso | S-01, S-02, S-03, S-04 | Ricerca per termini, con filtro e raggruppamento | Successo, risultato vuoto, risultati mancanti se la potatura è attiva |
+| F-21 | Cercare in ibrido e fondere | S-01, S-02, S-03, S-04 | Ricerca con vettore denso e sparso insieme | Successo, una sola modalità disponibile, pesi non dichiarati |
 
 **Azioni di interfaccia per flusso.** L'elenco completo, con l'effetto atteso, è in [Use-case catalogue](#use-case-catalogue) (dossier.md#use-case-catalogue) e in [Use-case catalogue](../use-cases.md) (use-cases.md). Qui restano le azioni che il flusso dichiara.
 
@@ -139,6 +149,8 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 - F-13: scegliere database, collezione, modalità di query, numero di risultati, eseguire.
 - F-14: cambiare scheda utenti o ruoli, creare, modificare, eliminare.
 - F-15: scegliere la finestra temporale.
+- F-20: scegliere database e collezione, fornire i termini della query, eventualmente un filtro, eseguire.
+- F-21: fornire vettore denso e termini, dichiarare i pesi delle due modalità, eseguire.
 
 **Stati finali per flusso.** Successo, rifiuto (`400`), non autenticato (`401`), vietato (`403`), non trovato (`404`), conflitto (`409`), errore (`5xx`), interruzione (abbandono o navigazione altrove). Il dettaglio per percorso è nel catalogo.
 
@@ -155,6 +167,9 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | V-07 | Un utente non può leggere un database a cui non è associato, salvo ruolo amministrativo. | Ogni lettura | F-09, F-10, F-11, F-12, F-15 |
 | V-08 | Un record condiviso non può essere associato a una chiave inesistente o a un indice sconosciuto. | Associazione | F-05 |
 | V-09 | Una transazione senza conferma non produce effetti durevoli. | Chiusura della transazione | F-16 |
+| V-10 | Un vettore sparso ha termini unici e crescenti, un peso per termine, almeno un termine e non più del massimo configurato. | Scrittura | F-19 |
+| V-11 | Una ricerca per vettore sparso richiede almeno un termine con peso diverso da zero. | Invio della ricerca | F-20 |
+| V-12 | Una ricerca ibrida richiede almeno una delle due modalità e, se entrambe sono presenti, i pesi della fusione. | Invio della ricerca | F-21 |
 
 **Requisiti con criteri di accettazione.**
 
@@ -195,13 +210,23 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | R-33 | Provare una ricerca da interfaccia web. | Il workbench restituisce risultati con punteggio e tempi di fase per la query inviata. |
 | R-34 | Documentare API e configurazione. | Ogni parametro di configurazione documentato esiste nel sistema; ogni operazione documentata è raggiungibile. |
 | R-35 | Combinare i risultati di più modalità su una scala comune. | Due gruppi con punteggi non confrontabili producono un ordinamento unico in cui il migliore di ogni gruppo non è sistematicamente in fondo; un gruppo con un solo risultato non altera l'ordine degli altri. |
+| R-36 | Accettare e conservare un vettore sparso per voce, come secondo slot vettoriale con nome distinto. | Dopo la scrittura, la rilettura restituisce le stesse coppie termine-peso; una voce può avere solo denso, solo sparso o entrambi; una voce senza alcun vettore resta valida. |
+| R-37 | Cercare per vettore sparso con numero di risultati e punteggio. | La ricerca restituisce al più `top` voci ordinate per punteggio decrescente, solo fra quelle che condividono almeno un termine con la query, con chiave, contenuto e punteggio. |
+| R-38 | Applicare alla ricerca sparsa le stesse regole di filtro e di raggruppamento della ricerca densa. | Con lo stesso predicato le due ricerche restituiscono lo stesso insieme di voci ammesse; la ricerca raggruppata restituisce al più `top` gruppi con la chiave vincente e il punteggio massimo. |
+| R-39 | Fondere denso e sparso in un solo ordinamento, con pesi dichiarati. | Con entrambi i pesi a zero la fusione è rifiutata; con un peso a zero il risultato coincide con l'altra modalità; a parità di posizione l'ordine è deterministico; un risultato ben posizionato in entrambi gli elenchi precede uno ben posizionato in uno solo. |
+| R-40 | Esporre la scrittura, la ricerca e la fusione su tutte le superfici con lo stesso esito. | La stessa operazione produce lo stesso stato e lo stesso ordinamento su API in-process, superficie REST e superficie binaria; i client tipizzati espongono le stesse tre operazioni. |
+| R-41 | Osservare l'indice dei termini. | L'informazione di collezione riporta termini distinti, numero di elenchi, lunghezza media degli elenchi, memoria occupata e voci cancellate. |
 
-**Esclusioni correnti.**
+**Esclusioni correnti.** Il giro dei vettori sparsi ha sostituito l'esclusione della ricerca ibrida con quattro esclusioni più strette, ognuna con la propria ragione.
 
 | Esclusione | Vincolo che la tiene fuori |
 | --- | --- |
 | Indice a partizioni (KMeans/IVF) | Il progetto esiste ma non ha implementazione; nessun requisito lo richiede oggi. |
-| Ricerca ibrida con parole chiave | Nessun requisito la chiede; i concorrenti la offrono, non è un requisito di questo sistema. |
+| Analisi del testo nel server e BM25 calcolato dal server | R-36…R-39 coprono i pesi forniti dal chiamante. Tokenizzazione, statistiche di corpus e normalizzazione della lunghezza cambierebbero la natura del prodotto. Decisione dello scouting sui vettori sparsi. |
+| Generazione di vettori sparsi da modelli | Il contratto di embedding dichiara BGE-M3 denso soltanto; i pesi lessicali restano del chiamante. |
+| Indice approssimato per i vettori sparsi | Il prodotto scalare non ha una geometria da approssimare: l'unica ottimizzazione ammessa è la potatura, che riduce l'esattezza e va dichiarata. |
+| Somma diretta dei punteggi densi e sparsi | Le due scale non sono confrontabili; la fusione di R-39 avviene per posizione, con pesi dichiarati. |
+| Quantizzazione degli impatti e multi-vettore per colonna | Nessun requisito li chiede; sono ottimizzazioni successive, da misurare prima. |
 | Replica e sharding lato server | Un solo processo per database; nessun requisito di disponibilità o scala orizzontale. |
 | Ricerca raggruppata su più collezioni | Il contratto dichiara il limite a una collezione. |
 | Supporto immagini GIF | Il decodificatore usato non le supporta. |
@@ -221,22 +246,22 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 
 | Id | Componente | Responsabilità unica | Requisiti |
 | --- | --- | --- | --- |
-| C1 | Archivio | Conservare contenuti, vettori, indice di posizione e associazioni, e garantirne la durabilità. | R-01…R-05, R-11…R-16, R-27 |
-| C2 | Indice di ricerca | Rispondere alle ricerche esatte e approssimate su una collezione. | R-06, R-08, R-09, R-10 |
+| C1 | Archivio | Conservare contenuti, vettori densi e sparsi, indice di posizione e associazioni, e garantirne la durabilità. | R-01…R-05, R-11…R-16, R-27, R-36 |
+| C2 | Indice di ricerca | Rispondere alle ricerche esatte e approssimate su una collezione, per vettore denso e per vettore sparso. | R-06, R-08, R-09, R-10, R-37, R-38, R-41 |
 | C3 | Pipeline di embedding | Trasformare testo e immagini in vettori secondo profili dichiarati. | R-07, R-16…R-20, R-28 |
-| C4 | Host di rete | Aprire più database e offrirne le operazioni su due superfici. | R-21, R-22, R-27, R-28 |
+| C4 | Host di rete | Aprire più database, offrirne le operazioni su due superfici e fondere i risultati delle due modalità. | R-21, R-22, R-27, R-28, R-39, R-40 |
 | C5 | Identità e accessi | Autenticare, autorizzare e amministrare utenti, ruoli e client. | R-23…R-25 |
 | C6 | Osservazione | Raccogliere e servire campioni di stato del processo e dei database. | R-26 |
-| C7 | Client | Offrire operazioni tipizzate verso l'host di rete. | R-29, R-30, R-35 |
-| C8 | Interfaccia amministrativa | Offrire le superfici di amministrazione e di esplorazione. | R-32, R-33 |
+| C7 | Client | Offrire operazioni tipizzate verso l'host di rete. | R-29, R-30, R-35, R-40 |
+| C8 | Interfaccia amministrativa | Offrire le superfici di amministrazione e di esplorazione. | R-32, R-33, R-40 |
 | C9 | Distribuzione | Produrre gli artefatti installabili e le immagini. | R-31 |
 
 **Proprietà dei dati per componente.**
 
 | Componente | Dati posseduti |
 | --- | --- |
-| C1 | Voce, Contenuto, Record condiviso, Associazione, indice di posizione, registro di scrittura. |
-| C2 | Nodo del grafo e liste di adiacenza. |
+| C1 | Voce, Contenuto, Record condiviso, Associazione, vettore denso e vettore sparso della voce, indice di posizione, registro di scrittura. |
+| C2 | Nodo del grafo e liste di adiacenza; indice dei termini ed elenchi dei termini. |
 | C3 | Profilo di embedding, configurazione dei passaggi. Nessun dato utente. |
 | C4 | Catalogo dei database, database attivi. |
 | C5 | Utente, Ruolo, Client, Accesso al database. |
@@ -253,7 +278,7 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | C7 | C4 | Operazioni di scrittura, lettura, ricerca e transazione | Richiesta e risposta, con flussi di streaming in ingresso e in uscita |
 | C4 | C5 | Verifica dell'identità e del diritto sul database | Richiesta e risposta |
 | C4 | C1 | Ciclo di vita del database e operazioni sulle voci | Chiamata diretta |
-| C1 | C2 | Aggiunta, rimozione e interrogazione delle voci indicizzate | Chiamata diretta, asincrona per la costruzione |
+| C1 | C2 | Aggiunta, rimozione e interrogazione delle voci indicizzate, sia per il vettore denso sia per quello sparso | Chiamata diretta, asincrona per la costruzione |
 | C4 | C3 | Richiesta di vettori per un testo o un'immagine | Richiesta e risposta, locale o delegata |
 | C6 | C4 | Lettura dello stato dei database attivi e delle code | Sola lettura, periodica |
 
@@ -279,6 +304,8 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | Isolamento | Un solo scrittore per database; nessuna corruzione con due processi. | Il lock esclusivo è verificato. |
 | Accessibilità dell'interfaccia | Obiettivo non dichiarato. | Lacuna: nessun requisito né verifica. |
 | Internazionalizzazione dell'interfaccia | Una sola lingua disponibile: inglese (`en-us`). | Lacuna: nessun requisito, nessuna seconda lingua nel codice. |
+| Esattezza della ricerca sparsa | Nessuna voce mancante rispetto alla ricerca esaustiva, quando la potatura è attiva. | Da verificare: la potatura per limite superiore può scartare una voce ammessa dal filtro. |
+| Memoria dell'indice dei termini | Da dichiarare dopo la misura a 100.000 e 1.000.000 di voci. | Lacuna: nessuna misura disponibile. |
 
 **Criteri che implicano una forma distribuita.**
 
@@ -294,7 +321,7 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | Confine | Dati posseduti | Bisogno di dati altrui |
 | --- | --- | --- |
 | B1 Archivio | Voce, Contenuto, Record condiviso, Associazione | Nessuno |
-| B2 Indice di ricerca | Nodo del grafo, adiacenze | Vettori delle voci, posseduti da B1: attraversamento in lettura |
+| B2 Indice di ricerca | Nodo del grafo, adiacenze; indice dei termini ed elenchi dei termini | Vettori delle voci, posseduti da B1: attraversamento in lettura e prodotto scalare |
 | B3 Identità e accessi | Utente, Ruolo, Client, Accesso al database | Nessuno |
 | B4 Catalogo e host | Catalogo dei database, database attivi | Stato su disco posseduto da B1 |
 | B5 Osservazione | Campione di stato | Copia derivata dei dati di B4 e B1 |
@@ -324,6 +351,9 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | Tecnologia dell'interfaccia amministrativa | Deve offrire componenti per tabelle, grafi e temi. |
 | Forma della distribuzione | Deve permettere di separare il calcolo dei vettori e di lasciare l'archivio unitario. |
 | Formato degli artefatti | Deve produrre pacchetti installabili e immagini per le topologie documentate. |
+| Tecnologia dell'indice dei termini | Deve garantire persistenza, aggiornamento incrementale sotto un solo scrittore, cancellazione logica e ricostruzione dall'archivio. |
+| Forma della fusione fra denso e sparso | Deve produrre un ordine unico senza confrontare punteggi di scale diverse, con pesi dichiarati e parità deterministiche. |
+| Garanzia di esattezza della ricerca sparsa | Deve dichiarare se la ricerca può scartare risultati e a quali condizioni, e non deve mai scartarne con un filtro attivo. |
 
 ## Data model simplification
 
@@ -339,6 +369,7 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | `Passage` e `Vettore` | Il passaggio è una vista del testo, non un dato persistito | Il passaggio resta un valore di trasporto, non entra nel modello. |
 | `CollectionInfo` con campi di indice e `GraphSnapshot` | Sovrapposizione parziale | Il primo è una vista riassuntiva, il secondo è la struttura del grafo. Restano distinti e la sovrapposizione è dichiarata. |
 | `DatabaseUserAssociation` e l'utente | Il nome utente è copiato nell'associazione | Copia derivata dichiarata, con l'identificativo come riferimento. |
+| Vettore denso e vettore sparso della stessa voce | Due strutture che rappresentano lo stesso concetto | Un solo concetto, **Vettore**, con due slot vettoriali denominati: denso e sparso. Nessuna entità nuova. |
 
 **Modello canonico.**
 
@@ -346,10 +377,11 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | --- | --- | --- | --- | --- |
 | Database | Catalogo | nome, data di creazione | contiene Collezioni; ha Accessi | R-01, R-22 |
 | Collezione | Archivio | nome, dimensione attesa | appartiene a Database; contiene Voci | R-02 |
-| Voce | Archivio | chiave, riferimento al Record, vettore facoltativo, dimensione | appartiene a Collezione; referenzia Record; ha Associazione facoltativa | R-02, R-03, R-04 |
+| Voce | Archivio | chiave, riferimento al Record, vettore denso facoltativo con dimensione, vettore sparso facoltativo | appartiene a Collezione; referenzia Record; ha Associazione facoltativa | R-02, R-03, R-04, R-36 |
 | Record | Archivio | indice opaco, contenuto serializzato | è referenziato da Voci | R-11 |
 | Associazione | Archivio | chiave, indice del Record | collega Voce e Record | R-11 |
 | Nodo del grafo | Indice di ricerca | identificativo della voce, livello, adiacenze, stato di cancellazione | appartiene a Collezione | R-06, R-13 |
+| Elenco dei termini | Indice di ricerca | termine, chiave della voce, peso, stato di cancellazione | appartiene a Collezione; riferisce Voce | R-37, R-38, R-41 |
 | Utente | Identità | identificativo, nome, credenziali | ha Ruoli; ha Accessi | R-23, R-24 |
 | Ruolo | Identità | identificativo, nome, permessi | è assegnato a Utenti | R-24 |
 | Client | Identità | identificativo, segreto, indirizzi di ritorno | — | R-23 |
@@ -357,13 +389,15 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | Profilo di embedding | Calcolo dei vettori | nome, percorso del modello, opzioni, dimensione | — | R-19 |
 | Campione di stato | Osservazione | istante, CPU, memoria, code, dimensioni | riferisce Database e Collezioni | R-26 |
 
-**Viste derivate, non entità.** Dettagli del database, informazioni di collezione, snapshot del grafo, risultato di ricerca, risultato raggruppato, passaggio. Ognuna si calcola dal modello e non ha proprietario indipendente.
+**Viste derivate, non entità.** Dettagli del database, informazioni di collezione, snapshot del grafo, risultato di ricerca, risultato raggruppato, risultato fuso, passaggio. Ognuna si calcola dal modello e non ha proprietario indipendente.
 
-**Più vettori per documento.** Non è un'entità. Un documento con N passaggi è N Voci con lo stesso Record, più l'Associazione che le lega: le ricerche per passaggio restituiscono la voce, la ricerca raggruppata restituisce il documento una volta sola (R-10).
+**Più vettori per documento.** Non è un'entità. Un documento con N passaggi è N Voci con lo stesso Record, più l'Associazione che le lega: le ricerche per passaggio restituiscono la voce, la ricerca raggruppata restituisce il documento una volta sola (R-10). Il vettore sparso non cambia questa struttura: è un secondo slot della stessa Voce, non una seconda Voce.
 
-**Copertura inversa.** Ogni requisito trova i dati che gli servono nel modello: scrittura e ricerca su Voce e Record; raggruppamento su Record e Associazione; amministrazione su Database, Utente, Ruolo, Accesso; osservazione su Campione di stato; calcolo su Profilo di embedding. Nessun requisito richiede una struttura assente.
+**Copertura inversa.** Ogni requisito trova i dati che gli servono nel modello: scrittura e ricerca su Voce e Record; ricerca lessicale su Elenco dei termini; raggruppamento su Record e Associazione; amministrazione su Database, Utente, Ruolo, Accesso; osservazione su Campione di stato; calcolo su Profilo di embedding. Nessun requisito richiede una struttura assente.
 
 **Strutture rimosse.** L'elenco separato dei nomi di database, il contenitore per singola schermata dei dettagli, e il passaggio come entità persistita. Nessuna era richiesta.
+
+**Strutture non aggiunte.** Un tipo separato per il vettore sparso e una entità per la fusione: la prima è uno slot della Voce, la seconda è una vista derivata. Il termine è una dimensione, non un'entità: esiste solo dentro l'Elenco dei termini, che è dell'indice.
 
 ## Use-case catalogue
 
@@ -389,6 +423,9 @@ Il catalogo completo, con tabella di accoppiamento e percorsi, è in [Use-case c
 | UC-16 | Eseguire una transazione | A1, A2 | S-01, S-02, S-03 | Apertura, operazioni, conferma, annullamento |
 | UC-17 | Distribuire e aggiornare | A4 | S-05 | Locale: nessuna chiamata di rete |
 | UC-18 | Combinare risultati di più modalità | A1, A2 | S-01 client .NET | Locale: legge risultati già ottenuti |
+| UC-19 | Scrivere e rileggere una voce con vettore sparso | A1, A2 | S-01, S-02, S-03 | Operazioni di scrittura e lettura con il secondo slot vettoriale |
+| UC-20 | Cercare per vettore sparso | A1, A2, A3 | S-01, S-02, S-03, S-04 | Operazioni di ricerca per termini, con filtro e raggruppamento |
+| UC-21 | Cercare in ibrido e fondere | A1, A2, A3 | S-01, S-02, S-03, S-04 | Ricerca densa, ricerca sparsa e fusione in un ordinamento unico |
 
 **Lacune del catalogo.**
 
@@ -435,6 +472,12 @@ Il catalogo completo, con tabella di accoppiamento e percorsi, è in [Use-case c
 | R-33 | Provare una ricerca da interfaccia web | T-14 |
 | R-34 | Documentare API e configurazione | T-15 |
 | R-35 | Combinare i risultati di più modalità | T-12 |
+| R-36 | Conservare il vettore sparso | T-16 |
+| R-37 | Cercare per vettore sparso | T-17 |
+| R-38 | Filtro e raggruppamento sulla ricerca sparsa | T-17 |
+| R-39 | Fondere denso e sparso | T-17 |
+| R-40 | Parità fra superfici e client | T-18 |
+| R-41 | Osservare l'indice dei termini | T-16 |
 
 **Requisiti senza pacchetto.** Nessuno.
 
@@ -461,6 +504,9 @@ Il catalogo completo, con tabella di accoppiamento e percorsi, è in [Use-case c
 | T-13 | Produrre gli artefatti | Pacchetti installabili e immagini per le topologie. | Avvio di ogni topologia e chiamata di verifica. | T-08, T-11 | R-31 | Topologie e politica dei segreti |
 | T-14 | Offrire l'interfaccia amministrativa | Elenco, dettaglio, esplorazione, grafo, prova di ricerca. | Ogni schermata corrisponde a una chiamata e produce l'effetto dichiarato. | T-08, T-09, T-10 | R-32, R-33 | Superfici congelate e vocabolario dell'interfaccia |
 | T-15 | Documentare | Documentazione di API, configurazione e topologie. | Ogni parametro documentato esiste; ogni operazione documentata è raggiungibile. | T-08…T-14 | R-34 | — |
+| T-16 | Conservare e indicizzare i vettori sparsi | Secondo slot vettoriale persistito, indice dei termini ricostruibile e osservabile. | Riapertura di un archivio scritto prima dell'estensione; riconciliazione dopo un arresto; memoria misurata a 100.000 voci. | T-01, T-02, T-03 | R-36, R-41 | Formato del registro, estensione del record, forma dell'indice dei termini |
+| T-17 | Cercare per vettore sparso e fondere | Ricerca esatta, con filtro e raggruppamento, e fusione con la ricerca densa. | Confronto con la ricerca esaustiva; fusione con pesi a zero e a uno; parità deterministica. | T-04, T-16 | R-37, R-38, R-39 | Garanzia di esattezza, pesi della fusione |
+| T-18 | Esporre la parità dei vettori sparsi | Scrittura, ricerca e fusione sulle tre superfici, nei due client e nel workbench. | Matrice di operazioni verificate su ogni superficie; programma di esempio per client. | T-08, T-12, T-14, T-17 | R-40 | Contratti pubblici e vocabolario dell'interfaccia |
 
 **Prerequisiti di architettura distinti dalle lacune funzionali.** I prerequisiti elencati sono scelte di realizzazione. Nessuna lacuna funzionale impedisce un risultato: il comportamento atteso è chiaro per tutti i requisiti.
 
@@ -468,19 +514,21 @@ Il catalogo completo, con tabella di accoppiamento e percorsi, è in [Use-case c
 
 **Verdetto.** L'analisi è completa e pronta per l'architettura. Verdetto confermato dal secondo giro, che ha corretto le superfici dei vettori di immagine, aggiunto il flusso di fusione cross-modale e allineato il vocabolario dell'interfaccia al codice.
 
+**Incremento dei vettori sparsi.** Il giro di [scouting dedicato](../scouting/sparse-vectors/dossier.md) (scouting/sparse-vectors/dossier.md) ha aperto un secondo incremento, chiuso qui: sei requisiti nuovi, R-36…R-41, un secondo slot vettoriale sulla Voce, l'Elenco dei termini come struttura dell'indice, tre casi d'uso e tre pacchetti. L'incremento non riapre i requisiti esistenti: aggiunge capacità e lascia intatte le garanzie già accettate.
+
 **Chiusura del ciclo.** Il ciclo di elicitazione si chiude con questo verdetto. Non esiste un prototipo da esplorare: l'interfaccia amministrativa è in produzione e non deriva da un'esplorazione.
 
 **Lista di prontezza.**
 
 | Voce | Esito |
 | --- | --- |
-| Ogni requisito ha un criterio di accettazione | Sì, R-01…R-35. |
+| Ogni requisito ha un criterio di accettazione | Sì, R-01…R-41. |
 | Ogni requisito raggiunge un pacchetto | Sì, [Requirement traceability](#requirement-traceability) (dossier.md#requirement-traceability). |
 | Nessun pacchetto senza requisito | Sì. |
 | L'analisi tecnica non nomina tecnologie | Sì. |
 | Esiste il riferimento all'esperienza | Sì, [Experience reference](../ux-reference.md) (ux-reference.md). |
 | Ogni flusso del prototipo è portato o escluso con motivo | Non applicabile: nessun prototipo esplorato. |
-| Un solo modello canonico | Sì, [Data model simplification](#data-model-simplification) (dossier.md#data-model-simplification). |
+| Un solo modello canonico | Sì, [Data model simplification](#data-model-simplification) (dossier.md#data-model-simplification): il vettore sparso è un secondo slot della Voce, non una entità. |
 | Le domande funzionali aperte sono chiuse o nominate | Chiuse. Le lacune rilevate sono difetti del sistema attuale, non domande aperte. |
 
 **Cosa deve ancora decidere l'architettura.**
@@ -491,6 +539,8 @@ Il catalogo completo, con tabella di accoppiamento e percorsi, è in [Use-case c
 - Gli ambienti e la politica dei segreti e dei dati.
 - Il congelamento del modello canonico e del riferimento all'esperienza.
 - La correzione o la rimozione della superficie `search-filter` e delle rotte di menu inesistenti.
+- La tecnologia dell'indice dei termini, la garanzia di esattezza della ricerca sparsa e la forma della fusione, con i criteri della [Technical analysis](#technical-analysis) (dossier.md#technical-analysis).
+- L'estensione dei contratti e del formato del registro, con la migrazione dichiarata.
 
 **Stato del prototipo.** Non esiste un prototipo. L'interfaccia amministrativa è un artefatto di produzione, non un prototipo, e non è soggetta a promozione o rimozione.
 

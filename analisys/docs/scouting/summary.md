@@ -1,6 +1,6 @@
 # Scouting summary
 
-**Raccomandazione: ridurre lo scope.** Il prossimo ciclo si concentra sull’engine embedded, sulla prova like-for-like, sulla recall e sulla qualità degli embedding su dati reali, e sulla baseline di sicurezza. Indice KMeans/IVF, espansione GPU, scala orizzontale, ricerca ibrida e offerta gestita escono dal ciclo.
+**Raccomandazione: ridurre lo scope.** Il prossimo ciclo si concentra sull’engine embedded, sulla prova like-for-like, sulla recall e sulla qualità degli embedding su dati reali, e sulla baseline di sicurezza. Indice KMeans/IVF, espansione GPU, scala orizzontale, ricerca ibrida e offerta gestita escono dal ciclo. La ricerca ibrida è poi rientrata con un giro dedicato: vedi [Sparse vectors — scouting summary](sparse-vectors/summary.md) (sparse-vectors/summary.md).
 
 ## Scope
 
@@ -18,7 +18,7 @@ Fuori scope:
 - Indice KMeans/IVF.
 - Provider GPU oltre la validazione CUDA già avviata.
 - Sharding e replica lato server.
-- Ricerca ibrida con parole chiave.
+- Ricerca ibrida con parole chiave. Rientrata con il giro dedicato ai vettori sparsi, nello scope ridotto dei pesi forniti dal chiamante: [Sparse vectors — scouting summary](sparse-vectors/summary.md) (sparse-vectors/summary.md).
 - Documentazione della UI Jigen Insight.
 - Client ulteriori, pannello di controllo e offerta gestita.
 

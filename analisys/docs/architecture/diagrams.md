@@ -240,7 +240,9 @@ erDiagram
   COLLECTION ||--o{ ENTRY : "raggruppa"
   ENTRY }o--|| RECORD : "referenzia"
   ENTRY ||--o| ASSOCIATION : "ha"
+  ENTRY ||--o{ TERM_LIST : "contribuisce termini a"
   COLLECTION ||--o{ GRAPH_NODE : "indicizza"
+  COLLECTION ||--o{ TERM_LIST : "indicizza"
   USER ||--o{ ACCESS : "riceve"
   ROLE }o--o{ USER : "assegna"
   DATABASE ||--o{ ACCESS : "concede"
@@ -248,7 +250,7 @@ erDiagram
   SAMPLE }o--|| DATABASE : "misura"
 ```
 
-Il modello è quello dell'analisi, congelato. Il grafo resta separato dalla voce: possiede nodi e adiacenze e legge i vettori dall'archivio.
+Il modello è quello dell'analisi, congelato. Il grafo resta separato dalla voce: possiede nodi e adiacenze e legge i vettori dall'archivio. L'indice dei termini possiede l'elenco dei termini e riferisce la chiave della voce: nessun dato esiste solo nell'indice.
 
 ## 11. Data sources, actors and output types
 
@@ -309,7 +311,7 @@ flowchart LR
   CL["Client .NET o Python"]
   subgraph LIB["Topologia 1: libreria nel processo"]
     L1["Archivio embedded"]
-    L2["Indice per collezione"]
+    L2["Indice per collezione: denso e dei termini"]
     L3["Calcolo ONNX locale, facoltativo"]
     L3 -->|"vettori"| L1
     L1 -->|"voci"| L2
@@ -317,7 +319,7 @@ flowchart LR
   subgraph AIO["Topologia 2: container completo"]
     A1["REST + gRPC"]
     A2["Archivio"]
-    A3["Indice"]
+    A3["Indice denso e indice dei termini"]
     A4["Calcolo ONNX"]
     A1 -->|"comandi e query"| A2
     A2 -->|"voci"| A3
@@ -327,7 +329,7 @@ flowchart LR
   subgraph SPLIT["Topologia 3: server e lavoratori separati"]
     B1["REST + gRPC"]
     B2["Archivio"]
-    B3["Indice"]
+    B3["Indice denso e indice dei termini"]
     B1 -->|"comandi e query"| B2
     B2 -->|"voci"| B3
   end
@@ -355,3 +357,5 @@ flowchart LR
 | La superficie REST `search-filter` ignora il filtro | Nessun requisito la copre | T-08: rimozione decisa |
 | Nessuna verifica di accessibilità | L'obiettivo WCAG 2.2 AA non è misurato | T-14 |
 | Il registro di scrittura non è configurato dal server | La durabilità di R-12 dipende dalla configurazione | T-02 e T-13, con K-06 che lo attiva per default |
+| La memoria dell'indice dei termini non è misurata | Il limite dichiarabile e la scelta fra memoria e disco restano aperti | T-16, gate K-42 |
+| La potatura sparsa perde risultati | L'esattezza è dichiarata solo senza potatura o con filtro | T-17, K-39 |

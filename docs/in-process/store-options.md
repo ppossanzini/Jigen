@@ -15,6 +15,8 @@
 | `IndexerWorkers` | `int` | `clamp(ProcessorCount / 2, 1, 8)` | Number of background threads that build the index off the writer thread. Entries are distributed round-robin; the HNSW indexer supports concurrent inserts, so a single collection scales across all workers. |
 | `ReconcileOnUncleanShutdown` | `bool` | `true` | When true, opening a database that was not closed cleanly automatically reconciles the index with the store content before the constructor returns. |
 | `Wal` | `WalOptions` | `null` (disabled) | Write-Ahead Log configuration — see [Write-Ahead Log](#write-ahead-log-wal) below. |
+| `Sparse` | `SparseOptions` | `null` (defaults) | Configuration of the lexical slot. `MaxTerms` caps the non-zero terms accepted in one sparse vector (`1024`). |
+| `SparseIndex` | `ISparseIndex` | `null` (disabled) | Index over the lexical slot (`new SparseIndex()` from `Jigen.Indexers`). Null stores the slot without indexing it: the vectors are read back, they are not searchable. |
 
 ## Files on disk
 
@@ -28,6 +30,8 @@ A `Store` named `{name}` under `DataBasePath` creates:
 | `{name}.lock.jigen` | Exclusive lock for the database's lifetime; also the crash marker (see below). |
 | `{name}.shared.contents.jigen` | Shared metadata content records, append-only, addressed by a stable metadata index (see [Shared metadata](collections.md#shared-metadata)). |
 | `{name}.shared.associations.jigen` | Association log: one record per association, metadata update, embedding deletion and retirement. Replayed at startup to rebuild the association index. |
+| `{name}.sparse.jigen` | Sparse (lexical) vectors, append-only: `[id length][id][term count][(term)(weight)]*count`. Only created when an entry carries a lexical slot. |
+| `{name}.sparse.index.jigen` | Position log for the sparse file, mirroring `{name}.index.jigen`, with a tombstone for deletes. |
 | `{name}.wal.jigen` | **Optional** Write-Ahead Log: CRC32-protected, append-only, written *before* the ingestion queue for per-record durability. Truncated after each checkpoint. Only created when `WalOptions.Enabled = true`. |
 
 If an HNSW indexer is configured, it maintains its own files per collection under its `StoragePath` — see [HNSW index](../indexes/hnsw.md).
@@ -155,6 +159,7 @@ await tx.CommitAsync();  // all-or-nothing: BEGIN→ops→COMMIT in one Write()
 - Nested transactions are not supported — a `BEGIN` inside an open transaction stops replay at the previous valid position.
 - `ClearCollection` inside a transaction is not supported — treated the same as nested transactions.
 - Transactions require the WAL to be enabled — `CommitAsync()` throws `InvalidOperationException` if `WalOptions.Enabled` is `false`.
+- A sparse vector requires the WAL as well: writing an entry that carries a lexical slot with `WalOptions.Enabled = false` throws `InvalidOperationException` before any file is created or modified. Without the log the slot could not be recovered after a crash, so the write is refused rather than silently made durable only at the next checkpoint.
 
 ### Performance
 

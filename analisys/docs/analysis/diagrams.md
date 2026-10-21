@@ -66,6 +66,9 @@ flowchart LR
   A2 --> F07["F-07 Vettori di immagine"]
   A2 --> F18["F-18 Fusione cross-modale"]
   A2 --> F08["F-08 Passaggi"]
+  A2 --> F19["F-19 Vettore sparso"]
+  A2 --> F20["F-20 Cercare per termini"]
+  A2 --> F21["F-21 Cercare in ibrido"]
   A3["A3 Amministratore"] --> F09["F-09 Gestire i database"]
   A3 --> F11["F-11 Esplorare"]
   A3 --> F13["F-13 Provare una ricerca"]
@@ -75,6 +78,20 @@ flowchart LR
   F02 --> S02["S-02 REST"]
   F02 --> S03["S-03 Binaria"]
   F03 --> S01
+  F19 --> S01
+  F19 --> S02
+  F19 --> S03
+  F20 --> S01
+  F20 --> S02
+  F20 --> S03
+  F21 --> S01
+  F21 --> S02
+  F21 --> S03
+  F20 --> S04
+  F21 --> S04
+  F19 --> R36["R-36 Conservare lo sparso"]
+  F20 --> R37["R-37 Cercare per termini"]
+  F21 --> R39["R-39 Fondere denso e sparso"]
   F07 --> S01
   F07 --> S03
   F18 --> S01
@@ -125,6 +142,7 @@ flowchart LR
   end
   subgraph B2["B2 Indice di ricerca"]
     NODE["Nodo del grafo"]
+    TERM["Elenco dei termini"]
   end
   subgraph B3["B3 Identità e accessi"]
     USER["Utente"]
@@ -142,6 +160,7 @@ flowchart LR
     PROFILE["Profilo di embedding"]
   end
   NODE -- "legge i vettori posseduti da B1" --> VOICE
+  TERM -- "riferisce la chiave della voce posseduta da B1" --> VOICE
   ACTIVE -- "legge lo stato su disco posseduto da B1" --> VOICE
   SAMPLE -- "copia derivata da B4 e B1" --> ACTIVE
   ACCESS -- "riferisce il database posseduto da B4" --> DB
@@ -157,7 +176,9 @@ erDiagram
   COLLECTION ||--o{ ENTRY : "raggruppa"
   ENTRY }o--|| RECORD : "referenzia"
   ENTRY ||--o| ASSOCIATION : "ha"
+  ENTRY ||--o{ TERM_LIST : "contribuisce termini a"
   COLLECTION ||--o{ GRAPH_NODE : "indicizza"
+  COLLECTION ||--o{ TERM_LIST : "indicizza"
   USER ||--o{ ACCESS : "riceve"
   ROLE }o--o{ USER : "assegna"
   DATABASE ||--o{ ACCESS : "concede"
@@ -175,7 +196,14 @@ erDiagram
   ENTRY {
     bytes key PK
     int dimensions
-    bool hasVector
+    bool hasDenseVector
+    bool hasSparseVector
+  }
+  TERM_LIST {
+    int term PK
+    bytes key PK
+    float weight
+    bool deleted
   }
   RECORD {
     int index PK
@@ -701,6 +729,91 @@ flowchart LR
   C4 --> C5["Risultato con modalità di provenienza e punteggio grezzo"]
 ```
 
+### UC-19 Scrivere e rileggere una voce con vettore sparso
+
+```mermaid
+flowchart LR
+  U1["Azione: scrivere con solo denso"] --> O1["Operazione: scrittura con vettore denso"]
+  U2["Azione: scrivere con solo sparso"] --> O2["Operazione: scrittura con termini e pesi"]
+  U3["Azione: scrivere con entrambi"] --> O3["Operazione di scrittura con due slot"]
+  U4["Azione: rileggere la voce"] --> O4["Operazione: lettura per chiave"]
+  O1 --> S1["S-01"]
+  O2 --> S2["S-02"]
+  O2 --> S3["S-03"]
+  O3 --> S2
+  O4 --> S1
+```
+
+```mermaid
+flowchart LR
+  W0["Voce con pesi inviata"] --> W1{"Termini unici e crescenti"}
+  W1 -- "no" --> W2["Rifiuto 400 con il termine in errore"]
+  W1 -- "sì" --> W3{"Almeno un peso diverso da zero"}
+  W3 -- "no" --> W4["Rifiuto 400"]
+  W3 -- "sì" --> W5{"Entro il massimo di termini"}
+  W5 -- "no" --> W6["Rifiuto 400 con il limite"]
+  W5 -- "sì" --> W7["Voce accodata e termini indicizzati"]
+  W7 --> W8["Rilettura con le stesse coppie"]
+```
+
+### UC-20 Cercare per vettore sparso
+
+```mermaid
+flowchart LR
+  U1["Azione: cercare per termini"] --> O1["Operazione: ricerca sparsa con top-k"]
+  U2["Azione: cercare con filtro"] --> O2["Operazione: ricerca sparsa con predicato"]
+  U3["Azione: raggruppare per record condiviso"] --> O3["Operazione: ricerca sparsa raggruppata"]
+  U4["Azione: eseguire dal workbench"] --> O4["Operazione: ricerca sparsa"]
+  O1 --> S1["S-01"]
+  O1 --> S2["S-02"]
+  O4 --> S4["S-04"]
+```
+
+```mermaid
+flowchart LR
+  Q0["Query con termini"] --> Q1{"Almeno un termine valido"}
+  Q1 -- "no" --> Q2["Rifiuto 400"]
+  Q1 -- "sì" --> Q3{"Filtro presente"}
+  Q3 -- "sì" --> Q4["Visita completa degli elenchi, poi filtro"]
+  Q3 -- "no" --> Q5{"Potatura attiva"}
+  Q5 -- "sì" --> Q6["Salto degli elenchi sotto il limite superiore"]
+  Q5 -- "no" --> Q7["Visita completa degli elenchi"]
+  Q4 --> Q8["Top k per punteggio"]
+  Q6 --> Q8
+  Q7 --> Q8
+  Q8 --> Q9{"Raggruppamento richiesto"}
+  Q9 -- "sì" --> Q10["Un gruppo per record, con il punteggio massimo"]
+  Q9 -- "no" --> Q11["Voci ordinate"]
+```
+
+### UC-21 Cercare in ibrido e fondere
+
+```mermaid
+flowchart LR
+  U1["Azione: cercare con entrambi i vettori"] --> O1["Ricerca densa e ricerca sparsa"]
+  U2["Azione: dichiarare i pesi"] --> O2["Fusione in un ordinamento unico"]
+  U3["Azione: usare una sola modalità"] --> O3["Peso a zero sull'altra"]
+  O1 --> S2["S-02"]
+  O2 --> S3["S-03"]
+  O3 --> S1["S-01"]
+```
+
+```mermaid
+flowchart LR
+  H0["Richiesta ibrida"] --> H1{"Almeno un vettore fornito"}
+  H1 -- "no" --> H2["Rifiuto 400"]
+  H1 -- "sì" --> H3{"Pesi dichiarati"}
+  H3 -- "no" --> H4["Rifiuto 400"]
+  H3 -- "sì" --> H5{"Entrambi i pesi a zero"}
+  H5 -- "sì" --> H6["Rifiuto 400"]
+  H5 -- "no" --> H7{"Un peso a zero"}
+  H7 -- "sì" --> H8["Una sola modalità"]
+  H7 -- "no" --> H9["Due elenchi e fusione per posizione"]
+  H8 --> H10["Ordinamento unico"]
+  H9 --> H10
+  H10 --> H11["Parità risolta in modo deterministico"]
+```
+
 ## 8. Requirement to task traceability
 
 Caption: i requisiti che raggiungono i pacchetti e i due casi di fallimento.
@@ -719,6 +832,12 @@ flowchart LR
   R28["R-28 Delegare il calcolo"] --> T11["T-11 Delega"]
   R29["R-29 Client tipizzati"] --> T12["T-12 Client e provider"]
   R35["R-35 Fusione cross-modale"] --> T12
+  R36["R-36 Conservare il vettore sparso"] --> T16["T-16 Vettori sparsi"]
+  R41["R-41 Osservare l'indice dei termini"] --> T16
+  R37["R-37 Cercare per termini"] --> T17["T-17 Ricerca sparsa"]
+  R38["R-38 Filtro e raggruppamento"] --> T17
+  R39["R-39 Fondere denso e sparso"] --> T17
+  R40["R-40 Parità fra superfici"] --> T18["T-18 Parità"]
   R31["R-31 Distribuire"] --> T13["T-13 Artefatti"]
   R32["R-32 Esplorare da web"] --> T14["T-14 Interfaccia"]
   R34["R-34 Documentare"] --> T15["T-15 Documentazione"]
@@ -757,6 +876,12 @@ flowchart LR
   T01 --> T03["T-03 Operazioni sulle voci"]
   T02 --> T03
   T03 --> T04["T-04 Ricerca"]
+  T03 --> T16["T-16 Vettori sparsi"]
+  T16 --> T17["T-17 Ricerca sparsa"]
+  T04 --> T17
+  T17 --> T18["T-18 Parità"]
+  T12 --> T18
+  T14 --> T18
   T05["T-05 Calcolo dei vettori"] --> T06["T-06 Testo e ricerca"]
   T04 --> T06
   T03 --> T07["T-07 Record condivisi"]
@@ -781,7 +906,7 @@ flowchart LR
   T14 --> T15
 ```
 
-Catene che partono subito: T-01 e T-05.
+Catene che partono subito: T-01 e T-05. La catena dei vettori sparsi parte da T-01 e si innesta su T-03.
 
 ## 10. Data sources, actors and output types
 
@@ -884,3 +1009,5 @@ flowchart LR
 - La pagina impostazioni non ha funzioni e nessun requisito la copre.
 - Non esiste una direzione validata da un prototipo: il riferimento all'esperienza registra la direzione corrente come punto di partenza.
 - Il contrasto dei colori non è misurato. I diagrammi non usano palette personalizzate.
+- La ricerca sparsa con potatura può perdere risultati ammessi: l'esattezza è garantita solo senza potatura o con un filtro attivo.
+- La memoria dell'indice dei termini non è misurata: il limite dichiarabile è un'incognita aperta.

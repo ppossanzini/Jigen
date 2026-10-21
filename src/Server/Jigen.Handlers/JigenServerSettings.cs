@@ -1,4 +1,6 @@
 
+using Jigen.DataStructures;
+
 namespace Jigen.Handlers;
 
 public class JigenServerSettings
@@ -29,6 +31,28 @@ public class JigenServerSettings
   public string EmbeddingQueryTask { get; set; } = "search_query";
 
   public JigenIndexSettings Index { get; set; } = new();
+
+  public JigenWalSettings Wal { get; set; } = new();
+}
+
+/// <summary>
+/// Write-ahead log applied to every database. Enabled by default: a sparse
+/// vector cannot be stored without it (the write is refused, because the slot
+/// could not be recovered after a crash), and one group commit also bounds the
+/// data-loss window of every other write.
+/// </summary>
+public class JigenWalSettings
+{
+  public bool Enabled { get; set; } = true;
+
+  /// <summary><c>None</c>, <c>Group</c> or <c>PerWrite</c>.</summary>
+  public WalDurability Durability { get; set; } = WalDurability.Group;
+
+  /// <summary>Maximum time between fsync calls in <c>Group</c> mode.</summary>
+  public int MaxGroupDelayMs { get; set; } = 10;
+
+  /// <summary>Maximum batch count before a forced fsync in <c>Group</c> mode.</summary>
+  public int MaxGroupBatchCount { get; set; } = 8;
 }
 
 /// <summary>HNSW index parameters applied to every database.</summary>
@@ -60,4 +84,13 @@ public class JigenIndexSettings
   /// single reconciliation pass. Set to 0 to always build the graph eagerly.
   /// </summary>
   public int LazyHnswThreshold { get; set; } = 0;
+
+  /// <summary>
+  /// Enables the lexical index over sparse vectors. When false the sparse
+  /// slots are still stored and read back, they are just not searchable.
+  /// </summary>
+  public bool SparseEnabled { get; set; } = true;
+
+  /// <summary>Maximum number of non-zero terms accepted in one sparse vector.</summary>
+  public int SparseMaxTerms { get; set; } = SparseVector.DefaultMaxTerms;
 }

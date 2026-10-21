@@ -70,6 +70,16 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.SearchDocumentRequest> __Marshaller_jigen_SearchDocumentRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchDocumentRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SparseVector> __Marshaller_jigen_SparseVector = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SparseVector.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SearchSparseRequest> __Marshaller_jigen_SearchSparseRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchSparseRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SearchSparseByMetadataRequest> __Marshaller_jigen_SearchSparseByMetadataRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchSparseByMetadataRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SearchSparseByMetadataResponse> __Marshaller_jigen_SearchSparseByMetadataResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchSparseByMetadataResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SearchHybridRequest> __Marshaller_jigen_SearchHybridRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SearchHybridRequest.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.KeysResult> __Marshaller_jigen_KeysResult = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.KeysResult.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.StreamKeysRequest> __Marshaller_jigen_StreamKeysRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.StreamKeysRequest.Parser));
@@ -198,6 +208,38 @@ namespace Jigen.Proto {
         __ServiceName,
         "SearchDocument",
         __Marshaller_jigen_SearchDocumentRequest,
+        __Marshaller_jigen_SearchVectorResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.SparseVector> __Method_GetSparse = new grpc::Method<global::Jigen.Proto.ItemKey, global::Jigen.Proto.SparseVector>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "GetSparse",
+        __Marshaller_jigen_ItemKey,
+        __Marshaller_jigen_SparseVector);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.SearchSparseRequest, global::Jigen.Proto.SearchVectorResponse> __Method_SearchSparse = new grpc::Method<global::Jigen.Proto.SearchSparseRequest, global::Jigen.Proto.SearchVectorResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "SearchSparse",
+        __Marshaller_jigen_SearchSparseRequest,
+        __Marshaller_jigen_SearchVectorResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.SearchSparseByMetadataRequest, global::Jigen.Proto.SearchSparseByMetadataResponse> __Method_SearchSparseByMetadata = new grpc::Method<global::Jigen.Proto.SearchSparseByMetadataRequest, global::Jigen.Proto.SearchSparseByMetadataResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "SearchSparseByMetadata",
+        __Marshaller_jigen_SearchSparseByMetadataRequest,
+        __Marshaller_jigen_SearchSparseByMetadataResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.SearchHybridRequest, global::Jigen.Proto.SearchVectorResponse> __Method_SearchHybrid = new grpc::Method<global::Jigen.Proto.SearchHybridRequest, global::Jigen.Proto.SearchVectorResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "SearchHybrid",
+        __Marshaller_jigen_SearchHybridRequest,
         __Marshaller_jigen_SearchVectorResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
@@ -487,6 +529,37 @@ namespace Jigen.Proto {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
+      /// <summary>
+      /// ── Sparse (lexical) slot: exact search over caller-provided term weights,
+      ///     grouped search, and the fusion of the two modalities. ──
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.SparseVector> GetSparse(global::Jigen.Proto.ItemKey request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.SearchVectorResponse> SearchSparse(global::Jigen.Proto.SearchSparseRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.SearchSparseByMetadataResponse> SearchSparseByMetadata(global::Jigen.Proto.SearchSparseByMetadataRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.SearchVectorResponse> SearchHybrid(global::Jigen.Proto.SearchHybridRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.Result> DeleteVector(global::Jigen.Proto.ItemKey request, grpc::ServerCallContext context)
       {
@@ -723,6 +796,10 @@ namespace Jigen.Proto {
           .AddMethod(__Method_SetDocuments, serviceImpl.SetDocuments)
           .AddMethod(__Method_SearchVector, serviceImpl.SearchVector)
           .AddMethod(__Method_SearchDocument, serviceImpl.SearchDocument)
+          .AddMethod(__Method_GetSparse, serviceImpl.GetSparse)
+          .AddMethod(__Method_SearchSparse, serviceImpl.SearchSparse)
+          .AddMethod(__Method_SearchSparseByMetadata, serviceImpl.SearchSparseByMetadata)
+          .AddMethod(__Method_SearchHybrid, serviceImpl.SearchHybrid)
           .AddMethod(__Method_DeleteVector, serviceImpl.DeleteVector)
           .AddMethod(__Method_GetAllKeys, serviceImpl.GetAllKeys)
           .AddMethod(__Method_StreamKeys, serviceImpl.StreamKeys)
@@ -767,6 +844,10 @@ namespace Jigen.Proto {
       serviceBinder.AddMethod(__Method_SetDocuments, serviceImpl == null ? null : new grpc::ClientStreamingServerMethod<global::Jigen.Proto.Document, global::Jigen.Proto.IngestResult>(serviceImpl.SetDocuments));
       serviceBinder.AddMethod(__Method_SearchVector, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.SearchVectorRequest, global::Jigen.Proto.SearchVectorResponse>(serviceImpl.SearchVector));
       serviceBinder.AddMethod(__Method_SearchDocument, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.SearchDocumentRequest, global::Jigen.Proto.SearchVectorResponse>(serviceImpl.SearchDocument));
+      serviceBinder.AddMethod(__Method_GetSparse, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ItemKey, global::Jigen.Proto.SparseVector>(serviceImpl.GetSparse));
+      serviceBinder.AddMethod(__Method_SearchSparse, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.SearchSparseRequest, global::Jigen.Proto.SearchVectorResponse>(serviceImpl.SearchSparse));
+      serviceBinder.AddMethod(__Method_SearchSparseByMetadata, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.SearchSparseByMetadataRequest, global::Jigen.Proto.SearchSparseByMetadataResponse>(serviceImpl.SearchSparseByMetadata));
+      serviceBinder.AddMethod(__Method_SearchHybrid, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.SearchHybridRequest, global::Jigen.Proto.SearchVectorResponse>(serviceImpl.SearchHybrid));
       serviceBinder.AddMethod(__Method_DeleteVector, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ItemKey, global::Jigen.Proto.Result>(serviceImpl.DeleteVector));
       serviceBinder.AddMethod(__Method_GetAllKeys, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.KeysResult>(serviceImpl.GetAllKeys));
       serviceBinder.AddMethod(__Method_StreamKeys, serviceImpl == null ? null : new grpc::ServerStreamingServerMethod<global::Jigen.Proto.StreamKeysRequest, global::Jigen.Proto.KeysResult>(serviceImpl.StreamKeys));

@@ -1,7 +1,7 @@
 # Stack Profile
 
 Status: Locked
-Round: 2 (2026-10-21)
+Round: 2 + incremento vettori sparsi (2026-10-21)
 Input criteria: [Technical analysis](../analysis/dossier.md#technical-analysis) (analysis/dossier.md#technical-analysis)
 
 ## Slots
@@ -15,6 +15,8 @@ Input criteria: [Technical analysis](../analysis/dossier.md#technical-analysis) 
 | Mapping | MapZilla | 9.1.5 | Conversione fra contratti e modelli senza codice ripetuto |
 | Archivio su file | Jigen.Store (proprietario) | in-repo | Append-only, mappatura in memoria, lock esclusivo, recupero dopo arresto |
 | Indice approssimato | Jigen.Indexer.HNSW (proprietario) | in-repo | Persistenza su disco, inserimenti concorrenti, cancellazione logica, quantizzazione |
+| Indice dei termini | Jigen.Indexer.Sparse (proprietario) | in-repo | Indice invertito persistente, ricostruibile, sotto lo stesso scrittore singolo |
+| Fusione dei risultati | Implementazione propria di RRF nel server | in-repo | Ordine unico senza confronto fra scale, deterministico |
 | Numerica | System.Numerics.Tensors + System.IO.Hashing | 10.0.9 | Distanze e hash senza allocazioni per voce |
 | Serializzazione persistita | MessagePack | 3.1.7 | Contenuto e strutture dell'indice compatti e versionabili |
 | Serializzazione REST | Newtonsoft.Json | 13.0.4 | Payload JSON con oggetti polimorfi |
@@ -45,5 +47,7 @@ Input criteria: [Technical analysis](../analysis/dossier.md#technical-analysis) 
 | Database relazionale per i dati del prodotto | Assente | Solo l'identità usa un database relazionale; voci e indici restano su file |
 | Serie temporali per le metriche | Assente | I campioni vivono in memoria nel processo |
 | Provider `Microsoft.Extensions.VectorData` | Assente | Nessun progetto lo implementa: resta un obbligo di R-30 |
+| Generazione dei vettori sparsi (SPLADE, ELSER, pesi BGE-M3) | Assente | I pesi sono forniti dal chiamante: decisione dello scouting sui vettori sparsi |
+| Analizzatore di testo e BM25 nel server | Assente | Nessun requisito; cambierebbe la natura del prodotto |
 | Seconda lingua dell'interfaccia | Assente | Solo `en-us` nel repository |
 | Telemetria distribuita | Assente | Nessun requisito di tracciamento fra processi |

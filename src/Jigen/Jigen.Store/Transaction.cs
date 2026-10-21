@@ -89,7 +89,8 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
         totalWalSize += WalRecord.InsertRecordSize(
           e.Id, e.CollectionName,
           e.Content.IsEmpty ? null : e.Content.ToArray(),
-          e.Embedding.IsEmpty ? null : e.Embedding.ToArray());
+          e.Embedding.IsEmpty ? null : e.Embedding.ToArray(),
+          e.Sparse);
       }
       else
       {
@@ -173,7 +174,7 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
   {
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
     var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
-    return WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding);
+    return WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding, entry.Sparse);
   }
 
   /// <summary>Rolls back if not yet committed.</summary>

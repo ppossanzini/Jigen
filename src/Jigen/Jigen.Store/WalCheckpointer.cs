@@ -108,6 +108,10 @@ public class WalCheckpointer
     _store.ContentFileStream!.Flush(true);
     _store.EmbeddingFileStream!.Flush(true);
     _store.IndexFileStream!.Flush(true);
+    // The sparse files are part of the durable state: truncating the log
+    // before they reach the disk would lose a confirmed write.
+    _store.SparseFileStream?.Flush(true);
+    _store.SparseIndexFileStream?.Flush(true);
 
     // No appends can race us while WalLock is held and all accepted work has
     // drained. The data/index files are durable, so the complete WAL prefix can

@@ -93,7 +93,7 @@ Criteri di accettazione: nessun risultato supera `top`; l'ordine è per punteggi
 - Attori: A1, A2.
 - Obiettivo: restringere i risultati a un sottoinsieme.
 - Punto di ingresso: ricerca con predicato.
-
+https://www.amazon.it/Funzioni-Bluetooth-Sostituibile-Localizzatore-Portafoglio/dp/B0H6LK3VGQ/ref=sr_1_8?__mk_it_IT=%C3%85M%C3%85%C5%BD%C3%95%C3%91&sr=8-8
 | Azione | Operazione | Superficie | Stato dopo la chiamata |
 | --- | --- | --- | --- |
 | Filtrare per uguaglianza | Ricerca con predicato | S-01, S-03 | Solo voci corrispondenti |
@@ -501,3 +501,85 @@ Percorsi:
 | Interruzione | Il chiamante abbandona | Nessun effetto: non c'è stato | Nessuna |
 
 Criteri di accettazione: il migliore di ogni gruppo non finisce sistematicamente in fondo; il punteggio grezzo resta leggibile accanto a quello calibrato.
+
+## UC-19 Scrivere e rileggere una voce con vettore sparso
+
+- Attori: A1, A2.
+- Obiettivo: conservare una voce con un vettore denso, un vettore sparso, o entrambi, e rileggerla.
+- Punto di ingresso: scrittura di una voce con pesi lessicali.
+
+| Azione | Operazione | Superficie | Stato dopo la chiamata |
+| --- | --- | --- | --- |
+| Scrivere con solo denso | Operazione di scrittura con vettore denso | S-01, S-02, S-03 | Voce con il solo slot denso |
+| Scrivere con solo sparso | Operazione di scrittura con termini e pesi | S-01, S-02, S-03 | Voce con il solo slot sparso |
+| Scrivere con entrambi | Operazione di scrittura con i due slot | S-01, S-02, S-03 | Voce con entrambi |
+| Rileggere la voce | Operazione di lettura per chiave | S-01, S-02, S-03 | Coppie termine-peso identiche a quelle scritte |
+
+Percorsi:
+
+| Percorso | Innesto | Risultato osservabile | Comportamento del backend |
+| --- | --- | --- | --- |
+| Principale | Termini unici e crescenti, un peso per termine | Voce leggibile con gli stessi pesi | Registra la voce, la accoda e aggiorna l'indice dei termini |
+| Alternativo | Voce aggiornata con un nuovo vettore sparso | Il vettore precedente è sostituito | Sostituisce lo slot e ritira i termini non più presenti |
+| Alternativo | Solo denso, o nessun vettore | Voce valida senza slot sparso | Nessun termine indicizzato |
+| Eccezione | Termini duplicati o non crescenti | Rifiuto `400` con il termine in errore | Nessuna scrittura |
+| Eccezione | Numero di termini oltre il massimo configurato | Rifiuto `400` con il limite | Nessuna scrittura |
+| Eccezione | Pesi tutti nulli | Rifiuto `400` | Nessuna scrittura |
+| Interruzione | Il chiamante abbandona | La scrittura accettata resta accettata | Nessun effetto sul registro |
+
+Criteri di accettazione: la rilettura restituisce esattamente le coppie scritte; una voce senza vettori resta valida.
+
+## UC-20 Cercare per vettore sparso
+
+- Attori: A1, A2, A3.
+- Obiettivo: trovare le voci che condividono termini con la query, ordinate per peso.
+- Punto di ingresso: ricerca per termini su una collezione, dall'API o dal workbench.
+
+| Azione | Operazione | Superficie | Stato dopo la chiamata |
+| --- | --- | --- | --- |
+| Cercare per termini | Operazione di ricerca sparsa con top-k | S-01, S-02, S-03 | Elenco ordinato con chiave, contenuto e punteggio |
+| Cercare con filtro | Operazione di ricerca sparsa con predicato | S-01, S-03 | Solo voci ammesse dal predicato |
+| Raggruppare per record condiviso | Operazione di ricerca sparsa raggruppata con budget | S-01, S-02, S-03 | Al più `top` gruppi, con il punteggio massimo |
+| Eseguire dal workbench | Operazione di ricerca sparsa | S-04 | Risultati con punteggio e tempi di fase |
+
+Percorsi:
+
+| Percorso | Innesto | Risultato osservabile | Comportamento del backend |
+| --- | --- | --- | --- |
+| Principale | Almeno un termine presente nella collezione | Voci ordinate per punteggio decrescente | Somma i pesi delle dimensioni condivise |
+| Alternativo | Termini assenti dalla collezione | Risultato vuoto, nessun errore | Nessun elenco da visitare |
+| Alternativo | Filtro attivo | Solo le voci ammesse; nessun risultato mancante | Sospende la potatura e visita gli elenchi per intero |
+| Alternativo | Potatura attiva senza filtro | Al più `top` risultati, con la perdita dichiarata | Salta gli elenchi il cui limite superiore non può entrare nel top-k |
+| Alternativo | Collezione senza indice | Risultato vuoto | Nessuna struttura da interrogare |
+| Eccezione | Query senza termini | Rifiuto `400` | Nessuna ricerca |
+| Eccezione | Termine negativo o peso non finito | Rifiuto `400` | Nessuna ricerca |
+| Interruzione | Il chiamante annulla | Torna subito | Rilascia la ricerca |
+
+Criteri di accettazione: senza potatura nessuna voce ammessa manca; con un filtro attivo il risultato coincide con la ricerca esaustiva.
+
+## UC-21 Cercare in ibrido e fondere
+
+- Attori: A1, A2, A3.
+- Obiettivo: ottenere un ordinamento unico da una ricerca densa e una sparsa.
+- Punto di ingresso: ricerca con entrambi i vettori e i pesi della fusione.
+
+| Azione | Operazione | Superficie | Stato dopo la chiamata |
+| --- | --- | --- | --- |
+| Cercare in ibrido | Ricerca densa, ricerca sparsa e fusione | S-01, S-02, S-03 | Ordinamento unico con la modalità di provenienza |
+| Cercare in ibrido dal workbench | Stessa operazione | S-04 | Risultati con punteggio fuso e tempi per fase |
+| Usare una sola modalità | Peso a zero su una delle due | S-01, S-02, S-03 | Il risultato coincide con l'altra modalità |
+
+Percorsi:
+
+| Percorso | Innesto | Risultato osservabile | Comportamento del backend |
+| --- | --- | --- | --- |
+| Principale | Entrambe le modalità disponibili e pesi validi | Un solo elenco ordinato, con provenienza e punteggio | Esegue le due ricerche e le fonde per posizione |
+| Alternativo | Una modalità senza risultati | Restano i risultati dell'altra | Fonde un solo elenco |
+| Alternativo | Peso a zero | Il risultato coincide con l'altra modalità | Esegue una sola ricerca |
+| Alternativo | Parità di posizione | Ordine deterministico fra le due modalità | Rompe la parità in modo dichiarato |
+| Eccezione | Entrambi i pesi a zero | Rifiuto `400` | Nessuna ricerca |
+| Eccezione | Nessuno dei due vettori fornito | Rifiuto `400` | Nessuna ricerca |
+| Eccezione | Pesi non dichiarati con entrambi i vettori | Rifiuto `400` | Nessuna ricerca |
+| Interruzione | Il chiamante annulla | Torna subito | Rilascia le due ricerche |
+
+Criteri di accettazione: un risultato ben posizionato in entrambi gli elenchi precede uno ben posizionato in uno solo; con un peso a zero l'esito coincide con la modalità rimasta.

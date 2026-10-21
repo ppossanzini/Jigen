@@ -83,9 +83,18 @@ public partial class Store : IStore, IDisposable
 
   internal void ValidateVectorDimensions(VectorEntry entry)
   {
-    if (entry is null || entry.Embedding.IsEmpty) return;
+    if (entry is null || (entry.Embedding.IsEmpty && entry.Sparse is null)) return;
     if (string.IsNullOrWhiteSpace(entry.CollectionName))
       throw new ArgumentException("Collection name cannot be empty.", nameof(entry));
+
+    // A sparse-only entry has no dimensions to compare, but its terms still
+    // obey the configured cap. An entry that was validated by SparseVector.Create
+    // already satisfies this; the check also covers instances built by hand.
+    if (entry.Sparse is not null)
+      SparseVector.Validate(entry.Sparse.TermsSpan, entry.Sparse.WeightsSpan,
+        Options.Sparse?.MaxTerms ?? SparseVector.DefaultMaxTerms);
+
+    if (entry.Embedding.IsEmpty) return;
 
     var dimensions = entry.Embedding.Length;
     var expected = _collectionDimensions.GetOrAdd(entry.CollectionName, dimensions);
@@ -140,6 +149,8 @@ public partial class Store : IStore, IDisposable
     foreach (var file in sharedFiles.Skip(1))
       yield return file;
     yield return ContentFullFileName;
+    if (File.Exists(SparseFullFileName)) yield return SparseFullFileName;
+    if (File.Exists(SparseIndexFullFileName)) yield return SparseIndexFullFileName;
     if (_activeStoreGeneration is not null)
       yield return Path.Combine(Options.DataBasePath, MigrationManifestName + ".json");
     if (Options.Wal?.Enabled == true)
@@ -165,6 +176,9 @@ public partial class Store : IStore, IDisposable
 
     if (Options.Indexer is IExplorableIndex explorable)
       info.Index = explorable.GetIndexInfo(name);
+
+    if (Options.SparseIndex is not null)
+      info.Sparse = Options.SparseIndex.GetInfo(name);
 
     return info;
   }
@@ -192,6 +206,7 @@ public partial class Store : IStore, IDisposable
           FilePath = ResolveDataFile(Options.DataBaseName + ".shared.associations.jigen")
         });
       this.LoadIndex();
+      this.LoadSparseIndex();
       this.ReadHeader();
 
       // WAL recovery: apply any records written after the last checkpoint
@@ -239,10 +254,66 @@ public partial class Store : IStore, IDisposable
   /// </summary>
   public async Task ReconcileIndexAsync()
   {
+    // The sparse position log is derived from the data file: rebuild it before
+    // the dense reconciliation, so both indexes see the same live key set.
+    if (SparseFilesExist)
+    {
+      lock (IndexAppendLock)
+      {
+        ReconcileSparse();
+        RewriteSparsePositionLog();
+      }
+
+      Options.SparseIndex?.ClearAll();
+    }
+
     if (Options.Indexer is null) return;
 
     await Options.Indexer.ReconcileAsync(this);
     await Options.Indexer.FlushAsync();
+  }
+
+  private readonly Lock _sparseBuildLock = new();
+
+  /// <summary>
+  /// Builds the lexical index of a collection on first use. Opening a database
+  /// never pays for it: the cost is paid by the first sparse search, which is
+  /// also the moment the archive is guaranteed to hold every accepted write.
+  /// </summary>
+  internal void EnsureSparseIndexBuilt(string collection)
+  {
+    var sparseIndex = Options.SparseIndex;
+    if (sparseIndex is null || collection is null) return;
+    if (sparseIndex.IsBuilt(collection)) return;
+
+    lock (_sparseBuildLock)
+    {
+      if (sparseIndex.IsBuilt(collection)) return;
+      RebuildSparseIndex(collection);
+      if (!sparseIndex.IsBuilt(collection))
+        sparseIndex.Rebuild(collection, []);
+    }
+  }
+
+  /// <summary>Rebuilds the lexical index of one collection from the archive.</summary>
+  internal void RebuildSparseIndex(string collection)
+  {
+    var sparseIndex = Options.SparseIndex;
+    if (sparseIndex is null) return;
+    if (!SparsePositionIndex.TryGetValue(collection, out var positions))
+    {
+      sparseIndex.Rebuild(collection, []);
+      return;
+    }
+
+    var entries = new List<(byte[] Key, SparseVector Vector)>(positions.Count);
+    foreach (var key in positions.Keys)
+    {
+      var vector = GetSparse(collection, key);
+      if (vector is not null) entries.Add((key, vector));
+    }
+
+    sparseIndex.Rebuild(collection, entries);
   }
 
   internal void EnableWriting()
@@ -325,6 +396,8 @@ public partial class Store : IStore, IDisposable
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
     this.IndexFileStream.Flush(true);
+    SparseFileStream?.Flush(true);
+    SparseIndexFileStream?.Flush(true);
 
     // Fail loud: entries accepted by AppendContent that the background writer
     // could not persist or index would otherwise be lost silently.
@@ -418,6 +491,8 @@ public partial class Store : IStore, IDisposable
     this.ContentFileStream.Flush(true);
     this.EmbeddingFileStream.Flush(true);
     this.IndexFileStream.Flush(true);
+    SparseFileStream?.Flush(true);
+    SparseIndexFileStream?.Flush(true);
 
     if (_contentData is not null && !_contentData.SafeMemoryMappedFileHandle.IsClosed) _contentData.SafeMemoryMappedFileHandle.Close();
     if (_embeddingsData is not null && !_embeddingsData.SafeMemoryMappedFileHandle.IsClosed) _embeddingsData.SafeMemoryMappedFileHandle.Close();
@@ -425,6 +500,8 @@ public partial class Store : IStore, IDisposable
     this.ContentFileStream.Close();
     this.EmbeddingFileStream.Close();
     this.IndexFileStream.Close();
+    SparseFileStream?.Close();
+    SparseIndexFileStream?.Close();
 
     if (WalFileStream is not null)
       WalFileStream.Close();

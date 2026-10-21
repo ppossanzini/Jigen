@@ -53,6 +53,8 @@ Diagrammi non applicabili: nessuno. Lacune del set: vedi [Architecture diagrams]
 | Forma della distribuzione | Tre topologie: libreria, container completo, server e lavoratori separati | Il calcolo dei vettori cresce separatamente, l'archivio resta unitario |
 | Formato degli artefatti | NuGet per le librerie, immagini OCI per le topologie | Installazione nel processo e avvio in container dallo stesso codice |
 | Forma della superficie | REST e gRPC sullo stesso dispatcher | Parità di comportamento fra superficie testuale e binaria |
+| Indice dei termini | Jigen.Indexer.Sparse proprietario | Indice invertito su file mappati, ricostruibile dall'archivio, sotto lo stesso scrittore singolo |
+| Fusione denso e sparso | Fusione per posizione implementata nel server | Non confronta punteggi di scale diverse; uguale esito su entrambe le superfici |
 
 **Alternative scartate.** Non sono conservate: la scelta è una sola per slot e il criterio che l'ha esclusa resta nel criterio, non in una nota.
 
@@ -145,6 +147,17 @@ Vincoli verificabili. Un vincolo senza soglia, cancello o divieto non è un vinc
 | Id | Vincolo | Verifica |
 | --- | --- | --- |
 | K-34 | Solo dipendenze con licenza permissiva compatibile con la ridistribuzione del pacchetto e dell'immagine. | Revisione della licenza alla prima introduzione della dipendenza. |
+| K-35 | La voce ha due slot vettoriali denominati, denso e sparso, entrambi facoltativi. Il vettore sparso non entra nel controllo della dimensione della collezione. | Scrittura di una voce con solo sparso in una collezione con dimensione densa già fissata: accettata. |
+| K-36 | Il vettore sparso ha termini unici e strettamente crescenti, pesi finiti e non negativi, almeno un peso maggiore di zero, al più 1.024 termini. Il limite è configurabile e il superamento è un rifiuto `400`. | Scrittura con termini duplicati, non ordinati, con peso negativo o oltre il limite: rifiutata con il termine in errore. |
+| K-37 | Il formato persistito porta un numero di versione nel manifest di generazione, che governa la riapertura e la migrazione; il registro di scrittura resta autodescrittivo e riconosce la sezione sparsa dalla lunghezza residua del record. Un archivio scritto dalla versione precedente si apre e viene aggiornato alla prima scrittura. | Riapertura di un archivio preesistente, con contenuti e vettori intatti, e scrittura successiva riuscita; record senza sezione sparsa letti senza errore. |
+| K-38 | L'indice dei termini è ricostruibile dall'archivio: nessun dato esiste solo nell'indice. | Cancellazione dei file dell'indice, riapertura e ricerca invariata. |
+| K-39 | La ricerca sparsa è esatta per default. La potatura è opt-in per query, mai con un filtro attivo, e il risultato dichiara se è stata usata. | Confronto con la ricerca esaustiva: identico con filtro e con potatura spenta. |
+| K-40 | La fusione è per posizione, con pesi non negativi; entrambi a zero è un rifiuto `400`; un peso a zero produce il risultato dell'altra modalità; la parità si rompe per chiave crescente. | Matrice di pesi 0, 0,5, 1 su due elenchi noti: ordine atteso e deterministico. |
+| K-41 | Scrittura, ricerca sparsa e fusione hanno lo stesso esito e lo stesso ordine su API in-process, superficie REST e superficie binaria, e sono esposte dai due client. | Matrice di operazioni per superficie e programma di esempio per client. |
+| K-42 | Il costo in memoria dell'indice dei termini a 100.000 voci è misurato e dichiarato prima del rilascio; oltre la soglia misurata l'indice passa su disco. | Misura registrata nel banco e soglia scritta nella documentazione di configurazione. |
+| K-43 | L'eliminazione di una voce ritira i suoi termini alla compattazione successiva; l'informazione di collezione riporta i termini ritirati. | Due voci sullo stesso termine, una eliminata: la ricerca non la restituisce e il conteggio dei ritirati cresce. |
+| K-44 | Ogni scrittura attraversa il registro di scrittura prima di toccare qualunque file di dati. Una scrittura che porta un vettore sparso con il registro disattivato è rifiutata con un messaggio esplicito, e nessun file viene creato o modificato. | Store con registro disattivato: la scrittura con termini fallisce senza effetti; con registro attivo la registrazione precede la coda e i file. |
+| K-45 | Il checkpoint rende durevole anche il file dei vettori sparsi, e solo dopo tronca il registro; la compattazione riscrive e scambia il file sparso insieme agli altri tre. | Arresto subito dopo un checkpoint: nessuna voce con termini risulta mancante; compattazione con spazio morto sparso: posizioni coerenti. |
 
 ## Pattern decisions
 
@@ -168,16 +181,89 @@ Ogni forma dichiara il vincolo o il requisito che la impone.
 | P-14 | SPA statica servita dalla stessa origine del server, che ne è l'unico backend. | R-32, R-33, K-27 |
 | P-15 | Rimozione della superficie REST `search-filter`: nessun requisito la copre e il filtro è disponibile su S-01 e S-03. | R-08 |
 | P-16 | Errori: `400` contratto non valido, `401` non autenticato, `404` database o chiave non accessibile, `409` conflitto di identità, `423` database in uso, `5xx` errore interno. | R-02, R-23, K-10, K-20 |
+| P-17 | Due slot vettoriali denominati sulla voce; il vettore sparso vive in un proprio file di dati, non in quello dei vettori densi. | R-36, K-35 |
+| P-18 | Contratto d'indice parallelo per gli sparsi, composto per collezione in modo indipendente dall'indice denso. | R-37, K-35 |
+| P-19 | Indice invertito con elenchi ordinati per peso decrescente, tombstone, ricostruzione dall'archivio all'apertura. | R-37, R-41, K-38, K-43 |
+| P-20 | Potatura per limite superiore solo senza filtro e solo su richiesta; l'esattezza è dichiarata nella risposta. | R-38, K-39 |
+| P-21 | Fusione per posizione nel server, con pesi dichiarati; la calibrazione del client resta per le modalità diverse. | R-39, K-40 |
+| P-22 | Il vettore sparso attraversa il registro di scrittura nella stessa registrazione della voce, prima di ogni scrittura su file, e si riconcilia con la stessa procedura; senza registro la scrittura sparsa è rifiutata. | R-36, K-37, K-38, K-44, K-45 |
 
 **Forma distribuita.** Le tre topologie rispondono al criterio registrato nell'analisi: il calcolo dei vettori cresce separatamente perché è limitato da CPU o acceleratore, l'archivio resta unitario perché nessun requisito chiede replica o scala orizzontale.
 
 | Unità | Dati posseduti | Copie derivate |
 | --- | --- | --- |
-| Server | Catalogo, voci, record, associazioni, grafo, utenti, ruoli, accessi | Campioni di stato |
+| Server | Catalogo, voci, record, associazioni, grafo, indice dei termini, utenti, ruoli, accessi | Campioni di stato |
 | Lavoratore | Profili di embedding configurati | Nessuna |
 | SPA | Stato di sessione nel browser | Nessuna |
 | Libreria | Archivio nel processo chiamante | Nessuna |
 | Broker | Code delle richieste | Nessuna |
+
+## Incremento: vettori sparsi
+
+Giro aperto dallo [scouting dedicato](../scouting/sparse-vectors/dossier.md) (scouting/sparse-vectors/dossier.md) e chiuso dall'incremento di [analisi](../analysis/dossier.md#functional-analysis) (analysis/dossier.md#functional-analysis), R-36…R-41. Nessuna nuova unità distribuibile: l'indice dei termini vive dove vive l'indice denso.
+
+**Forma decisa.**
+
+| Elemento | Forma |
+| --- | --- |
+| Slot vettoriale | La voce porta `dense` e `sparse`, entrambi facoltativi, con nomi nei contratti |
+| Record | Il vettore sparso ha una sezione variabile propria in un file di dati separato: non ha dimensione, quindi non sta nel file dei vettori densi |
+| Registro | La registrazione di inserimento trasporta la sezione sparsa opzionale; la versione del formato cresce e la migrazione è dichiarata |
+| Indice | Indice invertito per collezione: termine verso elenco di (chiave, peso), ordinato per peso decrescente, con tombstone |
+| Costruzione | Incrementale sotto il worker di indicizzazione; ricostruito dall'archivio all'apertura e riconciliato dopo un arresto |
+| Ricerca | Prodotto scalare sulle sole dimensioni condivise; esatta per default; potatura opt-in, mai con un filtro |
+| Fusione | Per posizione, con pesi; deterministica; eseguita nel server |
+| Osservazione | Termini distinti, elenchi, lunghezza media, memoria, termini ritirati |
+
+**Realizzato.** L'indice è in memoria e si ricostruisce dall'archivio alla prima ricerca della collezione: K-38 chiede che sia ricostruibile, non che abbia una persistenza propria, e una seconda struttura persistita duplicherebbe l'archivio prima della misura di K-42. Vive in `Jigen.Store/Indexers/SparseIndex.cs` dietro il contratto `ISparseIndex` di `Jigen.Primitives`: l'indice legge il file dei vettori sparsi e vive sotto lo stesso scrittore, quindi un progetto separato non aggiungerebbe isolamento.
+
+Il costo di costruzione si paga alla prima ricerca, non all'apertura: un database con molte collezioni non paga per quelle che nessuno interroga.
+
+**Ordine di scrittura.** Il registro precede sempre i file, e i file seguono nello stesso ordine del percorso denso.
+
+```mermaid
+flowchart LR
+  C["Chiamante"] --> V{"Contratto valido"}
+  V -- "no" --> E["Rifiuto 400"]
+  V -- "sì" --> W{"Registro attivo"}
+  W -- "no" --> R["Rifiuto: scrittura sparsa senza registro"]
+  W -- "sì" --> WL["Registrazione unica: contenuto, denso e sparso"]
+  WL --> FS["Fsync secondo la politica a gruppi"]
+  FS --> Q["Coda di ingesta"]
+  Q --> F["File dei vettori e file dei vettori sparsi"]
+  F --> IX["Registro delle posizioni"]
+  IX --> IND["Indice denso e indice dei termini"]
+  WL -. "checkpoint: drena, fsync dei quattro file, tronca" .-> F
+```
+
+| Punto del percorso | Cosa deve includere il vettore sparso | Se manca |
+| --- | --- | --- |
+| Calcolo della dimensione e serializzazione della registrazione | Sezione variabile dopo il vettore denso, coperta dal CRC | La registrazione è troncata o il CRC fallisce al riavvio |
+| Lettura del registro e replay | Ricostruzione dei termini nella voce riprodotta | Il riavvio scarta i termini in silenzio, la voce resta senza sparso |
+| Transazione | Stessa sezione nel blocco unico, e il calcolo della dimensione la conta | Il blocco eccede il buffer e la transazione si corrompe |
+| Checkpoint | Fsync del file sparso prima di troncare il registro | Una scrittura confermata sparisce dopo un arresto |
+| Compattazione | Riscrittura e scambio del file sparso, con le nuove posizioni nel registro | Le posizioni puntano a un file che non corrisponde più |
+| Elenco dei file | Inclusione del file sparso fra i file del database | L'eliminazione del database lascia il file orfano e le dimensioni riportate sono sbagliate |
+
+**Durabilità, deciso.** Un solo registro di scrittura. La voce con denso e sparso è una registrazione sola, con un CRC e un confine di fsync: una query ibrida non può osservare una scrittura a metà.
+
+| Alternativa | Esito | Motivo |
+| --- | --- | --- |
+| Registro separato per lo sparso | rifiutata | Rompe l'atomicità della voce e richiede un commit a due fasi in-process, più una regola di recupero per l'esito misto |
+| Registro separato con identificativo di scrittura comune | rifiutata | Accoppiamento al replay e doppio fsync per ogni scrittura, senza un guadagno che il registro unico non dia già |
+| Registro separato senza accoppiamento, sparso best-effort | rifiutata | Una voce che perde i termini dopo un arresto degrada la qualità in silenzio, senza che il chiamante lo sappia |
+
+Il precedente in casa è `SharedMetadata`: sottosistema con file propri e fsync proprio, fuori dal checkpoint. Funziona, ma mostra il costo dell'isolamento: un record di contenuto orfano dopo un crash resta invisibile alla contabilità dello spazio morto. Non è un modello da replicare per un dato che la ricerca legge sul percorso critico.
+
+**Perché non una seconda entità.** Il vettore sparso rappresenta lo stesso concetto del vettore denso. Un tipo separato o una collezione separata avrebbero duplicato la Voce e la proprietà del dato. La conseguenza è che una voce può nascere senza alcun vettore e diventare ricercabile in una sola modalità.
+
+**Perché l'indice dei termini non è esterno.** Un motore di ricerca esterno introdurrebbe un secondo ciclo di commit e un secondo proprietario dell'indice; l'archivio resterebbe l'unico proprietario del dato e l'indice diventerebbe non riconciliabile. Il contratto adottato è quello dei prodotti esaminati: indice invertito proprietario, ricostruibile.
+
+**Cosa questa forma rende impossibile.**
+
+- Aggiungere la ricerca full-text senza un analizzatore: i pesi arrivano già calcolati.
+- Sommare direttamente i punteggi densi e sparsi: la fusione è per posizione.
+- Usare la potatura con un filtro attivo.
 
 ## Deployment environments
 
@@ -222,8 +308,8 @@ Il [riferimento all'esperienza](../ux-reference.md) (ux-reference.md) è congela
 | Voce | Esito |
 | --- | --- |
 | Ogni slot richiesto dall'analisi ha una tecnologia o è dichiarato assente | Sì, [Stack Profile](StackProfile.md) (StackProfile.md). |
-| Ogni vincolo è verificabile | Sì, K-01…K-34. |
-| Ogni forma traccia un vincolo o un requisito | Sì, P-01…P-16. |
+| Ogni vincolo è verificabile | Sì, K-01…K-43. |
+| Ogni forma traccia un vincolo o un requisito | Sì, P-01…P-22. |
 | Il modello canonico è congelato e rispettato dalle unità distribuite | Sì, un proprietario per dato, copie derivate dichiarate. |
 | Il riferimento all'esperienza è congelato | Sì, [riferimento all'esperienza](../ux-reference.md) (ux-reference.md). |
 | Gli ambienti e la politica dei segreti sono dichiarati | Sì, [Deployment environments](#deployment-environments) (dossier.md#deployment-environments). |
@@ -232,8 +318,8 @@ Il [riferimento all'esperienza](../ux-reference.md) (ux-reference.md) è congela
 **Deciso e non da riaprire.**
 
 - Stack, versioni e slot assenti.
-- Vincoli K-01…K-34.
-- Forme P-01…P-16, compresa la rimozione di `search-filter` e il menu statico.
+- Vincoli K-01…K-43.
+- Forme P-01…P-22, compresa la rimozione di `search-filter`, il menu statico, i due slot vettoriali e la fusione per posizione.
 - Tre topologie di distribuzione e proprietà dei dati per unità.
 - Ambienti, promozione, politica di segreti e dati.
 - Superfici, navigazione, stati e vocabolario dell'esperienza.
@@ -248,6 +334,14 @@ Il [riferimento all'esperienza](../ux-reference.md) (ux-reference.md) è congela
 | Implementare il provider `Microsoft.Extensions.VectorData` | T-12 |
 | Rifiutare all'avvio le credenziali predefinite in produzione e limitare CORS alle origini configurate | T-09, T-13 |
 | Verificare WCAG 2.2 AA sulle superfici esistenti | T-14 |
+| Rifiutare la scrittura con vettore sparso quando il registro di scrittura è disattivato | T-16 |
+| Aggiungere il file sparso fra quelli resi durevoli dal checkpoint prima del troncamento del registro | T-16 |
+| Includere il file sparso nella compattazione, nello scambio e nell'elenco dei file del database | T-16 |
+| Estendere formato e registro con il secondo slot vettoriale e la versione, senza rompere gli archivi | T-16 |
+| Ricostruire l'indice dei termini dall'archivio e riconciliarlo dopo un arresto | T-16 |
+| Non usare la potatura con un filtro attivo e dichiarare l'esattezza nella risposta | T-17 |
+| Fondere per posizione, con parità deterministica per chiave | T-17 |
+| Misurare la memoria dell'indice dei termini prima del rilascio | T-16 |
 | Misurare il richiamo su dati reali e fissare i valori predefiniti dell'indice | T-04 |
 
-**Domande che tornano all'analisi.** Nessuna bloccante. Il richiamo su dati reali resta la domanda P2 dello scouting: la misura non cambia il comportamento richiesto, cambia i valori predefiniti dell'indice, che sono una decisione di architettura già tracciata.
+**Domande che tornano all'analisi.** Nessuna bloccante. La memoria dell'indice dei termini è un gate di misura (K-42), non una domanda funzionale. Il richiamo su dati reali resta la domanda P2 dello scouting: la misura non cambia il comportamento richiesto, cambia i valori predefiniti dell'indice, che sono una decisione di architettura già tracciata.

@@ -1,3 +1,4 @@
+using Jigen.DataStructures;
 using Jigen.Indexers;
 
 namespace Jigen;
@@ -44,4 +45,20 @@ public class StoreOptions
   /// background writing to the data files, guaranteeing per-record durability.
   /// </summary>
   public WalOptions Wal { get; set; }
+
+  /// <summary>Sparse-vector configuration. Null means "use the defaults".</summary>
+  public SparseOptions Sparse { get; set; }
+
+  /// <summary>
+  /// Lexical index over the sparse vectors. Null disables sparse search: the
+  /// vectors are still stored and read back, they are just not searchable.
+  /// </summary>
+  public ISparseIndex SparseIndex { get; set; }
+}
+
+/// <summary>Configuration of the sparse vector slot.</summary>
+public class SparseOptions
+{
+  /// <summary>Maximum number of non-zero terms accepted in one sparse vector.</summary>
+  public int MaxTerms { get; set; } = SparseVector.DefaultMaxTerms;
 }

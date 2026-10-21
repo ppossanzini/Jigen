@@ -1,14 +1,14 @@
 # Architecture summary
 
-**Verdetto: architettura pronta per lo sviluppo.** Stack, vincoli, forme, ambienti e riferimento all'esperienza sono decisi. Lo sviluppo esegue e non riapre; una deviazione torna qui.
+**Verdetto: architettura pronta per lo sviluppo.** Stack, vincoli, forme, ambienti e riferimento all'esperienza sono decisi. Lo sviluppo esegue e non riapre; una deviazione torna qui. L'incremento dei vettori sparsi è chiuso e non aggiunge unità distribuibili.
 
 ## Scope
 
 Deciso in questa fase:
 
 - Stack completo per ogni slot richiesto dall'analisi, con versioni e criterio.
-- Trentaquattro vincoli verificabili: piattaforma, dati, prestazioni, sicurezza, dati personali, interfaccia, test, licenze.
-- Sedici forme, dalla composizione dei moduli alla fusione cross-modale nel client.
+- Quarantatré vincoli verificabili: piattaforma, dati, prestazioni, sicurezza, dati personali, interfaccia, test, licenze, vettori sparsi.
+- Ventidue forme, dalla composizione dei moduli alla fusione per posizione nel server.
 - Tre topologie di distribuzione con la proprietà dei dati per unità.
 - Cinque ambienti, politica di configurazione, segreti e dati, percorso di promozione.
 - Congelamento delle superfici, della navigazione, degli stati e del vocabolario dell'interfaccia.
@@ -23,6 +23,8 @@ Fuori da questa fase: la scrittura del codice, le schede di task per attore e la
 - La superficie REST `search-filter` è rimossa: nessun requisito la copre e il filtro resta su API in-process e superficie binaria. Vedi [Pattern decisions](dossier.md#pattern-decisions) (dossier.md#pattern-decisions).
 - Il menu dell'interfaccia è statico: le tre chiamate a rotte inesistenti spariscono. Vedi [Technical constraints](dossier.md#technical-constraints) (dossier.md#technical-constraints), K-27.
 - Il registro di scrittura passa da spento a attivo per default nel server, con durabilità a gruppi. Vedi K-06.
+- Il vettore sparso è un secondo slot della voce, con un indice dei termini ricostruibile dall'archivio e uno scrittore solo. La ricerca è esatta per default; la potatura è opt-in e mai con un filtro. Vedi [Incremento: vettori sparsi](dossier.md#incremento-vettori-sparsi) (dossier.md#incremento-vettori-sparsi).
+- La fusione denso più sparso avviene per posizione nel server, con pesi e parità deterministica; il client conserva la calibrazione per le modalità diverse.
 
 ## Rischi e questioni aperte
 
@@ -42,6 +44,8 @@ Fuori da questa fase: la scrittura del codice, le schede di task per attore e la
 | Rimuovere `search-filter` e le tre chiamate di menu | Sviluppo |
 | Introdurre il controllo delle credenziali predefinite e l'elenco CORS configurabile | Sviluppo |
 | Misurare richiamo e latenza su 100.000 embedding reali | Maintainer |
+| Misurare la memoria dell'indice dei termini a 100.000 voci e fissare il limite | Sviluppo |
+| Verificare la ricerca sparsa contro la ricerca esaustiva, con e senza filtro | Sviluppo |
 
 ## Diagrammi di riferimento
 

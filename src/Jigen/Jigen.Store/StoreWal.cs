@@ -38,7 +38,8 @@ public partial class Store
 
     while (WalRecord.TryReadRecord(walStream,
              out var type, out var id, out var collection,
-             out var content, out var embedding, out var txId, out _))
+             out var content, out var embedding, out var sparse,
+             out var txId, out _))
     {
       switch (type)
       {
@@ -95,7 +96,8 @@ public partial class Store
               Id = id,
               CollectionName = collection,
               Content = content ?? [],
-              Embedding = embedding ?? []
+              Embedding = embedding ?? [],
+              Sparse = sparse
             };
             txOperations.Add((WalRecordType.Insert, entry, null, collection));
           }
@@ -107,7 +109,8 @@ public partial class Store
               Id = id,
               CollectionName = collection,
               Content = content ?? [],
-              Embedding = embedding ?? []
+              Embedding = embedding ?? [],
+              Sparse = sparse
             };
             ValidateVectorDimensions(entry);
             IngestionQueue.Enqueue(entry);

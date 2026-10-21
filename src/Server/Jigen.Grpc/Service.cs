@@ -7,6 +7,10 @@ using Jigen.Proto;
 using Jigen.Embedding.Core.Options;
 using Microsoft.Extensions.Options;
 using Jigen.Handlers;
+// Both the wire contract and the in-process contract define a sparse vector:
+// the alias keeps call sites explicit about which one they hold.
+using SparseVector = Jigen.DataStructures.SparseVector;
+using ProtoSparseVector = Jigen.Proto.SparseVector;
 
 namespace Jigen.Grpc;
 
@@ -218,28 +222,44 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
 
   public override async Task<Result> SetDocument(Document request, ServerCallContext context)
   {
-    await mediator.Send(new Core.Command.collections.SetDocument()
+    try
     {
-      Database = request.Database,
-      Collection = request.Collection,
-      Key = request.Key.ToByteArray(),
-      Content = request.Content.ToByteArray(),
-      Sentence = request.Sentence
-    });
+      await mediator.Send(new Core.Command.collections.SetDocument()
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Key = request.Key.ToByteArray(),
+        Content = request.Content.ToByteArray(),
+        Sentence = request.Sentence,
+        Sparse = ToSparseVector(request.Sparse)
+      });
+    }
+    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+    {
+      throw AsRejection(ex);
+    }
 
     return new Result() { Success = true };
   }
 
   public override async Task<Result> SetVector(Vector request, ServerCallContext context)
   {
-    await mediator.Send(new Core.Command.collections.SetVector()
+    try
     {
-      Database = request.Database,
-      Collection = request.Collection,
-      Key = request.Key.ToByteArray(),
-      Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray()
-    });
+      await mediator.Send(new Core.Command.collections.SetVector()
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Key = request.Key.ToByteArray(),
+        Content = request.Content.ToByteArray(),
+        Embeddings = request.Embeddings.ToArray(),
+        Sparse = ToSparseVector(request.Sparse)
+      });
+    }
+    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+    {
+      throw AsRejection(ex);
+    }
 
     return new Result() { Success = true };
   }
@@ -250,14 +270,22 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
 
     await foreach (var request in requestStream.ReadAllAsync(context.CancellationToken))
     {
-      await mediator.Send(new Core.Command.collections.SetVector()
+      try
       {
-        Database = request.Database,
-        Collection = request.Collection,
-        Key = request.Key.ToByteArray(),
-        Content = request.Content.ToByteArray(),
-        Embeddings = request.Embeddings.ToArray()
-      }, context.CancellationToken);
+        await mediator.Send(new Core.Command.collections.SetVector()
+        {
+          Database = request.Database,
+          Collection = request.Collection,
+          Key = request.Key.ToByteArray(),
+          Content = request.Content.ToByteArray(),
+          Embeddings = request.Embeddings.ToArray(),
+          Sparse = ToSparseVector(request.Sparse)
+        }, context.CancellationToken);
+      }
+      catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+      {
+        throw AsRejection(ex);
+      }
 
       accepted++;
     }
@@ -362,6 +390,155 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     return ToSearchResponse(result);
   }
 
+  // ── Sparse (lexical) slot ──
+
+  public override async Task<ProtoSparseVector> GetSparse(ItemKey request, ServerCallContext context)
+  {
+    var result = await mediator.Send(new Core.Query.collections.GetSparse()
+    {
+      Database = request.Database,
+      Collection = request.Collection,
+      Key = request.Key.ToByteArray()
+    });
+
+    // Missing key or vector-less entry: an empty message, like GetEmbedding.
+    return ToProtoSparseVector(result);
+  }
+
+  public override async Task<SearchVectorResponse> SearchSparse(SearchSparseRequest request, ServerCallContext context)
+  {
+    if (request.Sparse is null)
+      throw new RpcException(new Status(StatusCode.InvalidArgument,
+        "A lexical search needs terms and weights."));
+
+    IEnumerable<Core.Query.collections.SearchVectorResultItem> result;
+    try
+    {
+      var query = new Core.Query.collections.SearchSparse
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Sparse = ToSparseVector(request.Sparse),
+        Top = request.Top,
+        Filter = ToFilterExpression(request.Filter),
+        NoContent = request.Tuning?.NoContent ?? false
+      };
+
+      if (request.Tuning?.HasMinScore == true)
+        query.MinScore = request.Tuning.MinScore;
+
+      result = await mediator.Send(query, context.CancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+      throw AsInvalidArgument(ex);
+    }
+
+    return ToSearchResponse(result);
+  }
+
+  public override async Task<SearchSparseByMetadataResponse> SearchSparseByMetadata(
+    SearchSparseByMetadataRequest request, ServerCallContext context)
+  {
+    if (request.Sparse is null)
+      throw new RpcException(new Status(StatusCode.InvalidArgument,
+        "A lexical search needs terms and weights."));
+
+    IEnumerable<Core.Query.collections.SearchSparseByMetadataResultItem> result;
+    try
+    {
+      var query = new Core.Query.collections.SearchSparseByMetadata
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Sparse = ToSparseVector(request.Sparse),
+        Top = request.Top,
+        CandidateBudget = request.CandidateBudget,
+        Filter = ToFilterExpression(request.Filter),
+        NoContent = request.Tuning?.NoContent ?? false
+      };
+
+      result = await mediator.Send(query, context.CancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+      throw AsInvalidArgument(ex);
+    }
+
+    return new SearchSparseByMetadataResponse
+    {
+      Results =
+      {
+        result.Select(i => new SearchSparseByMetadataResult
+        {
+          MetadataIndex = i.MetadataIndex,
+          Key = ByteString.CopyFrom(i.Key),
+          Content = i.Content is null ? ByteString.Empty : ByteString.CopyFrom(i.Content),
+          Score = i.Score
+        })
+      }
+    };
+  }
+
+  public override async Task<SearchVectorResponse> SearchHybrid(SearchHybridRequest request, ServerCallContext context)
+  {
+    var denseWeightDeclared = request.HasDenseWeight;
+    var sparseWeightDeclared = request.HasSparseWeight;
+
+    IEnumerable<Core.Query.collections.SearchVectorResultItem> result;
+    try
+    {
+      var query = new Core.Query.collections.SearchHybrid
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Embeddings = request.Embeddings.ToArray(),
+        Sparse = ToSparseVector(request.Sparse),
+        Top = request.Top,
+        Filter = ToFilterExpression(request.Filter),
+        NoContent = request.Tuning?.NoContent ?? false
+      };
+
+      // A declared weight is authoritative, including an explicit zero, which
+      // excludes that modality. Without one, the supplied modality carries the
+      // whole ranking; both vectors with no weight at all is a caller mistake.
+      if (denseWeightDeclared) query.DenseWeight = request.DenseWeight;
+      if (sparseWeightDeclared) query.SparseWeight = request.SparseWeight;
+
+      if (!denseWeightDeclared && !sparseWeightDeclared
+          && query.Embeddings is { Length: > 0 } && query.Sparse is not null)
+        throw new ArgumentException("Declare DenseWeight and SparseWeight when both vectors are supplied.");
+
+      result = await mediator.Send(query, context.CancellationToken);
+    }
+    catch (ArgumentException ex)
+    {
+      throw AsInvalidArgument(ex);
+    }
+
+    return ToSearchResponse(result);
+  }
+
+  /// <summary>
+  /// Builds the shared sparse representation from the wire form. The term cap
+  /// is the store's to enforce, so the shape is validated here without it and
+  /// the failure names the offending term.
+  /// </summary>
+  private static SparseVector ToSparseVector(ProtoSparseVector sparse) =>
+    sparse is null
+      ? null
+      : SparseVector.Create(sparse.Terms.ToArray(), sparse.Weights.ToArray(), int.MaxValue);
+
+  private static ProtoSparseVector ToProtoSparseVector(SparseVector sparse)
+  {
+    var response = new ProtoSparseVector();
+    if (sparse is null) return response;
+
+    response.Terms.AddRange(sparse.Terms.ToArray());
+    response.Weights.AddRange(sparse.Weights.ToArray());
+    return response;
+  }
+
   private static Core.Query.collections.SearchVector ApplyTuning(Core.Query.collections.SearchVector query, SearchTuning tuning)
   {
     if (tuning is null) return query;
@@ -382,7 +559,11 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         {
           Key = ByteString.CopyFrom(i.Key),
           Content = i.Content is null ? ByteString.Empty : ByteString.CopyFrom(i.Content),
-          Score = i.Score
+          Score = i.Score,
+          InDense = i.InDense,
+          InSparse = i.InSparse,
+          DenseScore = i.DenseScore,
+          SparseScore = i.SparseScore
         })
       }
     };
@@ -600,42 +781,66 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
 
   public override async Task<Result> AppendDocument(Document request, ServerCallContext context)
   {
-    await mediator.Send(new Core.Command.collections.AppendDocument()
+    try
     {
-      Database = request.Database,
-      Collection = request.Collection,
-      Key = request.Key.ToByteArray(),
-      Content = request.Content.ToByteArray(),
-      Sentence = request.Sentence
-    });
+      await mediator.Send(new Core.Command.collections.AppendDocument()
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Key = request.Key.ToByteArray(),
+        Content = request.Content.ToByteArray(),
+        Sentence = request.Sentence,
+        Sparse = ToSparseVector(request.Sparse)
+      });
+    }
+    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+    {
+      throw AsRejection(ex);
+    }
 
     return new Result() { Success = true };
   }
 
   public override async Task<Result> AppendVector(Vector request, ServerCallContext context)
   {
-    await mediator.Send(new Core.Command.collections.AppendVector()
+    try
     {
-      Database = request.Database,
-      Collection = request.Collection,
-      Key = request.Key.ToByteArray(),
-      Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray()
-    });
+      await mediator.Send(new Core.Command.collections.AppendVector()
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Key = request.Key.ToByteArray(),
+        Content = request.Content.ToByteArray(),
+        Embeddings = request.Embeddings.ToArray(),
+        Sparse = ToSparseVector(request.Sparse)
+      });
+    }
+    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+    {
+      throw AsRejection(ex);
+    }
 
     return new Result() { Success = true };
   }
 
   public override async Task<Result> SetRawVector(Vector request, ServerCallContext context)
   {
-    await mediator.Send(new Core.Command.collections.SetRawVector()
+    try
     {
-      Database = request.Database,
-      Collection = request.Collection,
-      Key = request.Key.ToByteArray(),
-      Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray()
-    });
+      await mediator.Send(new Core.Command.collections.SetRawVector()
+      {
+        Database = request.Database,
+        Collection = request.Collection,
+        Key = request.Key.ToByteArray(),
+        Content = request.Content.ToByteArray(),
+        Embeddings = request.Embeddings.ToArray(),
+        Sparse = ToSparseVector(request.Sparse)
+      });
+    }
+    catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+    {
+      throw AsRejection(ex);
+    }
 
     return new Result() { Success = true };
   }
@@ -647,6 +852,15 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
   // approved remote contract.
   private static RpcException AsInvalidArgument(ArgumentException ex) =>
     new(new Status(StatusCode.InvalidArgument, ex.Message));
+
+  // A refused write: the request is malformed (InvalidArgument) or the store
+  // state forbids it (FailedPrecondition, e.g. a sparse write with the WAL off).
+  private static RpcException AsRejection(Exception ex) => ex switch
+  {
+    ArgumentException argument => AsInvalidArgument(argument),
+    InvalidOperationException => new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message)),
+    _ => new RpcException(new Status(StatusCode.Unknown, ex.Message))
+  };
 
   public override async Task<CreateMetadataResponse> CreateMetadata(CreateMetadataRequest request, ServerCallContext context)
   {

@@ -19,6 +19,19 @@ Applies to the server host and to every database it opens.
 
 Port 3223 (gRPC) is always plaintext HTTP/2; `Https` only affects port 13223.
 
+## `JigenServer:Wal`
+
+Write-ahead log applied to every database. Every write reaches `{database}.wal.jigen` before the data files, which is what makes a confirmed write recoverable after a crash; the file is truncated at each checkpoint.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `Enabled` | bool | `true` | Enables the log. **A sparse vector cannot be written with the log disabled**: the write is refused with `400` / `FailedPrecondition`, because the lexical slot could not be recovered after a crash. |
+| `Durability` | string | `Group` | `None` (no fsync on WAL writes, durability only at checkpoint), `Group` (fsync every `MaxGroupDelayMs` or `MaxGroupBatchCount` writes), `PerWrite` (fsync per write). |
+| `MaxGroupDelayMs` | int | `10` | Maximum time between fsync calls in `Group` mode. |
+| `MaxGroupBatchCount` | int | `8` | Maximum writes between fsync calls in `Group` mode. |
+
+Disabling the log keeps the previous behaviour — writes are group-committed by `CheckpointIntervalSeconds` and a sparse write is refused — and it is the cheaper configuration for bulk loading, at roughly 7% higher ingest throughput in the benchmark below `store-options.md`.
+
 ## `JigenServer:Index`
 
 HNSW parameters applied to every database opened by this server instance (passed to `SmallWorldOptions` when the server creates each database's indexer). See [HNSW index](../indexes/hnsw.md) for what each parameter controls.
@@ -31,6 +44,14 @@ HNSW parameters applied to every database opened by this server instance (passed
 | `Sq8Quantization` | bool | `false` | SQ8-quantizes the graph vectors (4x smaller graph files, less memory bandwidth); store embeddings stay full precision. Applies to newly written graph records. |
 | `ExactRerank` | bool | `true` | With SQ8 enabled, rescore candidates with full-precision embeddings from the store before returning results. |
 | `LazyHnswThreshold` | int | `0` | When greater than zero, ingestion skips HNSW graph construction (pure file writes) until the total number of stored vectors across all collections meets or exceeds this count, at which point the graph is built from the store in a single reconciliation pass. Set to `100000` or higher for bulk-load scenarios to maximise initial ingestion throughput. `0` disables the lazy behaviour and builds the graph eagerly. |
+| `SparseEnabled` | bool | `true` | Indexes the lexical (sparse) slot of every entry. When `false` the slot is still stored and read back, it is just not searchable. |
+| `SparseMaxTerms` | int | `1024` | Maximum number of non-zero terms accepted in one sparse vector; a longer vector is rejected with `400`. |
+
+### Lexical index memory
+
+The term index lives in memory and is rebuilt from the data files at the first search of a collection, so it costs RAM but no disk. The cost is measured, not assumed: at **100,000 entries** (6 terms each, 50,000 distinct terms, 600,000 postings) the measured managed heap is **~62 MB, 624 bytes per entry**, built in **under 0.5 s**, and an exact 6-term search takes **~5 ms**.
+
+The declared ceiling is **800 bytes per entry**. Above that the index is meant to move to disk; until it does, size the deployment against the measured figure rather than against the ceiling — a collection of 1,000,000 entries with the same term distribution needs roughly 620 MB of RAM for its term index alone.
 
 ## `JigenEmbeddings:Tasks`
 

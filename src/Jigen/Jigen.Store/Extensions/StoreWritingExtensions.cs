@@ -25,7 +25,7 @@ public static class StoreWritingExtensions
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
     var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
 
-    int size = WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embedding);
+    int size = WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embedding, entry.Sparse);
     byte[] rented = null;
     Span<byte> buffer = size <= 8192
       ? stackalloc byte[size]
@@ -33,7 +33,7 @@ public static class StoreWritingExtensions
 
     try
     {
-      WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding);
+      WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding, entry.Sparse);
       walStream.Write(buffer[..size]);
     }
     finally
@@ -181,8 +181,25 @@ public static class StoreWritingExtensions
   }
 
 
+  /// <summary>
+  /// A sparse vector is only durable through the write-ahead log: the data file
+  /// alone could lose it, and a half-written entry would be undetectable. The
+  /// write is refused before any file is touched, so a disabled log never
+  /// degrades sparse data silently.
+  /// </summary>
+  private static void RequireWalForSparse(Store store, VectorEntry entry)
+  {
+    if (entry?.Sparse is null) return;
+    if (store.Options.Wal?.Enabled == true) return;
+
+    throw new InvalidOperationException(
+      "Writing a sparse vector requires the write-ahead log: set StoreOptions.Wal.Enabled = true. " +
+      "Without the log a sparse vector cannot be recovered after a crash.");
+  }
+
   public static async Task<VectorEntry> AppendContent(this Store store, VectorEntry entry)
   {
+    RequireWalForSparse(store, entry);
     store.ValidateVectorDimensions(entry);
     // WAL: write BEFORE enqueuing. This is the write-ahead guarantee.
     if (store.Options.Wal?.Enabled == true)
@@ -211,7 +228,10 @@ public static class StoreWritingExtensions
     // Validate the whole batch before accepting its first WAL/data operation;
     // a bad dimension must not turn a bulk call into a partial write.
     foreach (var entry in entries)
+    {
+      RequireWalForSparse(store, entry);
       store.ValidateVectorDimensions(entry);
+    }
 
     // Batch-enqueue: acquire semaphore once per window instead of per entry.
     // The queue capacity is 1M, so we can enqueue large batches safely.
@@ -285,6 +305,7 @@ public static class StoreWritingExtensions
           index.TryGetValue(key, out var old))
       {
         store.SharedMetadata.DeleteEmbedding(collection, key);
+        store.DeleteSparseCore(collection, key);
         index.TryRemove(key, out _);
         if (old.contentposition > 0)
           store.DeadContentBytes += Store.ContentRecordSize(key.Length, old.size);
@@ -301,6 +322,7 @@ public static class StoreWritingExtensions
     if (result)
     {
       store.Options.Indexer?.RemoveFromIndex(collection, key);
+      store.Options.SparseIndex?.Remove(collection, key);
       // Group commit: no per-delete fsync. The tombstone becomes durable at
       // the next SaveChangesAsync/Close, exactly like appended entries.
     }
@@ -342,6 +364,7 @@ public static class StoreWritingExtensions
     {
       if (store.PositionIndex.TryRemove(collection, out var index))
       {
+        store.ClearSparseCore(collection);
         foreach (var (key, old) in index)
         {
           store.SharedMetadata.DeleteEmbedding(collection, key);
@@ -360,6 +383,8 @@ public static class StoreWritingExtensions
     {
       foreach (var key in removedKeys)
         store.Options.Indexer?.RemoveFromIndex(collection, key);
+
+      store.Options.SparseIndex?.Clear(collection);
 
       // Push the tombstone burst to the OS without fsync: durability comes
       // with the next SaveChangesAsync/Close (group commit).

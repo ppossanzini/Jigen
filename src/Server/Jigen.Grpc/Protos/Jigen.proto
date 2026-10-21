@@ -18,6 +18,12 @@ service StoreCollectionService {
   rpc SetDocuments (stream Document) returns (IngestResult);
   rpc SearchVector(SearchVectorRequest) returns(SearchVectorResponse);
   rpc SearchDocument(SearchDocumentRequest) returns(SearchVectorResponse);
+  // ── Sparse (lexical) slot: exact search over caller-provided term weights,
+  //     grouped search, and the fusion of the two modalities. ──
+  rpc GetSparse(ItemKey) returns(SparseVector);
+  rpc SearchSparse(SearchSparseRequest) returns(SearchVectorResponse);
+  rpc SearchSparseByMetadata(SearchSparseByMetadataRequest) returns(SearchSparseByMetadataResponse);
+  rpc SearchHybrid(SearchHybridRequest) returns(SearchVectorResponse);
   rpc DeleteVector(ItemKey) returns(Result);
   rpc GetAllKeys(CollectionKey) returns(KeysResult);
   // Keys in chunks over a server stream: use instead of GetAllKeys on large
@@ -96,12 +102,24 @@ message CountResult{
   int32 Count = 1;
 }
 
+// Sparse lexical vector: term ids and their weights, one weight per term in
+// the same order. Terms are caller-defined ids (never analyzed by the server),
+// unique, strictly increasing and non-negative; weights are finite and
+// non-negative with at least one above zero. An absent message means "the
+// entry has no lexical slot"; an empty one is rejected.
+message SparseVector {
+  repeated int32 Terms = 1;
+  repeated float Weights = 2;
+}
+
 message Document {
   string Database = 1;
   string Collection = 2;
   bytes Key = 3;
   bytes Content = 4;
   string Sentence = 5;
+  // Optional lexical slot, independent of the sentence: never derived from it.
+  SparseVector Sparse = 6;
 }
 
 message Vector {
@@ -110,6 +128,8 @@ message Vector {
   bytes Key = 3;
   bytes Content = 4;
   repeated float Embeddings = 5;
+  // Optional lexical slot; field 5 stays the dense vector and is never reused.
+  SparseVector Sparse = 6;
 }
 
 // Per-query search tuning, shared by SearchVectorRequest and
@@ -137,7 +157,16 @@ message SearchVectorRequest {
 message SearchVectorResult {
   bytes Key = 1;
   bytes Content = 2;
+  // The ranking score: the modality score on a single-modality search, the
+  // fused score on a hybrid one.
   float Score = 3;
+  // Provenance, filled by the lexical and the hybrid search: which modality
+  // produced the entry and the original score in each. A dense search leaves
+  // them false and carries the similarity in Score.
+  bool InDense = 4;
+  bool InSparse = 5;
+  float DenseScore = 6;
+  float SparseScore = 7;
 }
 
 message SearchVectorResponse {
@@ -151,6 +180,53 @@ message SearchDocumentRequest {
   int32 Top = 4;
   FilterNode Filter = 5;
   SearchTuning Tuning = 6;
+}
+
+message SearchSparseRequest {
+  string Database = 1;
+  string Collection = 2;
+  SparseVector Sparse = 3;
+  int32 Top = 4;
+  FilterNode Filter = 5;
+  SearchTuning Tuning = 6;
+}
+
+// Grouped lexical search: one result per shared metadata record. CandidateBudget
+// is mandatory and caps the entries requested from the term lists.
+message SearchSparseByMetadataRequest {
+  string Database = 1;
+  string Collection = 2;
+  SparseVector Sparse = 3;
+  int32 Top = 4;
+  int32 CandidateBudget = 5;
+  FilterNode Filter = 6;
+  SearchTuning Tuning = 7;
+}
+
+message SearchSparseByMetadataResult {
+  int32 MetadataIndex = 1;
+  bytes Key = 2;
+  bytes Content = 3;
+  float Score = 4;
+}
+
+message SearchSparseByMetadataResponse {
+  repeated SearchSparseByMetadataResult Results = 1;
+}
+
+// Fusion of a dense and a lexical ranking. Weights must be declared whenever
+// both vectors are supplied: a zero weight leaves that modality out and both at
+// zero is rejected. With a single vector the missing weight defaults to 1.
+message SearchHybridRequest {
+  string Database = 1;
+  string Collection = 2;
+  repeated float Embeddings = 3;
+  SparseVector Sparse = 4;
+  int32 Top = 5;
+  FilterNode Filter = 6;
+  SearchTuning Tuning = 7;
+  optional float DenseWeight = 8;
+  optional float SparseWeight = 9;
 }
 
 message FilterNode {

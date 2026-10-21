@@ -34,7 +34,8 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
         CollectionName = request.Collection,
         Id = request.Key,
         Content = request.Content,
-        Embedding = embeddings
+        Embedding = embeddings,
+        Sparse = request.Sparse
       });
   }
 
@@ -52,7 +53,8 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
         CollectionName = request.Collection,
         Id = request.Key,
         Content = request.Content,
-        Embedding = embeddings
+        Embedding = embeddings,
+        Sparse = request.Sparse
       });
   }
 
@@ -66,7 +68,8 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
         CollectionName = request.Collection,
         Id = request.Key,
         Content = request.Content,
-        Embedding = request.Embeddings
+        Embedding = request.Embeddings,
+        Sparse = request.Sparse
       });
   }
 
@@ -87,7 +90,8 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
         CollectionName = request.Collection,
         Id = request.Key,
         Content = request.Content,
-        Embedding = request.Embeddings
+        Embedding = request.Embeddings,
+        Sparse = request.Sparse
       });
   }
 
@@ -101,7 +105,8 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
         CollectionName = request.Collection,
         Id = request.Key,
         Content = request.Content,
-        Embedding = request.Embeddings
+        Embedding = request.Embeddings,
+        Sparse = request.Sparse
       });
   }
 

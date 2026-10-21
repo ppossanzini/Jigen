@@ -10,6 +10,14 @@ public class VectorEntry
   public ReadOnlyMemory<byte> Content { get; set; }
   public ReadOnlyMemory<float> Embedding { get; set; }
 
+  /// <summary>
+  /// Optional second vector slot: lexical terms with weights. A null reference
+  /// means "no sparse vector"; an empty sparse vector cannot exist because
+  /// <see cref="SparseVector.Create"/> rejects it, so "absent" is never
+  /// confused with "present but empty".
+  /// </summary>
+  public SparseVector Sparse { get; set; }
+
   public static VectorEntry Empty => new VectorEntry()
   {
     Id = Guid.NewGuid().ToByteArray(),

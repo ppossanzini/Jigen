@@ -6,4 +6,6 @@ public class BulkDocumentItem
   public string KeyType { get; set; }
   public object Payload { get; set; }
   public string Sentence { get; set; }
+
+  public SparsePayload Sparse { get; set; }
 }

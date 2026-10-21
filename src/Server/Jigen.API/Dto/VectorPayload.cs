@@ -4,4 +4,6 @@ public class VectorPayload
 {
   public object Payload { get; set; }
   public float[] Embeddings { get; set; }
+
+  public SparsePayload Sparse { get; set; }
 }

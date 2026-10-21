@@ -74,12 +74,22 @@ public static class WalRecord
   // ── Sizing ──
 
   public static int InsertRecordSize(byte[] id, string collection, byte[] content, float[] embedding)
+    => InsertRecordSize(id, collection, content, embedding, null);
+
+  /// <summary>
+  /// Size of an insert record. The sparse section is written only when a sparse
+  /// vector is present, so a record without one keeps the legacy layout and
+  /// stays readable by the previous format.
+  /// </summary>
+  public static int InsertRecordSize(byte[] id, string collection, byte[] content, float[] embedding,
+    SparseVector sparse)
   {
     var payload = LengthFieldSize + TypeFieldSize
                   + IdFieldSize(id)
                   + CollectionFieldSize(collection)
                   + ContentFieldSize(content ?? [])
-                  + EmbeddingFieldSize(embedding ?? []);
+                  + EmbeddingFieldSize(embedding ?? [])
+                  + SparseFieldSize(sparse);
     return CrcFieldSize + payload;
   }
 
@@ -113,6 +123,9 @@ public static class WalRecord
     embedding is { Length: > 0 } ? sizeof(int) + embedding.Length * sizeof(float)
                                 : VarFieldSize(0);
 
+  private static int SparseFieldSize(SparseVector sparse) =>
+    sparse is null ? 0 : sizeof(int) + sparse.Count * (sizeof(int) + sizeof(float));
+
   // ── Serialization ──
 
   /// <summary>
@@ -120,8 +133,17 @@ public static class WalRecord
   /// Layout: [CRC(4)][Length(4)][Type:0x01][id][collection][content][embedding]
   /// </summary>
   public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[] content, float[] embedding)
+    => SerializeInsert(buffer, id, collection, content, embedding, null);
+
+  /// <summary>
+  /// Serializes an insert record including the optional sparse section.
+  /// Layout: [CRC][Length][Type][id][collection][content][embedding][sparse]
+  /// where sparse is [count][(term)(weight)]*count, written only when present.
+  /// </summary>
+  public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[] content,
+    float[] embedding, SparseVector sparse)
   {
-    int totalSize = InsertRecordSize(id, collection, content, embedding);
+    int totalSize = InsertRecordSize(id, collection, content, embedding, sparse);
     int payloadOffset = CrcFieldSize + LengthFieldSize;
 
     buffer[payloadOffset] = (byte)WalRecordType.Insert;
@@ -168,6 +190,23 @@ public static class WalRecord
       pos += sizeof(int);
     }
 
+    // Sparse section: absent means no bytes at all, so the previous format
+    // (which ends after the embedding) remains readable by an older reader.
+    if (sparse is not null)
+    {
+      BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], sparse.Count);
+      pos += sizeof(int);
+      var terms = sparse.TermsSpan;
+      var weights = sparse.WeightsSpan;
+      for (var i = 0; i < terms.Length; i++)
+      {
+        BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], terms[i]);
+        pos += sizeof(int);
+        BinaryPrimitives.WriteSingleLittleEndian(buffer[pos..], weights[i]);
+        pos += sizeof(float);
+      }
+    }
+
     Debug.Assert(pos == totalSize, "Serialization size mismatch");
 
     var payloadSize = totalSize - CrcFieldSize - LengthFieldSize;
@@ -185,7 +224,7 @@ public static class WalRecord
   {
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
     var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
-    return SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding);
+    return SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding, entry.Sparse);
   }
 
   /// <summary>
@@ -340,7 +379,8 @@ public static class WalRecord
     out float[] embedding,
     out int bytesRead)
   {
-    return TryReadRecord(stream, out type, out id, out collection, out content, out embedding, out _, out bytesRead);
+    return TryReadRecord(stream, out type, out id, out collection, out content, out embedding,
+      out _, out _, out bytesRead);
   }
 
   /// <summary>
@@ -359,11 +399,33 @@ public static class WalRecord
     out Guid txId,
     out int bytesRead)
   {
+    return TryReadRecord(stream, out type, out id, out collection, out content, out embedding,
+      out _, out txId, out bytesRead);
+  }
+
+  /// <summary>
+  /// Reads one WAL record, including the optional sparse section of an insert.
+  /// A record written without that section yields <paramref name="sparse"/> null:
+  /// the section is recognised by the bytes still available after the embedding,
+  /// so records produced before the sparse slot existed stay readable.
+  /// </summary>
+  public static bool TryReadRecord(
+    Stream stream,
+    out WalRecordType type,
+    out byte[] id,
+    out string collection,
+    out byte[] content,
+    out float[] embedding,
+    out SparseVector sparse,
+    out Guid txId,
+    out int bytesRead)
+  {
     type = 0;
     id = [];
     collection = string.Empty;
     content = [];
     embedding = [];
+    sparse = null;
     txId = Guid.Empty;
     bytesRead = 0;
 
@@ -493,9 +555,48 @@ public static class WalRecord
         {
           int embeddingBytes = dimensions * sizeof(float);
           if (p + embeddingBytes > remainingPayload) return false;
+          // Copy the payload bytes INTO the vector: the previous direction
+          // copied the freshly allocated zeros onto the buffer, so every
+          // replayed entry came back with a zeroed embedding.
           embedding = new float[dimensions];
-          MemoryMarshal.AsBytes<float>(embedding).CopyTo(payloadBuffer.Slice(p, embeddingBytes));
+          payloadBuffer.Slice(p, embeddingBytes)
+            .CopyTo(MemoryMarshal.AsBytes(embedding.AsSpan()));
           p += embeddingBytes;
+        }
+
+        // Optional sparse section: absent in records written before the slot
+        // existed, which end exactly here.
+        if (p + sizeof(int) <= remainingPayload)
+        {
+          var termCount = BinaryPrimitives.ReadInt32LittleEndian(payloadBuffer[p..]);
+          p += sizeof(int);
+          if (termCount < 0 || termCount > 1_000_000) return false;
+          if (termCount > 0)
+          {
+            var pairBytes = termCount * (sizeof(int) + sizeof(float));
+            if (p + pairBytes > remainingPayload) return false;
+
+            var terms = new int[termCount];
+            var weights = new float[termCount];
+            for (var i = 0; i < termCount; i++)
+            {
+              terms[i] = BinaryPrimitives.ReadInt32LittleEndian(payloadBuffer[p..]);
+              p += sizeof(int);
+              weights[i] = BinaryPrimitives.ReadSingleLittleEndian(payloadBuffer[p..]);
+              p += sizeof(float);
+            }
+
+            // A corrupted section must not resurrect an invalid vector: the
+            // record is reported as unreadable instead of half-applied.
+            try
+            {
+              sparse = SparseVector.Create(terms, weights, int.MaxValue);
+            }
+            catch (ArgumentException)
+            {
+              return false;
+            }
+          }
         }
       }
 

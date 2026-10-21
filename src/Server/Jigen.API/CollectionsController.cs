@@ -119,15 +119,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
 
-    await mediator.Send(new Core.Command.collections.SetDocument()
+    try
     {
-      Database = dbname, Collection = collection,
-      Key = keyVector.Value,
-      Content = payload.Payload != null
-        ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
-        : null,
-      Sentence = payload.Sentence
-    });
+      await mediator.Send(new Core.Command.collections.SetDocument()
+      {
+        Database = dbname, Collection = collection,
+        Key = keyVector.Value,
+        Content = payload.Payload != null
+          ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
+          : null,
+        Sentence = payload.Sentence,
+        Sparse = ToSparse(payload.Sparse)
+      });
+    }
+    catch (Exception ex) when (IsRefusal(ex))
+    {
+      return BadRequest(ex.Message);
+    }
+
     return Ok();
   }
 
@@ -234,6 +243,29 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     return Ok(result ?? []);
   }
 
+  [HttpGet("{collection}/vectors/{key}/sparse")]
+  [ProducesResponseType(typeof(SparsePayload), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> GetSparse(string dbname, string collection, string key,
+    [FromQuery] string keyType = null)
+  {
+    if (!TryResolveKey(key, keyType, out var keyVector))
+      return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
+
+    var result = await mediator.Send(new Core.Query.collections.GetSparse()
+    {
+      Database = dbname,
+      Collection = collection,
+      Key = keyVector.Value
+    });
+
+    return Ok(new SparsePayload
+    {
+      Terms = result?.Terms.ToArray() ?? [],
+      Weights = result?.Weights.ToArray() ?? []
+    });
+  }
+
   // ── Vector CRUD (pre-computed embeddings) ──
 
   [Route("{collection}/vectors/{key}")]
@@ -249,15 +281,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
 
-    await mediator.Send(new Core.Command.collections.SetVector()
+    try
     {
-      Database = dbname, Collection = collection,
-      Key = keyVector.Value,
-      Content = payload.Payload != null
-        ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
-        : null,
-      Embeddings = payload.Embeddings
-    });
+      await mediator.Send(new Core.Command.collections.SetVector()
+      {
+        Database = dbname, Collection = collection,
+        Key = keyVector.Value,
+        Content = payload.Payload != null
+          ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
+          : null,
+        Embeddings = payload.Embeddings,
+        Sparse = ToSparse(payload.Sparse)
+      });
+    }
+    catch (Exception ex) when (IsRefusal(ex))
+    {
+      return BadRequest(ex.Message);
+    }
+
     return Ok();
   }
 
@@ -276,15 +317,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
 
-    await mediator.Send(new Core.Command.collections.AppendDocument()
+    try
     {
-      Database = dbname, Collection = collection,
-      Key = keyVector.Value,
-      Content = payload.Payload != null
-        ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
-        : null,
-      Sentence = payload.Sentence
-    });
+      await mediator.Send(new Core.Command.collections.AppendDocument()
+      {
+        Database = dbname, Collection = collection,
+        Key = keyVector.Value,
+        Content = payload.Payload != null
+          ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
+          : null,
+        Sentence = payload.Sentence,
+        Sparse = ToSparse(payload.Sparse)
+      });
+    }
+    catch (Exception ex) when (IsRefusal(ex))
+    {
+      return BadRequest(ex.Message);
+    }
+
     return Ok();
   }
 
@@ -301,15 +351,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
 
-    await mediator.Send(new Core.Command.collections.AppendVector()
+    try
     {
-      Database = dbname, Collection = collection,
-      Key = keyVector.Value,
-      Content = payload.Payload != null
-        ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
-        : null,
-      Embeddings = payload.Embeddings
-    });
+      await mediator.Send(new Core.Command.collections.AppendVector()
+      {
+        Database = dbname, Collection = collection,
+        Key = keyVector.Value,
+        Content = payload.Payload != null
+          ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
+          : null,
+        Embeddings = payload.Embeddings,
+        Sparse = ToSparse(payload.Sparse)
+      });
+    }
+    catch (Exception ex) when (IsRefusal(ex))
+    {
+      return BadRequest(ex.Message);
+    }
+
     return Ok();
   }
 
@@ -325,15 +384,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
 
-    await mediator.Send(new Core.Command.collections.SetRawVector()
+    try
     {
-      Database = dbname, Collection = collection,
-      Key = keyVector.Value,
-      Content = payload.Payload != null
-        ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
-        : null,
-      Embeddings = payload.Embeddings
-    });
+      await mediator.Send(new Core.Command.collections.SetRawVector()
+      {
+        Database = dbname, Collection = collection,
+        Key = keyVector.Value,
+        Content = payload.Payload != null
+          ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
+          : null,
+        Embeddings = payload.Embeddings,
+        Sparse = ToSparse(payload.Sparse)
+      });
+    }
+    catch (Exception ex) when (IsRefusal(ex))
+    {
+      return BadRequest(ex.Message);
+    }
+
     return Ok();
   }
 
@@ -352,15 +420,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
       if (!TryResolveKey(item.Key, item.KeyType, out var keyVector))
         continue;
 
-      await mediator.Send(new Core.Command.collections.SetVector()
+      try
       {
-        Database = dbname, Collection = collection,
-        Key = keyVector.Value,
-        Content = item.Payload != null
-          ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(item.Payload)).ToArray()
-          : null,
-        Embeddings = item.Embeddings
-      });
+        await mediator.Send(new Core.Command.collections.SetVector()
+        {
+          Database = dbname, Collection = collection,
+          Key = keyVector.Value,
+          Content = item.Payload != null
+            ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(item.Payload)).ToArray()
+            : null,
+          Embeddings = item.Embeddings,
+          Sparse = ToSparse(item.Sparse)
+        });
+      }
+      catch (Exception ex) when (IsRefusal(ex))
+      {
+        return BadRequest($"Item '{item.Key}': {ex.Message}");
+      }
+
       accepted++;
     }
 
@@ -382,15 +459,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
       if (!TryResolveKey(item.Key, item.KeyType, out var keyVector))
         continue;
 
-      await mediator.Send(new Core.Command.collections.SetDocument()
+      try
       {
-        Database = dbname, Collection = collection,
-        Key = keyVector.Value,
-        Content = item.Payload != null
-          ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(item.Payload)).ToArray()
-          : null,
-        Sentence = item.Sentence
-      });
+        await mediator.Send(new Core.Command.collections.SetDocument()
+        {
+          Database = dbname, Collection = collection,
+          Key = keyVector.Value,
+          Content = item.Payload != null
+            ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(item.Payload)).ToArray()
+            : null,
+          Sentence = item.Sentence,
+          Sparse = ToSparse(item.Sparse)
+        });
+      }
+      catch (Exception ex) when (IsRefusal(ex))
+      {
+        return BadRequest($"Item '{item.Key}': {ex.Message}");
+      }
+
       accepted++;
     }
 
@@ -458,6 +544,132 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     return Ok(result);
   }
 
+  [HttpPost("{collection}/search/sparse")]
+  [ProducesResponseType(typeof(IEnumerable<Core.Query.collections.SearchVectorResultItem>), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> SearchSparse(string dbname, string collection,
+    [FromBody] SparseSearchData request, CancellationToken cancellationToken)
+  {
+    if (request == null)
+      return BadRequest("Request payload is required");
+
+    if (request.Sparse == null)
+      return BadRequest("A lexical search needs terms and weights");
+
+    try
+    {
+      var result = await mediator.Send(new Core.Query.collections.SearchSparse
+      {
+        Database = dbname,
+        Collection = collection,
+        Sparse = ToSparse(request.Sparse),
+        Top = request.Top > 0 ? request.Top : 10,
+        NoContent = request.NoContent,
+        MinScore = request.MinScore
+      }, cancellationToken);
+
+      return Ok(result);
+    }
+    catch (Exception ex) when (IsRefusal(ex))
+    {
+      return BadRequest(ex.Message);
+    }
+  }
+
+  [HttpPost("{collection}/search/sparse-by-metadata")]
+  [ProducesResponseType(typeof(IEnumerable<Core.Query.collections.SearchSparseByMetadataResultItem>), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> SearchSparseByMetadata(string dbname, string collection,
+    [FromBody] SparseByMetadataData request, CancellationToken cancellationToken)
+  {
+    if (request == null)
+      return BadRequest("Request payload is required");
+
+    if (request.Sparse == null)
+      return BadRequest("A lexical search needs terms and weights");
+
+    if (request.CandidateBudget <= 0)
+      return BadRequest("candidateBudget must be greater than zero");
+
+    try
+    {
+      var result = await mediator.Send(new Core.Query.collections.SearchSparseByMetadata
+      {
+        Database = dbname,
+        Collection = collection,
+        Sparse = ToSparse(request.Sparse),
+        Top = request.Top > 0 ? request.Top : 10,
+        CandidateBudget = request.CandidateBudget,
+        NoContent = request.NoContent
+      }, cancellationToken);
+
+      return Ok(result);
+    }
+    catch (Exception ex) when (IsRefusal(ex))
+    {
+      return BadRequest(ex.Message);
+    }
+  }
+
+  [HttpPost("{collection}/search/hybrid")]
+  [ProducesResponseType(typeof(IEnumerable<Core.Query.collections.SearchVectorResultItem>), StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> SearchHybrid(string dbname, string collection,
+    [FromBody] HybridSearchData request, CancellationToken cancellationToken)
+  {
+    if (request == null)
+      return BadRequest("Request payload is required");
+
+    if (string.IsNullOrWhiteSpace(request.Sentence)
+        && request.Embeddings is not { Length: > 0 }
+        && request.Sparse is null)
+      return BadRequest("Provide at least one of sentence, embeddings or sparse");
+
+    try
+    {
+      var sparse = ToSparse(request.Sparse);
+
+      // A declared weight is authoritative, including an explicit zero, which
+      // excludes that modality. Without one, the supplied modality carries the
+      // whole ranking; both vectors with no weight at all is a caller mistake.
+      var denseSupplied = !string.IsNullOrWhiteSpace(request.Sentence)
+                          || request.Embeddings is { Length: > 0 };
+      if (denseSupplied && sparse is not null
+          && request.DenseWeight is null && request.SparseWeight is null)
+        return BadRequest("Declare denseWeight and sparseWeight when both vectors are supplied");
+
+      float[] queryEmbeddings = request.Embeddings;
+      if (!string.IsNullOrWhiteSpace(request.Sentence))
+      {
+        queryEmbeddings = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddings
+        {
+          Sentence = request.Sentence,
+          Task = "search_query"
+        }, cancellationToken);
+      }
+
+      var query = new Core.Query.collections.SearchHybrid
+      {
+        Database = dbname,
+        Collection = collection,
+        Embeddings = queryEmbeddings,
+        Sparse = sparse,
+        Top = request.Top > 0 ? request.Top : 10,
+        NoContent = request.NoContent
+      };
+
+      if (request.DenseWeight.HasValue) query.DenseWeight = request.DenseWeight.Value;
+      if (request.SparseWeight.HasValue) query.SparseWeight = request.SparseWeight.Value;
+
+      var result = await mediator.Send(query, cancellationToken);
+      return Ok(result);
+    }
+    catch (Exception ex) when (IsRefusal(ex))
+    {
+      return BadRequest(ex.Message);
+    }
+  }
+
   [HttpPost("search-filter")]
   [ProducesResponseType(typeof(IEnumerable<Core.Query.collections.SearchVectorResultItem>), StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -479,6 +691,24 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
 
     return Ok(result);
   }
+
+  // ── Sparse helpers ──
+
+  /// <summary>
+  /// Builds the shared sparse representation from the REST form. The term cap
+  /// is the store's to enforce, so only the shape is validated here and the
+  /// failure names the offending term.
+  /// </summary>
+  internal static SparseVector ToSparse(SparsePayload payload) =>
+    payload is null
+      ? null
+      : SparseVector.Create(payload.Terms, payload.Weights, int.MaxValue);
+
+  /// <summary>
+  /// A refused request: the payload is malformed, or the store state forbids
+  /// the operation (a sparse write with the write-ahead log off).
+  /// </summary>
+  internal static bool IsRefusal(Exception ex) => ex is ArgumentException or InvalidOperationException;
 
   // ── Key resolution helper ──
 

@@ -226,6 +226,8 @@ public class Writer
           _store.EmbeddingFileStream.Flush(false);
           _store.ContentFileStream.Flush(false);
           _store.IndexFileStream.Flush(false);
+          _store.SparseFileStream?.Flush(false);
+          _store.SparseIndexFileStream?.Flush(false);
         }
         catch
         {
@@ -254,6 +256,9 @@ public class Writer
       {
         lock (_ioLock)
         {
+          // Declared outside the try: the finally block must still be able to
+          // append the sparse positions of what the try wrote.
+          var sparseEntries = new List<(byte[] id, string collection, long position, int count)>();
           try
           {
             // ── Drain the ingestion queue into a local batch ──
@@ -268,6 +273,7 @@ public class Writer
 
             // ── Batch-serialize: one Write per file ──
             var indexEntries = _store.AppendContentBatch(batch);
+            sparseEntries = _store.AppendSparseBatch(batch);
 
             // ── Stage index records and forward to index workers ──
             for (int i = 0; i < indexEntries.Count; i++)
@@ -276,12 +282,22 @@ public class Writer
               TempIndex.Enqueue(idx);
 
               var original = batch[i];
+
+              // Lexical index: fed here, after the record is on disk, so a
+              // rebuild that scans the archive always covers what the index
+              // already knows.
+              if (original.Sparse is not null)
+                _store.Options.SparseIndex?.Add(original.CollectionName, idx.id, original.Sparse);
+
               EnqueueForIndexing(new VectorEntry()
               {
                 Id = idx.id,
                 CollectionName = original.CollectionName,
                 Embedding = original.Embedding,
-                Content = original.Content
+                Content = original.Content,
+                // The sparse slot travels with the entry: rebuilding it without
+                // this field would silently drop the terms before the index.
+                Sparse = original.Sparse
               });
             }
           }
@@ -294,6 +310,12 @@ public class Writer
               _store.AppendIndex(indexData);
 
             _store.IndexFileStream.Flush(false);
+
+            foreach (var sparseData in sparseEntries)
+              _store.AppendSparseIndex(sparseData);
+
+            _store.SparseFileStream?.Flush(false);
+            _store.SparseIndexFileStream?.Flush(false);
           }
         }
       }
