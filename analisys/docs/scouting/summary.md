@@ -52,6 +52,13 @@ Fuori scope:
 | Eseguire la conformance suite MEVD sul fork locale | Maintainer |
 | Aprire il ciclo di elicitazione con il dossier come base | Analisi e prototipo |
 
+## Giri successivi
+
+| Giro | Domanda | Esito sintetico |
+| --- | --- | --- |
+| [Vettori sparsi](sparse-vectors/summary.md) | Come inserire un secondo slot vettoriale lessicale, e come lo fanno i prodotti concorrenti | Prosegui con ambito ridotto; pesi forniti dal chiamante, un solo WAL |
+| [Client .NET di Qdrant a confronto](dotnet-client/dossier.md) | Come si usa il client .NET di Qdrant per denso più sparso, e in che cosa differisce dal nostro | Nessun cambio di contratto; due leve da valutare (`k` della fusione, profondità dei candidati) |
+
 ## Diagrammi di riferimento
 
 - [Data sources, actors and output types](diagrams.md#7-data-sources-actors-and-output-types) (diagrams.md#7-data-sources-actors-and-output-types)
