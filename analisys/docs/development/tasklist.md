@@ -21,7 +21,7 @@ Regole di esecuzione:
 
 ## Definizione di fatto, comune a ogni card
 
-- [ ] Il codice compila: `dotnet build Jigen.sln -m:1`.
+- [ ] Il codice compila: `dotnet build Jigen.slnx -m:1`.
 - [ ] I test del perimetro passano, con il comando dichiarato nella card.
 - [ ] I test esistenti dello stesso perimetro restano verdi.
 - [ ] Nessun file di test temporaneo, nessun `Console.WriteLine`, nessun `TODO` senza card.
@@ -32,7 +32,7 @@ Regole di esecuzione:
 
 | Ambito | Comando | Attesa |
 | --- | --- | --- |
-| Soluzione | `dotnet build Jigen.sln -m:1` | 0 errori |
+| Soluzione | `dotnet build Jigen.slnx -m:1` | 0 errori |
 | Primitivi | `dotnet test tests/PrimitiveTests/PrimitiveTests.csproj` | tutti verdi |
 | Archivio | `dotnet test tests/JigenStoreTests/JigenStoreTests.csproj` | tutti verdi |
 | Indice sparso | `dotnet test tests/SparseIndexerTests/SparseIndexerTests.csproj` | tutti verdi |
@@ -57,7 +57,7 @@ Requisiti: R-36, K-35, K-36. Caso d'uso: UC-19. Dipendenze: nessuna.
 - [x] **T-16.1.6** Aggiornare `VectorEntry.Empty` per lasciare `Sparse` a `null`.
 - [x] **T-16.1.7** **Gate di qualità**: chiedere approvazione del codice.
 - [x] **T-16.1.8** Scrivere `tests/PrimitiveTests/SparseVectorTests.cs` con: valido, termini duplicati, termini non ordinati, peso negativo, peso non finito, tutti i pesi a zero, oltre il massimo, insieme vuoto.
-- [x] **T-16.1.9** Verificare: `dotnet build Jigen.sln -m:1` e `dotnet test tests/PrimitiveTests/PrimitiveTests.csproj`.
+- [x] **T-16.1.9** Verificare: `dotnet build Jigen.slnx -m:1` e `dotnet test tests/PrimitiveTests/PrimitiveTests.csproj`.
 - [x] **T-16.1.10** Annotare nel dossier: data, esito, comando, numero di test.
 
 ### Fine card

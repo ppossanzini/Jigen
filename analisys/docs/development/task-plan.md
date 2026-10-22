@@ -23,7 +23,7 @@ Piano eseguibile dell'incremento R-36…R-41. I passi atomici, con la definizion
 - La ricerca è esatta per default; la potatura è opt-in e mai con un filtro (K-39).
 - Un solo proprietario per dato: l'indice possiede termini ed elenchi e riferisce la chiave della voce.
 - Ogni card dichiara le skill attivate; nessuna skill è applicata senza dichiarazione.
-- Verifica minima di ogni card backend: `dotnet build Jigen.sln -m:1`, poi il progetto di test indicato.
+- Verifica minima di ogni card backend: `dotnet build Jigen.slnx -m:1`, poi il progetto di test indicato.
 
 ---
 
@@ -58,7 +58,7 @@ Piano eseguibile dell'incremento R-36…R-41. I passi atomici, con la definizion
 4. Aggiungere `Sparse` a `VectorEntry`, con distinzione fra «assente» e «vuoto» documentata nel tipo.
 5. Test: termini duplicati, non ordinati, peso negativo, oltre il limite, insieme vuoto.
 
-**Verifica.** `dotnet build Jigen.sln -m:1`, poi `dotnet test tests/PrimitiveTests/PrimitiveTests.csproj`. Attesa: tutti verdi, casi di rifiuto coperti.
+**Verifica.** `dotnet build Jigen.slnx -m:1`, poi `dotnet test tests/PrimitiveTests/PrimitiveTests.csproj`. Attesa: tutti verdi, casi di rifiuto coperti.
 
 **Uscita.** Handoff a T-16.2.
 
@@ -197,7 +197,7 @@ Piano eseguibile dell'incremento R-36…R-41. I passi atomici, con la definizion
 
 **Fuori.** La ricerca e la fusione: T-17. La potatura: T-17.4, rinviata.
 
-**Percorsi.** `src/Jigen/Jigen.Indexer.Sparse/` (nuovo progetto), `Jigen.sln`, `src/Jigen/Jigen.Store/Store.cs`, `StoreOptions.cs`, `src/Jigen/Jigen.Primitives/DataStructures/CollectionInfo.cs`, `tests/HnswTest/` o nuovo progetto di test.
+**Percorsi.** `src/Jigen/Jigen.Indexer.Sparse/` (nuovo progetto), `Jigen.slnx`, `src/Jigen/Jigen.Store/Store.cs`, `StoreOptions.cs`, `src/Jigen/Jigen.Primitives/DataStructures/CollectionInfo.cs`, `tests/HnswTest/` o nuovo progetto di test.
 
 **Incremento.** L'indice esiste, si aggiorna e si ricostruisce. Non risponde ancora a una query.
 
@@ -211,7 +211,7 @@ Piano eseguibile dell'incremento R-36…R-41. I passi atomici, con la definizion
 6. Misurare memoria e tempo di costruzione a 100.000 voci; registrare il valore nel dossier.
 7. Test: inserimento, aggiornamento, cancellazione, ricostruzione, metriche.
 
-**Verifica.** `dotnet build Jigen.sln -m:1`, `dotnet test tests/JigenStoreTests/JigenStoreTests.csproj`, più il test dell'indice. Attesa: risultati invariati dopo la cancellazione dei file dell'indice; memoria misurata e scritta.
+**Verifica.** `dotnet build Jigen.slnx -m:1`, `dotnet test tests/JigenStoreTests/JigenStoreTests.csproj`, più il test dell'indice. Attesa: risultati invariati dopo la cancellazione dei file dell'indice; memoria misurata e scritta.
 
 **Uscita.** Handoff a T-17.1.
 

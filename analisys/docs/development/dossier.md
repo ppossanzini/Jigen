@@ -54,7 +54,7 @@ Lette prima di toccare un file.
 | Linguaggio | Forma C# corrente dove la versione effettiva lo consente |
 | Formattazione | Due spazi, graffe su riga propria, stile dei file circostanti |
 | Test | xUnit, un progetto per area, nomi che descrivono il comportamento |
-| Verifica | `dotnet build Jigen.sln -m:1` e `dotnet test <progetto>`; niente comandi arbitrari |
+| Verifica | `dotnet build Jigen.slnx -m:1` e `dotnet test <progetto>`; niente comandi arbitrari |
 | Temporanei | Solo sotto `.temp/`, mai `/tmp` |
 | Migrazioni | Nessuna generazione automatica; il formato del registro è codice, non EF |
 
@@ -230,6 +230,22 @@ Una scrittura con la sola frase ora produce anche lo sparso, quindi è una scrit
 
 **Skill attivate.** `base-be-base-rules`, `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology` (la scelta della regola dei token speciali è stata falsificata con una prova), `base-project-decision-log`, `base-dossier-writing`.
 
+Esecuzione del 2026-10-22 (quarta tornata): conversione di `Jigen.sln` in `Jigen.slnx`. Attore `A1`.
+
+**Perché non bastava rinominare.** `dotnet sln Jigen.sln migrate` fallisce con `Duplicate item '/Jigen/' of type 'Folder'`, cioè sullo stesso difetto che bloccava la build. Il file è stato ricostruito dai progetti presenti su disco, e la ricostruzione ha fatto emergere due difetti oltre a quello noto.
+
+| Difetto trovato | Effetto | Correzione |
+| --- | --- | --- |
+| Cinque cartelle di soluzione chiamate "Jigen" (una con lo stesso GUID della cartella "Store") | `MSB5004`: la build dell'intera soluzione era impossibile | Cartelle eliminate; in `slnx` le cartelle sono percorsi, quindi il nome può ripetersi senza conflitto |
+| Quattro progetti sotto `.temp/` che non esistono più (`GraniteScore`, `GraniteParameterEvaluation`, `ModelComparison`, `HnswZeroLoss`) | Il file puntava a progetti cancellati: la soluzione non era più coerente col disco | Riferimenti e cartelle rimossi; `.temp/` è già ignorato da git |
+| Tre progetti esistenti ma assenti dalla soluzione (`Jigen.API.Tests`, `Jigen.Grpc.Tests`, `ComparativeBenchmarks`) | Le suite di API e gRPC non venivano mai eseguite da una build o da un test di soluzione: è la ragione per cui in tutte le tornate precedenti si è compilato e testato progetto per progetto | Aggiunti sotto `tests/` |
+
+**Struttura del nuovo file.** Cartelle `/src/{Client,Embedding,Jigen,Server,Server/Modules/{Identity,Metrics},Tools}` e `/tests/`, più `/Solution Items/` con gli stessi file del vecchio; piattaforme `Any CPU`, `x64`, `x86` e tipi `Debug`, `Release`. Le mappature per progetto del vecchio file erano tutte identità, quindi non servono: nessun progetto cambia output fra le piattaforme.
+
+**Verifica.** `dotnet sln Jigen.slnx list` elenca 34 progetti; `dotnet build Jigen.slnx` termina con 0 errori; `dotnet build` senza argomenti nella radice trova il solo `slnx` e compila; `dotnet test Jigen.slnx --filter …` scopre ed esegue i test nei progetti. `Jigen-AllInOne` resta soggetto al lock di `StaticWebAssets` già noto, per cui `-m:1` resta obbligatorio in CI e nel README.
+
+**Riferimenti aggiornati.** `.github/workflows/build-packages-and-container.yml` (restore e build), `README.md`, e i comandi di verifica di `tasklist.md`, `task-plan.md` e di questo dossier.
+
 **Comandi eseguiti.** `dotnet build` dei singoli progetti (la soluzione ha un errore preesistente, vedi sotto); `dotnet test tests/PrimitiveTests`, `tests/JigenStoreTests`, `tests/HnswTest`, `tests/JigenClientTest`, `tests/Jigen.API.Tests`.
 
 **Skill attivate.** `base-be-base-rules`, `implementation-be-dotnet-jigen-store`, `implementation-be-dotnet-dev`.
@@ -262,5 +278,5 @@ Una scrittura con la sola frase ora produce anche lo sparso, quindi è una scrit
 | Test | Causa |
 | --- | --- |
 | `ReadWriteTest` (6 casi) | Apre il percorso fisso `/data/jigendb/readwritetest`, dove su questa macchina esiste un database scritto il 14 luglio con un formato di metadati precedente: `Unknown metadata mutation kind` in `SharedMetadataStore.OpenSources`. Il test dipende da `/data/jigendb` e `/data/onnx` e non è isolato |
-| `dotnet build Jigen.sln` | `MSB5004: the solution file has two projects named "Jigen"`; errore del file di soluzione, indipendente da queste modifiche. La build è stata eseguita progetto per progetto |
+| ~~`dotnet build Jigen.sln`~~ **risolto** | `MSB5004: the solution file has two projects named "Jigen"`: cinque cartelle di soluzione duplicate chiamate "Jigen". Il file è stato sostituito da `Jigen.slnx`, che non ha il difetto; la build della soluzione ora riesce (vedi la tornata del 2026-10-22, quarta) |
 | `HnswTest` 30/30, `JigenClientTest` 22/26 (4 saltati), `Jigen.API.Tests` 57/57 | Verdi: nessuna regressione sul percorso denso |

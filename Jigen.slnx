@@ -1,0 +1,78 @@
+<Solution>
+
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+    <BuildType Name="Debug" />
+    <BuildType Name="Release" />
+  </Configurations>
+
+  <Folder Name="/Solution Items/">
+    <File Path="compose.yaml" />
+    <File Path="Dockerfile" />
+    <File Path=".dockerignore" />
+    <File Path="publish-release.sh" />
+    <File Path="publish.sh" />
+    <File Path="README.md" />
+  </Folder>
+
+  <Folder Name="/src/Client/">
+    <Project Path="src/Client/Jigen.Client/Jigen.Client.csproj" />
+  </Folder>
+
+  <Folder Name="/src/Embedding/">
+    <Project Path="src/Embedding/Jigen.Embedding.Api/Jigen.Embedding.Api.csproj" />
+    <Project Path="src/Embedding/Jigen.Embedding.Core/Jigen.Embedding.Core.csproj" />
+    <Project Path="src/Embedding/Jigen.Embedding.Handlers/Jigen.Embedding.Handlers.csproj" />
+    <Project Path="src/Embedding/Jigen.Embedding/Jigen.Embedding.csproj" />
+  </Folder>
+
+  <Folder Name="/src/Jigen/">
+    <Project Path="src/Jigen/Jigen.Calibration/Jigen.Calibration.csproj" />
+    <Project Path="src/Jigen/Jigen.Indexer.HNSW/Jigen.Indexer.HNSW.csproj" />
+    <Project Path="src/Jigen/Jigen.Indexer.KMeans/Jigen.Indexer.KMeans.csproj" />
+    <Project Path="src/Jigen/Jigen.Primitives/Jigen.Primitives.csproj" />
+    <Project Path="src/Jigen/Jigen.SemanticTools/Jigen.SemanticTools.csproj" />
+    <Project Path="src/Jigen/Jigen.Store/Jigen.Store.csproj" />
+  </Folder>
+
+  <Folder Name="/src/Server/">
+    <Project Path="src/Server/Jigen.API/Jigen.API.csproj" />
+    <Project Path="src/Server/Jigen.Core/Jigen.Core.csproj" />
+    <Project Path="src/Server/Jigen.Grpc/Jigen.Grpc.csproj" />
+    <Project Path="src/Server/Jigen.Handlers/Jigen.Handlers.csproj" />
+    <Project Path="src/Server/Jigen/Jigen-AllInOne.csproj" />
+    <Project Path="src/Server/Jigen/Jigen.csproj" />
+  </Folder>
+
+  <Folder Name="/src/Server/Modules/Identity/">
+    <Project Path="src/Server/Modules/Identity/Jigen.Identity.API/Jigen.Identity.API.csproj" />
+    <Project Path="src/Server/Modules/Identity/Jigen.Identity.Core/Jigen.Identity.Core.csproj" />
+    <Project Path="src/Server/Modules/Identity/Jigen.Identity.Handlers/Jigen.Identity.Handlers.csproj" />
+  </Folder>
+
+  <Folder Name="/src/Server/Modules/Metrics/">
+    <Project Path="src/Server/Modules/Metrics/Jigen.Metrics.API/Jigen.Metrics.API.csproj" />
+    <Project Path="src/Server/Modules/Metrics/Jigen.Metrics.Core/Jigen.Metrics.Core.csproj" />
+    <Project Path="src/Server/Modules/Metrics/Jigen.Metrics.Handlers/Jigen.Metrics.Handlers.csproj" />
+  </Folder>
+
+  <Folder Name="/src/Tools/">
+    <Project Path="src/Tools/SharedTools/SharedTools.csproj" />
+  </Folder>
+
+  <Folder Name="/tests/">
+    <Project Path="tests/ComparativeBenchmarks/ComparativeBenchmarks.csproj" />
+    <Project Path="tests/HnswTest/HnswTest.csproj" />
+    <Project Path="tests/Jigen.API.Tests/Jigen.API.Tests.csproj" />
+    <Project Path="tests/Jigen.Grpc.Tests/Jigen.Grpc.Tests.csproj" />
+    <Project Path="tests/Jigen.IdentityTests/Jigen.IdentityTests.csproj" />
+    <Project Path="tests/Jigen.SemanticTools.Tests/Jigen.SemanticTools.Tests.csproj" />
+    <Project Path="tests/JigenBenchmarks/JigenBenchmarks.csproj" />
+    <Project Path="tests/JigenClientTest/JigenClientTest.csproj" />
+    <Project Path="tests/JigenStoreTests/JigenStoreTests.csproj" />
+    <Project Path="tests/PrimitiveTests/PrimitiveTests.csproj" />
+  </Folder>
+
+</Solution>

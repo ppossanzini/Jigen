@@ -131,7 +131,7 @@ The server also ships a web administration UI (Jigen Insight) served on port 132
 ## Building from source
 
 ```bash
-dotnet build Jigen.sln -m:1        # -m:1 required (StaticWebAssets breaks parallel builds)
+dotnet build Jigen.slnx -m:1       # -m:1 required (StaticWebAssets breaks parallel builds)
 dotnet run --project src/Server/Jigen/Jigen.csproj
 ```
 
