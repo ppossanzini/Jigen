@@ -30,6 +30,43 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     return response;
   }
 
+  public override async Task<SparseEmbeddingResponse> CalculateSparseEmbedding(EmbeddingRequest request, ServerCallContext context)
+  {
+    var result = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateSparseEmbedding
+    {
+      Model = request.Model,
+      Sentence = request.Message
+    }, context.CancellationToken);
+
+    return ToSparseEmbeddingResponse(result);
+  }
+
+  public override async Task<SparseEmbeddingBatchResponse> CalculateSparseEmbeddingBatch(
+    EmbeddingBatchRequest request, ServerCallContext context)
+  {
+    var results = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateSparseEmbeddingBatch
+    {
+      Model = request.Model,
+      Sentences = request.Messages.ToArray()
+    }, context.CancellationToken);
+
+    var response = new SparseEmbeddingBatchResponse();
+    response.Results.AddRange(results.Select(ToSparseEmbeddingResponse));
+    return response;
+  }
+
+  private static SparseEmbeddingResponse ToSparseEmbeddingResponse(Jigen.Embedding.Core.Dto.SparseEmbeddingDto sparse)
+  {
+    var response = new SparseEmbeddingResponse();
+    if (sparse?.Terms is { Length: > 0 } terms && terms.Length == sparse.Weights.Length)
+    {
+      response.Terms.AddRange(terms);
+      response.Weights.AddRange(sparse.Weights);
+    }
+
+    return response;
+  }
+
   public override async Task<EmbeddingBatchResponse> CalculateEmbeddingsBatch(EmbeddingBatchRequest request, ServerCallContext context)
   {
     var response = new EmbeddingBatchResponse();
@@ -319,32 +356,43 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
   {
     if (window.Count == 0) return 0;
 
-    var withSentence = window.Where(d => !string.IsNullOrWhiteSpace(d.Sentence)).ToArray();
+    // A document needs generation when it carries a sentence and either slot is
+    // still missing: the pair is computed in one batch so the dense and the
+    // lexical side describe the same text.
+    // A Document carries a sentence, not a precomputed vector: generation is
+    // needed whenever a sentence is present, and the caller's own sparse vector
+    // still wins over the generated one.
+    var withSentence = window
+      .Where(d => !string.IsNullOrWhiteSpace(d.Sentence))
+      .ToArray();
 
-    float[][] vectors = [];
+    var pairs = Array.Empty<Jigen.Embedding.Core.Dto.VectorPairDto>();
     if (withSentence.Length > 0)
-      vectors = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateEmbeddingsBatch
+      pairs = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateVectorPairBatch
       {
-        Sentences = withSentence.Select(d => d.Sentence).ToArray()
+        Sentences = withSentence.Select(d => d.Sentence).ToArray(),
+        Task = serverSettings.Value.EmbeddingCostructionTask
       }, cancellationToken);
 
-    var embeddingsByDocument = new Dictionary<Document, float[]>(withSentence.Length);
+    var pairsByDocument = new Dictionary<Document, Jigen.Embedding.Core.Dto.VectorPairDto>(withSentence.Length);
     for (var i = 0; i < withSentence.Length; i++)
-      embeddingsByDocument[withSentence[i]] = vectors[i];
+      pairsByDocument[withSentence[i]] = pairs[i];
 
     var ingested = 0;
     foreach (var document in window)
     {
+      pairsByDocument.TryGetValue(document, out var pair);
+
+      var explicitSparse = ToSparseVector(document.Sparse);
+
       await mediator.Send(new Core.Command.collections.SetDocument()
       {
         Database = document.Database,
         Collection = document.Collection,
         Key = document.Key.ToByteArray(),
         Content = document.Content.ToByteArray(),
-        Embeddings = embeddingsByDocument.TryGetValue(document, out var embedding) && embedding is { Length: > 0 }
-          ? embedding
-          : null,
-        Sparse = ToSparseVector(document.Sparse)
+        Embeddings = pair?.Dense is { Length: > 0 } dense ? dense : null,
+        Sparse = explicitSparse ?? ToSparseVector(pair?.Sparse)
       }, cancellationToken);
 
       ingested++;
@@ -495,6 +543,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         Collection = request.Collection,
         Embeddings = request.Embeddings.ToArray(),
         Sparse = ToSparseVector(request.Sparse),
+        Sentence = request.Sentence,
         Top = request.Top,
         Filter = ToFilterExpression(request.Filter),
         NoContent = request.Tuning?.NoContent ?? false
@@ -503,6 +552,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       // A declared weight is authoritative, including an explicit zero, which
       // excludes that modality. Without one, the supplied modality carries the
       // whole ranking; both vectors with no weight at all is a caller mistake.
+      // A sentence that generates the second vector is not a caller mistake: the
+      // defaults then weigh the two modalities equally.
       if (denseWeightDeclared) query.DenseWeight = request.DenseWeight;
       if (sparseWeightDeclared) query.SparseWeight = request.SparseWeight;
 
@@ -529,6 +580,16 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     sparse is null
       ? null
       : SparseVector.Create(sparse.Terms.ToArray(), sparse.Weights.ToArray(), int.MaxValue);
+
+  /// <summary>
+  /// The sparse vector generated for a sentence, or null when the text produced
+  /// no term: the store refuses an empty vector, so an empty result is an absent
+  /// slot.
+  /// </summary>
+  private static SparseVector ToSparseVector(Jigen.Embedding.Core.Dto.SparseEmbeddingDto sparse) =>
+    sparse?.Terms is { Length: > 0 } terms && terms.Length == sparse.Weights.Length
+      ? SparseVector.Create(terms, sparse.Weights, int.MaxValue)
+      : null;
 
   private static ProtoSparseVector ToProtoSparseVector(SparseVector sparse)
   {

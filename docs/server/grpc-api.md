@@ -24,6 +24,8 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 | `Clear` | `CollectionKey` | `Result` | Remove all documents from a collection. |
 | `Count` | `CollectionKey` | `CountResult` | Count documents in a collection. |
 | `CalculateEmbeddings` | `EmbeddingRequest` | `EmbeddingResponse` | Compute an embedding for a sentence, optionally with a task prefix. |
+| `CalculateSparseEmbedding` | `EmbeddingRequest` | `SparseEmbeddingResponse` | Sparse lexical vector of one text: tokenizer terms with their weights; empty when the text has no term. |
+| `CalculateSparseEmbeddingBatch` | `EmbeddingBatchRequest` | `SparseEmbeddingBatchResponse` | One sparse vector per input, same order. |
 | `CalculateEmbeddingsBatch` | `EmbeddingBatchRequest` | `EmbeddingBatchResponse` | Compute embeddings for many sentences in one call; results keep the input order (blank inputs yield an empty row). |
 | `CalculateImageEmbedding` | `ImageEmbeddingRequest` | `EmbeddingResponse` | Compute the embedding of an image from its raw bytes. Requires `ImagesModelPath` configured (vision model). |
 | `CalculateImageEmbeddingBatch` | `ImageEmbeddingBatchRequest` | `EmbeddingBatchResponse` | Compute embeddings for many images in one call; results keep the input order (empty images yield an empty row). |
@@ -41,6 +43,14 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 `IngestResult.Accepted` counts the entries accepted into the server's ingestion pipeline; durability follows the server's group-commit policy, exactly like the unary `Set` operations.
 
 `SetDocument`, `SetDocuments` and `SearchDocument` require an embedding module reachable from the server process (in-process on the all-in-one image, or remote over RabbitMQ from a `jigendb` server) — see [embeddings overview](../embeddings/overview.md). The image RPCs additionally require the vision model to be configured (`JigenEmbeddings:ImagesModelPath`); without it the server runs text-only and image RPCs fail with a clear configuration error.
+
+### Sparse generation
+
+`CalculateSparseEmbedding` returns the lexical vector of a text without any model
+inference: the terms are the tokenizer's vocabulary ids and the weight grows with
+the occurrences. `Vector` and `Document` need nothing extra from a client that only
+wants the server to do the work — a `Document` with a `Sentence` fills both slots,
+and an explicit `Sparse` always wins over the generated one.
 
 ### Sparse (lexical) slot
 
@@ -61,9 +71,14 @@ lexical slot"; an **empty** one is refused with `InvalidArgument`. A request wit
 more terms than the server's configured cap (`SparseMaxTerms`) is refused too.
 
 `SearchHybridRequest` takes `DenseWeight` and `SparseWeight` as `optional`: when
-both vectors are supplied both must be present, a zero weight excludes that
-modality, and both at zero is `InvalidArgument`. With a single vector the missing
-weight defaults to one.
+both vectors are supplied explicitly both must be present, a zero weight excludes
+that modality, and both at zero is `InvalidArgument`. With a single vector the
+missing weight defaults to one.
+
+Its `Sentence` field (tag 10) makes the request text-only: the server generates the
+dense embedding and the sparse lexical vector from it and fuses them, so neither
+vector and no weight is needed. An explicit `Embeddings` or `Sparse` always wins
+over the generated one.
 
 `SearchVectorResult` carries the provenance of every hit: `Score` is the fused
 score on a hybrid search, `DenseScore`/`SparseScore` keep the original modality

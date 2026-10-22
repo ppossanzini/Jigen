@@ -299,6 +299,51 @@ public class ServiceSparseTests
   }
 
   [Fact]
+  public async Task SearchHybrid_FromASentence_NeedsNoVectorsAndNoWeights()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Query.collections.SearchHybrid>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(Array.Empty<Core.Query.collections.SearchVectorResultItem>());
+
+    await CreateServer().SearchHybrid(new SearchHybridRequest
+    {
+      Database = DbName,
+      Collection = Collection,
+      Sentence = "il parco è buio",
+      Top = 5
+    }, CreateContext());
+
+    // The handler generates both vectors from the sentence: the surface passes
+    // it through and declares no weights, so the defaults weigh them equally.
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Query.collections.SearchHybrid>(q =>
+        q.Sentence == "il parco è buio"
+        && q.Embeddings.Length == 0
+        && q.Sparse == null),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SearchHybrid_FromASentenceAndAnExplicitSparse_KeepsTheSparse()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Query.collections.SearchHybrid>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(Array.Empty<Core.Query.collections.SearchVectorResultItem>());
+
+    await CreateServer().SearchHybrid(new SearchHybridRequest
+    {
+      Database = DbName,
+      Collection = Collection,
+      Sentence = "il parco è buio",
+      Sparse = Wire([4, 9], [1f, 2f]),
+      Top = 5
+    }, CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Query.collections.SearchHybrid>(q =>
+        q.Sentence == "il parco è buio" && q.Sparse != null && q.Sparse.Count == 2),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
   public async Task SearchHybrid_WithBothVectorsAndNoWeights_IsInvalidArgument()
   {
     var ex = await Assert.ThrowsAsync<RpcException>(() =>
@@ -430,6 +475,114 @@ public class ServiceSparseTests
       It.Is<Core.Command.collections.SetDocument>(c =>
         c.Sparse != null && c.Sparse.Count == 2 && c.Sparse.Terms.ToArray()[1] == 4),
       It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetDocuments_FillsBothSlotsFromTheSentence()
+  {
+    var generated = new[]
+    {
+      new Jigen.Embedding.Core.Dto.VectorPairDto
+      {
+        Dense = [0.1f, 0.2f, 0.3f],
+        Sparse = new Jigen.Embedding.Core.Dto.SparseEmbeddingDto
+        {
+          Terms = [11, 42], Weights = [1f, 1.7f]
+        }
+      }
+    };
+
+    _hikyakuMock
+      .Setup(m => m.Send(It.IsAny<Jigen.Embedding.Core.Commands.CalculateVectorPairBatch>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(generated);
+
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Command.collections.SetDocument>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var documents = new TestAsyncStreamReader(new[]
+    {
+      new Document
+      {
+        Database = DbName, Collection = Collection, Key = ByteString.CopyFrom(KeyBytes),
+        Content = ByteString.CopyFrom("doc"u8.ToArray()), Sentence = "the park is dark"
+      }
+    });
+
+    await CreateServer().SetDocuments(documents, CreateContext());
+
+    // One dispatch produced both vectors: the dense from the model and the
+    // lexical from the tokenizer.
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Command.collections.SetDocument>(c =>
+        c.Embeddings.SequenceEqual(new[] { 0.1f, 0.2f, 0.3f })
+        && c.Sparse.Terms.ToArray().SequenceEqual(new[] { 11, 42 })),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetDocuments_KeepsTheCallerSparseOverTheGeneratedOne()
+  {
+    _hikyakuMock
+      .Setup(m => m.Send(It.IsAny<Jigen.Embedding.Core.Commands.CalculateVectorPairBatch>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new[]
+      {
+        new Jigen.Embedding.Core.Dto.VectorPairDto
+        {
+          Dense = [0.5f],
+          Sparse = new Jigen.Embedding.Core.Dto.SparseEmbeddingDto { Terms = [99], Weights = [1f] }
+        }
+      });
+
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Command.collections.SetDocument>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var documents = new TestAsyncStreamReader(new[]
+    {
+      new Document
+      {
+        Database = DbName, Collection = Collection, Key = ByteString.CopyFrom(KeyBytes),
+        Content = ByteString.CopyFrom("doc"u8.ToArray()), Sentence = "a sentence",
+        Sparse = Wire([1, 2], [1f, 1f])
+      }
+    });
+
+    await CreateServer().SetDocuments(documents, CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Command.collections.SetDocument>(c =>
+        c.Sparse.Terms.ToArray().SequenceEqual(new[] { 1, 2 })),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task CalculateSparseEmbedding_ReturnsTheGeneratedTerms()
+  {
+    _hikyakuMock
+      .Setup(m => m.Send(It.IsAny<Jigen.Embedding.Core.Commands.CalculateSparseEmbedding>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new Jigen.Embedding.Core.Dto.SparseEmbeddingDto
+      {
+        Terms = [12, 98], Weights = [1f, 2.1f]
+      });
+
+    var result = await CreateServer().CalculateSparseEmbedding(
+      new EmbeddingRequest { Message = "the park is dark" }, CreateContext());
+
+    Assert.Equal(new[] { 12, 98 }, result.Terms.ToArray());
+    Assert.Equal(new[] { 1f, 2.1f }, result.Weights.ToArray());
+  }
+
+  [Fact]
+  public async Task CalculateSparseEmbedding_ReturnsAnEmptyMessageWhenTheTextHasNoTerms()
+  {
+    _hikyakuMock
+      .Setup(m => m.Send(It.IsAny<Jigen.Embedding.Core.Commands.CalculateSparseEmbedding>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new Jigen.Embedding.Core.Dto.SparseEmbeddingDto());
+
+    var result = await CreateServer().CalculateSparseEmbedding(
+      new EmbeddingRequest { Message = "   " }, CreateContext());
+
+    Assert.Empty(result.Terms);
+    Assert.Empty(result.Weights);
   }
 
   /// <summary>Minimal client-streaming reader over a fixed list.</summary>

@@ -14,6 +14,15 @@ public class SearchHybrid : IRequest<IEnumerable<SearchVectorResultItem>>
   public string Database { get; set; }
   public string Collection { get; set; }
   public float[] Embeddings { get; set; }
+
+  /// <summary>
+  /// Free-text query. When supplied, whichever slot is missing is generated from
+  /// it: the dense embedding and the sparse lexical vector come from the same
+  /// text, so a caller can search in hybrid with a sentence alone. A vector the
+  /// caller gave explicitly always wins over the generated one.
+  /// </summary>
+  public string Sentence { get; set; }
+
   public SparseVector Sparse { get; set; }
   public int Top { get; set; }
   public IFilterExpression Filter { get; set; }

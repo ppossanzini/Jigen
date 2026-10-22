@@ -160,6 +160,7 @@ await tx.CommitAsync();  // all-or-nothing: BEGIN→ops→COMMIT in one Write()
 - `ClearCollection` inside a transaction is not supported — treated the same as nested transactions.
 - Transactions require the WAL to be enabled — `CommitAsync()` throws `InvalidOperationException` if `WalOptions.Enabled` is `false`.
 - A sparse vector requires the WAL as well: writing an entry that carries a lexical slot with `WalOptions.Enabled = false` throws `InvalidOperationException` before any file is created or modified. Without the log the slot could not be recovered after a crash, so the write is refused rather than silently made durable only at the next checkpoint.
+- The server generates the sparse vector from a sentence, so on the server this makes a sentence write a sparse write: with the log disabled a `SetDocument` carrying a sentence is refused with a message naming the cause.
 
 ### Performance
 

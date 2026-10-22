@@ -24,9 +24,8 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    float[] embeddings = request.Embeddings ?? ( request.Sentence != null
-      ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence, Task = serverSettings.Value.EmbeddingCostructionTask }, cancellationToken)
-      : null);
+    var (embeddings, sparse) = await ResolveVectors(
+      store, request.Embeddings, request.Sparse, request.Sentence, cancellationToken);
 
     await store.AppendContent(
       new VectorEntry()
@@ -35,7 +34,7 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
         Id = request.Key,
         Content = request.Content,
         Embedding = embeddings,
-        Sparse = request.Sparse
+        Sparse = sparse
       });
   }
 
@@ -43,9 +42,8 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var embeddings = request.Embeddings ?? ( request.Sentence != null
-      ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence, Task = serverSettings.Value.EmbeddingCostructionTask  }, cancellationToken)
-      : null);
+    var (embeddings, sparse) = await ResolveVectors(
+      store, request.Embeddings, request.Sparse, request.Sentence, cancellationToken);
 
     await store.AppendContent(
       new VectorEntry()
@@ -54,7 +52,7 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
         Id = request.Key,
         Content = request.Content,
         Embedding = embeddings,
-        Sparse = request.Sparse
+        Sparse = sparse
       });
   }
 
@@ -130,5 +128,53 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
     return Task.FromResult(
       store.GetCollectionIndexOf(request.Collection, out var index) && index.ContainsKey(request.Key)
     );
+  }
+
+  /// <summary>
+  /// Resolves the two vector slots of a write. A sentence the caller supplied is
+  /// the one input that fills both: the dense embedding and the sparse lexical
+  /// vector are generated in one dispatch, and a slot the caller gave explicitly
+  /// always wins over the generated one. Without a sentence nothing is generated,
+  /// so an entry with only content stays exactly that.
+  /// </summary>
+  private async Task<(float[] embeddings, SparseVector sparse)> ResolveVectors(
+    Store store, float[] embeddings, SparseVector sparse, string sentence, CancellationToken cancellationToken)
+  {
+    var needsDense = embeddings is not { Length: > 0 };
+    var needsSparse = sparse is null;
+
+    if (string.IsNullOrWhiteSpace(sentence) || (!needsDense && !needsSparse))
+      return (embeddings, sparse);
+
+    var pair = await hikyaku.Send(new Embedding.Core.Commands.CalculateVectorPair
+    {
+      Sentence = sentence,
+      Task = serverSettings.Value.EmbeddingCostructionTask
+    }, cancellationToken);
+
+    // A generated sparse vector is still a sparse write: without the log it
+    // could not be recovered after a crash. Say so here, because the caller
+    // asked for a sentence, not for a lexical slot, and the store's own message
+    // would not explain where the vector came from.
+    if (needsSparse && pair.Sparse?.Terms is { Length: > 0 } && store.Options.Wal?.Enabled != true)
+      throw new InvalidOperationException(
+        "The sentence generates a sparse vector, and writing one requires the write-ahead log: " +
+        "set JigenServer:Wal:Enabled (or send the dense embedding explicitly) to write without it.");
+
+    return (
+      needsDense ? pair.Dense : embeddings,
+      needsSparse ? ToSparseVector(pair.Sparse) : sparse);
+  }
+
+  /// <summary>
+  /// An empty sparse vector means the text produced no terms: the slot is then
+  /// absent, not empty, because the store refuses an empty vector.
+  /// </summary>
+  private static SparseVector ToSparseVector(Embedding.Core.Dto.SparseEmbeddingDto sparse)
+  {
+    if (sparse?.Terms is not { Length: > 0 }) return null;
+    if (sparse.Terms.Length != sparse.Weights.Length) return null;
+
+    return SparseVector.Create(sparse.Terms, sparse.Weights, int.MaxValue);
   }
 }

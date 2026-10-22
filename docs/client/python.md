@@ -52,9 +52,16 @@ for hit in fused:
 stored = collection.get_sparse("doc-1")   # None when the entry has no slot
 ```
 
-When both vectors are supplied, both weights must be given; a zero weight
-excludes that modality. The async collection exposes the same methods with
-`await`.
+A sentence fills whichever vector is missing, both generated server-side from the
+same text:
+
+```python
+fused = collection.search_hybrid(sentence="mancano lampioni nel parco", top=10)
+```
+
+When both vectors are supplied explicitly, both weights must be given; a zero
+weight excludes that modality. A sentence needs no weight. The async collection
+exposes the same methods with `await`.
 
 Writes of a sparse vector need the server's write-ahead log
 (`JigenServer:Wal:Enabled`, on by default): without it the server refuses the

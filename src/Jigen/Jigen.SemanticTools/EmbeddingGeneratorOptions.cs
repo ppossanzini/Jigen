@@ -57,4 +57,10 @@ public sealed class EmbeddingGeneratorOptions
   /// Device index used by the "cuda" and "dml" execution providers.
   /// </summary>
   public int GpuDeviceId { get; set; }
+
+  /// <summary>
+  /// Sparse lexical vector generation: it runs on the tokenizer, so it needs no
+  /// model output and works with every profile.
+  /// </summary>
+  public SparseEmbeddingOptions Sparse { get; set; } = new();
 }

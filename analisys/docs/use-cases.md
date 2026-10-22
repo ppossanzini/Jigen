@@ -561,11 +561,12 @@ Criteri di accettazione: senza potatura nessuna voce ammessa manca; con un filtr
 
 - Attori: A1, A2, A3.
 - Obiettivo: ottenere un ordinamento unico da una ricerca densa e una sparsa.
-- Punto di ingresso: ricerca con entrambi i vettori e i pesi della fusione.
+- Punto di ingresso: ricerca con entrambi i vettori e i pesi della fusione, oppure con una sola frase da cui il server genera i due vettori di query.
 
 | Azione | Operazione | Superficie | Stato dopo la chiamata |
 | --- | --- | --- | --- |
 | Cercare in ibrido | Ricerca densa, ricerca sparsa e fusione | S-01, S-02, S-03 | Ordinamento unico con la modalità di provenienza |
+| Cercare in ibrido da una frase | Generazione dei due vettori di query e fusione | S-01, S-02, S-03 | Ordinamento unico, senza che il chiamante calcoli alcun vettore |
 | Cercare in ibrido dal workbench | Stessa operazione | S-04 | Risultati con punteggio fuso e tempi per fase |
 | Usare una sola modalità | Peso a zero su una delle due | S-01, S-02, S-03 | Il risultato coincide con l'altra modalità |
 

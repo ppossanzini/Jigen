@@ -35,6 +35,11 @@ service StoreCollectionService {
 
   rpc CalculateEmbeddings (EmbeddingRequest) returns (EmbeddingResponse);
   rpc CalculateEmbeddingsBatch (EmbeddingBatchRequest) returns (EmbeddingBatchResponse);
+  // ── Sparse lexical vector of a text: tokenizer terms with their weights. The
+  //     same text that produces a dense embedding produces this one, so a caller
+  //     can fill both slots of an entry. ──
+  rpc CalculateSparseEmbedding (EmbeddingRequest) returns (SparseEmbeddingResponse);
+  rpc CalculateSparseEmbeddingBatch (EmbeddingBatchRequest) returns (SparseEmbeddingBatchResponse);
   rpc CalculatePassageEmbeddings (PassageEmbeddingRequest) returns (PassageEmbeddingResponse);
   rpc CalculatePassageSplitCount (PassageSplitCountRequest) returns (PassageSplitCountResponse);
 
@@ -227,6 +232,10 @@ message SearchHybridRequest {
   SearchTuning Tuning = 7;
   optional float DenseWeight = 8;
   optional float SparseWeight = 9;
+  // Free-text query: fills whichever vector is missing, both from the same text,
+  // so a hybrid search can be started from a sentence alone. A vector supplied
+  // explicitly always wins over the generated one.
+  string Sentence = 10;
 }
 
 message FilterNode {
@@ -285,6 +294,18 @@ message EmbeddingRequest {
 
 message EmbeddingResponse {
   repeated float Embeddings = 1;
+}
+
+// Sparse lexical vector: terms are tokenizer vocabulary ids, strictly increasing,
+// with one weight each in the same order.
+message SparseEmbeddingResponse {
+  repeated int32 Terms = 1;
+  repeated float Weights = 2;
+}
+
+message SparseEmbeddingBatchResponse {
+  // One entry per input message, same order.
+  repeated SparseEmbeddingResponse Results = 1;
 }
 
 message EmbeddingBatchRequest {

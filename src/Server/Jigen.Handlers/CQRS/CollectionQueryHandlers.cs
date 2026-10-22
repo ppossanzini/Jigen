@@ -245,20 +245,23 @@ public class CollectionQueryHandlers(
       .AsEnumerable());
   }
 
-  public Task<IEnumerable<SearchVectorResultItem>> Handle(Core.Query.collections.SearchHybrid request, CancellationToken cancellationToken)
+  public async Task<IEnumerable<SearchVectorResultItem>> Handle(Core.Query.collections.SearchHybrid request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing SearchHybrid for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    if (request.Embeddings is not { Length: > 0 } && request.Sparse is null)
-      throw new ArgumentException("A hybrid search needs at least one of the two vectors.", nameof(request));
+    if (request.Embeddings is not { Length: > 0 } && request.Sparse is null
+        && string.IsNullOrWhiteSpace(request.Sentence))
+      throw new ArgumentException(
+        "A hybrid search needs at least one of the two vectors or a sentence.", nameof(request));
 
-    var sparse = request.Sparse is null ? null : RequireSparseQuery(store, request.Sparse);
+    var (embeddings, sparse) = await ResolveQueryVectors(store, request, cancellationToken);
+
     var top = request.Top <= 0 ? 10 : request.Top;
-    var results = store.SearchHybrid(request.Collection, request.Embeddings, sparse, top,
+    var results = store.SearchHybrid(request.Collection, embeddings, sparse, top,
       request.DenseWeight, request.SparseWeight, request.Filter);
 
-    return Task.FromResult(results
+    return results
       .Select(i => new SearchVectorResultItem
       {
         Key = i.entry.Id,
@@ -269,7 +272,39 @@ public class CollectionQueryHandlers(
         DenseScore = i.denseScore,
         SparseScore = i.sparseScore
       })
-      .AsEnumerable());
+      .AsEnumerable();
+  }
+
+  /// <summary>
+  /// Resolves the two vectors of a hybrid query. A sentence fills whichever slot
+  /// the caller left empty, both coming from the same text in one dispatch, so a
+  /// hybrid search can be started from text alone. A vector the caller supplied
+  /// is never replaced.
+  /// </summary>
+  private async Task<(float[] embeddings, SparseVector sparse)> ResolveQueryVectors(
+    Store store, Core.Query.collections.SearchHybrid request, CancellationToken cancellationToken)
+  {
+    var needsDense = request.Embeddings is not { Length: > 0 };
+    var needsSparse = request.Sparse is null;
+
+    var embeddings = request.Embeddings;
+    var sparse = request.Sparse is null ? null : RequireSparseQuery(store, request.Sparse);
+
+    if (string.IsNullOrWhiteSpace(request.Sentence) || (!needsDense && !needsSparse))
+      return (embeddings, sparse);
+
+    var pair = await hikyaku.Send(new Embedding.Core.Commands.CalculateVectorPair
+    {
+      Sentence = request.Sentence,
+      Task = "search_query"
+    }, cancellationToken);
+
+    if (needsDense) embeddings = pair.Dense;
+
+    if (needsSparse && pair.Sparse?.Terms is { Length: > 0 })
+      sparse = RequireSparseQuery(store, SparseVector.Create(pair.Sparse.Terms, pair.Sparse.Weights, int.MaxValue));
+
+    return (embeddings, sparse);
   }
 
   /// <summary>

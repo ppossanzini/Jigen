@@ -216,14 +216,15 @@ Lacune del set: vedi [Analysis diagrams](diagrams.md) (diagrams.md), sezione Gap
 | R-39 | Fondere denso e sparso in un solo ordinamento, con pesi dichiarati. | Con entrambi i pesi a zero la fusione è rifiutata; con un peso a zero il risultato coincide con l'altra modalità; a parità di posizione l'ordine è deterministico; un risultato ben posizionato in entrambi gli elenchi precede uno ben posizionato in uno solo. |
 | R-40 | Esporre la scrittura, la ricerca e la fusione su tutte le superfici con lo stesso esito. | La stessa operazione produce lo stesso stato e lo stesso ordinamento su API in-process, superficie REST e superficie binaria; i client tipizzati espongono le stesse tre operazioni. |
 | R-41 | Osservare l'indice dei termini. | L'informazione di collezione riporta termini distinti, numero di elenchi, lunghezza media degli elenchi, memoria occupata e voci cancellate. |
+| R-42 | Generare il vettore sparso dal testo nel modulo di embedding, invece di pretendere sempre i pesi dal chiamante. | Data una frase, il modulo restituisce denso e sparso dello stesso testo, con termini unici e crescenti e pesi positivi; una scrittura con la sola frase riempie entrambi gli slot in una sola operazione e una ricerca ibrida con la sola frase ottiene entrambi i vettori di query; un vettore fornito dal chiamante prevale sempre su quello generato; una frase senza termini non produce alcuno slot sparso. |
 
 **Esclusioni correnti.** Il giro dei vettori sparsi ha sostituito l'esclusione della ricerca ibrida con quattro esclusioni più strette, ognuna con la propria ragione.
 
 | Esclusione | Vincolo che la tiene fuori |
 | --- | --- |
 | Indice a partizioni (KMeans/IVF) | Il progetto esiste ma non ha implementazione; nessun requisito lo richiede oggi. |
-| Analisi del testo nel server e BM25 calcolato dal server | R-36…R-39 coprono i pesi forniti dal chiamante. Tokenizzazione, statistiche di corpus e normalizzazione della lunghezza cambierebbero la natura del prodotto. Decisione dello scouting sui vettori sparsi. |
-| Generazione di vettori sparsi da modelli | Il contratto di embedding dichiara BGE-M3 denso soltanto; i pesi lessicali restano del chiamante. |
+| Statistiche di corpus nel server (IDF, normalizzazione della lunghezza, BM25) | R-42 copre la generazione lessicale per voce, che non richiede di conoscere il corpus. Contare i documenti per calcolare l'IDF cambierebbe la natura dello sparso in un indice di testo completo, con uno stato di corpus da mantenere e da ricostruire. |
+| Testa sparsa appresa dai modelli (SPLADE, uscite sparse di BGE-M3) | R-42 è soddisfatto dal tokenizer, che non richiede artefatti nuovi. Un modello con testa sparsa richiede un export che oggi non è distribuito; la stessa interfaccia lo accoglierà senza cambiare contratto. |
 | Indice approssimato per i vettori sparsi | Il prodotto scalare non ha una geometria da approssimare: l'unica ottimizzazione ammessa è la potatura, che riduce l'esattezza e va dichiarata. |
 | Somma diretta dei punteggi densi e sparsi | Le due scale non sono confrontabili; la fusione di R-39 avviene per posizione, con pesi dichiarati. |
 | Quantizzazione degli impatti e multi-vettore per colonna | Nessun requisito li chiede; sono ottimizzazioni successive, da misurare prima. |
@@ -478,6 +479,7 @@ Il catalogo completo, con tabella di accoppiamento e percorsi, è in [Use-case c
 | R-39 | Fondere denso e sparso | T-17 |
 | R-40 | Parità fra superfici e client | T-18 |
 | R-41 | Osservare l'indice dei termini | T-16 |
+| R-42 | Generare lo sparso dal testo | T-19 |
 
 **Requisiti senza pacchetto.** Nessuno.
 

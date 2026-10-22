@@ -18,7 +18,11 @@ public class CommandHandlers(
     IRequestHandler<Embedding.Core.Commands.CalculatePassageSplitCount, int>,
     IRequestHandler<Embedding.Core.Commands.CalculateImageEmbedding, float[]>,
     IRequestHandler<Embedding.Core.Commands.CalculateImageEmbeddingBatch, float[][]>,
-    IRequestHandler<Embedding.Core.Commands.CalculateImageTileEmbeddings, float[][]>
+    IRequestHandler<Embedding.Core.Commands.CalculateImageTileEmbeddings, float[][]>,
+    IRequestHandler<CalculateSparseEmbedding, SparseEmbeddingDto>,
+    IRequestHandler<CalculateSparseEmbeddingBatch, SparseEmbeddingDto[]>,
+    IRequestHandler<CalculateVectorPair, VectorPairDto>,
+    IRequestHandler<CalculateVectorPairBatch, VectorPairDto[]>
 {
   public Task<float[]> Handle(CalculateEmbeddings request, CancellationToken cancellationToken)
   {
@@ -26,6 +30,75 @@ public class CommandHandlers(
     var task = string.IsNullOrWhiteSpace(request.Task) ? registry.GetDefaultTask(request.Model) : request.Task;
     return generator.GenerateEmbeddingAsync(registry.PrepareInput(request.Model, task, request.Sentence), cancellationToken);
   }
+
+  public Task<SparseEmbeddingDto> Handle(CalculateSparseEmbedding request, CancellationToken cancellationToken)
+  {
+    var generator = registry.Get(request.Model);
+    return Task.FromResult(ToDto(generator.GenerateSparseEmbedding(request.Sentence)));
+  }
+
+  public Task<SparseEmbeddingDto[]> Handle(CalculateSparseEmbeddingBatch request, CancellationToken cancellationToken)
+  {
+    var generator = registry.Get(request.Model);
+    var results = new SparseEmbeddingDto[request.Sentences?.Length ?? 0];
+    for (var i = 0; i < results.Length; i++)
+      results[i] = ToDto(generator.GenerateSparseEmbedding(request.Sentences[i]));
+
+    return Task.FromResult(results);
+  }
+
+  /// <summary>
+  /// Dense and sparse of the same text, in one dispatch. The dense side keeps the
+  /// task prefix the caller configured; the sparse side reads the tokenizer, so
+  /// the prefix would become noise, and it is generated from the raw sentence.
+  /// </summary>
+  public async Task<VectorPairDto> Handle(CalculateVectorPair request, CancellationToken cancellationToken)
+  {
+    var generator = registry.Get(request.Model);
+    var task = string.IsNullOrWhiteSpace(request.Task) ? registry.GetDefaultTask(request.Model) : request.Task;
+
+    var dense = await generator.GenerateEmbeddingAsync(
+      registry.PrepareInput(request.Model, task, request.Sentence), cancellationToken);
+
+    return new VectorPairDto
+    {
+      Dense = dense,
+      Sparse = ToDto(generator.GenerateSparseEmbedding(request.Sentence))
+    };
+  }
+
+  public async Task<VectorPairDto[]> Handle(CalculateVectorPairBatch request, CancellationToken cancellationToken)
+  {
+    var sentences = request.Sentences ?? [];
+    if (sentences.Length == 0) return [];
+
+    var generator = registry.Get(request.Model);
+    var task = string.IsNullOrWhiteSpace(request.Task) ? registry.GetDefaultTask(request.Model) : request.Task;
+
+    var inputs = new string[sentences.Length];
+    for (var i = 0; i < sentences.Length; i++)
+      inputs[i] = registry.PrepareInput(request.Model, task, sentences[i]);
+
+    var dense = await generator.GenerateEmbeddingsAsync(inputs, cancellationToken);
+
+    var results = new VectorPairDto[sentences.Length];
+    for (var i = 0; i < sentences.Length; i++)
+    {
+      results[i] = new VectorPairDto
+      {
+        Dense = dense[i],
+        Sparse = ToDto(generator.GenerateSparseEmbedding(sentences[i]))
+      };
+    }
+
+    return results;
+  }
+
+  private static SparseEmbeddingDto ToDto(SparseEmbedding sparse) => new()
+  {
+    Terms = sparse.Terms,
+    Weights = sparse.Weights
+  };
 
   public Task<float[][]> Handle(CalculateEmbeddingsBatch request, CancellationToken cancellationToken)
   {

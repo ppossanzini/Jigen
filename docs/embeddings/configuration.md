@@ -97,6 +97,7 @@ Fixed-resolution checkpoints are supported; NaFlex exports requiring
 | `PaddingTokenId` | long | `0` | Token id written into padded positions; set it from the checkpoint tokenizer configuration. |
 | `ExecutionProvider` | string | `"cpu"` | ONNX Runtime execution provider. See [execution providers](execution-providers.md) for the full list and build requirements. |
 | `GpuDeviceId` | int | `0` | Device index used by GPU execution providers (`cuda`, `dml`, `rocm`, `migraphx`). |
+| `Sparse` | object | see below | Sparse lexical vector generation — see [Sparse vectors](#sparse-vectors). |
 
 ## Example: BGE-M3
 
@@ -122,8 +123,57 @@ The official `BAAI/bge-m3` ONNX export can be configured directly with its
 }
 ```
 
-The profile exposes BGE-M3 dense embeddings only. Sparse lexical weights and
-ColBERT multi-vector outputs are not part of Jigen's embedding contract.
+The profile exposes BGE-M3 **dense** embeddings. The sparse side is produced by
+the profile-independent tokenizer path described below, not by BGE-M3's own
+sparse head; ColBERT multi-vector outputs are not part of Jigen's contract.
+
+## Sparse vectors
+
+Every text model also produces a **sparse lexical vector** from the same input:
+the terms are the tokenizer's vocabulary ids, and a term's weight grows with the
+number of times it appears. No model output is involved, so the result is
+deterministic, costs no inference and works for every profile.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `MaxTerms` | int | `1024` | Terms kept per vector. A text with more distinct terms keeps the heaviest and drops the rest. Align it with `JigenServer:Index:SparseMaxTerms`, which refuses a longer vector. |
+| `Offset` | float | `1.0` | Weight of a term appearing once. |
+| `LogBase` | float | `1.0` | Damping of repeated occurrences: a term appearing *n* times weighs `Offset + LogBase × ln(n)`. |
+
+Set `Sparse` globally under `JigenEmbeddings`, or per model inside
+`JigenEmbeddings:Models:<name>`; a model's own settings win.
+
+```json
+{
+  "JigenEmbeddings": {
+    "Sparse": { "MaxTerms": 1024, "Offset": 1.0, "LogBase": 1.0 }
+  }
+}
+```
+
+It works with both tokenizer forms the generator supports, and the two are
+verified separately because they are different code paths:
+
+| Tokenizer configured as | Profiles | How the markers are skipped |
+|---|---|---|
+| `tokenizer.json` (Hugging Face, or the SentencePiece sidecar beside it) | `Nomic`, `Qwen3`, `BgeM3`, … | The tokenizer is asked not to add them |
+| `tokenizer.onnx` (a tokenizer session, e.g. nomic-embed-text) | `Nomic` | The ids it returns for an empty text are subtracted |
+
+What the weights are **not**: they are not learned, so a synonym carries no
+weight; they are not IDF-weighted, so a common word weighs as much as a rare one.
+A term matches only when the same word appears in both texts. That is what makes
+the lexical side exact and cheap, and it is why the fusion with the dense side
+matters: the dense vector covers the paraphrases the lexical one misses.
+
+Because a generated sparse vector is a sparse write, **a write that carries a
+sentence requires the write-ahead log** (`JigenServer:Wal:Enabled`, on by default).
+With the log disabled the write is refused with a message explaining that the
+sentence generated a lexical slot: send the dense embedding explicitly, or enable
+the log.
+
+`POST /api/embeddings/sparse` and the gRPC `CalculateSparseEmbedding` return the
+vector for a text on demand. You rarely need them: a write that carries a
+sentence fills both slots server-side.
 
 ## `ImageEmbeddingGeneratorOptions`
 

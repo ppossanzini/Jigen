@@ -155,27 +155,32 @@ class _CollectionBase(Generic[T]):
         sparse_weight: float,
         filter: Filter | None,
         options: SearchOptions | None,
+        sentence: str | None = None,
     ) -> pb.SearchHybridRequest:
         dense_supplied = bool(embedding)
-        if not dense_supplied and sparse is None:
-            raise ValueError("a hybrid search needs at least one of the two vectors")
+        if not dense_supplied and sparse is None and not (sentence and sentence.strip()):
+            raise ValueError("a hybrid search needs at least one of the two vectors or a sentence")
 
         request = pb.SearchHybridRequest(
-            Database=self.database, Collection=self.name, Top=top
+            Database=self.database, Collection=self.name, Top=top, Sentence=sentence or ""
         )
         if dense_supplied:
             request.Embeddings.extend(embedding or ())
         if sparse is not None:
             request.Sparse.CopyFrom(self._sparse_message(sparse))
 
-        # The server refuses both vectors without both weights: declare them
-        # here so a caller that forgot one fails before the round trip.
+        # The server refuses two explicit vectors without both weights. A sentence
+        # that generates the second vector needs none: the defaults weigh the two
+        # modalities equally, so declaring them here is enough.
         if dense_supplied and sparse is not None:
             request.DenseWeight = dense_weight
             request.SparseWeight = sparse_weight
         elif dense_supplied:
             request.DenseWeight = dense_weight
+        elif sparse is not None:
+            request.SparseWeight = sparse_weight
         else:
+            request.DenseWeight = dense_weight
             request.SparseWeight = sparse_weight
 
         if filter is not None:
@@ -466,6 +471,7 @@ class VectorCollection(_CollectionBase[T]):
         embedding: Sequence[float] | None = None,
         sparse: SparseVector | None = None,
         *,
+        sentence: str | None = None,
         top: int = 10,
         dense_weight: float = 1.0,
         sparse_weight: float = 1.0,
@@ -474,10 +480,12 @@ class VectorCollection(_CollectionBase[T]):
     ) -> list[SearchResult[T]]:
         """Fuses the dense and the lexical ranking by position.
 
-        A single modality needs no weight; both together need both, declared.
+        A sentence fills whichever vector is missing, both generated from the same
+        text by the server; an explicit vector always wins. Two explicit vectors
+        need both weights, declared.
         """
         request = self._hybrid_request(
-            embedding, sparse, top, dense_weight, sparse_weight, filter, options
+            embedding, sparse, top, dense_weight, sparse_weight, filter, options, sentence
         )
         return self._results(self._stub.SearchHybrid(request))
 
@@ -607,6 +615,7 @@ class AsyncVectorCollection(_CollectionBase[T]):
         embedding: Sequence[float] | None = None,
         sparse: SparseVector | None = None,
         *,
+        sentence: str | None = None,
         top: int = 10,
         dense_weight: float = 1.0,
         sparse_weight: float = 1.0,
@@ -615,7 +624,7 @@ class AsyncVectorCollection(_CollectionBase[T]):
     ) -> list[SearchResult[T]]:
         """Fuses the dense and the lexical ranking by position."""
         request = self._hybrid_request(
-            embedding, sparse, top, dense_weight, sparse_weight, filter, options
+            embedding, sparse, top, dense_weight, sparse_weight, filter, options, sentence
         )
         return self._results(await self._stub.SearchHybrid(request))
 

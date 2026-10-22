@@ -167,6 +167,69 @@ La verifica della tornata precedente aveva trovato cinque punti in cui lo sparso
 
 **Skill attivate.** `base-be-base-rules`, `implementation-be-dotnet-dev`, `implementation-be-dotnet-jigen-store`, `base-fe-base-rules`, `implementation-fe-vue-dev`, `implementation-fe-vue-element-plus`, `capabilities-interface-design` (dichiarata per l'estensione del workbench), `base-dossier-writing`.
 
+Esecuzione del 2026-10-22 (terza tornata): T-19, generazione del vettore sparso nel modulo di embedding. Attore `A1`, sequenziale.
+
+Requisito R-42 (nuovo), decisioni K-46 e K-47 (nuove). La richiesta contraddiceva l'esclusione «analisi del testo nel server»: l'esclusione è stata ristretta, non aggirata — le statistiche di corpus restano fuori, la generazione lessicale per voce entra.
+
+| Passo | Esito | Evidenza |
+| --- | --- | --- |
+| Contratto del generatore | chiusa | `IEmbeddingGenerator.GenerateSparseEmbedding`/`Async`, `SparseEmbedding` e `SparseEmbeddingOptions` in `Jigen.SemanticTools`; `QueuedEmbeddingGenerator` delega senza passare dalla coda (nessuna inferenza, nessun motivo di serializzare) |
+| Generazione lessicale | chiusa | `OnnxEmbeddingGenerator`: termine = id del tokenizer, peso = `Offset + LogBase × ln(occorrenze)`, tetto `MaxTerms` che tiene i termini più pesanti; i marcatori di sequenza sono esclusi chiedendoli al tokenizer invece di indovinarli |
+| Contratti del modulo | chiusa | `SparseEmbeddingDto`, `VectorPairDto`, comandi `CalculateSparseEmbedding`(`Batch`) e `CalculateVectorPair`(`Batch`); il DTO è a soli array per attraversare il mediatore anche verso un worker remoto |
+| Configurazione | chiusa | `JigenEmbeddings:Sparse` (globale) e `Models:<name>:Sparse` (per modello, prevale), in un solo oggetto di configurazione |
+| Scrittura con frase | chiusa | `CollectionCommandHandlers.ResolveVectors`: una sola dispatch riempie i due slot, il vettore del chiamante prevale, senza frase nulla viene generato |
+| Stream di documenti | chiusa | `IngestDocumentsWindow` usa `CalculateVectorPairBatch`, così la finestra da 64 documenti resta una sola dispatch |
+| Superfici | chiusa | gRPC `CalculateSparseEmbedding`(Batch), REST `POST /api/embeddings/sparse` con `?model=` |
+| Test della generazione | chiusa | `tests/Jigen.SemanticTools.Tests/SparseEmbeddingTests.cs`, 8 casi su modello reale |
+| Test end-to-end | chiusa | `tests/JigenStoreTests/GeneratedSparseIntegrationTests.cs`: frase → denso + sparso → scrittura → rilettura → ricerca lessicale che ritrova la voce |
+| Test delle superfici | chiusa | `ServiceSparseTests`: la frase riempie i due slot, lo sparso del chiamante prevale, i due RPC mappano termini e pesi; la ricerca ibrida da frase non richiede vettori né pesi e conserva uno sparso esplicito |
+| Ricerca ibrida da frase | chiusa | `Sentence` nel contratto in-process, campo 10 su gRPC, passaggio da REST, `SearchHybrid(sentence, …)` nei client .NET e Python; regola in un solo punto (`ResolveQueryVectors`) |
+| Documentazione | chiusa | `docs/embeddings/configuration.md` (sezione Sparse vectors con cosa i pesi **non** sono), `docs/concepts/sparse-vectors.md`, `docs/client/usage.md`, `docs/server/rest-api.md`, `docs/server/grpc-api.md`, `docs/in-process/store-options.md` |
+| Gate di qualità | **in attesa** | Codice pronto per l'approvazione |
+
+### Verifica su nomic
+
+Il generatore ha due rami di tokenizzazione diversi, e provarli con lo stesso test sarebbe stato un errore: nomic è configurato con `tokenizer.onnx` (una sessione di tokenizzazione), BGE-M3 con `tokenizer.json`. Le due strade sono state provate separatamente sul modello reale.
+
+| Verifica | BGE-M3 (`tokenizer.json`) | nomic (`tokenizer.onnx`) |
+| --- | --- | --- |
+| Termini prodotti | sì | sì |
+| Marcatori di sequenza esclusi | 0, 1, 2 assenti | 0 (PAD), 101 (CLS), 102 (SEP) assenti |
+| Stessa parola, stesso termine fra due testi | sì | sì |
+| Ripetizione pesa più di una occorrenza singola | sì | sì |
+| Determinismo | sì | sì |
+
+Il primo test scritto per nomic usciva in silenzio quando il modello non era installato, quindi non dimostrava nulla: è stato sostituito da un test che fallisce se i file mancano ed è stato esteso alle proprietà lessicali. Vocabolario nomic: 30.528 termini, nessun adattamento richiesto — il termine è già un `int32` accettato dal deposito.
+
+### Divario chiuso su richiesta dell'utente
+
+La generazione copriva la scrittura e non la ricerca. Su richiesta esplicita il divario è stato chiuso: `SearchHybrid` accetta `Sentence` (in-process, REST, gRPC e i due client), e l'handler genera da essa il vettore che manca. UC-21 e R-42 sono stati estesi di conseguenza; la regola vive in un solo punto (`ResolveQueryVectors`) perché REST e gRPC non possano divergere.
+
+Due comportamenti da conoscere:
+
+- i pesi della fusione servono solo quando i due vettori sono **espliciti**: se il secondo lo genera la frase, i due vengono pesati uguali per default;
+- un vettore esplicito non viene mai sostituito, quindi una frase accompagnata da uno sparso del chiamante usa quello.
+
+**Divario che resta.** La risoluzione dei vettori vive negli handler e `Jigen.Handlers` non ha un progetto di test: la regola è verificata sul contratto e sulle superfici, non nell'handler stesso. È annotata come T-19.17 nel tasklist invece di essere dichiarata coperta.
+
+### Conseguenza registrata
+
+Una scrittura con la sola frase ora produce anche lo sparso, quindi è una scrittura sparsa: con `JigenServer:Wal:Enabled = false` viene rifiutata. Il rifiuto è esplicito e nomina la causa (`ResolveVectors`), invece di lasciare emergere il messaggio del deposito, che non spiegherebbe da dove viene il vettore. Il registro è attivo per default, quindi il comportamento cambia solo per chi lo ha spento di proposito.
+
+### Scostamenti
+
+| Scostamento | Motivo | Effetto |
+| --- | --- | --- |
+| Pesi lessicali dal tokenizer, non una testa sparsa del modello | Il `model.onnx` di BGE-M3 installato è un `XLMRobertaModel` con sole uscite `sentence_embedding` e `token_embeddings`: la testa `sparse_linear` non è esportata | Qualità lessicale, non appresa; la stessa interfaccia accoglierà una testa sparsa senza cambiare contratto (K-46) |
+| `_jsonTokenizer` tipizzato `SentencePieceTokenizer` invece di `Tokenizer` | Serve l'overload che spegne bos/eos: sulla classe base quel parametro non esiste, e la regola alternativa (dedurre i marcatori da una stringa vuota) non regge — verificata e scartata | Nessuno sul percorso denso: il test BGE-M3 di similarità resta nella sua banda 0.33–0.34 |
+| Nessuna modifica al client .NET e Python | Il client manda già la frase; la generazione avviene sul server e non richiede un contratto nuovo | Il client beneficia dello sparso senza una riga in più |
+
+**Stato delle suite.** `PrimitiveTests` 78/78, `Jigen.API.Tests` 79/79, `Jigen.Grpc.Tests` 45/45 (erano 39), `JigenStoreTests` 110/119 (6 fallimenti preesistenti), `JigenClientTest` 33/37 (4 saltati), `pytest` 30/30, `SparseEmbeddingTests` 8/8, `BgeM3TokenizerTests` verde (nessuna regressione del denso). Build: 0 errori su tutti i progetti toccati.
+
+**Instabilità osservata, non riprodotta.** Una delle quattro esecuzioni complete di `JigenStoreTests` ha riportato 7 fallimenti invece di 6; le tre successive e i due test nuovi eseguiti da soli (3 volte) sono tornati verdi. Non è stato possibile attribuire il settimo fallimento, quindi non viene dichiarato risolto né attribuito a questo lavoro: resta un'osservazione da riprendere se ricompare.
+
+**Skill attivate.** `base-be-base-rules`, `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology` (la scelta della regola dei token speciali è stata falsificata con una prova), `base-project-decision-log`, `base-dossier-writing`.
+
 **Comandi eseguiti.** `dotnet build` dei singoli progetti (la soluzione ha un errore preesistente, vedi sotto); `dotnet test tests/PrimitiveTests`, `tests/JigenStoreTests`, `tests/HnswTest`, `tests/JigenClientTest`, `tests/Jigen.API.Tests`.
 
 **Skill attivate.** `base-be-base-rules`, `implementation-be-dotnet-jigen-store`, `implementation-be-dotnet-dev`.

@@ -60,6 +60,10 @@ public class Module: IModule
         if (options.IntraOpNumThreads <= 0)
           options.IntraOpNumThreads = Math.Max(1, Environment.ProcessorCount / Math.Max(model.MaxConcurrency, 1));
 
+        // A model either declares its own sparse options or inherits the shared
+        // ones: one place to configure the term cap and the weighting.
+        options.Sparse = model.Sparse ?? settings.Sparse ?? new SparseEmbeddingOptions();
+
         generators.Add(name, new QueuedEmbeddingGenerator(
           new OnnxEmbeddingGenerator(
             model.TokenizerPath,

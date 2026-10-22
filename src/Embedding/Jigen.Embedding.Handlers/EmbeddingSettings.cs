@@ -17,6 +17,12 @@ public class EmbeddingSettings
 
   public EmbeddingGeneratorOptions GeneratorOptions { get; set; } = new EmbeddingGeneratorOptions();
 
+  /// <summary>
+  /// Sparse lexical vector generation, applied to every text model. The terms
+  /// are the tokenizer's vocabulary ids, so no model output is involved.
+  /// </summary>
+  public SparseEmbeddingOptions Sparse { get; set; } = new SparseEmbeddingOptions();
+
   public int EmbeddingsMaxConcurrency { get; set; } = 2;
   public int EmbeddingsQueueCapacity { get; set; } = 256;
   public int EmbeddingsQueueTimeoutSeconds { get; set; } = 60;
@@ -42,6 +48,10 @@ public class TextEmbeddingModelSettings
   public string TokenizerPath { get; set; }
   public string ModelPath { get; set; }
   public EmbeddingGeneratorOptions GeneratorOptions { get; set; } = new();
+
+  /// <summary>Per-model override of <see cref="EmbeddingSettings.Sparse"/>.</summary>
+  public SparseEmbeddingOptions Sparse { get; set; }
+
   public int MaxConcurrency { get; set; } = 2;
   public int QueueCapacity { get; set; } = 256;
   public int QueueTimeoutSeconds { get; set; } = 60;

@@ -15,12 +15,28 @@ terms:   [12, 98, 450]
 weights: [0.8, 1.2, 0.4]
 ```
 
-Terms are **caller-defined ids**: the server never tokenizes text and never
-derives the sparse vector from the content. Whatever produces the weights — BM25,
-SPLADE, a learned sparse encoder — runs on the caller's side, and what arrives is
-already the vector. This keeps the server out of analyzer/language decisions and
-makes the scoring rule trivial to state: the score is the **dot product** over the
-terms a query shares with a document.
+Terms are ids and weights, and there are two ways to obtain them:
+
+- **The caller supplies them.** Whatever produces the weights — BM25 on your side,
+  SPLADE, a learned sparse encoder — runs in your process, and what arrives is
+  already the vector.
+- **The server generates them from a sentence.** The embedding module tokenizes the
+  text and returns the terms it found: the term is the tokenizer's vocabulary id,
+  the weight grows with the number of occurrences. No model output is involved, so
+  it is deterministic and needs no extra artifact.
+
+The second is what makes a write with only a sentence useful: both slots are filled
+in one operation. It reads the tokenizer, so it behaves the same whatever model is
+configured — a Hugging Face `tokenizer.json`, the SentencePiece sidecar used by
+BGE-M3, and an ONNX tokenizer session (nomic's `tokenizer.onnx`) all produce terms
+from the same rule, with the sequence markers excluded. The generated weights are **lexical, not learned** — a synonym
+carries no weight, a common word weighs as much as a rare one, and a term matches
+only when the same word appears on both sides. Corpus statistics (IDF) are
+deliberately not part of it: they would turn the index into a full text engine with
+a corpus state to maintain.
+
+Either way the scoring rule is the same and trivial to state: the score is the
+**dot product** over the terms a query shares with a document.
 
 Rules the vector must satisfy:
 
@@ -87,6 +103,38 @@ usually the best answer.
 
 Both weights must be declared when both vectors are supplied. A single modality
 needs none.
+
+## Generating from text
+
+`IEmbeddingGenerator` exposes `GenerateSparseEmbedding(text)` next to the dense
+methods, so one sentence yields both vectors. On the server this happens
+automatically:
+
+| What the write carries | What is stored |
+| --- | --- |
+| A sentence, no vectors | Dense and sparse, generated from it |
+| A dense vector and a sentence | The caller's dense, the generated sparse |
+| A sparse vector and a sentence | The generated dense, the caller's sparse |
+| Both vectors | Exactly what the caller sent |
+| No sentence | Nothing is generated: the entry keeps the vectors it was given |
+
+A vector supplied by the caller always wins over a generated one, and the two
+vectors of a sentence are computed in a single dispatch, so a hybrid query can
+never observe a new dense vector next to an old lexical one.
+
+```csharp
+// Server side: one call, both slots.
+await articles.AddAsync(42, new Article { Title = "Il parco è buio" },
+    sentence: "il parco di via vittorio emanuele è buio");
+```
+
+The **search** side follows the same rule: a hybrid search accepts a sentence and
+generates the two query vectors from it, so write and read can both start from
+text.
+
+```csharp
+var hits = await articles.SearchHybridAsync("mancano lampioni nel parco", top: 10);
+```
 
 ## Writing
 

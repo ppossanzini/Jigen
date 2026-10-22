@@ -14,7 +14,7 @@ namespace Jigen.SemanticTools;
 public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 {
   private readonly InferenceSession _tokenizerSession;
-  private readonly Tokenizer _jsonTokenizer;
+  private readonly SentencePieceTokenizer _jsonTokenizer;
   private readonly HuggingFaceTokenizer _huggingFaceTokenizer;
   private readonly string _tokenizerInputName;
 
@@ -30,6 +30,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   private readonly EmbeddingModelProfile _profile;
   private readonly int _outputDimension;
   private readonly long _paddingTokenId;
+  private readonly SparseEmbeddingOptions _sparseOptions;
 
   /// <summary>
   /// Initializes a new instance of the OnnxEmbeddingGenerator class.
@@ -89,6 +90,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       modelPath,
       options.IntraOpNumThreads > 0 ? options.IntraOpNumThreads : Environment.ProcessorCount);
 
+    _sparseOptions = options.Sparse ?? new SparseEmbeddingOptions();
     _maxTokens = Math.Max(options.MaxTokens, 8);
     _useChunking = options.UseChunking;
     _chunkSize = Math.Clamp(options.ChunkSize, 8, _maxTokens);
@@ -124,6 +126,97 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     Task.Run(() => GenerateEmbeddings(inputs), cancellationToken);
 
   public int CountTokens(string input) => TokenizeToInputIds(input).Length;
+
+  /// <summary>
+  /// Generates the sparse lexical vector of a text from its tokenizer ids: the
+  /// term is the vocabulary id, the weight grows with the number of occurrences.
+  ///
+  /// No model is involved, so the result is deterministic and available for
+  /// every profile. The trade-off is that the weights are lexical, not learned:
+  /// a synonym carries no weight, and a rare word weighs as much as a common one.
+  /// A learned sparse head (SPLADE, BGE-M3's sparse output) would replace this
+  /// method behind the same interface.
+  /// </summary>
+  public SparseEmbedding GenerateSparseEmbedding(string input)
+  {
+    if (string.IsNullOrWhiteSpace(input))
+      return SparseEmbedding.Empty;
+
+    var ids = TokenizeContentIds(input);
+    if (ids.Length == 0)
+      return SparseEmbedding.Empty;
+
+    var frequencies = new Dictionary<int, int>();
+    foreach (var id in ids)
+      frequencies[(int)id] = frequencies.TryGetValue((int)id, out var count) ? count + 1 : 1;
+
+    if (frequencies.Count == 0)
+      return SparseEmbedding.Empty;
+
+    var offset = Math.Max(0f, _sparseOptions.Offset);
+    var damping = _sparseOptions.LogBase > 0 ? _sparseOptions.LogBase : 1f;
+    var maxTerms = _sparseOptions.MaxTerms > 0 ? _sparseOptions.MaxTerms : 1024;
+
+    // Heaviest terms win the cap: a truncated vector that kept the lowest ids
+    // would drop the distinctive words of the text.
+    var selected = frequencies
+      .Select(pair => (term: pair.Key, weight: offset + damping * MathF.Log(pair.Value)))
+      .OrderByDescending(pair => pair.weight)
+      .ThenBy(pair => pair.term)
+      .Take(maxTerms)
+      .OrderBy(pair => pair.term)
+      .ToArray();
+
+    var terms = new int[selected.Length];
+    var weights = new float[selected.Length];
+    for (var i = 0; i < selected.Length; i++)
+    {
+      terms[i] = selected[i].term;
+      weights[i] = selected[i].weight;
+    }
+
+    return new SparseEmbedding(terms, weights);
+  }
+
+  public Task<SparseEmbedding> GenerateSparseEmbeddingAsync(string input, CancellationToken cancellationToken = default) =>
+    Task.Run(() => GenerateSparseEmbedding(input), cancellationToken);
+
+  /// <summary>
+  /// Token ids of the text without the markers that frame a sequence (beginning,
+  /// end, padding): those carry no meaning and must not become terms. Every
+  /// tokenizer this generator can load exposes a way to skip them, so the term
+  /// space is exactly the words of the text.
+  /// </summary>
+  private long[] TokenizeContentIds(string text)
+  {
+    if (_huggingFaceTokenizer != null)
+      return _huggingFaceTokenizer.Encode(text, false).First().Ids.Select(static id => (long)id).ToArray();
+
+    if (_jsonTokenizer != null)
+    {
+      // bos/eos off: this overload is the one that can suppress the markers the
+      // tokenizer instance was created with.
+      var ids = _jsonTokenizer.EncodeToIds(text,
+        addBeginningOfSentence: false, addEndOfSentence: false,
+        considerPreTokenization: true, considerNormalization: true);
+
+      return _profile == EmbeddingModelProfile.BgeM3
+        ? ids.Select(static id => (long)MapSentencePieceIdToXlmRobertaId(id)).ToArray()
+        : ids.Select(static id => (long)id).ToArray();
+    }
+
+    // An ONNX tokenizer session always frames the input: its markers are the ids
+    // it also returns for an empty text, so subtracting those leaves the words.
+    var content = TokenizeToInputIds(text);
+    if (content.Length == 0) return content;
+
+    _specialTokenIds ??= new HashSet<long>(TokenizeToInputIds(string.Empty));
+    if (_specialTokenIds.Count == 0) return content;
+
+    return content.Where(id => !_specialTokenIds.Contains(id)).ToArray();
+  }
+
+  private HashSet<long> _specialTokenIds;
 
   /// <summary>
   /// Generates embeddings for multiple input texts, fusing token sequences
@@ -323,7 +416,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   }
 
 
-  private static Tokenizer CreateSentencePieceTokenizerFromJsonPath(string tokenizerJsonPath)
+  private static SentencePieceTokenizer CreateSentencePieceTokenizerFromJsonPath(string tokenizerJsonPath)
   {
     if (!File.Exists(tokenizerJsonPath))
       throw new FileNotFoundException($"Tokenizer JSON not found at path '{tokenizerJsonPath}'.", tokenizerJsonPath);

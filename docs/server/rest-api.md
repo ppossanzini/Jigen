@@ -120,9 +120,19 @@ one query into a full scan.
 | `SparseWeight` | float? | Weight of the lexical ranking in the fusion. |
 | `NoContent` | bool | Return keys and scores only. |
 
-At least one of `sentence`, `embeddings` or `sparse` is required. **When both
-vectors are supplied, both weights must be declared**; a weight of zero excludes
-that modality, and both at zero is refused. Fusion is by **position**
+At least one of `sentence`, `embeddings` or `sparse` is required. **A sentence
+fills whichever vector is missing**, generating the dense embedding and the sparse
+lexical vector from the same text, so a hybrid search can be started from text
+alone:
+
+```json
+{ "sentence": "il parco è buio", "top": 10 }
+```
+
+A vector you pass explicitly always wins over the generated one. **When both
+vectors are supplied explicitly, both weights must be declared**; a weight of zero
+excludes that modality, and both at zero is refused. A sentence that generates the
+second vector needs no weight: the two modalities are weighed equally by default. Fusion is by **position**
 (reciprocal rank fusion), because a similarity score and a lexical weight are not
 comparable: `Score` is the fused score, while `DenseScore` and `SparseScore` keep
 the original ones and `InDense`/`InSparse` report which modality found the entry.
@@ -213,6 +223,13 @@ curl -X POST http://localhost:13223/api/database/mydb/collections/chunks/search/
 ```
 
 ## Embeddings
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/embeddings/calculate[/{task}]` | Dense embedding of a text (body: a JSON string). |
+| `POST` | `/api/embeddings/sparse` | Sparse lexical vector of a text: `{"terms":[...],"weights":[...]}`. Same input as the dense call, so a client can fill both slots. Optional `?model=` selects the model. |
+| `GET` | `/api/embeddings/tasks` | The configured task names. |
+
 
 | Method | Path | Description |
 |---|---|---|

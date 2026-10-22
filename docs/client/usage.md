@@ -23,6 +23,26 @@ articles.Add(42, article, sentence: "Jigen is a vector database written in C#.")
 
 This calls the gRPC `SetDocument` method, which requires the server to have a reachable embedding module (all-in-one server, or a distributed server with a reachable `jigen-embeddings` worker). See [server overview](../server/overview.md) for the two topologies.
 
+**The sentence fills both slots.** The embedding module generates the dense vector
+*and* the sparse lexical vector from the same text, so an entry written this way is
+immediately searchable by similarity, by terms and in hybrid, with no second call:
+
+```csharp
+await articles.AddAsync(42, article, sentence: "il parco è buio e servono lampioni");
+
+// The server generated both; read the lexical side back:
+SparseVector generated = await articles.GetSparseAsync(42);
+
+// A vector you pass explicitly always wins over the generated one:
+await articles.AddAsync(42, article,
+    embeddings: myDenseVector,          // used as-is
+    sparse: SparseVector.Create([7], [1f]));  // used as-is
+```
+
+Set `JigenEmbeddings:Sparse:MaxTerms` to bound the generated vector and
+`JigenServer:Index:SparseMaxTerms` to bound what the store accepts; keep the first at
+or below the second. See [embeddings configuration](../embeddings/configuration.md#sparse-vectors).
+
 ### With a sparse (lexical) vector
 
 The sparse slot is a **second, independent vector** on the same entry: term ids
@@ -174,9 +194,20 @@ foreach (var hit in hits)
 }
 ```
 
-Either vector may be omitted. **When both are supplied, both weights must be
-declared**; a weight of zero excludes that modality from the fusion, and both
-at zero is an error.
+From a sentence, with both query vectors generated server-side — the shortest
+path from text to a fused ranking:
+
+```csharp
+var hits = await articles.SearchHybridAsync("mancano lampioni nel parco", top: 10);
+
+// A predicate narrows the candidates, exactly like the other searches:
+var filtered = await articles.SearchHybridAsync("mancano lampioni", x => x.Category == "ticket", top: 10);
+```
+
+Either vector may be omitted. **When both are supplied explicitly, both weights
+must be declared**; a weight of zero excludes that modality from the fusion, and
+both at zero is an error. A sentence that generates the second vector needs no
+weight: the two modalities are weighed equally.
 
 ### Reading the sparse vector back
 

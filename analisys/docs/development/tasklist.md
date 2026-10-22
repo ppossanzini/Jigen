@@ -313,6 +313,36 @@ Condizione per riaprirla: U3 mostra un guadagno misurabile con perdita nulla o d
 
 ---
 
+## T-19 Generazione del vettore sparso nel modulo di embedding
+
+Requisiti: R-42, K-46, K-47. Dipendenze: T-16.1, T-17.1. Eseguita.
+
+### Passi
+
+- [x] **T-19.1** Aggiungere al contratto di embedding la generazione dello sparso (`GenerateSparseEmbedding`, `SparseEmbedding`, `SparseEmbeddingOptions`), senza toccare i metodi densi.
+- [x] **T-19.2** Implementarla nell'`OnnxEmbeddingGenerator`: termine = id del tokenizer, peso = `Offset + LogBase × ln(occorrenze)`, esclusione dei marcatori di sequenza, tetto dei termini.
+- [x] **T-19.3** Delegare nel `QueuedEmbeddingGenerator` senza passare dalla coda: nessuna inferenza da serializzare.
+- [x] **T-19.4** DTO e comandi del modulo (`SparseEmbeddingDto`, `VectorPairDto`, `CalculateSparseEmbedding`, `CalculateSparseEmbeddingBatch`, `CalculateVectorPair`, `CalculateVectorPairBatch`), in forma serializzabile per il worker remoto.
+- [x] **T-19.5** Handler del modulo per i quattro comandi.
+- [x] **T-19.6** Configurazione in un solo oggetto: `JigenEmbeddings:Sparse` e override per modello.
+- [x] **T-19.7** Scrittura con frase: una dispatch per entrambi gli slot, il vettore del chiamante prevale, senza frase nulla viene generato.
+- [x] **T-19.8** Stream di documenti gRPC: `CalculateVectorPairBatch` sulla finestra, non una chiamata per documento.
+- [x] **T-19.9** Superfici esplicite: RPC `CalculateSparseEmbedding`(`Batch`) e rotta REST `/api/embeddings/sparse`.
+- [x] **T-19.10** Errore esplicito quando la generazione produce uno sparso e il registro di scrittura è spento.
+- [x] **T-19.11** Test della generazione su modello reale: unicità e ordine dei termini, peso crescente con le occorrenze, nessun token speciale, determinismo, tetto dei termini, sovrapposizione fra testi.
+- [x] **T-19.12** Test end-to-end su archivio reale: frase → due slot → rilettura → ricerca lessicale.
+- [x] **T-19.13** Test delle superfici: la frase riempie i due slot, lo sparso del chiamante prevale.
+- [x] **T-19.14** Documentazione: configurazione degli embedding, concetto, uso del client, REST, gRPC, opzioni del deposito.
+- [x] **T-19.16** La generazione copre anche la ricerca ibrida: `Sentence` nel contratto di query, risoluzione nell'handler, campo nuovo su gRPC, passaggio da REST, overload con frase nei due client. Nessun peso richiesto quando è la frase a produrre il secondo vettore.
+- [ ] **T-19.17** Testare la risoluzione dei vettori nell'handler: `Jigen.Handlers` non ha un progetto di test, quindi la regola è coperta solo dal contratto e dalle superfici. Serve un progetto di test o un punto di verifica equivalente.
+- [ ] **T-19.15** **Gate di qualità**: chiedere approvazione del codice.
+
+### Fine card
+
+Una frase basta a rendere una voce ricercabile in denso, in lessicale e in ibrido.
+
+---
+
 ## Punti in cui lo sparso si perde in silenzio
 
 Cinque trappole verificate nel codice. Ognuna ha una voce che la copre.

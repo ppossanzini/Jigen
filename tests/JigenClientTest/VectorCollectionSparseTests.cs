@@ -226,6 +226,38 @@ public class VectorCollectionSparseTests
   }
 
   [Fact]
+  public void SearchHybrid_from_a_sentence_sends_no_vectors()
+  {
+    var invoker = new FakeCallInvoker((method, request) =>
+    {
+      Assert.Equal("SearchHybrid", method);
+
+      var searchRequest = Assert.IsType<SearchHybridRequest>(request);
+      Assert.Equal("il parco è buio", searchRequest.Sentence);
+      Assert.Empty(searchRequest.Embeddings);
+      Assert.Null(searchRequest.Sparse);
+      Assert.True(searchRequest.HasDenseWeight);
+      Assert.True(searchRequest.HasSparseWeight);
+
+      return new SearchVectorResponse();
+    });
+
+    Collection(invoker).SearchHybrid("il parco è buio", top: 5);
+
+    Assert.Contains("SearchHybrid", invoker.CalledMethods);
+  }
+
+  [Fact]
+  public void SearchHybrid_with_an_empty_sentence_is_rejected_before_the_call()
+  {
+    var invoker = new FakeCallInvoker((method, request) =>
+      throw new InvalidOperationException($"Unexpected RPC method: {method}"));
+
+    Assert.Throws<ArgumentException>(() => Collection(invoker).SearchHybrid("   ", top: 5));
+    Assert.Empty(invoker.CalledMethods);
+  }
+
+  [Fact]
   public void Search_hybrid_without_any_vector_is_rejected_before_the_call()
   {
     var invoker = new FakeCallInvoker((method, request) =>

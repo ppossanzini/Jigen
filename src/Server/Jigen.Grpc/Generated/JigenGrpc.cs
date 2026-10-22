@@ -92,6 +92,10 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SparseEmbeddingResponse> __Marshaller_jigen_SparseEmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SparseEmbeddingResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SparseEmbeddingBatchResponse> __Marshaller_jigen_SparseEmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SparseEmbeddingBatchResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.PassageEmbeddingRequest> __Marshaller_jigen_PassageEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageEmbeddingRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.PassageEmbeddingResponse> __Marshaller_jigen_PassageEmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageEmbeddingResponse.Parser));
@@ -305,6 +309,22 @@ namespace Jigen.Proto {
         "CalculateEmbeddingsBatch",
         __Marshaller_jigen_EmbeddingBatchRequest,
         __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.SparseEmbeddingResponse> __Method_CalculateSparseEmbedding = new grpc::Method<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.SparseEmbeddingResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateSparseEmbedding",
+        __Marshaller_jigen_EmbeddingRequest,
+        __Marshaller_jigen_SparseEmbeddingResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.SparseEmbeddingBatchResponse> __Method_CalculateSparseEmbeddingBatch = new grpc::Method<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.SparseEmbeddingBatchResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateSparseEmbeddingBatch",
+        __Marshaller_jigen_EmbeddingBatchRequest,
+        __Marshaller_jigen_SparseEmbeddingBatchResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse> __Method_CalculatePassageEmbeddings = new grpc::Method<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse>(
@@ -616,6 +636,26 @@ namespace Jigen.Proto {
         throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
       }
 
+      /// <summary>
+      /// ── Sparse lexical vector of a text: tokenizer terms with their weights. The
+      ///     same text that produces a dense embedding produces this one, so a caller
+      ///     can fill both slots of an entry. ──
+      /// </summary>
+      /// <param name="request">The request received from the client.</param>
+      /// <param name="context">The context of the server-side call handler being invoked.</param>
+      /// <returns>The response to send back to the client (wrapped by a task).</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.SparseEmbeddingResponse> CalculateSparseEmbedding(global::Jigen.Proto.EmbeddingRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.SparseEmbeddingBatchResponse> CalculateSparseEmbeddingBatch(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::ServerCallContext context)
+      {
+        throw new grpc::RpcException(new grpc::Status(grpc::StatusCode.Unimplemented, ""));
+      }
+
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::System.Threading.Tasks.Task<global::Jigen.Proto.PassageEmbeddingResponse> CalculatePassageEmbeddings(global::Jigen.Proto.PassageEmbeddingRequest request, grpc::ServerCallContext context)
       {
@@ -808,6 +848,8 @@ namespace Jigen.Proto {
           .AddMethod(__Method_Count, serviceImpl.Count)
           .AddMethod(__Method_CalculateEmbeddings, serviceImpl.CalculateEmbeddings)
           .AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl.CalculateEmbeddingsBatch)
+          .AddMethod(__Method_CalculateSparseEmbedding, serviceImpl.CalculateSparseEmbedding)
+          .AddMethod(__Method_CalculateSparseEmbeddingBatch, serviceImpl.CalculateSparseEmbeddingBatch)
           .AddMethod(__Method_CalculatePassageEmbeddings, serviceImpl.CalculatePassageEmbeddings)
           .AddMethod(__Method_CalculatePassageSplitCount, serviceImpl.CalculatePassageSplitCount)
           .AddMethod(__Method_CalculateImageEmbedding, serviceImpl.CalculateImageEmbedding)
@@ -856,6 +898,8 @@ namespace Jigen.Proto {
       serviceBinder.AddMethod(__Method_Count, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.CollectionKey, global::Jigen.Proto.CountResult>(serviceImpl.Count));
       serviceBinder.AddMethod(__Method_CalculateEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.CalculateEmbeddings));
       serviceBinder.AddMethod(__Method_CalculateEmbeddingsBatch, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.EmbeddingBatchResponse>(serviceImpl.CalculateEmbeddingsBatch));
+      serviceBinder.AddMethod(__Method_CalculateSparseEmbedding, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.SparseEmbeddingResponse>(serviceImpl.CalculateSparseEmbedding));
+      serviceBinder.AddMethod(__Method_CalculateSparseEmbeddingBatch, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.SparseEmbeddingBatchResponse>(serviceImpl.CalculateSparseEmbeddingBatch));
       serviceBinder.AddMethod(__Method_CalculatePassageEmbeddings, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse>(serviceImpl.CalculatePassageEmbeddings));
       serviceBinder.AddMethod(__Method_CalculatePassageSplitCount, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.PassageSplitCountRequest, global::Jigen.Proto.PassageSplitCountResponse>(serviceImpl.CalculatePassageSplitCount));
       serviceBinder.AddMethod(__Method_CalculateImageEmbedding, serviceImpl == null ? null : new grpc::UnaryServerMethod<global::Jigen.Proto.ImageEmbeddingRequest, global::Jigen.Proto.EmbeddingResponse>(serviceImpl.CalculateImageEmbedding));

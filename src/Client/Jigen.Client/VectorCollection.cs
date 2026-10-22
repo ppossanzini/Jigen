@@ -401,6 +401,48 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   /// At least one vector must be supplied; when both are, both weights are
   /// required, and a zero weight leaves that modality out.
   /// </summary>
+  /// <summary>
+  /// Hybrid search from a sentence: the server generates the dense embedding and
+  /// the sparse lexical vector from the same text, then fuses them. No vector has
+  /// to be computed on this side.
+  /// </summary>
+  public List<VectorSearchResult<T>> SearchHybrid(string sentence, int top = 10,
+    float denseWeight = 1f, float sparseWeight = 1f, SearchOptions options = null)
+  {
+    return SearchHybrid(sentence, predicate: null, top: top,
+      denseWeight: denseWeight, sparseWeight: sparseWeight, options: options);
+  }
+
+  public List<VectorSearchResult<T>> SearchHybrid(string sentence,
+    Expression<Func<T, bool>> predicate, int top = 10, float denseWeight = 1f, float sparseWeight = 1f,
+    SearchOptions options = null)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
+    return MapResults(store.ServiceClient.SearchHybrid(
+      BuildSearchHybridRequest(sentence, predicate, top, denseWeight, sparseWeight, options)));
+  }
+
+  public Task<List<VectorSearchResult<T>>> SearchHybridAsync(string sentence, int top = 10,
+    float denseWeight = 1f, float sparseWeight = 1f, SearchOptions options = null,
+    CancellationToken cancellationToken = default)
+  {
+    return SearchHybridAsync(sentence, predicate: null, top: top, denseWeight: denseWeight,
+      sparseWeight: sparseWeight, options: options, cancellationToken: cancellationToken);
+  }
+
+  public async Task<List<VectorSearchResult<T>>> SearchHybridAsync(string sentence,
+    Expression<Func<T, bool>> predicate, int top = 10, float denseWeight = 1f, float sparseWeight = 1f,
+    SearchOptions options = null, CancellationToken cancellationToken = default)
+  {
+    ArgumentException.ThrowIfNullOrWhiteSpace(sentence);
+
+    var result = await store.ServiceClient
+      .SearchHybridAsync(BuildSearchHybridRequest(sentence, predicate, top, denseWeight, sparseWeight, options),
+        cancellationToken: cancellationToken)
+      .ConfigureAwait(false);
+    return MapResults(result);
+  }
+
   // Named SearchHybrid, not an overload of Search: a null second argument would
   // otherwise be ambiguous between "no predicate" and "no sparse vector".
   public List<VectorSearchResult<T>> SearchHybrid(float[] embeddings, SparseVector sparse, int top = 10,
@@ -446,6 +488,26 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
       Collection = GetCollectionName(),
       Sparse = ToProtoSparseVector(sparse),
       Top = top,
+      Tuning = BuildTuning(options)
+    };
+
+    if (predicate != null)
+      request.Filter = ProtoExpressionTranslator.Translate(predicate);
+
+    return request;
+  }
+
+  private SearchHybridRequest BuildSearchHybridRequest(string sentence,
+    Expression<Func<T, bool>> predicate, int top, float denseWeight, float sparseWeight, SearchOptions options)
+  {
+    var request = new SearchHybridRequest
+    {
+      Database = GetDatabaseName(),
+      Collection = GetCollectionName(),
+      Sentence = sentence,
+      Top = top,
+      DenseWeight = denseWeight,
+      SparseWeight = sparseWeight,
       Tuning = BuildTuning(options)
     };
 

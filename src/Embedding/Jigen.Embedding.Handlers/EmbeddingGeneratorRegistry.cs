@@ -74,4 +74,7 @@ internal sealed class DefaultEmbeddingGenerator(IEmbeddingGeneratorRegistry regi
     Inner.GenerateEmbeddingAsync(task, input, cancellationToken);
   public Task<float[][]> GenerateEmbeddingsAsync(IReadOnlyList<string> inputs, CancellationToken cancellationToken = default) =>
     Inner.GenerateEmbeddingsAsync(inputs, cancellationToken);
+  public SparseEmbedding GenerateSparseEmbedding(string input) => Inner.GenerateSparseEmbedding(input);
+  public Task<SparseEmbedding> GenerateSparseEmbeddingAsync(string input, CancellationToken cancellationToken = default) =>
+    Inner.GenerateSparseEmbeddingAsync(input, cancellationToken);
 }

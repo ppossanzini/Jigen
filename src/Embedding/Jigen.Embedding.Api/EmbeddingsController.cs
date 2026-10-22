@@ -41,6 +41,28 @@ public class EmbeddingsController(
     return Ok(result);
   }
 
+  /// <summary>
+  /// Sparse lexical vector of a text: tokenizer terms with their weights, the
+  /// same input that produces a dense embedding. Supply it with the embedding to
+  /// fill both slots of an entry, or omit it and let the server generate it from
+  /// the sentence.
+  /// </summary>
+  [HttpPost("sparse")]
+  [HttpPost("sparse/{model}")]
+  [ProducesResponseType(typeof(Core.Dto.SparseEmbeddingDto), StatusCodes.Status200OK)]
+  [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]
+  public async Task<IActionResult> CalculateSparseEmbedding([FromBody] string text, string model = null,
+    CancellationToken cancellationToken = default)
+  {
+    if (string.IsNullOrWhiteSpace(text))
+      return BadRequest("Text cannot be empty.");
+
+    var result = await hikyaku.Send(new Core.Commands.CalculateSparseEmbedding { Sentence = text, Model = model },
+      cancellationToken);
+
+    return Ok(result);
+  }
+
   [HttpPost("calculate/multi")]
   [ProducesResponseType(typeof(Dictionary<string, float[]>), StatusCodes.Status200OK)]
   [ProducesResponseType(typeof(string), StatusCodes.Status400BadRequest)]

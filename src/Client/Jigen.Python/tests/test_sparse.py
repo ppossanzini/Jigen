@@ -199,6 +199,36 @@ def test_search_hybrid_declares_both_weights():
     assert results[0].sparse_score == pytest.approx(3.0)
 
 
+def test_search_hybrid_from_a_sentence_sends_no_vectors():
+    stub = FakeStub()
+    VectorCollection(stub, "demo", "articles").search_hybrid(sentence="il parco è buio", top=5)
+
+    assert stub.method == "SearchHybrid"
+    assert stub.request.Sentence == "il parco è buio"
+    assert list(stub.request.Embeddings) == []
+    assert not stub.request.HasField("Sparse")
+    # A sentence generates the second vector: the defaults weigh both equally.
+    assert stub.request.HasField("DenseWeight")
+    assert stub.request.HasField("SparseWeight")
+
+
+def test_search_hybrid_from_a_sentence_keeps_an_explicit_sparse():
+    stub = FakeStub()
+    VectorCollection(stub, "demo", "articles").search_hybrid(
+        sparse=vector(), sentence="il parco è buio"
+    )
+
+    assert stub.request.Sentence == "il parco è buio"
+    assert list(stub.request.Sparse.Terms) == [1, 5]
+
+
+def test_search_hybrid_with_a_blank_sentence_is_rejected_before_the_call():
+    stub = FakeStub()
+    with pytest.raises(ValueError, match="at least one"):
+        VectorCollection(stub, "demo", "articles").search_hybrid(sentence="   ")
+    assert stub.method is None
+
+
 def test_search_hybrid_without_any_vector_is_rejected_before_the_call():
     stub = FakeStub()
     with pytest.raises(ValueError, match="at least one"):

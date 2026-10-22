@@ -636,30 +636,22 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
       var sparse = ToSparse(request.Sparse);
 
       // A declared weight is authoritative, including an explicit zero, which
-      // excludes that modality. A single modality needs no weight at all; the
-      // two together need both, declared.
-      var denseSupplied = !string.IsNullOrWhiteSpace(request.Sentence)
-                          || request.Embeddings is { Length: > 0 };
-      if (denseSupplied && sparse is not null
+      // excludes that modality. Two explicit vectors need both weights, declared.
+      // A sentence that generates the second vector needs none: the defaults weigh
+      // the two modalities equally.
+      if (request.Embeddings is { Length: > 0 } && sparse is not null
           && (request.DenseWeight is null || request.SparseWeight is null))
         return BadRequest("Declare both denseWeight and sparseWeight when both vectors are supplied");
 
-      float[] queryEmbeddings = request.Embeddings;
-      if (!string.IsNullOrWhiteSpace(request.Sentence))
-      {
-        queryEmbeddings = await mediator.Send(new Embedding.Core.Commands.CalculateEmbeddings
-        {
-          Sentence = request.Sentence,
-          Task = "search_query"
-        }, cancellationToken);
-      }
-
+      // A sentence fills whichever slot is missing, both sides from the same text,
+      // and the handler owns that rule: the surface only passes it through.
       var query = new Core.Query.collections.SearchHybrid
       {
         Database = dbname,
         Collection = collection,
-        Embeddings = queryEmbeddings,
+        Embeddings = request.Embeddings,
         Sparse = sparse,
+        Sentence = request.Sentence,
         Top = request.Top > 0 ? request.Top : 10,
         NoContent = request.NoContent
       };
