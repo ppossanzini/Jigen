@@ -1,5 +1,329 @@
 # Development Dossier
 
+## Actor task planning
+
+Piano dei vettori sparsi confermato dall'utente il 23 ottobre 2026:
+[Piano di sviluppo dei vettori sparsi](task-plan.md).
+Un attore, questa sessione, con codice, integrazione e verifica in sequenza.
+L'utente approva esplicitamente il codice di SP-01 e autorizza i test SP-02.
+Lo stesso gate resta previsto per gli incrementi successivi.
+
+## Technology resolution
+
+SP-01 usa il backend-platform .NET 10, risolto con `implementation-be-dotnet-dev`,
+e la baseline `base-be-base-rules`. I progetti `Jigen.Index.Sparse` e `Jigen.Primitives`
+usano C# 14. Lo stack xUnit riguarda le regressioni esistenti.
+Embedding, trasporti e database relazionali non sono coinvolti.
+Si mantiene la struttura della libreria embedded, senza moduli CQRS.
+Il nuovo progetto `Jigen.Index.Sparse` dipende da `Jigen.Primitives`;
+nessun nuovo pacchetto NuGet.
+
+## Configuration options
+
+SP-01 non introduce configurazione. `ValueTuple` è il parametro senza opzioni
+richiesto dal contratto generico `IStorableItem`; i file e il flush restano
+responsabilità delle opzioni esistenti di `StoredList`.
+
+## Task execution
+
+### SP-03B Cursore dei posting
+
+Stato: closed. Verifiche di compilazione e regressione superate;
+codice approvato esplicitamente dall'utente prima del task SP-03BT.
+
+- Contratto confermato dall'utente: cursore in avanti su directory del termine
+  e StoredList dei blocchi della stessa collezione, senza gestione dei file.
+- Implementato `SparsePostingCursor`: `MoveNext`, `Seek` inclusivo e
+  `SkipBlock`. Quest'ultimo seleziona il riferimento successivo senza leggerlo.
+  Prima dell'avanzamento e dopo il salto `Current` non ha valore; a fine lista
+  anche `CurrentBlock` è assente e le operazioni restituiscono false.
+- Seek cerca per chiave binaria e indice vettore, prima nei confini della
+  directory, poi nei posting del solo blocco scelto. Non arretra.
+- Il caricamento confronta conteggio, limiti ed estremi con il riferimento.
+  Riferimenti fuori lista o discordanti causano `InvalidDataException`;
+  gli errori I/O non sono intercettati. Un caricamento fallito non pubblica
+  un posting corrente e può essere ritentato.
+- Il chiamante garantisce durata e stabilità della StoredList. Nessuna
+  configurazione, dipendenza o modifica al formato persistente.
+- Verifica: build riuscita, formatter verificato, nessun errore nell'editor;
+  tutti i 72 test esistenti superati. Questi test non esercitano ancora il cursore.
+  Rimane il warning preesistente NU1902 per MessagePack 3.1.7.
+- File: `src/Jigen/Jigen.Index.Sparse/SparsePostingCursor.cs`, piano e dossier.
+  Nessun test modificato. Ricerca top-k, lookup e Store esclusi.
+- Skill: `workflow-development`, `phase-development-technology-resolution`,
+  `phase-development-project-conventions`, `phase-development-configuration-options`,
+  `phase-development-task-execution`, `phase-development-development-handoff`,
+  `base-be-base-rules`, `implementation-be-dotnet-dev`,
+  `capabilities-dev-problem-solving-methodology`, `run-tests`.
+  La metodologia serve alla verifica del seek e delle transizioni di stato;
+  `run-tests` governa le regressioni esistenti. Stack e piano attori invariati.
+- Handoff: approvazione esplicita del codice, poi SP-03BT Verificare il cursore.
+
+### SP-01 Blocco persistente di posting
+
+Stato: closed. Codice compilato e approvato esplicitamente dall'utente.
+
+- `SparsePosting` conserva una copia della chiave binaria, l'indice del vettore
+  sparso nel documento e un peso float finito. Non usa posizioni dello Store.
+- `SparsePostingBlock` conserva posting immutabili, ordinati per chiave binaria
+  lessicografica e indice del vettore. La stessa coppia non può comparire due volte.
+- Minimo e massimo includono zero per i contributi assenti. Il formato ammette
+  pesi negativi; l'algoritmo successivo dovrà usare limiti compatibili.
+- Serializzazione little-endian, versione 1. Intestazione da 16 byte:
+  versione int32, conteggio int32, minimo float32, massimo float32.
+  Ogni posting contiene lunghezza chiave int32, byte della chiave, indice vettore
+  int32 e peso float32. Dimensione: 16 + somma di (12 + lunghezza chiave).
+- Blocco vuoto ammesso, con limiti zero. La lettura rifiuta versioni sconosciute,
+  troncamenti, lunghezze invalide, pesi non finiti, indici negativi, duplicati,
+  ordinamento errato, byte residui e limiti incoerenti tramite `InvalidDataException`.
+- `StoredList` resta invariata. La lettura attuale deserializza tutto il blocco;
+  la directory per saltare payload senza leggerli appartiene a SP-03.
+- Verifica: build riuscita, formatter applicato ai due file nuovi, nessun errore
+  nell'editor, 11 regressioni esistenti superate. Esclusi tre test che modificano
+  percorsi fissi condivisi sotto `/data`. Directory temporanea confinata a `.temp/sp-01`.
+- I test del nuovo tipo appartengono a SP-02, riportato sotto.
+- Warning preesistenti: NU1902 per MessagePack 3.1.7 e suggerimenti xUnit2017.
+
+File: `src/Jigen/Jigen.Index.Sparse/SparsePosting.cs`,
+`src/Jigen/Jigen.Index.Sparse/SparsePostingBlock.cs`,
+`src/Jigen/Jigen.Index.Sparse/Jigen.Index.Sparse.csproj`, `Jigen.sln`,
+questo dossier, il piano e i documenti di scouting che registrano la scelta.
+
+La correzione richiesta dall'utente separa il codice sparse dalle primitive
+generiche. I tipi hanno namespace `Jigen.Index.Sparse`; il progetto è registrato
+nella cartella di soluzione `src/Store`, come gli altri indici.
+La build del nuovo progetto e della dipendenza riesce. Il ciclo di vita
+per collezione appartiene agli incrementi SP-03 e SP-05, non al singolo blocco.
+
+Skill attivate: `workflow-development`, `phase-development-actor-task-planning`,
+`phase-development-technology-resolution`, `phase-development-project-conventions`,
+`phase-development-configuration-options`, `phase-development-task-execution`,
+`phase-development-deviation-routing`, `phase-development-development-handoff`,
+`base-be-base-rules`, `implementation-be-dotnet-dev`, `base-project-decision-log`,
+`capabilities-dev-problem-solving-methodology`, `capabilities-italian-text-humanization`,
+`run-tests`. La metodologia serve alla verifica del formato e dell'immutabilità;
+la revisione italiana riguarda i documenti di progetto; `run-tests` riguarda solo
+l'esecuzione delle regressioni esistenti.
+
+### SP-02 Verificare il blocco persistente
+
+Stato: closed. L'approvazione esplicita del codice precede l'inizio dei test.
+
+- Creato il progetto xUnit `tests/Jigen.Index.Sparse.Tests`, registrato nella
+  cartella `tests` della soluzione, con riferimento a `Jigen.Index.Sparse`.
+  Versioni di SDK e runner allineate ai test esistenti.
+- Flush e riapertura di una vera `StoredList` preservano documenti, indici dei
+  vettori, limiti e bit dei pesi, inclusi valori estremi, subnormali e zero negativo.
+- Verificati blocco vuoto, contributo zero nei limiti, indipendenza dagli array
+  del chiamante e dal buffer di deserializzazione, ordinamento e identità duplicate.
+- Un payload atteso indipendente verifica il layout little-endian versione 1.
+- Ogni prefisso troncato di un blocco popolato viene rifiutato.
+  I casi di corruzione includono versione, conteggio, lunghezze, pesi, indici,
+  limiti, duplicati, ordinamento e byte residui.
+- Verifica: tutti i 35 test del progetto superati; formatter e controllo degli
+  spazi superati; nessun errore nel file di test. Rimane solo il warning NU1902
+  della dipendenza MessagePack già presente.
+- I test di persistenza creano directory uniche sotto `.temp` e le eliminano
+  dopo la chiusura dei file; nessun dato scritto sotto `/data`.
+- File: `tests/Jigen.Index.Sparse.Tests/Jigen.Index.Sparse.Tests.csproj`,
+  `tests/Jigen.Index.Sparse.Tests/SparsePostingBlockTests.cs`, `Jigen.sln`,
+  piano e questo dossier. Nessuna modifica al codice di produzione né allo snapshot allegato.
+- Skill: `workflow-development`, `phase-development-actor-task-planning`,
+  `phase-development-technology-resolution`, `phase-development-project-conventions`,
+  `phase-development-configuration-options`, `phase-development-task-execution`,
+  `phase-development-deviation-routing`, `phase-development-development-handoff`,
+  `base-be-base-rules`, `implementation-be-dotnet-dev`, `base-project-decision-log`,
+  `capabilities-dev-problem-solving-methodology`, `capabilities-italian-text-humanization`,
+  `run-tests`. La metodologia orienta i casi ai difetti del formato; la revisione
+  italiana riguarda la documentazione; `run-tests` governa il runner VSTest/xUnit.
+
+Handoff: SP-03A Directory persistente dei termini, primo incremento di SP-03.
+
+### SP-03A Directory persistente dei termini
+
+Stato: closed. Build e regressioni superate; codice approvato esplicitamente
+dall'utente prima del task di test SP-03AT.
+
+- Aggiunti `SparseBlockReference` e `SparseTermDirectoryEntry` in
+  `src/Jigen/Jigen.Index.Sparse`.
+- Il riferimento deriva dal blocco esistente e conserva posizione nella
+  `StoredList` dei blocchi, conteggio, estremi documento/vettore e limiti.
+  Non duplica i pesi dei posting.
+- La directory conserva una voce per termine, con riferimenti immutabili
+  ordinati per intervallo. Rifiuta duplicati e sovrapposizioni.
+- I metadati serializzati sono separati dai payload: la futura lettura della voce
+  non richiede di aprire o deserializzare i blocchi.
+- Formato little-endian versione 1: intestazione con versione, termine e conteggio,
+  12 byte. Ogni riferimento usa 32 byte fissi più le due chiavi di confine.
+  Il riferimento contiene posizione, conteggio, minimo, massimo, indici dei vettori,
+  lunghezze delle chiavi e chiavi.
+- Directory vuota ammessa con limiti zero; blocchi vuoti non referenziabili.
+  La deserializzazione rifiuta versioni, conteggi, lunghezze, intervalli,
+  posizioni, limiti e indici invalidi, riferimenti ripetuti e byte residui.
+- Non sono implementati indirizzamento termine → posizione, gestione dei file
+  per collezione, cursori o ricerca. Gli indici di blocco richiedono una lista
+  append-only senza `RemoveAt`; la coerenza fra file richiede il writer futuro.
+- Intervalli non sovrapposti descrivono una lista ordinata, non risolvono ancora
+  inserimenti fuori ordine o aggiornamenti: merge e versioni restano in SP-05.
+- Verifica di produzione: build riuscita, 35 regressioni superate, formatter
+  applicato e nessun errore nell'editor. I test specifici appartengono a SP-03AT.
+- Skill: `workflow-development`, `phase-development-actor-task-planning`,
+  `phase-development-technology-resolution`, `phase-development-project-conventions`,
+  `phase-development-configuration-options`, `phase-development-task-execution`,
+  `phase-development-deviation-routing`, `phase-development-development-handoff`,
+  `base-be-base-rules`, `implementation-be-dotnet-dev`, `base-project-decision-log`,
+  `capabilities-dev-problem-solving-methodology`, `capabilities-italian-text-humanization`,
+  `run-tests`. Metodologia applicata alle invarianti del formato; revisione italiana
+  alla documentazione; `run-tests` alle regressioni esistenti.
+
+File modificati: i due nuovi tipi, questo dossier, il piano e il dossier di
+scouting che possiede il contratto di ranking confermato.
+
+### SP-03AT Verificare la directory
+
+Stato: closed. Test avviati dopo approvazione esplicita del codice.
+
+- Aggiunti i test della directory in `SparseTermDirectoryTests.cs`.
+- Flush e riapertura di una vera `StoredList` conservano termine, posizioni,
+  conteggi, estremi documento/vettore e limiti. La prova non crea né apre file
+  di posting: i riferimenti sono leggibili indipendentemente dal payload.
+- Verificati directory vuote, riferimenti con un solo posting, intervalli
+  adiacenti dello stesso documento e chiavi binarie con prefissi comuni.
+  Le posizioni fisiche dei blocchi non devono seguire l'ordine delle chiavi.
+- Verificati immutabilità, formato little-endian atteso, ogni prefisso troncato
+  e rifiuto di metadati corrotti, riferimenti duplicati e intervalli sovrapposti.
+- Estratta la gestione della directory temporanea in `TestStorageDirectory.cs`,
+  condivisa dai test del blocco e della directory; nessun helper in produzione.
+- Verifica: 72 test superati nella suite completa, formatter e controllo degli
+  spazi superati, nessun errore nell'editor. Resta il warning NU1902 preesistente.
+- I test eliminano le directory uniche sotto `.temp` alla chiusura dei file.
+  Nessun dato scritto sotto `/data`; nessuna modifica ai tipi di produzione.
+- Perimetro: i tre file del progetto di test, piano e dossier.
+- Skill: `workflow-development`, `phase-development-actor-task-planning`,
+  `phase-development-technology-resolution`, `phase-development-project-conventions`,
+  `phase-development-configuration-options`, `phase-development-task-execution`,
+  `phase-development-deviation-routing`, `phase-development-development-handoff`,
+  `base-be-base-rules`, `implementation-be-dotnet-dev`, `base-project-decision-log`,
+  `capabilities-dev-problem-solving-methodology`, `capabilities-italian-text-humanization`,
+  `run-tests`. Metodologia applicata ai difetti di persistenza e formato;
+  revisione italiana alla documentazione; `run-tests` al runner VSTest/xUnit.
+
+Handoff: cursore SP-03B e relativi test SP-03BT, ora chiusi.
+
+## Deviation routing
+
+Il passaggio diretto dallo scouting al primo incremento è confermato dall'utente.
+Analisi e architettura formali non sono concluse: le scelte ancora aperte restano
+prerequisiti dei task successivi. Nessuna modifica al formato denso, a `AGENTS.md`,
+allo stack o ai contratti di rete.
+
+### SP-03BT Verificare il cursore
+
+Stato: closed. L'utente ha approvato esplicitamente il codice del cursore.
+
+- Aggiunti 24 casi in `tests/Jigen.Index.Sparse.Tests/SparsePostingCursorTests.cs`.
+  Nessuna modifica al codice di produzione.
+- Verificati attraversamento dopo flush e riapertura, pesi e identità multivettore,
+  seek inclusivo, chiavi con prefissi, destinazioni intermedie e seek retrogrado.
+  Le posizioni fisiche dei blocchi sono invertite rispetto agli intervalli logici.
+- Verificati directory vuota, fine lista stabile e salto dopo lettura parziale.
+  Riferimenti non leggibili nei blocchi saltati dimostrano che seek e salto non
+  ne caricano il payload; anche il seek oltre l'ultimo estremo evita la lettura.
+- Verificate discordanza di conteggio, minimo, massimo, documenti e indici vettore
+  agli estremi, oltre ai riferimenti fuori lista. Il fallimento non pubblica
+  posting e resta ripetibile; il salto consente di esaurire il cursore.
+- Questi casi intercettano posting persi o ripetuti, arretramento, letture dei
+  blocchi saltati, confusione tra vettori e accettazione di metadati discordanti.
+- Verifica: intera suite sparse, 96 test superati, zero fallimenti o test saltati.
+  Formatter verificato; nessun errore rilevato nell'editor. Temporanei unici
+  sotto `.temp` rimossi dal helper dopo la chiusura dei file.
+  Rimane il warning NU1902 preesistente per MessagePack 3.1.7.
+- Skill: `workflow-development`, `phase-development-technology-resolution`,
+  `phase-development-project-conventions`, `phase-development-configuration-options`,
+  `phase-development-task-execution`, `phase-development-development-handoff`,
+  `base-be-base-rules`, `implementation-be-dotnet-dev`,
+  `capabilities-dev-problem-solving-methodology`, `run-tests`.
+  La metodologia orienta i casi ai difetti del seek e dello stato;
+  `run-tests` governa l'esecuzione VSTest/xUnit.
+- File: nuovo file dei test, piano e dossier. Handoff: SP-03, ancora bloccato
+  sul lookup dei termini della collezione.
+
+### SP-03 Implementare Block-Max MaxScore
+
+Stato: in-progress. Codice implementato e compilato, in attesa di approvazione
+esplicita e della verifica funzionale SP-04.
+
+- L'utente ha richiesto il completamento del motore, escludendo lo Store.
+  `SparseIndex` riceve directory e blocchi della singola collezione. Il chiamante
+  li apre, li mantiene immutati e li chiude; il motore non scrive e non dispone
+  file. Per modificare il contenuto occorre ricostruire l'istanza a dati stabili.
+- Il costruttore legge solo le voci della directory e costruisce un dizionario
+  termine-posizione. Identificatori duplicati causano `InvalidDataException`.
+  `TryGetTerm` rappresenta l'assenza con false. Nessun lookup statico o globale.
+  L'apertura resta proporzionale ai metadati letti e non e a costo costante.
+- `Search` riceve una mappa termine-peso e k. Termini sconosciuti non generano
+  candidati; query senza termini presenti e k zero restituiscono una lista vuota.
+  Termini di peso zero partecipano alla corrispondenza. Query con identificatori
+  negativi o pesi non finiti e k negativo sono errori di argomento.
+- `SparseMaxScoreSearch` usa cursori per query e intervalli delimitati dal minimo
+  degli estremi finali correnti. Calcola limiti locali dal massimo del blocco
+  per pesi query positivi e dal minimo per quelli negativi, includendo zero.
+  Salta gli intervalli con limite strettamente inferiore alla soglia top-k,
+  avanzando i soli riferimenti, senza leggere i relativi payload.
+- MaxScore ordina i limiti locali e divide le liste in essenziali e non essenziali.
+  Solo le essenziali generano candidati; le altre completano il prodotto scalare.
+  La divisione viene aggiornata quando sale la soglia, anche dentro l'intervallo.
+  I limiti sono sommati con arrotondamento verso l'alto; il prefisso non essenziale
+  viene ricontrollato nell'ordine di accumulo del punteggio. I pareggi non vengono
+  potati. Non sono introdotti quantizzazione o limiti al numero dei candidati.
+- I pesi persistenti restano float. Prodotti e somme usano double e i termini
+  sono sommati per identificatore crescente. `SparseSearchResult.Score` e double:
+  evita l'overflow float dei prodotti di pesi finiti. La verifica differenziale
+  deve usare lo stesso ordine e la stessa aritmetica.
+- Il top-k conserva al massimo k documenti finalizzati in una coda di priorita
+  e un documento in aggregazione. Le identita visitate sono ordinate; per ciascun
+  documento si conserva il massimo dei soli vettori corrispondenti. I risultati
+  sono ordinati per punteggio decrescente e chiave binaria crescente.
+- La cancellazione viene propagata; nessun errore I/O e nascosto. Query simultanee
+  non condividono cursori, punteggi o heap. Il motore non verifica l'appartenenza
+  delle liste a una collezione: questa e una responsabilita del proprietario
+  dei file, come gia nel contratto del cursore.
+- File: `SparseIndex.cs`, `SparseMaxScoreSearch.cs`, `SparseSearchResult.cs`
+  in `src/Jigen/Jigen.Index.Sparse`, piano e dossier. Formati e tipi precedenti
+  invariati; nessuna configurazione o dipendenza aggiunta, nessun test modificato.
+- Verifica: build riuscita con C# 14; formatter verificato; nessun errore
+  nell'editor; 96 regressioni esistenti superate. Rimane NU1902 preesistente.
+  Le regressioni non provano la nuova ricerca: confronto esaustivo, isolamento,
+  riapertura e potatura restano SP-04. Nessuna misura prestazionale eseguita.
+- Skill: `workflow-development`, `phase-development-technology-resolution`,
+  `phase-development-project-conventions`, `phase-development-configuration-options`,
+  `phase-development-task-execution`, `phase-development-development-handoff`,
+  `base-be-base-rules`, `implementation-be-dotnet-dev`,
+  `capabilities-dev-problem-solving-methodology`, `run-tests`.
+  La metodologia serve alla sicurezza dei limiti e alla verifica numerica;
+  `run-tests` riguarda le regressioni esistenti. Nessun agente aggiuntivo.
+
+Uso, con le due liste gia aperte della stessa collezione:
+
+```csharp
+var index = new SparseIndex(termDirectory, postingBlocks);
+IReadOnlyDictionary<int, float> query = new Dictionary<int, float>
+{
+    [17] = 1.5f,
+    [91] = -0.25f
+};
+var hits = index.Search(query, k: 10);
+```
+
+## Development handoff
+
+Blocco, directory e cursore approvati e verificati con 96 test; fase ancora aperta.
+SP-01, SP-02, SP-03A, SP-03AT, SP-03B e SP-03BT sono chiusi.
+Lookup per collezione e ricerca Block-Max MaxScore sono implementati e compilati,
+ma attendono approvazione del codice e test SP-04 prima della chiusura del motore.
+L'integrazione Store e i relativi test sono differiti per scelta esplicita
+dell'utente. Nessun prototipo o codice di interfaccia coinvolto.
+
 ## DEV-GRANITE-R2-CONFIGURATION
 
 Status: Completed.

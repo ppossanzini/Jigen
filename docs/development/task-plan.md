@@ -1,0 +1,224 @@
+# Piano di sviluppo dei vettori sparsi
+
+## Coordinamento confermato
+
+Un attore: questa sessione, responsabile di codice, integrazione e verifica.
+Esecuzione sequenziale nel checkout corrente, senza agenti aggiuntivi.
+Piano confermato dall'utente il 23 ottobre 2026.
+Baseline: `8638cc9`; i documenti di scouting sono modifiche locali da preservare.
+
+Fonte delle attività: richiesta diretta di implementare Block-Max MaxScore e
+approvazione del primo incremento. Analisi e architettura formali non completate.
+Stack: .NET 10, C# 14, xUnit. Nessun nuovo pacchetto.
+Il progetto dedicato e l'ambito per collezione sono fissati in
+[Recommendation and handoff](../scouting/dossier.md#recommendation-and-handoff).
+Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossier.md#paper-su-prestazioni-e-struttura-dei-dati).
+
+## Cronologia
+
+| Ordine | Questa sessione | Gate |
+| --- | --- | --- |
+| 1 | [SP-01 Blocco persistente di posting](#sp-01-blocco-persistente-di-posting), closed | codice approvato esplicitamente dall'utente |
+| 2 | [SP-02 Verificare il blocco persistente](#sp-02-verificare-il-blocco-persistente), closed | 35 test superati |
+| 3a | [SP-03A Directory persistente dei termini](#sp-03a-directory-persistente-dei-termini), closed | codice approvato esplicitamente dall'utente |
+| 3a-test | [SP-03AT Verificare la directory](#sp-03at-verificare-la-directory), closed | suite completa: 72 test superati |
+| 3b | [SP-03B Cursore dei posting](#sp-03b-cursore-dei-posting), closed | codice approvato esplicitamente |
+| 3b-test | SP-03BT Verificare il cursore, closed | suite completa: 96 test superati |
+| 3c | [SP-03 Implementare Block-Max MaxScore](#sp-03-implementare-block-max-maxscore), in-progress | completamento del motore richiesto dall'utente |
+| 4 | [SP-04 Verificare la ricerca](#sp-04-verificare-la-ricerca), planned | approvazione del codice SP-03 |
+| 5 | [SP-05 Integrare lo Store multivettore](#sp-05-integrare-lo-store-multivettore), deferred | escluso dal completamento corrente |
+| 6 | [SP-06 Verificare il ciclo persistente](#sp-06-verificare-il-ciclo-persistente), deferred | dipende dall'integrazione Store esclusa |
+
+## SP-01 Blocco persistente di posting
+
+- Attore: questa sessione. Stato: closed. Ordine: 1. Prerequisiti: piano confermato.
+- Obiettivo: record immutabile serializzabile con `IStorableItem` in `StoredList`.
+- Perimetro: `src/Jigen/Jigen.Index.Sparse/`, registrazione in `Jigen.sln`,
+  documentazione. Dipendenza dal solo progetto `Jigen.Primitives`.
+- Identità del posting: chiave binaria del documento e indice del vettore sparso;
+  nessun riferimento alla posizione densa, che cambia con la compattazione.
+- Ordinamento: chiave binaria lessicografica, poi indice del vettore; niente duplicati.
+- Pesi float non quantizzati. Minimo e massimo includono zero, contributo dei posting assenti.
+- Passi: introdurre posting e blocco; serializzare in little-endian con versione;
+  verificare integrità del payload in lettura; compilare e rieseguire regressioni esistenti.
+- Verifica: build di `Jigen.Index.Sparse` e della dipendenza `Jigen.Primitives`;
+  regressioni esistenti `PrimitiveTests`
+  con esclusione di `CreateList`, `SizeTest` e `ShrinkDbTest`, che scrivono o cancellano
+  percorsi fissi condivisi sotto `/data`;
+  formatter limitato ai nuovi file; ispezione del formato e dell'immutabilità.
+- Esclusi: indice per termine, algoritmo top-k, modifica a `StoredList`, integrazione
+  nello Store, WAL, API e client. Il record non dimostra un'apertura a costo costante.
+- Skill: quelle dichiarate nel [Task execution](dossier.md#task-execution).
+- Consegna: codice e formato documentato; destinatario utente per approvazione,
+  poi SP-02 Verificare il blocco persistente.
+- Evidenze: [Task execution](dossier.md#task-execution). Il round trip del nuovo
+  blocco è verificato dal task separato SP-02.
+
+## SP-02 Verificare il blocco persistente
+
+- Attore: questa sessione. Stato: closed. Ordine: 2.
+- Dipendenza: SP-01 Blocco persistente di posting e approvazione esplicita del codice.
+- Consegna: test xUnit di round trip tramite `StoredList`, flush e riapertura,
+  pesi firmati, ordinamento, multivettore, immutabilità e payload corrotto.
+- Perimetro: `tests/Jigen.Index.Sparse.Tests`, progetto xUnit dedicato con riferimento
+  a `Jigen.Index.Sparse`, registrato in `Jigen.sln`. Versioni dei pacchetti allineate
+  ai test esistenti. Non spostare tipi specifici in `Jigen.Primitives`.
+- Passi: creare il progetto; scrivere test attraverso costruttori, serializzazione
+  e `StoredList`; eseguire l'intero progetto con `dotnet test`; formattare i file nuovi.
+- Difetti da intercettare: perdita di posting o pesi al riavvio, fusione di vettori
+  dello stesso documento, limiti non sicuri per contributi assenti, alias di memoria
+  mutabile, accettazione di record corrotti o non ordinati.
+- Verifica: `dotnet test tests/Jigen.Index.Sparse.Tests/Jigen.Index.Sparse.Tests.csproj`;
+  tutti i casi devono passare. Temporanei sotto `.temp`, con pulizia dopo la riapertura.
+- Skill: quelle di SP-01, con `run-tests` applicata ai test nuovi.
+- Nessuna modifica al codice di produzione. Evidenze nel dossier.
+- Esito: 35 test superati, formatter verificato, temporanei rimossi dai test.
+  Evidenze in [SP-02 Verificare il blocco persistente](dossier.md#sp-02-verificare-il-blocco-persistente).
+- Handoff: SP-03 Implementare Block-Max MaxScore dopo esito positivo.
+
+## SP-03 Implementare Block-Max MaxScore
+
+- Attore: questa sessione. Stato: in-progress. Ordine: 3c.
+- Dipendenza: SP-03BT Verificare il cursore, chiuso.
+- Perimetro confermato dall'utente: completare il motore in `Jigen.Index.Sparse`,
+  con lookup dei termini per collezione e ricerca Block-Max MaxScore.
+  Store, scrittura dei documenti, aggiornamenti, WAL e API restano esclusi.
+- Ranking confermato dall'utente: massimo dei prodotti scalari dei vettori di
+  ciascun documento; un risultato per documento; pareggi per chiave lessicografica.
+- Selezione dei candidati: solo vettori con termini comuni, come fissato nel
+  [ranking confermato](../scouting/dossier.md#recommendation-and-handoff).
+- Il motore riceve le due StoredList della collezione, di proprieta del chiamante,
+  e costruisce un lookup termine-posizione dalla sola directory. Nessuno stato
+  statico o condiviso fra collezioni; file aperti e stabili durante l'uso.
+- Passi: lookup su directory esistente, query con pesi float, cursori locali alla
+  query, limiti superiori locali e liste essenziali/non essenziali, top-k di
+  documenti distinti con il massimo sui vettori corrispondenti.
+- Punteggi calcolati in double dai pesi float, sommati per termine crescente;
+  limiti arrotondati verso l'alto e potatura stretta per preservare i pareggi.
+- Verifica prevista: build, formatter e 96 regressioni esistenti; nuovi test
+  di confronto esaustivo e isolamento nel task separato SP-04 dopo approvazione.
+- Skill: quelle di SP-03B, piu run-tests per le regressioni esistenti.
+- Esito: motore implementato, build e formatter superati, 96 regressioni
+  superate. Attende approvazione del codice; verifica della nuova ricerca in SP-04.
+
+## SP-03B Cursore dei posting
+
+- Attore: questa sessione. Stato: closed. Ordine: 3b.
+- Dipendenza: SP-03AT chiuso; contratto confermato dall'utente.
+- Perimetro: `SparsePostingCursor.cs`, piano e dossier; nessuna modifica ai test.
+- Input: directory del termine e StoredList dei blocchi della stessa collezione.
+  Il chiamante mantiene file aperti e contenuto stabile durante l'uso.
+- Operazioni: avanzamento, seek in avanti inclusivo per documento/vettore,
+  salto del blocco corrente senza caricare il successivo.
+- Il cursore parte sul primo riferimento, senza posting corrente e senza I/O.
+  Fine lista e assenza di posting sono esiti espliciti, non eccezioni.
+- Seek usa ricerca binaria sui confini e poi sui posting del solo blocco scelto.
+  I blocchi saltati non vengono letti. I metadati del payload letto devono
+  corrispondere al riferimento, altrimenti la lettura segnala corruzione.
+- Esclusi: apertura e gestione file, lookup termini, top-k, mutazioni e Store.
+- Nessuna nuova configurazione o dipendenza. Skill: workflow-development,
+  phase-development-technology-resolution, phase-development-project-conventions,
+  phase-development-configuration-options, phase-development-task-execution,
+  base-be-base-rules, implementation-be-dotnet-dev,
+  capabilities-dev-problem-solving-methodology (verifica del seek e dello stato).
+- Verifica: build, regressioni sparse esistenti e formatter.
+- Esito: build e formatter superati; 72 regressioni superate. Codice approvato
+  esplicitamente dall'utente; test specifici nel task separato SP-03BT.
+- Handoff: approvazione esplicita del codice, poi SP-03BT Verificare il cursore.
+
+## SP-03BT Verificare il cursore
+
+- Attore: questa sessione. Stato: closed. Ordine: 3b-test.
+- Dipendenza: approvazione esplicita del codice SP-03B.
+- Perimetro: test sparse e documentazione; nessuna modifica alla produzione.
+- Verificare avanzamento e seek inclusivo, multivettore, chiavi con prefissi,
+  directory vuota e fine lista, seek retrogrado senza arretramento, salto senza
+  caricamento dei payload e rifiuto della discordanza fra directory e blocco.
+- I casi devono intercettare letture di blocchi saltati, posting persi o ripetuti,
+  confusione tra vettori, stati correnti non validi e accettazione di riferimenti
+  incoerenti. Usare StoredList reale e temporanei unici sotto `.temp`.
+- Verifica: intera suite sparse; formatter dei test modificati.
+- Esito: 24 nuovi casi del cursore e 72 precedenti superati, nessuno saltato;
+  formatter verificato. Nessuna modifica alla produzione.
+- Handoff: proseguire SP-03 dopo esito positivo.
+
+## SP-03A Directory persistente dei termini
+
+- Sorgente: SP-03 Implementare Block-Max MaxScore, suddiviso per consegnare
+  prima la struttura che i cursori devono leggere.
+- Attore: questa sessione. Stato: closed. Ordine: 3a.
+- Dipendenza: SP-02 Verificare il blocco persistente, chiuso.
+- Obiettivo: una voce serializzabile per termine in una `StoredList` di directory
+  della collezione, separata dalla `StoredList` dei blocchi.
+- Perimetro: `SparseBlockReference.cs` e `SparseTermDirectoryEntry.cs` nel
+  progetto `Jigen.Index.Sparse`; piano e dossier.
+- Il riferimento di blocco deriva da un blocco già costruito: posizione nella
+  lista dei blocchi, conteggio, primo e ultimo identificatore di vettore, minimo
+  e massimo. Nessuna copia dei pesi dei posting nella directory.
+- La voce conserva l'identificatore del termine e i riferimenti ordinati per
+  intervallo documento/vettore, senza sovrapposizioni o riferimenti ripetuti.
+- Passi: implementare metadati immutabili; serializzare la directory con versione;
+  rifiutare metadati incoerenti; compilare e rieseguire i 35 test esistenti.
+- Esclusi: apertura dei file per collezione, WAL, aggiornamenti dei documenti,
+  cursori, ricerca top-k e integrazione nello Store.
+- Verifica: build di `Jigen.Index.Sparse`, test esistenti di
+  `Jigen.Index.Sparse.Tests`, formatter e revisione dei limiti e delle lunghezze.
+- Skill: quelle di SP-01; nessuna nuova capability.
+- Handoff: utente per approvazione, poi SP-03AT Verificare la directory.
+  Nessuna modifica ai test durante questa attività.
+- Evidenze: [SP-03A Directory persistente dei termini](dossier.md#sp-03a-directory-persistente-dei-termini).
+
+## SP-03AT Verificare la directory
+
+- Sorgente: SP-03 Implementare Block-Max MaxScore.
+- Attore: questa sessione. Stato: closed. Ordine: 3a-test.
+- Dipendenza: SP-03A Directory persistente dei termini e approvazione del codice.
+- Perimetro: `tests/Jigen.Index.Sparse.Tests`; nessuna modifica alla produzione.
+- Verificare round trip su `StoredList`, limiti e confini leggibili senza aprire
+  i blocchi, identificatori con prefissi comuni, intervalli adiacenti nello stesso
+  documento, directory vuote, duplicati, sovrapposizioni e payload corrotti.
+- Difetti: limiti persi alla riapertura, fusione di intervalli, alias di memoria,
+  accesso anticipato ai posting e metadati invalidi accettati.
+- Comando: `dotnet test tests/Jigen.Index.Sparse.Tests/Jigen.Index.Sparse.Tests.csproj`.
+- Skill: quelle di SP-01; temporanei sotto `.temp`, da eliminare dopo il test.
+- Evidenze: [SP-03AT Verificare la directory](dossier.md#sp-03at-verificare-la-directory).
+  Tutti i 72 test del progetto passano; nessuna modifica alla produzione.
+- Handoff: SP-03 Implementare Block-Max MaxScore quando tutti i test passano.
+
+## SP-04 Verificare la ricerca
+
+- Attore: questa sessione. Stato: planned. Ordine: 4.
+- Dipendenza: SP-03 Implementare Block-Max MaxScore e approvazione del codice.
+- Incremento: confronto con ricerca esaustiva sugli stessi pesi float e
+  accumulo double per termine crescente; stesso ranking e insieme dei candidati.
+- Perimetro: test sparse e dossier, senza modifiche alla produzione.
+- Casi: corpus deterministici e generati con pesi firmati, zeri e valori estremi;
+  blocchi disallineati e posizioni fisiche non ordinate; vettori multipli dello
+  stesso documento anche su blocchi diversi; pareggi per chiave e k maggiore dei
+  candidati; query vuota, termini assenti, k zero e cancellazione.
+- Verificare lookup dopo riapertura, termini duplicati rifiutati e due collezioni
+  con stessi identificatori ma dati separati. Dimostrare i salti usando riferimenti
+  non leggibili in intervalli sotto soglia, senza introdurre hook di produzione.
+- Verifica: suite sparse completa e formatter; nessuna soglia di copertura.
+- Handoff: utente per chiusura del motore. Store escluso dal perimetro corrente.
+
+## SP-05 Integrare lo Store multivettore
+
+- Attore: questa sessione. Stato: deferred. Ordine: 5.
+- Motivo: l'utente ha limitato il completamento corrente al motore sparse.
+- Dipendenza: SP-04 Verificare la ricerca.
+- Incremento: scrittura, ricerca, riapertura, aggiornamento e cancellazione,
+  con istanze, file e directory dell'indice separati per collezione.
+- Da risolvere prima di ready: versioni dei documenti, WAL, directory persistenti,
+  compattazione, lettura dei vettori e misure di apertura a cache fredda.
+- REST, gRPC e client esclusi da questo giro.
+- Verifica prevista: build e regressioni Store; nuovi test in SP-06.
+
+## SP-06 Verificare il ciclo persistente
+
+- Attore: questa sessione. Stato: deferred. Ordine: 6.
+- Motivo: integrazione Store esclusa dal completamento corrente.
+- Dipendenza: SP-05 Integrare lo Store multivettore e approvazione del codice.
+- Incremento: test comportamentali di persistenza e recupero, misure di apertura,
+  memoria e ricerca. Corpus e soglie da confermare prima di ready.
+- Handoff finale: utente; evidenze nel dossier.
