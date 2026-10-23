@@ -23,9 +23,9 @@ public static class StoreWritingExtensions
   {
     var walStream = store.WalFileStream!;
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
-    var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
+    var embeddings = entry.Vectors.Select(v => v.ToArray()).ToArray();
 
-    int size = WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embedding);
+    int size = WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embeddings);
     byte[] rented = null;
     Span<byte> buffer = size <= 8192
       ? stackalloc byte[size]
@@ -33,7 +33,7 @@ public static class StoreWritingExtensions
 
     try
     {
-      WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding);
+      WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embeddings);
       walStream.Write(buffer[..size]);
     }
     finally
@@ -115,36 +115,36 @@ public static class StoreWritingExtensions
 
   internal static void AppendIndex(
     this Store store,
-    (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize) item)
+    (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, int vectorcount, long contentsize) item)
   {
     lock (store.IndexAppendLock)
     {
       var collectionIndex = store.PositionIndex.GetOrAdd(item.collectioname,
-        _ => new ConcurrentDictionary<byte[], (long, long, int, long)>(ByteArrayEqualityComparer.Instance));
+        _ => new ConcurrentDictionary<byte[], (long, long, int, int, long)>(ByteArrayEqualityComparer.Instance));
 
       // Overwrites leave the previous record unreachable: account it as dead space.
       if (collectionIndex.TryGetValue(item.id, out var old))
       {
         if (old.Item1 > 0 && old.Item1 != item.contentposition)
-          store.DeadContentBytes += Store.ContentRecordSize(item.id.Length, old.Item4);
+          store.DeadContentBytes += Store.ContentRecordSize(item.id.Length, old.Item5);
         if (old.Item2 > 0 && old.Item2 != item.embeddingposition)
-          store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(item.id.Length, old.Item3);
+          store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(item.id.Length, old.Item3, old.Item4);
       }
 
-      collectionIndex[item.id] = (item.contentposition, item.embeddingposition, item.dimensions, item.contentsize);
+      collectionIndex[item.id] = (item.contentposition, item.embeddingposition, item.dimensions, item.vectorcount, item.contentsize);
 
-      WriteIndexRecord(store.IndexFileStream, item.id, item.collectioname, item.contentposition, item.embeddingposition, item.dimensions, item.contentsize);
+      WriteIndexRecord(store.IndexFileStream, item.id, item.collectioname, item.contentposition, item.embeddingposition, item.dimensions, item.vectorcount, item.contentsize);
     }
   }
 
-  internal static void WriteIndexRecord(FileStream file, byte[] id, string collection, long contentposition, long embeddingposition, int dimensions, long contentsize)
+  internal static void WriteIndexRecord(FileStream file, byte[] id, string collection, long contentposition, long embeddingposition, int dimensions, int vectorcount, long contentsize)
   {
     // The record is assembled in a buffer and written with a single Write:
     // seven separate writes left a wide window for a crash to interleave
     // partial fields. A crash can still tear the single write, but only into
     // a short tail that LoadIndex detects and truncates.
     var nameByteCount = Encoding.UTF8.GetByteCount(collection);
-    var size = 2 * sizeof(int) + id.Length + nameByteCount + 2 * sizeof(long) + sizeof(int) + sizeof(long);
+    var size = 2 * sizeof(int) + id.Length + nameByteCount + 2 * sizeof(long) + 2 * sizeof(int) + sizeof(long);
 
     byte[] rented = null;
     Span<byte> buffer = size <= 512
@@ -167,6 +167,8 @@ public static class StoreWritingExtensions
       BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(offset), embeddingposition);
       offset += sizeof(long);
       BinaryPrimitives.WriteInt32LittleEndian(buffer.Slice(offset), dimensions);
+      offset += sizeof(int);
+      BinaryPrimitives.WriteInt32LittleEndian(buffer.Slice(offset), vectorcount);
       offset += sizeof(int);
       BinaryPrimitives.WriteInt64LittleEndian(buffer.Slice(offset), contentsize);
 
@@ -287,11 +289,11 @@ public static class StoreWritingExtensions
         if (old.contentposition > 0)
           store.DeadContentBytes += Store.ContentRecordSize(key.Length, old.size);
         if (old.embeddingsposition > 0)
-          store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(key.Length, old.dimensions);
+          store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(key.Length, old.dimensions, old.vectorcount);
 
         // Tombstone record: LoadIndex replays the log and removes the key,
         // so the deletion survives a restart.
-        WriteIndexRecord(store.IndexFileStream, key, collection, Store.IndexTombstone, Store.IndexTombstone, 0, 0);
+        WriteIndexRecord(store.IndexFileStream, key, collection, Store.IndexTombstone, Store.IndexTombstone, 0, 0, 0);
         result = true;
       }
     }
@@ -345,9 +347,9 @@ public static class StoreWritingExtensions
           if (old.contentposition > 0)
             store.DeadContentBytes += Store.ContentRecordSize(key.Length, old.size);
           if (old.embeddingsposition > 0)
-            store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(key.Length, old.dimensions);
+            store.DeadEmbeddingBytes += Store.EmbeddingRecordSize(key.Length, old.dimensions, old.vectorcount);
 
-          WriteIndexRecord(store.IndexFileStream, key, collection, Store.IndexTombstone, Store.IndexTombstone, 0, 0);
+          WriteIndexRecord(store.IndexFileStream, key, collection, Store.IndexTombstone, Store.IndexTombstone, 0, 0, 0);
           removedKeys.Add(key);
         }
       }
@@ -372,10 +374,10 @@ public static class StoreWritingExtensions
   /// per-entry Seek and tiny Write kernel calls. Returns position tuples in
   /// the same order as the input list.
   /// </summary>
-  internal static List<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)>
+  internal static List<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, int vectorcount, long contentsize)>
     AppendContentBatch(this Store store, List<VectorEntry> entries)
   {
-    var results = new List<(byte[], string, long, long, int, long)>(entries.Count);
+    var results = new List<(byte[], string, long, long, int, int, long)>(entries.Count);
     if (entries.Count == 0) return results;
 
     // ── Calculate total byte sizes ──
@@ -384,8 +386,9 @@ public static class StoreWritingExtensions
     {
       if (e.Content.Length > 0)
         contentTotal += Store.ContentRecordSize(e.Id.Length, e.Content.Length);
-      if (e.Embedding.Length > 0)
-        embeddingTotal += Store.EmbeddingRecordSize(e.Id.Length, e.Embedding.Length);
+      var vectors = e.Vectors;
+      if (vectors.Count > 0)
+        embeddingTotal += Store.EmbeddingRecordSize(e.Id.Length, vectors[0].Length, vectors.Count);
     }
 
     // ── Allocate pooled buffers ──
@@ -416,6 +419,8 @@ public static class StoreWritingExtensions
       foreach (var entry in entries)
       {
         long cp = 0, ep = 0;
+        var vectors = entry.Vectors;
+        var dimensions = vectors.Count > 0 ? vectors[0].Length : 0;
 
         if (entry.Content.Length > 0)
         {
@@ -431,21 +436,24 @@ public static class StoreWritingExtensions
           contentOff += entry.Content.Length;
         }
 
-        if (entry.Embedding.Length > 0)
+        if (vectors.Count > 0)
         {
           ep = embedBasePos + embedOff;
-          var span = embedBuf.AsSpan(embedOff);
-          BinaryPrimitives.WriteInt32LittleEndian(span, entry.Id.Length);
+          BinaryPrimitives.WriteInt32LittleEndian(embedBuf.AsSpan(embedOff), entry.Id.Length);
           embedOff += 4;
           entry.Id.CopyTo(embedBuf.AsSpan(embedOff));
           embedOff += entry.Id.Length;
-          System.Runtime.InteropServices.MemoryMarshal.AsBytes(entry.Embedding.Span)
-            .CopyTo(embedBuf.AsSpan(embedOff));
-          embedOff += entry.Embedding.Length * sizeof(float);
+          BinaryPrimitives.WriteInt32LittleEndian(embedBuf.AsSpan(embedOff), vectors.Count);
+          embedOff += 4;
+          foreach (var vector in vectors)
+          {
+            System.Runtime.InteropServices.MemoryMarshal.AsBytes(vector.Span)
+              .CopyTo(embedBuf.AsSpan(embedOff));
+            embedOff += vector.Length * sizeof(float);
+          }
         }
 
-        results.Add((entry.Id, entry.CollectionName, cp, ep,
-          entry.Embedding.Length, entry.Content.Length));
+        results.Add((entry.Id, entry.CollectionName, cp, ep, dimensions, vectors.Count, entry.Content.Length));
       }
 
       // ── Single Write per file ──
@@ -471,10 +479,10 @@ public static class StoreWritingExtensions
     return results;
   }
 
-  internal static (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)
+  internal static (byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, int vectorcount, long contentsize)
     AppendContent(this Store store, byte[] id, string collection, ReadOnlyMemory<byte>? content, ReadOnlyMemory<float>? embeddings)
   {
-    (long contentPosition, long embeddingPosition, int dimensions, long size) actualindex = default;
+    (long contentPosition, long embeddingPosition, int dimensions, int vectorCount, long size) actualindex = default;
 
     if (content?.Length == 0) content = null;
     if (embeddings?.Length == 0) embeddings = null;
@@ -503,20 +511,24 @@ public static class StoreWritingExtensions
     }
 
     var embeddingPosition = actualindex.embeddingPosition;
+    var vectorCount = actualindex.vectorCount;
     if (embeddings != null)
     {
       var embeddingsStream = store.EmbeddingFileStream;
       embeddingsStream.Seek(0, SeekOrigin.End);
       embeddingPosition = embeddingsStream.Position;
+      vectorCount = 1;
 
       embeddingsStream.WriteInt32Le(id.Length);
       embeddingsStream.Write(id, 0, id.Length);
+      embeddingsStream.WriteInt32Le(vectorCount);
 
       embeddingsStream.WriteByteArray(embeddings.Value.Span);
       
       store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;
     }
 
-    return (id, collection, contentPosition, embeddingPosition, embeddings?.Length ?? actualindex.dimensions, content?.Length ?? actualindex.size);
+    return (id, collection, contentPosition, embeddingPosition,
+      embeddings?.Length ?? actualindex.dimensions, vectorCount, content?.Length ?? actualindex.size);
   }
 }

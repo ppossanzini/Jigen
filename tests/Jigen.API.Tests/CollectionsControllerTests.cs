@@ -120,7 +120,7 @@ public class CollectionsControllerTests
   [Fact]
   public async Task GetEmbedding_ReturnsEmbeddingArray()
   {
-    var expected = new float[] { 0.1f, 0.2f, 0.3f };
+    var expected = new[] { new float[] { 0.1f, 0.2f, 0.3f } };
     _mediatorMock.Setup(m => m.Send(It.Is<GetEmbedding>(q => q.Database == DbName && q.Collection == Collection), It.IsAny<CancellationToken>()))
       .ReturnsAsync(expected);
 
@@ -134,12 +134,12 @@ public class CollectionsControllerTests
   public async Task GetEmbedding_ReturnsEmptyArray_WhenKeyMissing()
   {
     _mediatorMock.Setup(m => m.Send(It.IsAny<GetEmbedding>(), It.IsAny<CancellationToken>()))
-      .ReturnsAsync((float[]?)null);
+      .ReturnsAsync((float[][]?)null);
 
     var result = await CreateController().GetEmbedding(DbName, Collection, "missing", "string");
 
     var okResult = Assert.IsType<OkObjectResult>(result);
-    var value = Assert.IsType<float[]>(okResult.Value);
+    var value = Assert.IsType<float[][]>(okResult.Value);
     Assert.Empty(value);
   }
 

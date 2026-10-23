@@ -22,7 +22,7 @@ public class CollectionQueryHandlers(
   IRequestHandler<Core.Query.collections.GetCollectionInfo, CollectionInfo>,
   IRequestHandler<Core.Query.collections.GetCollectionsInfo, IEnumerable<CollectionInfo>>,
   IRequestHandler<Core.Query.collections.GetRawContent, byte[]>,
-  IRequestHandler<Core.Query.collections.GetEmbedding, float[]>,
+  IRequestHandler<Core.Query.collections.GetEmbedding, float[][]>,
   IRequestHandler<Core.Query.collections.GetAllKeys, IEnumerable<VectorKey>>,
   IRequestHandler<Core.Query.collections.SearchVector, IEnumerable<SearchVectorResultItem>>,
   IRequestHandler<Core.Query.collections.SearchCollections, SearchCollectionsResult>
@@ -61,12 +61,12 @@ public class CollectionQueryHandlers(
     return Task.FromResult(result);
   }
 
-  public Task<float[]> Handle(GetEmbedding request, CancellationToken cancellationToken)
+  public Task<float[][]> Handle(GetEmbedding request, CancellationToken cancellationToken)
   {
     logger.LogDebug($"Executing GetEmbedding for db {request.Database}");
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    return Task.FromResult(store.GetEmbedding(request.Collection, request.Key));
+    return Task.FromResult(store.GetEmbeddings(request.Collection, request.Key));
   }
 
   public Task<IEnumerable<VectorKey>> Handle(GetAllKeys request, CancellationToken cancellationToken)

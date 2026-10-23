@@ -151,3 +151,47 @@ Status: Production code verified; awaiting code-quality approval before the sepa
 - Verification: `Jigen.Embedding.Handlers` built with 0 errors. Two existing ONNX Runtime RID warnings remain.
 - Verification: the BGE-M3 Store/HNSW regression test passed.
 - Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-MULTIVECTOR-VECTOR-FILE
+
+Status: Completed.
+
+- The embeddings file record is now `[id length][id][vector count][vector count × dimensions × float]`, so one entry can store several vectors.
+- `VectorEntry.Embeddings` carries the vectors; `Embedding` remains the single-vector shorthand, and `Vectors` resolves whichever is set.
+- The position index carries the vector count (`{name}.index.jigen` record and in-memory tuple), so delete accounting, shrink, collection metrics and the embeddings record size stay exact.
+- The WAL insert record carries `[vector count][dimensions][vectors]`; replay restores every vector.
+- Exact (brute-force) scoring ranks a multi-vector entry by its closest vector. The HNSW index keeps one node per document and indexes the first vector.
+- `GetEmbeddings` reads all vectors at store, gRPC (`Vector.Vectors`, `EmbeddingResponse.Vectors`), REST (`VectorPayload.Vectors`, `BulkVectorItem.Vectors`, transaction payloads) and client level; `GetEmbedding` keeps returning the first vector.
+- Existing databases written with the previous layout are not readable by this version.
+- Verification: `Jigen.Primitives`, `Jigen.Store`, `Jigen.Indexer.HNSW`, `Jigen.API`, `Jigen.Grpc`-hosted server, `Jigen-AllInOne` and `Jigen.Client` built with 0 errors.
+- Verification: `MultiVectorTests` (5 tests) passed: round trip, reopen, WAL replay, max-similarity scoring, mixed-vector rejection.
+- Verification: `JigenStoreTests` passed 70 of 78; the 8 failures are the pre-existing database-lock collisions of `IngestionTests` and `SeedDemoDatabaseTest`, which share `/data/jigendb`.
+- Verification: `PrimitiveTests` (14) and the HNSW split-storage tests (4) passed. `Jigen.API.Tests` still fails to build on the pre-existing `EmbeddingControllerTests` constructor error; `Jigen.Grpc.Tests` fails on the pre-existing `Server.Server` constructor signature.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-MULTIVECTOR-BENCHMARK
+
+Status: Completed.
+
+- Extended the macro-benchmark with `mv:K` (K vectors per document) and with the vectors/index file sizes, plus a tail-recall metric measured on a non-first vector.
+- Single-vector path shows no regression against the pre-change code (HEAD in a temporary worktree): ingest 1683–2091 vs 1843–2091 docs/s, HNSW search 595–671 vs 575–630 µs, recall 0.986–0.995 vs 0.992–0.996 — all within run-to-run noise.
+- Multi-vector storage is exact at every K: the vectors file equals documents × K × dimensions × 4 B plus 24 B of header per document.
+- Ingest cost per document is flat (~1.5–1.7 k docs/s at 10k) while stored vectors scale linearly.
+- HNSW keeps one node per document, so recall against exact max-similarity search falls to chance as K grows; a query on a non-first vector is not reachable through the graph (0.18 at K=4, 0.03 at K=32).
+- Exact search cost grows linearly with K (1.8 ms at K=1 to 6.6 ms at K=32 on 10k documents).
+- Verification: results recorded in `docs/benchmarks.md` under "Multi-vector entries".
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-MULTIVECTOR-HNSW-NODES
+
+Status: Completed.
+
+- Corrected the previous behavior: the graph never required one node per document. It accepts several nodes sharing a key (the delete lookup already kept a position list per key, and search already merged same-key nodes by best score), so indexing every vector needed no graph-format change at all.
+- `WriterThread` now enqueues one index entry per stored vector instead of only the first.
+- `ReconcileAsync` re-indexes every vector of a missing key, so a partial graph is rebuilt with the same shape as a normal insert.
+- SQ8 exact reranking now rescores a candidate against the document's best stored vector, matching the exact index rule; it previously read only the first vector.
+- Added `HnswCollection_FindsDocumentThroughAnyOfItsVectors` (round trip through three vectors of one document).
+- Measured (10k docs, 128 dim): recall@10 0.902 and 0.935 on a non-first vector at K=4, versus 0.331 and 0.181 with first-vector-only indexing; graph grows to 28.35 MB (from 7.09 MB) and ingest drops to 372 docs/s, as expected from K× nodes. `mv:1` is unchanged.
+- Verification: `Jigen.Store` and `Jigen.Indexer.HNSW` built with 0 errors.
+- Verification: `JigenStoreTests` 64 passed and `HnswTest` 20 passed, excluding the classes that collide on `/data/jigendb`.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.

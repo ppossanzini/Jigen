@@ -78,6 +78,12 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     Add(key, new VectorEntry<T> { Content = content, Embedding = embeddings });
   }
 
+  /// <summary>Adds a document stored with several vectors (e.g. one per passage).</summary>
+  public void Add(VectorKey key, T content, IReadOnlyList<float[]> embeddings)
+  {
+    Add(key, new VectorEntry<T> { Content = content, Embeddings = embeddings });
+  }
+
   /// <summary>
   /// Adds a document whose embedding is computed from the sentence via
   /// <see cref="VectorCollectionOptions{T}.SentenceEmbedder"/>.
@@ -98,13 +104,20 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
       Id = key.Value,
       CollectionName = CollectionName,
       Content = _options.DocumentSerializer.Serialize(value.Content),
-      Embedding = value.Embedding
+      Embedding = value.Embedding,
+      Embeddings = value.Embeddings.Select(e => (ReadOnlyMemory<float>)e).ToArray()
     });
   }
 
   public Task AddAsync(VectorKey key, T content, float[] embeddings)
   {
     return AddAsync(key, new VectorEntry<T> { Content = content, Embedding = embeddings });
+  }
+
+  /// <summary>Adds a document stored with several vectors (e.g. one per passage).</summary>
+  public Task AddAsync(VectorKey key, T content, IReadOnlyList<float[]> embeddings)
+  {
+    return AddAsync(key, new VectorEntry<T> { Content = content, Embeddings = embeddings });
   }
 
   /// <summary>
@@ -152,6 +165,15 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   public float[] GetEmbedding(VectorKey key)
   {
     return store.GetEmbedding(CollectionName, key.Value);
+  }
+
+  /// <summary>
+  /// Reads every stored vector of a key, or null when the key does not exist or
+  /// was stored without vectors.
+  /// </summary>
+  public float[][] GetEmbeddings(VectorKey key)
+  {
+    return store.GetEmbeddings(CollectionName, key.Value);
   }
 
   /// <summary>

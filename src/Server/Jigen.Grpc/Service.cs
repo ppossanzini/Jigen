@@ -206,7 +206,11 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     // Missing key or vector-less entry: empty Embeddings, like GetContent.
     var response = new EmbeddingResponse();
     if (result is { Length: > 0 })
-      response.Embeddings.AddRange(result);
+    {
+      response.Embeddings.AddRange(result[0]);
+      foreach (var vector in result)
+        response.Vectors.Add(new EmbeddingVector { Embeddings = { vector } });
+    }
     return response;
   }
 
@@ -230,6 +234,12 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     return new Result() { Success = true };
   }
 
+  // An empty Vectors list keeps the single-vector Embeddings payload in charge.
+  private static float[][] ToVectors(Vector request) =>
+    request.Vectors.Count == 0
+      ? null
+      : request.Vectors.Select(v => v.Embeddings.ToArray()).ToArray();
+
   public override async Task<Result> SetVector(Vector request, ServerCallContext context)
   {
     await mediator.Send(new Core.Command.collections.SetVector()
@@ -238,7 +248,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray()
+      Embeddings = request.Embeddings.ToArray(),
+      Vectors = ToVectors(request)
     });
 
     return new Result() { Success = true };
@@ -256,7 +267,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         Collection = request.Collection,
         Key = request.Key.ToByteArray(),
         Content = request.Content.ToByteArray(),
-        Embeddings = request.Embeddings.ToArray()
+        Embeddings = request.Embeddings.ToArray(),
+        Vectors = ToVectors(request)
       }, context.CancellationToken);
 
       accepted++;
@@ -620,7 +632,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray()
+      Embeddings = request.Embeddings.ToArray(),
+      Vectors = ToVectors(request)
     });
 
     return new Result() { Success = true };
@@ -634,7 +647,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray()
+      Embeddings = request.Embeddings.ToArray(),
+      Vectors = ToVectors(request)
     });
 
     return new Result() { Success = true };

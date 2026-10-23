@@ -60,6 +60,12 @@ Position 0 in the node list is reserved: it stores the graph's **entrypoint poin
 
 An older single-file graph format (`{collection}.hnsw`) is transparently migrated to the split `.vec`/`.adj` layout the first time the collection is opened, then removed.
 
+## Multi-vector entries
+
+An entry stored with several vectors (see the multi-vector layout of `{name}.vectors.jigen`) becomes **one graph node per vector**, all carrying the same document key. Nodes sharing a key are merged at query time by best score, so a document is reachable through any of its vectors and occupies a single result slot. With SQ8 quantization, exact reranking rescores each candidate against the document's best stored vector — the same max-similarity rule the exact index uses.
+
+The cost is proportional: `K` vectors per document means `K` times the graph nodes, so graph construction during ingest slows down by roughly `K` even though the bytes written to the store scale linearly.
+
 ## Concurrent inserts
 
 Insertion follows an hnswlib-style locking scheme: a graph-wide lock covers only node allocation and entrypoint reassignment; per-node locks guard adjacency wiring. Two inserts touching different nodes proceed fully in parallel, and — because locking is per node rather than per collection — **a single collection scales across every configured `StoreOptions.IndexerWorkers`**, not just across collections. The lock order is always graph → node → storage, to avoid deadlocks.

@@ -59,7 +59,7 @@ public class BruteForceIndexer : IIndexer
   /// </summary>
   private static List<(byte[] Id, float Score)> SelectTopK(
     IStore store,
-    IReadOnlyDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)> index,
+    IReadOnlyDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, int vectorcount, long size)> index,
     float[] queryVector,
     int top)
   {
@@ -108,7 +108,7 @@ public class BruteForceIndexer : IIndexer
   /// <summary>Full ranking (filtered searches): every candidate, ordered by score.</summary>
   private static IEnumerable<(byte[] Id, float Score)> RankAll(
     IStore store,
-    IReadOnlyDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)> index,
+    IReadOnlyDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, int vectorcount, long size)> index,
     float[] queryVector)
   {
     var results = new List<(byte[] Id, float Score)>(index.Count);
@@ -154,13 +154,27 @@ public class BruteForceIndexer : IIndexer
 
   // Cosine similarity, the same metric the HNSW indexer ranks by: raw dot
   // products would disagree with it whenever stored embeddings are not
-  // already unit-normalized.
+  // already unit-normalized. A multi-vector entry scores as its closest
+  // vector (max-similarity), which is its single vector for single-vector
+  // entries.
   private static unsafe float ScoreAt(nint basePointer, long offset, int dimensions, float[] queryVector)
   {
     var record = (byte*)basePointer + offset;
     var idSize = *(int*)record;
-    var vector = new ReadOnlySpan<float>(record + sizeof(int) + idSize, dimensions);
-    return TensorPrimitives.CosineSimilarity(queryVector, vector);
+    var recordVectorCount = *(int*)(record + sizeof(int) + idSize);
+    if (recordVectorCount <= 0) return float.NaN;
+
+    var vectors = record + 2 * sizeof(int) + idSize;
+    var best = float.NaN;
+    for (var i = 0; i < recordVectorCount; i++)
+    {
+      var vector = new ReadOnlySpan<float>(vectors + (long)i * dimensions * sizeof(float), dimensions);
+      var score = TensorPrimitives.CosineSimilarity(queryVector, vector);
+      if (float.IsNaN(score)) continue;
+      if (float.IsNaN(best) || score > best) best = score;
+    }
+
+    return best;
   }
 
   private static unsafe byte[] ReadIdAt(nint basePointer, long offset)

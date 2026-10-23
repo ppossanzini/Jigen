@@ -69,6 +69,7 @@ public partial class Store
     public long NewContentPosition;
     public long NewEmbeddingPosition;
     public int Dimensions;
+    public int VectorCount;
     public long Size;
   }
 
@@ -86,6 +87,7 @@ public partial class Store
         OldContentPosition = kv.Value.contentposition,
         OldEmbeddingPosition = kv.Value.embeddingsposition,
         Dimensions = kv.Value.dimensions,
+        VectorCount = kv.Value.vectorcount,
         Size = kv.Value.size
       }))
       .ToList();
@@ -108,13 +110,13 @@ public partial class Store
       foreach (var entry in entries.Where(e => e.OldEmbeddingPosition > 0).OrderBy(e => e.OldEmbeddingPosition))
       {
         entry.NewEmbeddingPosition = newEmbeddings.Position;
-        CopyRecord(EmbeddingFileStream, entry.OldEmbeddingPosition, EmbeddingRecordSize(entry.Id.Length, entry.Dimensions), newEmbeddings);
+        CopyRecord(EmbeddingFileStream, entry.OldEmbeddingPosition, EmbeddingRecordSize(entry.Id.Length, entry.Dimensions, entry.VectorCount), newEmbeddings);
       }
 
       // Rewrite the index log from scratch: only live entries, no tombstones.
       foreach (var entry in entries)
         StoreWritingExtensions.WriteIndexRecord(newIndex, entry.Id, entry.Collection,
-          entry.NewContentPosition, entry.NewEmbeddingPosition, entry.Dimensions, entry.Size);
+          entry.NewContentPosition, entry.NewEmbeddingPosition, entry.Dimensions, entry.VectorCount, entry.Size);
 
       // fsync the compact files BEFORE the rename: a crash at any point leaves
       // either the originals or fully-written replacements, never a mix.
@@ -123,12 +125,12 @@ public partial class Store
       newIndex.Flush(true);
     }
 
-    var newPositionIndex = new ConcurrentDictionary<string, ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>>();
+    var newPositionIndex = new ConcurrentDictionary<string, ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, int vectorcount, long size)>>();
     foreach (var entry in entries)
     {
       if (!newPositionIndex.TryGetValue(entry.Collection, out var collectionIndex))
         newPositionIndex[entry.Collection] = collectionIndex = new(ByteArrayEqualityComparer.Instance);
-      collectionIndex[entry.Id] = (entry.NewContentPosition, entry.NewEmbeddingPosition, entry.Dimensions, entry.Size);
+      collectionIndex[entry.Id] = (entry.NewContentPosition, entry.NewEmbeddingPosition, entry.Dimensions, entry.VectorCount, entry.Size);
     }
 
     // Swap: atomic renames, then reopen handles on the new inodes. Old handles

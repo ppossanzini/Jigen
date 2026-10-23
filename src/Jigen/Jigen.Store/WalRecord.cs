@@ -73,15 +73,19 @@ public static class WalRecord
 
   // ── Sizing ──
 
-  public static int InsertRecordSize(byte[] id, string collection, byte[] content, float[] embedding)
+  public static int InsertRecordSize(byte[] id, string collection, byte[] content, IReadOnlyList<float[]> embeddings)
   {
     var payload = LengthFieldSize + TypeFieldSize
                   + IdFieldSize(id)
                   + CollectionFieldSize(collection)
                   + ContentFieldSize(content ?? [])
-                  + EmbeddingFieldSize(embedding ?? []);
+                  + EmbeddingFieldSize(embeddings);
     return CrcFieldSize + payload;
   }
+
+  /// <summary>Single-vector convenience overload.</summary>
+  public static int InsertRecordSize(byte[] id, string collection, byte[] content, float[] embedding) =>
+    InsertRecordSize(id, collection, content, embedding is { Length: > 0 } ? [embedding] : []);
 
   public static int DeleteRecordSize(byte[] id, string collection)
   {
@@ -109,19 +113,26 @@ public static class WalRecord
   private static int ContentFieldSize(byte[] content) =>
     content is { Length: > 0 } ? VarFieldSize(content.Length) : VarFieldSize(0);
 
-  private static int EmbeddingFieldSize(float[] embedding) =>
-    embedding is { Length: > 0 } ? sizeof(int) + embedding.Length * sizeof(float)
-                                : VarFieldSize(0);
+  private static int EmbeddingFieldSize(IReadOnlyList<float[]> embeddings)
+  {
+    // [vector count][dimensions][vector count * dimensions * float]; an entry
+    // without vectors still carries both counts as zero.
+    var size = 2 * sizeof(int);
+    if (embeddings is not { Count: > 0 }) return size;
+    foreach (var vector in embeddings)
+      size += vector.Length * sizeof(float);
+    return size;
+  }
 
   // ── Serialization ──
 
   /// <summary>
   /// Serializes an insert record. Returns bytes written.
-  /// Layout: [CRC(4)][Length(4)][Type:0x01][id][collection][content][embedding]
+  /// Layout: [CRC(4)][Length(4)][Type:0x01][id][collection][content][vector count][dimensions][vectors]
   /// </summary>
-  public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[] content, float[] embedding)
+  public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[] content, IReadOnlyList<float[]> embeddings)
   {
-    int totalSize = InsertRecordSize(id, collection, content, embedding);
+    int totalSize = InsertRecordSize(id, collection, content, embeddings);
     int payloadOffset = CrcFieldSize + LengthFieldSize;
 
     buffer[payloadOffset] = (byte)WalRecordType.Insert;
@@ -154,16 +165,23 @@ public static class WalRecord
       pos += sizeof(int);
     }
 
-    // Embedding
-    if (embedding is { Length: > 0 })
+    // Embeddings: [vector count][dimensions][vectors]
+    if (embeddings is { Count: > 0 })
     {
-      BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], embedding.Length);
+      BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], embeddings.Count);
       pos += sizeof(int);
-      MemoryMarshal.AsBytes<float>(embedding).CopyTo(buffer[pos..]);
-      pos += embedding.Length * sizeof(float);
+      BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], embeddings[0].Length);
+      pos += sizeof(int);
+      foreach (var vector in embeddings)
+      {
+        MemoryMarshal.AsBytes<float>(vector).CopyTo(buffer[pos..]);
+        pos += vector.Length * sizeof(float);
+      }
     }
     else
     {
+      BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], 0);
+      pos += sizeof(int);
       BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], 0);
       pos += sizeof(int);
     }
@@ -178,14 +196,18 @@ public static class WalRecord
     return totalSize;
   }
 
+  /// <summary>Single-vector convenience overload.</summary>
+  public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[] content, float[] embedding) =>
+    SerializeInsert(buffer, id, collection, content, embedding is { Length: > 0 } ? [embedding] : []);
+
   /// <summary>
   /// Serializes an insert record from a VectorEntry. Returns bytes written.
   /// </summary>
   public static int SerializeInsert(Span<byte> buffer, VectorEntry entry)
   {
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
-    var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
-    return SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding);
+    var embeddings = entry.Vectors.Select(v => v.ToArray()).ToArray();
+    return SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embeddings);
   }
 
   /// <summary>
@@ -319,8 +341,8 @@ public static class WalRecord
     foreach (var entry in entries)
     {
       var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
-      var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
-      pos += SerializeInsert(buffer[pos..], entry.Id, entry.CollectionName, content, embedding);
+      var embeddings = entry.Vectors.Select(v => v.ToArray()).ToArray();
+      pos += SerializeInsert(buffer[pos..], entry.Id, entry.CollectionName, content, embeddings);
     }
     return pos;
   }
@@ -337,10 +359,10 @@ public static class WalRecord
     out byte[] id,
     out string collection,
     out byte[] content,
-    out float[] embedding,
+    out float[][] embeddings,
     out int bytesRead)
   {
-    return TryReadRecord(stream, out type, out id, out collection, out content, out embedding, out _, out bytesRead);
+    return TryReadRecord(stream, out type, out id, out collection, out content, out embeddings, out _, out bytesRead);
   }
 
   /// <summary>
@@ -355,7 +377,7 @@ public static class WalRecord
     out byte[] id,
     out string collection,
     out byte[] content,
-    out float[] embedding,
+    out float[][] embeddings,
     out Guid txId,
     out int bytesRead)
   {
@@ -363,7 +385,7 @@ public static class WalRecord
     id = [];
     collection = string.Empty;
     content = [];
-    embedding = [];
+    embeddings = [];
     txId = Guid.Empty;
     bytesRead = 0;
 
@@ -480,22 +502,31 @@ public static class WalRecord
           p += contentLen;
         }
 
-        // Read Embedding
-        if (p + sizeof(int) > remainingPayload) return false;
+        // Read Embeddings: [vector count][dimensions][vector count * dimensions * float]
+        if (p + 2 * sizeof(int) > remainingPayload) return false;
+        var vectorCount = BinaryPrimitives.ReadInt32LittleEndian(payloadBuffer[p..]);
+        p += sizeof(int);
         var dimensions = BinaryPrimitives.ReadInt32LittleEndian(payloadBuffer[p..]);
         p += sizeof(int);
-        if (dimensions < 0 || dimensions > 1_000_000) return false;
-        if (dimensions == 0)
+        if (vectorCount < 0 || vectorCount > 65_536 ||
+            dimensions < 0 || dimensions > 1_000_000) return false;
+
+        if (vectorCount == 0 || dimensions == 0)
         {
-          embedding = [];
+          embeddings = [];
         }
         else
         {
-          int embeddingBytes = dimensions * sizeof(float);
-          if (p + embeddingBytes > remainingPayload) return false;
-          embedding = new float[dimensions];
-          MemoryMarshal.AsBytes<float>(embedding).CopyTo(payloadBuffer.Slice(p, embeddingBytes));
-          p += embeddingBytes;
+          long embeddingBytes = (long)vectorCount * dimensions * sizeof(float);
+          if (embeddingBytes > remainingPayload - p) return false;
+          embeddings = new float[vectorCount][];
+          for (var i = 0; i < vectorCount; i++)
+          {
+            var vector = new float[dimensions];
+            payloadBuffer.Slice(p, dimensions * sizeof(float)).CopyTo(MemoryMarshal.AsBytes(vector.AsSpan()));
+            embeddings[i] = vector;
+            p += dimensions * sizeof(float);
+          }
         }
       }
 

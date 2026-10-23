@@ -6,7 +6,7 @@
 
 `BruteForceIndexer` does no work on write: `AddToIndex` and `RemoveFromIndex` are no-ops, since every search reads directly from the store's embeddings file. All the cost is paid at search time.
 
-Search ranks candidates by **cosine similarity** (`System.Numerics.Tensors.TensorPrimitives.CosineSimilarity`), the same metric the HNSW indexer uses, computed directly against the memory-mapped embeddings file — no vectors are copied into managed arrays before scoring.
+Search ranks candidates by **cosine similarity** (`System.Numerics.Tensors.TensorPrimitives.CosineSimilarity`), the same metric the HNSW indexer uses, computed directly against the memory-mapped embeddings file — no vectors are copied into managed arrays before scoring. A multi-vector entry scores as its closest vector (max-similarity); a single-vector entry therefore behaves exactly as before.
 
 Two code paths, chosen automatically:
 

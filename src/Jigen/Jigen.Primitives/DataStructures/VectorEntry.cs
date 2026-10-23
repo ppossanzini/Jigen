@@ -8,7 +8,18 @@ public class VectorEntry
   public byte[] Id { get; set; } = Guid.NewGuid().ToByteArray();
   public string CollectionName { get; set; }
   public ReadOnlyMemory<byte> Content { get; set; }
+
+  /// <summary>
+  /// Every vector of a multi-vector entry, all with the same dimensions as the
+  /// collection. When empty, <see cref="Embedding"/> is the entry's only vector.
+  /// </summary>
+  public IReadOnlyList<ReadOnlyMemory<float>> Embeddings { get; set; } = [];
+
   public ReadOnlyMemory<float> Embedding { get; set; }
+
+  /// <summary>The vectors the store writes: <see cref="Embeddings"/> when set, otherwise the single <see cref="Embedding"/>.</summary>
+  public IReadOnlyList<ReadOnlyMemory<float>> Vectors =>
+    Embeddings is { Count: > 0 } ? Embeddings : Embedding.IsEmpty ? [] : [Embedding];
 
   public static VectorEntry Empty => new VectorEntry()
   {
@@ -25,6 +36,7 @@ public class VectorEntry<T>
   public VectorKey Key;
   public T Content { get; set; }
   public float[] Embedding { get; set; }
+  public IReadOnlyList<float[]> Embeddings { get; set; } = [];
 }
 
 public record struct VectorKey

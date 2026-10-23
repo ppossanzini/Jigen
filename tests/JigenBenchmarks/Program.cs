@@ -1,8 +1,9 @@
 // Jigen macro-benchmark: ingest / search (with recall) / delete / reopen on a
 // disk-backed store with the HNSW indexer.
 //
-//   dotnet run -c Release [-- N [dim] [sq8] [wal] [bulk]]
+//   dotnet run -c Release [-- N [dim] [sq8] [wal] [bulk] [mv:K]]
 //                                                     (defaults: 10000 128)
+// mv:K stores K vectors per document (multi-vector entries, e.g. passages).
 //
 // Run it before and after performance work: the recall column is the guard
 // against "faster but wrong" regressions.
@@ -22,6 +23,8 @@ var bulk = args.Contains("bulk", StringComparer.OrdinalIgnoreCase);
 var walDurability = args.FirstOrDefault(a => a.StartsWith("dur:"))?.AsSpan(4).ToString();
 var workersArg = args.FirstOrDefault(a => a.StartsWith("w") && int.TryParse(a.AsSpan(1), out _));
 var workers = workersArg is null ? (int?)null : int.Parse(workersArg.AsSpan(1));
+var vectorsArg = args.FirstOrDefault(a => a.StartsWith("mv:") && int.TryParse(a.AsSpan(3), out _));
+var vectorsPerEntry = vectorsArg is null ? 1 : Math.Max(1, int.Parse(vectorsArg.AsSpan(3)));
 
 const int SearchQueries = 500;
 const int RecallQueries = 100;
@@ -57,7 +60,7 @@ StoreOptions OptionsFor() => new()
   } : null
 };
 
-Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, wal={(wal ? walDurability ?? "group" : "off")}, workers={workers?.ToString() ?? "auto"}, ingest={(bulk ? "bulk" : "scalar")}");
+Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, wal={(wal ? walDurability ?? "group" : "off")}, workers={workers?.ToString() ?? "auto"}, ingest={(bulk ? "bulk" : "scalar")}, vectors/entry={vectorsPerEntry}");
 Console.WriteLine(new string('-', 64));
 
 try
@@ -72,6 +75,18 @@ try
     ids[i] = Guid.NewGuid().ToByteArray();
   }
 
+  // Additional vectors of a multi-vector entry: independent random vectors, so
+  // a query only matches the entry through the vector it embeds.
+  var extraVectors = new float[n][][];
+  if (vectorsPerEntry > 1)
+    for (var i = 0; i < n; i++)
+    {
+      extraVectors[i] = new float[vectorsPerEntry][];
+      extraVectors[i][0] = vectors[i];
+      for (var k = 1; k < vectorsPerEntry; k++)
+        extraVectors[i][k] = CreateUnitVector(random, dim);
+    }
+
   // ---- ingest -------------------------------------------------------------
   var sw = Stopwatch.StartNew();
   if (bulk)
@@ -80,7 +95,11 @@ try
     for (var i = 0; i < n; i++)
       entries[i] = new VectorEntry
       {
-        Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(), Embedding = vectors[i]
+        Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(),
+        Embedding = vectorsPerEntry == 1 ? vectors[i] : default,
+        Embeddings = vectorsPerEntry == 1
+          ? []
+          : extraVectors[i].Select(v => (ReadOnlyMemory<float>)v).ToArray()
       };
     await store.AppendContentBulk(entries);
   }
@@ -89,12 +108,17 @@ try
     for (var i = 0; i < n; i++)
       await store.AppendContent(new VectorEntry
       {
-        Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(), Embedding = vectors[i]
+        Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(),
+        Embedding = vectorsPerEntry == 1 ? vectors[i] : default,
+        Embeddings = vectorsPerEntry == 1
+          ? []
+          : extraVectors[i].Select(v => (ReadOnlyMemory<float>)v).ToArray()
       });
   }
   await store.SaveChangesAsync();
   sw.Stop();
-  Report("ingest", $"{n / sw.Elapsed.TotalSeconds,10:0} vec/s   ({sw.Elapsed.TotalSeconds:0.0}s total)");
+  Report("ingest", $"{n / sw.Elapsed.TotalSeconds,10:0} vec/s   ({sw.Elapsed.TotalSeconds:0.0}s total)"
+    + (vectorsPerEntry > 1 ? $", {n * vectorsPerEntry / sw.Elapsed.TotalSeconds:0} vectors/s stored" : ""));
 
   // ---- HNSW search + recall vs brute force --------------------------------
   var brute = new BruteForceIndexer();
@@ -116,6 +140,23 @@ try
     recallSum += (double)got.Intersect(expected, StringComparer.Ordinal).Count() / Top;
   }
   Report($"recall@{Top}", $"{recallSum / RecallQueries,10:0.000}");
+
+  // HNSW indexes one node per document (its first vector): a query matching a
+  // LATER vector of a multi-vector entry can only be found by exact search.
+  if (vectorsPerEntry > 1)
+  {
+    var tailRecallSum = 0d;
+    for (var i = 0; i < RecallQueries; i++)
+    {
+      var query = extraVectors[(int)((long)i * n / RecallQueries)][vectorsPerEntry - 1];
+      var expected = brute.Search(store, "bench", query, Top)
+        .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
+      var got = store.Search("bench", query, Top)
+        .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
+      tailRecallSum += (double)got.Intersect(expected, StringComparer.Ordinal).Count() / Top;
+    }
+    Report($"recall tail@{Top}", $"{tailRecallSum / RecallQueries,10:0.000} (query on a non-first vector)");
+  }
 
   sw.Restart();
   for (var i = 0; i < 100; i++)
@@ -147,7 +188,11 @@ try
 
   // ---- disk ---------------------------------------------------------------
   var graphBytes = Directory.GetFiles(Path.Combine(root, "hnsw")).Sum(f => new FileInfo(f).Length);
-  var rawBytes = (long)n * dim * sizeof(float);
+  var vectorsBytes = new FileInfo(Path.Combine(root, "bench.vectors.jigen")).Length;
+  var indexBytes = new FileInfo(Path.Combine(root, "bench.index.jigen")).Length;
+  Report("vectors file", $"{vectorsBytes / 1024.0 / 1024.0,10:0.00} MB");
+  Report("index file", $"{indexBytes / 1024.0,10:0} KB");
+  var rawBytes = (long)n * vectorsPerEntry * dim * sizeof(float);
   Report("graph on disk", $"{graphBytes / 1024.0 / 1024.0,10:0.00} MB (raw vectors {rawBytes / 1024.0 / 1024.0:0.00} MB)");
 
   await store.Close();

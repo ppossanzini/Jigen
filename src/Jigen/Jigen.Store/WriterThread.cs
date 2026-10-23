@@ -29,7 +29,7 @@ public class Writer
   private readonly Lock _ioLock = new();
   private readonly Store _store;
 
-  private Queue<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, long contentsize)> TempIndex = new();
+  private Queue<(byte[] id, string collectioname, long contentposition, long embeddingposition, int dimensions, int vectorcount, long contentsize)> TempIndex = new();
 
   // Last failure recorded by the background writer or the indexer. The writer
   // runs on a raw thread: an exception must never escape it (it would kill the
@@ -275,14 +275,30 @@ public class Writer
               var idx = indexEntries[i];
               TempIndex.Enqueue(idx);
 
+              // One graph node per stored vector, all under the same key: the
+              // indexer merges nodes sharing a key by best score, so a
+              // multi-vector document is reachable through any of its vectors.
               var original = batch[i];
-              EnqueueForIndexing(new VectorEntry()
+              var vectors = original.Vectors;
+              if (vectors.Count == 0)
               {
-                Id = idx.id,
-                CollectionName = original.CollectionName,
-                Embedding = original.Embedding,
-                Content = original.Content
-              });
+                EnqueueForIndexing(new VectorEntry()
+                {
+                  Id = idx.id,
+                  CollectionName = original.CollectionName,
+                  Content = original.Content
+                });
+                continue;
+              }
+
+              foreach (var vector in vectors)
+                EnqueueForIndexing(new VectorEntry()
+                {
+                  Id = idx.id,
+                  CollectionName = original.CollectionName,
+                  Embedding = vector,
+                  Content = original.Content
+                });
             }
           }
           finally

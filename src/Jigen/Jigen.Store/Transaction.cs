@@ -89,7 +89,7 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
         totalWalSize += WalRecord.InsertRecordSize(
           e.Id, e.CollectionName,
           e.Content.IsEmpty ? null : e.Content.ToArray(),
-          e.Embedding.IsEmpty ? null : e.Embedding.ToArray());
+          e.Vectors.Select(v => v.ToArray()).ToArray());
       }
       else
       {
@@ -172,8 +172,8 @@ public sealed class Transaction : IDisposable, IAsyncDisposable
   private static int SerializeInsert(Span<byte> buffer, VectorEntry entry)
   {
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
-    var embedding = entry.Embedding.IsEmpty ? null : entry.Embedding.ToArray();
-    return WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embedding);
+    var embeddings = entry.Vectors.Select(v => v.ToArray()).ToArray();
+    return WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embeddings);
   }
 
   /// <summary>Rolls back if not yet committed.</summary>

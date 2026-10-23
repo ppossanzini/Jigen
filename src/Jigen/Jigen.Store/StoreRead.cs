@@ -45,7 +45,7 @@ public partial class Store
     if (stream.Length == 0) return;
 
     // Fixed-size part of a record after the two variable-length fields.
-    const int FixedTailSize = 2 * sizeof(long) + sizeof(int) + sizeof(long);
+    const int FixedTailSize = 2 * sizeof(long) + 2 * sizeof(int) + sizeof(long);
     // Ids and collection names are keys: a length beyond this is torn/garbage
     // data, not a legitimate record (and would otherwise drive a huge alloc).
     const int MaxFieldLength = 64 * 1024;
@@ -77,6 +77,7 @@ public partial class Store
       var contentPosition = reader.ReadInt64();
       var embeddingsPosition = reader.ReadInt64();
       var dimensions = reader.ReadInt32();
+      var vectorCount = reader.ReadInt32();
       var size = reader.ReadInt64();
 
       // Validate the complete referenced records, not only their starting
@@ -86,13 +87,14 @@ public partial class Store
         ? ContentRecordSize(idsize, size)
         : 0;
       var embeddingRecordSize = embeddingsPosition > 0
-        ? EmbeddingRecordSize(idsize, dimensions)
+        ? EmbeddingRecordSize(idsize, dimensions, vectorCount)
         : 0;
       if (!(contentPosition == IndexTombstone && embeddingsPosition == IndexTombstone) &&
           (contentPosition < 0 || embeddingsPosition < 0 ||
-           dimensions < 0 || size < 0 || size > int.MaxValue ||
+           dimensions < 0 || vectorCount < 0 || size < 0 || size > int.MaxValue ||
            (contentPosition == 0 && size != 0) ||
-           (embeddingsPosition == 0 && dimensions != 0) ||
+           (embeddingsPosition == 0 && (dimensions != 0 || vectorCount != 0)) ||
+           (embeddingsPosition > 0 && (dimensions <= 0 || vectorCount <= 0)) ||
            (contentPosition > 0 &&
             (contentRecordSize > ContentFileStream.Length ||
              contentPosition > ContentFileStream.Length - contentRecordSize)) ||
@@ -110,14 +112,14 @@ public partial class Store
           if (removed.contentposition > 0)
             DeadContentBytes += ContentRecordSize(id.Length, removed.size);
           if (removed.embeddingsposition > 0)
-            DeadEmbeddingBytes += EmbeddingRecordSize(id.Length, removed.dimensions);
+            DeadEmbeddingBytes += EmbeddingRecordSize(id.Length, removed.dimensions, removed.vectorcount);
         }
         continue;
       }
 
       if (!PositionIndex.TryGetValue(collectionName, out var index))
       {
-        index = new ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>(ByteArrayEqualityComparer.Instance);
+        index = new ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, int vectorcount, long size)>(ByteArrayEqualityComparer.Instance);
         PositionIndex[collectionName] = index;
       }
 
@@ -134,10 +136,10 @@ public partial class Store
         if (old.contentposition > 0 && old.contentposition != contentPosition)
           DeadContentBytes += ContentRecordSize(id.Length, old.size);
         if (old.embeddingsposition > 0 && old.embeddingsposition != embeddingsPosition)
-          DeadEmbeddingBytes += EmbeddingRecordSize(id.Length, old.dimensions);
+          DeadEmbeddingBytes += EmbeddingRecordSize(id.Length, old.dimensions, old.vectorcount);
       }
 
-      index[id] = (contentPosition, embeddingsPosition, dimensions, size);
+      index[id] = (contentPosition, embeddingsPosition, dimensions, vectorCount, size);
     }
 
     if (torn)
@@ -165,7 +167,7 @@ public partial class Store
   public byte[] GetContent(string collection, byte[] id)
   {
     if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
-          out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
+          out (long contentposition, long embeddingposition, int dimensions, int vectorcount, long size) item)) return null;
 
     int headerSize = 2 * sizeof(int) + id.Length;
     byte[] rented = null;
@@ -197,18 +199,29 @@ public partial class Store
 
   public float[] GetEmbedding(string collection, byte[] id)
   {
+    var vectors = GetEmbeddings(collection, id);
+    return vectors is { Length: > 0 } ? vectors[0] : null;
+  }
+
+  /// <summary>
+  /// Every stored vector of a key (one per multi-vector slot), or null when the
+  /// key does not exist or was stored without vectors.
+  /// </summary>
+  public float[][] GetEmbeddings(string collection, byte[] id)
+  {
     if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
-          out (long contentposition, long embeddingposition, int dimensions, long size) item)) return null;
+          out (long contentposition, long embeddingposition, int dimensions, int vectorcount, long size) item)) return null;
 
-    if (item.embeddingposition <= 0 || item.dimensions <= 0) return null;
+    if (item.embeddingposition <= 0 || item.dimensions <= 0 || item.vectorcount <= 0) return null;
 
-    // Record layout: [id length][id][dimensions * float] (see AppendContent).
-    int headerSize = sizeof(int) + id.Length;
+    // Record layout: [id length][id][vector count][vector count * dimensions * float] (see AppendContent).
+    int headerSize = 2 * sizeof(int) + id.Length;
     byte[] rented = null;
     Span<byte> headerBuffer = headerSize <= 512
       ? stackalloc byte[headerSize]
       : (rented = System.Buffers.ArrayPool<byte>.Shared.Rent(headerSize)).AsSpan(0, headerSize);
 
+    int vectorCount;
     try
     {
       ReadExactly(EmbeddingFileStream.SafeFileHandle, headerBuffer, item.embeddingposition);
@@ -218,6 +231,10 @@ public partial class Store
       // must not abort callers like ReconcileIndexAsync: report it as absent.
       if (idsize != id.Length || !headerBuffer.Slice(sizeof(int), id.Length).SequenceEqual(id))
         return null;
+
+      vectorCount = BitConverter.ToInt32(headerBuffer.Slice(sizeof(int) + id.Length, sizeof(int)));
+      if (vectorCount != item.vectorcount)
+        return null;
     }
     finally
     {
@@ -225,8 +242,20 @@ public partial class Store
         System.Buffers.ArrayPool<byte>.Shared.Return(rented);
     }
 
-    var vector = new float[item.dimensions];
-    ReadExactly(EmbeddingFileStream.SafeFileHandle, MemoryMarshal.AsBytes(vector.AsSpan()), item.embeddingposition + sizeof(int) + id.Length);
-    return vector;
+    var flat = new float[checked(vectorCount * item.dimensions)];
+    ReadExactly(EmbeddingFileStream.SafeFileHandle, MemoryMarshal.AsBytes(flat.AsSpan()),
+      item.embeddingposition + 2 * sizeof(int) + id.Length);
+
+    if (vectorCount == 1)
+      return [flat];
+
+    var vectors = new float[vectorCount][];
+    for (var i = 0; i < vectorCount; i++)
+    {
+      vectors[i] = new float[item.dimensions];
+      Array.Copy(flat, i * item.dimensions, vectors[i], 0, item.dimensions);
+    }
+
+    return vectors;
   }
 }

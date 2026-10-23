@@ -57,12 +57,20 @@ message Document {
   string Sentence = 5;
 }
 
+// One vector of a multi-vector entry, e.g. one embedding per passage.
+message EmbeddingVector {
+  repeated float Embeddings = 1;
+}
+
 message Vector {
   string Database = 1;
   string Collection = 2;
   bytes Key = 3;
   bytes Content = 4;
+  // Single-vector payload, kept for compatibility.
   repeated float Embeddings = 5;
+  // Multi-vector payload; when non-empty it takes precedence over Embeddings.
+  repeated EmbeddingVector Vectors = 6;
 }
 ```
 
@@ -116,7 +124,10 @@ message EmbeddingRequest {
 }
 
 message EmbeddingResponse {
+  // First stored vector, kept for compatibility with single-vector readers.
   repeated float Embeddings = 1;
+  // Every stored vector, in storage order.
+  repeated EmbeddingVector Vectors = 2;
 }
 
 message EmbeddingBatchRequest {

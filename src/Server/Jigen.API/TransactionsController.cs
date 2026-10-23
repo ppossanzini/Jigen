@@ -89,7 +89,8 @@ public class TransactionsController(IHikyaku mediator) : ControllerBase
       Collection = payload.Collection,
       Key = payload.Key,
       Content = payload.Payload,
-      Embeddings = payload.Embeddings
+      Embeddings = payload.Embeddings,
+      Vectors = payload.Vectors
     });
 
     return Ok(new { accepted = state.Ops.Count });
@@ -158,7 +159,8 @@ public class TransactionsController(IHikyaku mediator) : ControllerBase
               Database = state.Database,
               Collection = op.Collection,
               Key = System.Text.Encoding.UTF8.GetBytes(op.Key),
-              Embeddings = op.Embeddings
+              Embeddings = op.Embeddings,
+              Vectors = op.Vectors
             });
             break;
           case TransactionOpType.Delete:
@@ -220,6 +222,7 @@ internal class TransactionOpState
   public object Content { get; set; }
   public string Sentence { get; set; }
   public float[] Embeddings { get; set; }
+  public float[][] Vectors { get; set; }
 }
 
 // ── Request/Response DTOs ──
@@ -243,6 +246,7 @@ public class TransactionVectorPayload
   public string Key { get; set; }
   public object Payload { get; set; }
   public float[] Embeddings { get; set; }
+  public float[][] Vectors { get; set; }
 }
 
 public class TransactionDeletePayload

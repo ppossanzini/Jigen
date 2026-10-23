@@ -523,9 +523,21 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndex
 
         if (exactRerank)
         {
-          var embedding = store.GetEmbedding(collection, node.Id.Value);
-          if (embedding is { Length: > 0 })
-            score = TensorPrimitives.CosineSimilarity(queryVector, embedding);
+          // Several nodes of the same document each carry one of its vectors:
+          // rescore against the document's best vector, the same max-similarity
+          // rule the exact index uses.
+          var embeddings = store.GetEmbeddings(collection, node.Id.Value);
+          float best = float.NaN;
+          if (embeddings is not null)
+            foreach (var embedding in embeddings)
+            {
+              if (embedding is not { Length: > 0 }) continue;
+              var exact = TensorPrimitives.CosineSimilarity(queryVector, embedding);
+              if (float.IsNaN(best) || exact > best) best = exact;
+            }
+
+          if (!float.IsNaN(best))
+            score = best;
         }
 
         resultsByKey[nodeKey] = (new VectorEntry { Id = node.Id.Value, CollectionName = collection, Content = content }, score);
@@ -694,15 +706,19 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndex
         }
 
         // Store → graph: re-index entries whose insert never reached the graph.
+        // A multi-vector entry gets one node per vector, exactly like a normal
+        // insert, so a partial graph is rebuilt with the same shape.
         foreach (var kv in index)
         {
           if (kv.Value.embeddingsposition <= 0) continue; // content-only entry
           if (liveKeys.Contains(new VectorKey { Value = kv.Key })) continue;
 
-          var embedding = store.GetEmbedding(collection, kv.Key);
-          if (embedding is null || embedding.Length == 0) continue;
+          var embeddings = store.GetEmbeddings(collection, kv.Key);
+          if (embeddings is null) continue;
 
-          AddToIndex(new VectorEntry { Id = kv.Key, CollectionName = collection, Embedding = embedding });
+          foreach (var embedding in embeddings)
+            if (embedding is { Length: > 0 })
+              AddToIndex(new VectorEntry { Id = kv.Key, CollectionName = collection, Embedding = embedding });
         }
       }
     }

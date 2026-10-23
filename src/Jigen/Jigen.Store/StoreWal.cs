@@ -38,7 +38,7 @@ public partial class Store
 
     while (WalRecord.TryReadRecord(walStream,
              out var type, out var id, out var collection,
-             out var content, out var embedding, out var txId, out _))
+             out var content, out var embeddings, out var txId, out _))
     {
       switch (type)
       {
@@ -95,7 +95,7 @@ public partial class Store
               Id = id,
               CollectionName = collection,
               Content = content ?? [],
-              Embedding = embedding ?? []
+              Embeddings = (embeddings ?? []).Select(e => (ReadOnlyMemory<float>)e).ToArray()
             };
             txOperations.Add((WalRecordType.Insert, entry, null, collection));
           }
@@ -107,7 +107,7 @@ public partial class Store
               Id = id,
               CollectionName = collection,
               Content = content ?? [],
-              Embedding = embedding ?? []
+              Embeddings = (embeddings ?? []).Select(e => (ReadOnlyMemory<float>)e).ToArray()
             };
             ValidateVectorDimensions(entry);
             IngestionQueue.Enqueue(entry);
@@ -190,10 +190,10 @@ done:
         if (old.contentposition > 0)
           DeadContentBytes += ContentRecordSize(id.Length, old.size);
         if (old.embeddingsposition > 0)
-          DeadEmbeddingBytes += EmbeddingRecordSize(id.Length, old.dimensions);
+          DeadEmbeddingBytes += EmbeddingRecordSize(id.Length, old.dimensions, old.vectorcount);
 
         StoreWritingExtensions.WriteIndexRecord(IndexFileStream, id, collection,
-          IndexTombstone, IndexTombstone, 0, 0);
+          IndexTombstone, IndexTombstone, 0, 0, 0);
       }
     }
   }
@@ -209,10 +209,10 @@ done:
           if (old.contentposition > 0)
             DeadContentBytes += ContentRecordSize(key.Length, old.size);
           if (old.embeddingsposition > 0)
-            DeadEmbeddingBytes += EmbeddingRecordSize(key.Length, old.dimensions);
+            DeadEmbeddingBytes += EmbeddingRecordSize(key.Length, old.dimensions, old.vectorcount);
 
           StoreWritingExtensions.WriteIndexRecord(IndexFileStream, key, collection,
-            IndexTombstone, IndexTombstone, 0, 0);
+            IndexTombstone, IndexTombstone, 0, 0, 0);
         }
       }
 

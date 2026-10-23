@@ -15,6 +15,19 @@ articles.Add(42, new VectorEntry<Article> { Content = article, Embedding = myFlo
 
 Use this form when the embedding is computed client-side (any generator, not necessarily Jigen's) or already available. See [embeddings overview](../embeddings/overview.md) for the "client-side" deployment mode.
 
+### With several vectors
+
+An entry can store more than one vector — for example one per passage of a long document. All vectors of an entry must share the collection dimensions:
+
+```csharp
+articles.Add(42, article, new[] { passage1Vector, passage2Vector });
+
+// or, building the entry explicitly:
+articles.Add(42, new VectorEntry<Article> { Content = article, Embeddings = [passage1Vector, passage2Vector] });
+```
+
+Read them back with `GetEmbeddings(key)` (`GetEmbedding(key)` keeps returning the first vector). Search scores a multi-vector entry by its closest vector: exact collections scan all of them, and HNSW collections index one graph node per vector and merge the nodes of a document by best score.
+
 ### With server-side embedding
 
 ```csharp

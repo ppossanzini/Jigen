@@ -70,23 +70,33 @@ public partial class Store : IStore, IDisposable
 
   // On-disk record layouts (see StoreWritingExtensions.AppendContent):
   // content:    [id length][id][content length][content bytes]
-  // embeddings: [id length][id][dimensions * float]
+  // embeddings: [id length][id][vector count][vector count * dimensions * float]
   internal static long ContentRecordSize(int idLength, long contentSize) => 2 * sizeof(int) + idLength + contentSize;
-  internal static long EmbeddingRecordSize(int idLength, int dimensions) => sizeof(int) + idLength + (long)dimensions * sizeof(float);
+  internal static long EmbeddingRecordSize(int idLength, int dimensions, int vectorCount) =>
+    sizeof(int) + idLength + sizeof(int) + (long)vectorCount * dimensions * sizeof(float);
 
   // Concurrent on both levels: mutations happen under IndexAppendLock (writer
   // thread, deletes, shrink) but lookups and enumerations come lock-free from
   // reader threads (GetContent, searches, collections).
-  internal ConcurrentDictionary<string, ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)>> PositionIndex { get; set; } = new();
+  internal ConcurrentDictionary<string, ConcurrentDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, int vectorcount, long size)>> PositionIndex { get; set; } = new();
   private readonly ConcurrentDictionary<string, int> _collectionDimensions = new();
 
   internal void ValidateVectorDimensions(VectorEntry entry)
   {
-    if (entry is null || entry.Embedding.IsEmpty) return;
+    var vectors = entry?.Vectors;
+    if (vectors is not { Count: > 0 }) return;
     if (string.IsNullOrWhiteSpace(entry.CollectionName))
       throw new ArgumentException("Collection name cannot be empty.", nameof(entry));
 
-    var dimensions = entry.Embedding.Length;
+    var dimensions = vectors[0].Length;
+    if (dimensions == 0)
+      throw new ArgumentException("Embedding vectors cannot be empty.", nameof(entry));
+    for (var i = 1; i < vectors.Count; i++)
+      if (vectors[i].Length != dimensions)
+        throw new ArgumentException(
+          $"Entry '{Convert.ToHexString(entry.Id)}' mixes vectors of {dimensions} and {vectors[i].Length} dimensions.",
+          nameof(entry));
+
     var expected = _collectionDimensions.GetOrAdd(entry.CollectionName, dimensions);
     if (expected != dimensions)
       throw new ArgumentException(
@@ -153,7 +163,7 @@ public partial class Store : IStore, IDisposable
       Vectors = PositionIndex[name].Count,
       Dimensions = PositionIndex[name].Values.FirstOrDefault().dimensions,
       ContentSize = PositionIndex[name].Values.Sum(i => i.size),
-      VectorSize = PositionIndex[name].Values.Sum(i => i.embeddingsposition > 0 ? i.dimensions * sizeof(float) : 0)
+      VectorSize = PositionIndex[name].Values.Sum(i => i.embeddingsposition > 0 ? (long)i.vectorcount * i.dimensions * sizeof(float) : 0)
     };
 
     if (Options.Indexer is IExplorableIndex explorable)
@@ -357,7 +367,7 @@ public partial class Store : IStore, IDisposable
     }
   }
 
-  public bool GetCollectionIndexOf(string collection, out IReadOnlyDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, long size)> index)
+  public bool GetCollectionIndexOf(string collection, out IReadOnlyDictionary<byte[], (long contentposition, long embeddingsposition, int dimensions, int vectorcount, long size)> index)
   {
     var found = PositionIndex.TryGetValue(collection, out var collectionIndex);
     index = collectionIndex;

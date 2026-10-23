@@ -11,9 +11,32 @@ cd tests/JigenBenchmarks
 dotnet run -c Release -- 10000 128        # N vectors, dimensions
 dotnet run -c Release -- 100000 128 sq8   # with SQ8 graph quantization
 dotnet run -c Release -- 10000 128 w8     # with 8 indexing workers
+dotnet run -c Release -- 10000 128 mv:8   # 8 vectors per document (multi-vector)
 ```
 
 Vectors are random unit vectors — a worst case for HNSW recall. Real embedding datasets (which are clustered) typically achieve higher recall at the same settings.
+
+### Multi-vector entries
+
+`mv:K` stores `K` vectors per document (e.g. one embedding per passage) and reports both the ingest rate in documents and the number of vectors stored per second.
+
+Measured on 10,000 documents × 128 dimensions, `M=16`, `efC=200`, `efS=80`, no quantization, WAL off, auto workers:
+
+| Vectors/entry | Vectors file | Graph on disk | Ingest | HNSW search | Exact search | recall@10 | recall@10 on a non-first vector |
+|---|---|---|---|---|---|---|---|
+| 1 | 5.11 MB | 7.09 MB | 1838 docs/s | 745 µs | 2831 µs | 0.994 | — |
+| 4 | 19.76 MB | 28.35 MB | 372 docs/s | 910 µs | 2124 µs | 0.902 | 0.935 |
+| 8 | 39.29 MB | 56.70 MB | 159 docs/s | 951 µs | 2926 µs | 0.824 | 0.839 |
+
+Reading of the numbers:
+
+- **Vectors file is exact**: `documents × K × dimensions × 4 B` plus 24 B of record header per document, at every `K`.
+- **The graph gets one node per vector**, so its size and its construction cost scale with `K`: graph bytes grow ~4× at `K=4` and ~8× at `K=8`, and ingest throughput (dominated by graph construction) drops by roughly the same factor. Store-only work still scales linearly with the bytes written.
+- **Recall holds for every vector**: a document found through a non-first vector is ranked as well as through its first one (0.935 vs 0.902 at `K=4`), because nodes sharing a document key are merged by best score.
+- **Query latency is nearly flat** (745 → 951 µs): each document occupies a single result slot, so extra nodes cost traversal, not result slots.
+- **Exact search pays linearly in `K`**, as expected from scanning `K` vectors per candidate document.
+
+Single-vector collections are unaffected: `mv:1` reproduces the same figures as a plain run.
 
 ## Comparative benchmarks (Jigen vs Qdrant vs Milvus vs pgvector)
 
