@@ -10,23 +10,17 @@ public class VectorEntry
   public ReadOnlyMemory<byte> Content { get; set; }
 
   /// <summary>
-  /// Every vector of a multi-vector entry, all with the same dimensions as the
-  /// collection. When empty, <see cref="Embedding"/> is the entry's only vector.
+  /// Every vector of the entry, all with the same dimensions as the collection.
+  /// An entry with one vector is a list of one: there is no separate
+  /// single-vector field.
   /// </summary>
   public IReadOnlyList<ReadOnlyMemory<float>> Embeddings { get; set; } = [];
-
-  public ReadOnlyMemory<float> Embedding { get; set; }
-
-  /// <summary>The vectors the store writes: <see cref="Embeddings"/> when set, otherwise the single <see cref="Embedding"/>.</summary>
-  public IReadOnlyList<ReadOnlyMemory<float>> Vectors =>
-    Embeddings is { Count: > 0 } ? Embeddings : Embedding.IsEmpty ? [] : [Embedding];
 
   public static VectorEntry Empty => new VectorEntry()
   {
     Id = Guid.NewGuid().ToByteArray(),
     CollectionName = string.Empty,
-    Content = ReadOnlyMemory<byte>.Empty,
-    Embedding = ReadOnlyMemory<float>.Empty
+    Content = ReadOnlyMemory<byte>.Empty
   };
 }
 
@@ -35,7 +29,8 @@ public class VectorEntry<T>
 {
   public VectorKey Key;
   public T Content { get; set; }
-  public float[] Embedding { get; set; }
+
+  /// <summary>Every vector of the entry; a single-vector entry is a list of one.</summary>
   public IReadOnlyList<float[]> Embeddings { get; set; } = [];
 }
 

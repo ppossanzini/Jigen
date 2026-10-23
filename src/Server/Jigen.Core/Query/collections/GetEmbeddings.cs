@@ -3,10 +3,10 @@ using Hikyaku;
 namespace Jigen.Core.Query.collections;
 
 /// <summary>
-/// Reads the stored full-precision vectors of a key, in storage order. Null
+/// Reads every stored full-precision vector of a key, in storage order. Null
 /// when the key does not exist or the entry was stored without vectors.
 /// </summary>
-public class GetEmbedding : IRequest<float[][]>
+public class GetEmbeddings : IRequest<float[][]>
 {
   public string Database { get; set; }
   public string Collection { get; set; }

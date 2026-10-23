@@ -23,7 +23,7 @@ public static class StoreWritingExtensions
   {
     var walStream = store.WalFileStream!;
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
-    var embeddings = entry.Vectors.Select(v => v.ToArray()).ToArray();
+    var embeddings = entry.Embeddings.Select(v => v.ToArray()).ToArray();
 
     int size = WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embeddings);
     byte[] rented = null;
@@ -386,7 +386,7 @@ public static class StoreWritingExtensions
     {
       if (e.Content.Length > 0)
         contentTotal += Store.ContentRecordSize(e.Id.Length, e.Content.Length);
-      var vectors = e.Vectors;
+      var vectors = e.Embeddings;
       if (vectors.Count > 0)
         embeddingTotal += Store.EmbeddingRecordSize(e.Id.Length, vectors[0].Length, vectors.Count);
     }
@@ -419,7 +419,7 @@ public static class StoreWritingExtensions
       foreach (var entry in entries)
       {
         long cp = 0, ep = 0;
-        var vectors = entry.Vectors;
+        var vectors = entry.Embeddings;
         var dimensions = vectors.Count > 0 ? vectors[0].Length : 0;
 
         if (entry.Content.Length > 0)

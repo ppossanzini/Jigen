@@ -29,7 +29,7 @@ public class UnitTest1
   {
     db.Sentences.Add(1, new VectorEntry<Entity1>()
     {
-      Key = 1, Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, Embedding = Array.Empty<float>()
+      Key = 1, Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, Embeddings = []
     });
   }
   
@@ -55,7 +55,7 @@ public class UnitTest1
       {
         Key = i, 
         Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, 
-        Embedding = Array.Empty<float>()
+        Embeddings = []
       });
     }
     
@@ -83,7 +83,7 @@ public class UnitTest1
     {
       Key = testKeyVector,
       Content = expectedEntity,
-      Embedding = Array.Empty<float>()
+      Embeddings = []
     });
 
     // Act: Read back
@@ -127,7 +127,7 @@ public class UnitTest1
     {
       Key = testKeyVector,
       Content = indexedEntity,
-      Embedding = db.ServiceClient.CalculateEmbeddings(new EmbeddingRequest(){Message = "test test test test"}).Embeddings.ToArray()
+      Embeddings = [db.ServiceClient.CalculateEmbeddings(new EmbeddingRequest(){Message = "test test test test"}).Embeddings.ToArray()]
     });
 
     // Act: Search for semantically similar text

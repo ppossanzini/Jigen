@@ -88,10 +88,12 @@ public class VectorCollectionTests
       Assert.All(newsOnly, r => Assert.Equal("news", r.Content.Category));
       Assert.DoesNotContain(newsOnly, r => BitConverter.ToInt32(r.Key.Value) == 3);
 
-      // Stored embedding readback.
-      var embedding = collection.GetEmbedding(VectorKey.From(5));
-      Assert.Equal(UnitVector(8, 5), embedding);
-      Assert.Null(collection.GetEmbedding(VectorKey.From(999)));
+      // Stored embeddings readback: one vector stored, read back as a list of one.
+      var embeddings = collection.GetEmbeddings(VectorKey.From(5));
+      Assert.NotNull(embeddings);
+      Assert.Single(embeddings);
+      Assert.Equal(UnitVector(8, 5), embeddings[0]);
+      Assert.Null(collection.GetEmbeddings(VectorKey.From(999)));
     });
   }
 

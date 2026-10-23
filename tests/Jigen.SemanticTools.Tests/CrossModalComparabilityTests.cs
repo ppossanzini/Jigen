@@ -247,14 +247,14 @@ public class CrossModalComparabilityTests
           Id = textIds[i],
           CollectionName = Collection,
           Content = Encoding.UTF8.GetBytes($"text:{descriptions[i]}"),
-          Embedding = texts[i]
+          Embeddings = [texts[i]]
         });
         await store.AppendContent(new VectorEntry
         {
           Id = imageIds[i],
           CollectionName = Collection,
           Content = Encoding.UTF8.GetBytes($"image:{ImageDataset.Samples[i].FileName}"),
-          Embedding = correctedImages[i]
+          Embeddings = [correctedImages[i]]
         });
       }
       await store.SaveChangesAsync();
@@ -328,14 +328,14 @@ public class CrossModalComparabilityTests
           Id = imageIds[i],
           CollectionName = imageCollection,
           Content = Encoding.UTF8.GetBytes($"image:{ImageDataset.Samples[i].FileName}"),
-          Embedding = images[i]
+          Embeddings = [images[i]]
         });
         await store.AppendContent(new VectorEntry
         {
           Id = textIds[i],
           CollectionName = textCollection,
           Content = Encoding.UTF8.GetBytes($"text:{descriptions[i]}"),
-          Embedding = texts[i]
+          Embeddings = [texts[i]]
         });
       }
       await store.SaveChangesAsync();

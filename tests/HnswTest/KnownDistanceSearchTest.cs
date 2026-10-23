@@ -186,7 +186,7 @@ public class KnownDistanceSearchTest : IAsyncDisposable
           Id = id,
           CollectionName = _collectionName,
           Content = MessagePackDocumentSerializer.Instance.Serialize(text),
-          Embedding = embedding
+          Embeddings = [embedding]
         });
 
         dataset.Add(new Sentence(id, group, angle, embedding, text));

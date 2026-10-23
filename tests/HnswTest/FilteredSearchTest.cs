@@ -79,7 +79,7 @@ public sealed class FilteredSearchTest : IAsyncDisposable
         Id = BitConverter.GetBytes(j),
         CollectionName = _collectionName,
         Content = MessagePackDocumentSerializer.Instance.Serialize(new Doc { Tag = isTarget ? "target" : "other" }),
-        Embedding = embedding
+        Embeddings = [embedding]
       });
     }
 

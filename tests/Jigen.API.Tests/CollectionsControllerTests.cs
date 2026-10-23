@@ -115,28 +115,28 @@ public class CollectionsControllerTests
     Assert.IsType<BadRequestObjectResult>(result);
   }
 
-  // ── GetEmbedding ──
+  // ── GetEmbeddings ──
 
   [Fact]
-  public async Task GetEmbedding_ReturnsEmbeddingArray()
+  public async Task GetEmbeddings_ReturnsEveryVector()
   {
     var expected = new[] { new float[] { 0.1f, 0.2f, 0.3f } };
-    _mediatorMock.Setup(m => m.Send(It.Is<GetEmbedding>(q => q.Database == DbName && q.Collection == Collection), It.IsAny<CancellationToken>()))
+    _mediatorMock.Setup(m => m.Send(It.Is<GetEmbeddings>(q => q.Database == DbName && q.Collection == Collection), It.IsAny<CancellationToken>()))
       .ReturnsAsync(expected);
 
-    var result = await CreateController().GetEmbedding(DbName, Collection, "testkey", "string");
+    var result = await CreateController().GetEmbeddings(DbName, Collection, "testkey", "string");
 
     var okResult = Assert.IsType<OkObjectResult>(result);
     Assert.Equal(expected, okResult.Value);
   }
 
   [Fact]
-  public async Task GetEmbedding_ReturnsEmptyArray_WhenKeyMissing()
+  public async Task GetEmbeddings_ReturnsEmptyArray_WhenKeyMissing()
   {
-    _mediatorMock.Setup(m => m.Send(It.IsAny<GetEmbedding>(), It.IsAny<CancellationToken>()))
+    _mediatorMock.Setup(m => m.Send(It.IsAny<GetEmbeddings>(), It.IsAny<CancellationToken>()))
       .ReturnsAsync((float[][]?)null);
 
-    var result = await CreateController().GetEmbedding(DbName, Collection, "missing", "string");
+    var result = await CreateController().GetEmbeddings(DbName, Collection, "missing", "string");
 
     var okResult = Assert.IsType<OkObjectResult>(result);
     var value = Assert.IsType<float[][]>(okResult.Value);
@@ -148,7 +148,7 @@ public class CollectionsControllerTests
   [Fact]
   public async Task SetVector_SendsCommand_WithValidPayload()
   {
-    var payload = new VectorPayload { Embeddings = [0.1f, 0.2f] };
+    var payload = new VectorPayload { Vectors = [[0.1f, 0.2f]] };
     _mediatorMock.Setup(m => m.Send(It.IsAny<SetVector>(), It.IsAny<CancellationToken>()))
       .Returns(Task.CompletedTask);
 
@@ -161,9 +161,9 @@ public class CollectionsControllerTests
   }
 
   [Fact]
-  public async Task SetVector_ReturnsBadRequest_WhenEmbeddingsMissing()
+  public async Task SetVector_ReturnsBadRequest_WhenVectorsMissing()
   {
-    var payload = new VectorPayload { Embeddings = null! };
+    var payload = new VectorPayload { Vectors = null! };
 
     var result = await CreateController().SetVector(DbName, Collection, "testkey", payload, "string");
 
@@ -171,9 +171,9 @@ public class CollectionsControllerTests
   }
 
   [Fact]
-  public async Task SetVector_ReturnsBadRequest_WhenEmbeddingsEmpty()
+  public async Task SetVector_ReturnsBadRequest_WhenVectorsEmpty()
   {
-    var payload = new VectorPayload { Embeddings = [] };
+    var payload = new VectorPayload { Vectors = [] };
 
     var result = await CreateController().SetVector(DbName, Collection, "testkey", payload, "string");
 
@@ -187,8 +187,8 @@ public class CollectionsControllerTests
   {
     var items = new List<BulkVectorItem>
     {
-      new() { Key = "key1", KeyType = "string", Embeddings = [1f, 2f] },
-      new() { Key = "key2", KeyType = "string", Embeddings = [3f, 4f] }
+      new() { Key = "key1", KeyType = "string", Vectors = [[1f, 2f]] },
+      new() { Key = "key2", KeyType = "string", Vectors = [[3f, 4f]] }
     };
     _mediatorMock.Setup(m => m.Send(It.IsAny<SetVector>(), It.IsAny<CancellationToken>()))
       .Returns(Task.CompletedTask);

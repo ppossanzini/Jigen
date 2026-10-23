@@ -50,8 +50,11 @@ public class MultiVectorTests
       Assert.Equal([0f, 1f, 0f], vectors[1]);
       Assert.Equal([0f, 0f, 1f], vectors[2]);
 
-      // The single-vector accessor keeps returning the first vector.
-      Assert.Equal([1f, 0f, 0f], store.GetEmbedding("docs", id));
+      // Collection statistics count documents and total vector bytes.
+      var info = store.GetCollectionInfo("docs");
+      Assert.Equal(1, info.Vectors);
+      Assert.Equal(3, info.Dimensions);
+      Assert.Equal(3L * 3 * sizeof(float), info.VectorSize);
 
       await store.Close();
     }
@@ -100,7 +103,7 @@ public class MultiVectorTests
       var id = Guid.NewGuid().ToByteArray();
       var entry = Entry(id, [1f, 2f], [3f, 4f]);
       var content = entry.Content.ToArray();
-      var embeddings = entry.Vectors.Select(v => v.ToArray()).ToArray();
+      var embeddings = entry.Embeddings.Select(v => v.ToArray()).ToArray();
       var buffer = new byte[WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embeddings)];
       WalRecord.SerializeInsert(buffer, entry);
       await File.WriteAllBytesAsync(Path.Combine(path, "multivectortest.wal.jigen"), buffer);

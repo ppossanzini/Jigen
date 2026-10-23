@@ -17,16 +17,35 @@ Use this form when the embedding is computed client-side (any generator, not nec
 
 ### With several vectors
 
-An entry can store more than one vector — for example one per passage of a long document. All vectors of an entry must share the collection dimensions:
+An entry can store more than one vector — for example one per passage of a long document. All vectors of an entry must share the collection dimensions.
 
 ```csharp
-articles.Add(42, article, new[] { passage1Vector, passage2Vector });
+var articles = context.Collection<Article>("articles");
 
-// or, building the entry explicitly:
-articles.Add(42, new VectorEntry<Article> { Content = article, Embeddings = [passage1Vector, passage2Vector] });
+// One vector.
+articles.Add(42, new Article { Title = "Single vector" }, new[] { 1f, 0f, 0f });
+
+// Several vectors: same overload, one entry per vector.
+articles.Add(43, new Article { Title = "Multi vector" }, new float[][]
+{
+  [1f, 0f, 0f],   // passage 1
+  [0f, 1f, 0f],   // passage 2
+  [0f, 0f, 1f]    // passage 3
+});
+
+// Or build the entry explicitly.
+articles.Add(44, new VectorEntry<Article>
+{
+  Content = new Article { Title = "Multi vector" },
+  Embeddings = [[1f, 0f, 0f], [0f, 1f, 0f]]
+});
+
+float[][] all = articles.GetEmbeddings(43);   // [[1,0,0], [0,1,0], [0,0,1]]
+
+var hits = articles.Search(new[] { 0f, 1f, 0f }, top: 2); // finds 43 through its second vector
 ```
 
-Read them back with `GetEmbeddings(key)` (`GetEmbedding(key)` keeps returning the first vector). Search scores a multi-vector entry by its closest vector: exact collections scan all of them, and HNSW collections index one graph node per vector and merge the nodes of a document by best score.
+An entry is always a list of vectors: one stored vector comes back as a list of one, and there is no separate single-vector reader. Search scores a document by its closest vector — exact collections scan all of them, HNSW collections index one graph node per vector and merge the nodes of a document by best score.
 
 ### With server-side embedding
 
@@ -102,11 +121,11 @@ The predicate is a LINQ expression tree; it is translated client-side into the g
 
 ### By example (embedding of an existing document)
 
-`GetEmbedding`/`GetEmbeddingAsync` read back the stored full-precision vector of a key (null when the key is missing or the entry has no vector) — which makes "more like this" a two-liner without an embedding module:
+`GetEmbeddings`/`GetEmbeddingsAsync` read back every stored vector of a key (null when the key is missing or the entry has no vector) — which makes "more like this" a two-liner without an embedding module:
 
 ```csharp
-var vector = await articles.GetEmbeddingAsync(42);
-var similar = await articles.SearchAsync(vector, top: 10);
+var vectors = await articles.GetEmbeddingsAsync(42);
+var similar = await articles.SearchAsync(vectors[0], top: 10); // one query vector per search
 ```
 
 ### Per-query tuning

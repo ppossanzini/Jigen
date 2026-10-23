@@ -22,7 +22,7 @@ public class StoreReliabilityTests
       static VectorEntry Entry(int i) => new()
       {
         Id = BitConverter.GetBytes(i), CollectionName = "docs",
-        Content = BitConverter.GetBytes(i), Embedding = new[] { (float)i }
+        Content = BitConverter.GetBytes(i), Embeddings = [new[] { (float)i }]
       };
 
       await store.AppendContentBulk(Enumerable.Range(0, 512).Select(Entry).ToArray());
@@ -64,7 +64,7 @@ public class StoreReliabilityTests
           store.AppendContent(new VectorEntry
           {
             Id = id, CollectionName = "docs",
-            Content = BitConverter.GetBytes(i), Embedding = new[] { (float)i }
+            Content = BitConverter.GetBytes(i), Embeddings = [new[] { (float)i }]
           })));
 
         await Task.WhenAll(ids.Skip(50).Select(async (id, i) =>
@@ -73,7 +73,7 @@ public class StoreReliabilityTests
           tx.Append(new VectorEntry
           {
             Id = id, CollectionName = "docs",
-            Content = BitConverter.GetBytes(i + 50), Embedding = new[] { (float)(i + 50) }
+            Content = BitConverter.GetBytes(i + 50), Embeddings = [new[] { (float)(i + 50) }]
           });
           await tx.CommitAsync();
         }));
@@ -112,7 +112,7 @@ public class StoreReliabilityTests
       await store.AppendContent(new VectorEntry
       {
         Id = Guid.NewGuid().ToByteArray(), CollectionName = "docs",
-        Content = "payload"u8.ToArray(), Embedding = new[] { 1f, 2f }
+        Content = "payload"u8.ToArray(), Embeddings = [new[] { 1f, 2f }]
       });
       await store.SaveChangesAsync();
 
@@ -136,13 +136,13 @@ public class StoreReliabilityTests
       await store.AppendContent(new VectorEntry
       {
         Id = Guid.NewGuid().ToByteArray(), CollectionName = "docs",
-        Content = "valid"u8.ToArray(), Embedding = new[] { 1f, 2f, 3f }
+        Content = "valid"u8.ToArray(), Embeddings = [new[] { 1f, 2f, 3f }]
       });
 
       await Assert.ThrowsAsync<ArgumentException>(() => store.AppendContent(new VectorEntry
       {
         Id = Guid.NewGuid().ToByteArray(), CollectionName = "docs",
-        Content = "invalid"u8.ToArray(), Embedding = new[] { 1f, 2f }
+        Content = "invalid"u8.ToArray(), Embeddings = [new[] { 1f, 2f }]
       }));
       await store.SaveChangesAsync();
       Assert.Equal(1, store.GetCollectionInfo("docs").Vectors);
@@ -198,7 +198,7 @@ public class StoreReliabilityTests
       // because the user issued it after the append.
       await store.AppendContent(new VectorEntry
       {
-        Id = id, CollectionName = "docs", Content = "payload"u8.ToArray(), Embedding = new float[] { 1f, 2f, 3f }
+        Id = id, CollectionName = "docs", Content = "payload"u8.ToArray(), Embeddings = [new float[] { 1f, 2f, 3f }]
       });
       Assert.True(await store.DeleteContent("docs", id));
 
@@ -232,15 +232,15 @@ public class StoreReliabilityTests
     var store = new Store(HnswOptionsFor(path));
     await store.AppendContent(new VectorEntry
     {
-      Id = a, CollectionName = "docs", Content = "alpha"u8.ToArray(), Embedding = new float[] { 1f, 0f, 0f }
+      Id = a, CollectionName = "docs", Content = "alpha"u8.ToArray(), Embeddings = [new float[] { 1f, 0f, 0f }]
     });
     await store.AppendContent(new VectorEntry
     {
-      Id = b, CollectionName = "docs", Content = "beta"u8.ToArray(), Embedding = new float[] { 0f, 1f, 0f }
+      Id = b, CollectionName = "docs", Content = "beta"u8.ToArray(), Embeddings = [new float[] { 0f, 1f, 0f }]
     });
     await store.AppendContent(new VectorEntry
     {
-      Id = c, CollectionName = "docs", Content = "gamma"u8.ToArray(), Embedding = new float[] { 0f, 0f, 1f }
+      Id = c, CollectionName = "docs", Content = "gamma"u8.ToArray(), Embeddings = [new float[] { 0f, 0f, 1f }]
     });
     await store.SaveChangesAsync();
     await store.Close();

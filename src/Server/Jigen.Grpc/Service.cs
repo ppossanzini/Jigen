@@ -194,23 +194,20 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     return new RawContentResult() { Content = result is null ? ByteString.Empty : ByteString.CopyFrom(result) };
   }
 
-  public override async Task<EmbeddingResponse> GetEmbedding(ItemKey request, ServerCallContext context)
+  public override async Task<StoredEmbeddingsResponse> GetEmbeddings(ItemKey request, ServerCallContext context)
   {
-    var result = await mediator.Send(new Core.Query.collections.GetEmbedding()
+    var result = await mediator.Send(new Core.Query.collections.GetEmbeddings()
     {
       Database = request.Database,
       Collection = request.Collection,
       Key = request.Key.ToByteArray()
     });
 
-    // Missing key or vector-less entry: empty Embeddings, like GetContent.
-    var response = new EmbeddingResponse();
-    if (result is { Length: > 0 })
-    {
-      response.Embeddings.AddRange(result[0]);
+    // Missing key or vector-less entry: empty Vectors, like GetContent.
+    var response = new StoredEmbeddingsResponse();
+    if (result is not null)
       foreach (var vector in result)
         response.Vectors.Add(new EmbeddingVector { Embeddings = { vector } });
-    }
     return response;
   }
 
@@ -234,10 +231,14 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     return new Result() { Success = true };
   }
 
-  // An empty Vectors list keeps the single-vector Embeddings payload in charge.
-  private static float[][] ToVectors(Vector request) =>
+  // The vector RPCs carry the entry's vectors and nothing else: a request with
+  // an empty Vectors list is rejected instead of silently storing a document
+  // without vectors (an old client sending the removed single-vector field
+  // would otherwise look successful).
+  private static float[][] RequireVectors(Vector request) =>
     request.Vectors.Count == 0
-      ? null
+      ? throw new RpcException(new Status(StatusCode.InvalidArgument,
+        "Vector requests carry every vector of the entry in Vectors; the request has none."))
       : request.Vectors.Select(v => v.Embeddings.ToArray()).ToArray();
 
   public override async Task<Result> SetVector(Vector request, ServerCallContext context)
@@ -248,8 +249,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray(),
-      Vectors = ToVectors(request)
+      Vectors = RequireVectors(request)
     });
 
     return new Result() { Success = true };
@@ -267,8 +267,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         Collection = request.Collection,
         Key = request.Key.ToByteArray(),
         Content = request.Content.ToByteArray(),
-        Embeddings = request.Embeddings.ToArray(),
-        Vectors = ToVectors(request)
+        Vectors = RequireVectors(request)
       }, context.CancellationToken);
 
       accepted++;
@@ -325,8 +324,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         Collection = document.Collection,
         Key = document.Key.ToByteArray(),
         Content = document.Content.ToByteArray(),
-        Embeddings = embeddingsByDocument.TryGetValue(document, out var embedding) && embedding is { Length: > 0 }
-          ? embedding
+        Vectors = embeddingsByDocument.TryGetValue(document, out var embedding) && embedding is { Length: > 0 }
+          ? [embedding]
           : null
       }, cancellationToken);
 
@@ -632,8 +631,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray(),
-      Vectors = ToVectors(request)
+      Vectors = RequireVectors(request)
     });
 
     return new Result() { Success = true };
@@ -647,8 +645,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Embeddings = request.Embeddings.ToArray(),
-      Vectors = ToVectors(request)
+      Vectors = RequireVectors(request)
     });
 
     return new Result() { Success = true };

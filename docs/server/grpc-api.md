@@ -10,7 +10,8 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 |---|---|---|---|
 | `ListCollections` | `CollectionKey` | `ListCollectionResult` | List collection names in a database. |
 | `GetContent` | `ItemKey` | `RawContentResult` | Get the raw serialized content for a key. |
-| `GetEmbedding` | `ItemKey` | `EmbeddingResponse` | Get the stored full-precision embedding of a key (empty when the key is missing or the entry has no vector). |
+| `GetEmbeddings` | `ItemKey` | `StoredEmbeddingsResponse` | Get every stored vector of a key, in storage order (empty when the key is missing or the entry has no vector). A single-vector entry comes back as a list of one. |
+| `SetVector`, `SetVectors`, `AppendVector`, `SetRawVector` | `Vector` | `Result` / `IngestResult` | Store precomputed vectors. `Vectors` is required: a request with an empty list is rejected with `InvalidArgument`, so an old client sending the removed single-vector field fails loudly instead of storing a vector-less entry. |
 | `SetDocument` | `Document` | `Result` | Insert/update a document from a raw `Sentence`; the server computes the embedding via its embedding module. |
 | `SetVector` | `Vector` | `Result` | Insert/update a document with a precomputed embedding. |
 | `SetVectors` | `stream Vector` | `IngestResult` | Bulk insert with precomputed embeddings over a single client-streaming call: one round trip for the whole batch. |
@@ -68,8 +69,8 @@ message Vector {
   bytes Key = 3;
   bytes Content = 4;
   // Single-vector payload, kept for compatibility.
-  repeated float Embeddings = 5;
-  // Multi-vector payload; when non-empty it takes precedence over Embeddings.
+  reserved 5; // was a single-vector payload: entries are always multi-vector now
+  // Every vector of the entry; a single-vector entry is a list of one.
   repeated EmbeddingVector Vectors = 6;
 }
 ```
@@ -123,11 +124,14 @@ message EmbeddingRequest {
   string Task = 2;
 }
 
+// Reply of the embedding service: one vector per input sentence.
 message EmbeddingResponse {
-  // First stored vector, kept for compatibility with single-vector readers.
   repeated float Embeddings = 1;
-  // Every stored vector, in storage order.
-  repeated EmbeddingVector Vectors = 2;
+}
+
+// Reply of GetEmbeddings: every vector stored for a key, in storage order.
+message StoredEmbeddingsResponse {
+  repeated EmbeddingVector Vectors = 1;
 }
 
 message EmbeddingBatchRequest {

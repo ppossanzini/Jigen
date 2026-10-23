@@ -67,6 +67,40 @@ accepted = articles.upsert_many([
 ])
 ```
 
+### Single and multi-vector entries
+
+The same `embedding` argument accepts one vector or a list of vectors; every
+vector of an entry must share the collection dimensions.
+
+```python
+# One vector.
+articles.upsert("single", {"title": "Single vector"}, embedding=[1.0, 0.0, 0.0])
+
+# Several vectors, e.g. one per passage.
+articles.upsert("multi", {"title": "Multi vector"}, embedding=[
+    [1.0, 0.0, 0.0],   # passage 1
+    [0.0, 1.0, 0.0],   # passage 2
+    [0.0, 0.0, 1.0],   # passage 3
+])
+
+articles.get_embeddings("multi")  # [[1,0,0], [0,1,0], [0,0,1]]
+
+articles.search([0.0, 1.0, 0.0], top=2)  # finds "multi" through its second vector
+```
+
+`upsert_many` accepts both shapes per entry, so a batch can mix them:
+
+```python
+articles.upsert_many([
+    ("a", {"title": "A"}, [0.5, 0.5, 0.0]),
+    ("b", {"title": "B"}, [[0.5, 0.5, 0.0], [0.0, 0.5, 0.5]]),
+])
+```
+
+An entry is always a list of vectors: one stored vector comes back as a list of
+one, and there is no single-vector reader. Search scores a document by its
+closest vector.
+
 ## Filters and tuning
 
 ```python

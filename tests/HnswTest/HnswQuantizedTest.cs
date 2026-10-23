@@ -127,7 +127,7 @@ public class HnswQuantizedTest : IAsyncDisposable
           Id = id,
           CollectionName = _collectionName,
           Content = MessagePackDocumentSerializer.Instance.Serialize($"sq8-{group:00}-{j:00}"),
-          Embedding = embedding
+          Embeddings = [embedding]
         });
 
         dataset.Add(new Sentence(id, group, angle, embedding));

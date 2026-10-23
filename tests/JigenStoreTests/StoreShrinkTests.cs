@@ -20,7 +20,7 @@ public class StoreShrinkTests
     Id = id,
     CollectionName = "docs",
     Content = Encoding.UTF8.GetBytes($"content-{seed}-" + new string('x', 512)),
-    Embedding = new[] { seed, seed + 1f, seed + 2f, seed + 3f }
+    Embeddings = [new[] { seed, seed + 1f, seed + 2f, seed + 3f }]
   };
 
   [Fact]

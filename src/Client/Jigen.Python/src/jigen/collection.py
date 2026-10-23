@@ -18,6 +18,33 @@ from .serialization import DocumentSerializer, MessagePackSerializer
 
 T = TypeVar("T")
 
+# One vector, or several vectors stored together as a multi-vector entry.
+VectorInput = Sequence[float] | Sequence[Sequence[float]]
+
+
+def _apply_embedding(request: pb.Vector, embedding: VectorInput | None) -> None:
+    """Fills the entry's vectors from one vector or a list of them.
+
+    A sequence of numbers is a single vector and becomes a one-vector entry; a
+    sequence of such sequences stores one entry per vector, e.g. one embedding
+    per passage. All vectors must share the collection dimensions.
+    """
+    if embedding is None:
+        return
+
+    values = list(embedding)
+    if not values:
+        return
+
+    if isinstance(values[0], (int, float)):
+        request.Vectors.add(Embeddings=values)
+        return
+
+    for vector in values:
+        if isinstance(vector, (int, float)):
+            raise TypeError("embedding mixes scalars and vectors")
+        request.Vectors.add(Embeddings=list(vector))
+
 
 def _tuning(options: SearchOptions | None) -> pb.SearchTuning | None:
     if options is None:
@@ -70,14 +97,15 @@ class _CollectionBase(Generic[T]):
     def _item_key(self, key: Key) -> pb.ItemKey:
         return pb.ItemKey(Database=self.database, Collection=self.name, Key=encode_key(key))
 
-    def _vector(self, key: Key, content: T, embedding: Sequence[float] | None) -> pb.Vector:
-        return pb.Vector(
+    def _vector(self, key: Key, content: T, embedding: VectorInput | None) -> pb.Vector:
+        request = pb.Vector(
             Database=self.database,
             Collection=self.name,
             Key=encode_key(key),
             Content=self.serializer.serialize(content),
-            Embeddings=embedding or (),
         )
+        _apply_embedding(request, embedding)
+        return request
 
     def _document(self, key: Key, content: T, text: str) -> pb.Document:
         return pb.Document(
@@ -147,7 +175,7 @@ class VectorCollection(_CollectionBase[T]):
         key: Key,
         content: T,
         *,
-        embedding: Sequence[float] | None = None,
+        embedding: VectorInput | None = None,
         text: str | None = None,
     ) -> None:
         if (embedding is None) == (text is None):
@@ -165,7 +193,7 @@ class VectorCollection(_CollectionBase[T]):
         key: Key,
         content: T,
         *,
-        embedding: Sequence[float] | None = None,
+        embedding: VectorInput | None = None,
         text: str | None = None,
     ) -> None:
         if (embedding is None) == (text is None):
@@ -178,7 +206,7 @@ class VectorCollection(_CollectionBase[T]):
         if not response.Success:
             raise JigenOperationError(response.Message)
 
-    def upsert_many(self, entries: Iterable[tuple[Key, T, Sequence[float]]]) -> int:
+    def upsert_many(self, entries: Iterable[tuple[Key, T, VectorInput]]) -> int:
         response = self._stub.SetVectors(
             self._vector(key, content, vector) for key, content, vector in entries
         )
@@ -224,9 +252,9 @@ class VectorCollection(_CollectionBase[T]):
         response = self._stub.GetContent(self._item_key(key))
         return self.serializer.deserialize(response.content) if response.content else None
 
-    def get_embedding(self, key: Key) -> list[float] | None:
-        values = self._stub.GetEmbedding(self._item_key(key)).Embeddings
-        return list(values) if values else None
+    def get_embeddings(self, key: Key) -> list[list[float]] | None:
+        vectors = self._stub.GetEmbeddings(self._item_key(key)).Vectors
+        return [list(vector.Embeddings) for vector in vectors] if vectors else None
 
     def contains(self, key: Key) -> bool:
         return self._stub.Contains(self._item_key(key)).Success
@@ -262,7 +290,7 @@ class AsyncVectorCollection(_CollectionBase[T]):
         key: Key,
         content: T,
         *,
-        embedding: Sequence[float] | None = None,
+        embedding: VectorInput | None = None,
         text: str | None = None,
     ) -> None:
         if (embedding is None) == (text is None):
@@ -275,7 +303,7 @@ class AsyncVectorCollection(_CollectionBase[T]):
         if not response.Success:
             raise JigenOperationError(response.Message)
 
-    async def upsert_many(self, entries: Iterable[tuple[Key, T, Sequence[float]]]) -> int:
+    async def upsert_many(self, entries: Iterable[tuple[Key, T, VectorInput]]) -> int:
         async def requests() -> AsyncIterator[pb.Vector]:
             for key, content, vector in entries:
                 yield self._vector(key, content, vector)
@@ -319,9 +347,9 @@ class AsyncVectorCollection(_CollectionBase[T]):
         response = await self._stub.GetContent(self._item_key(key))
         return self.serializer.deserialize(response.content) if response.content else None
 
-    async def get_embedding(self, key: Key) -> list[float] | None:
-        values = (await self._stub.GetEmbedding(self._item_key(key))).Embeddings
-        return list(values) if values else None
+    async def get_embeddings(self, key: Key) -> list[list[float]] | None:
+        vectors = (await self._stub.GetEmbeddings(self._item_key(key))).Vectors
+        return [list(vector.Embeddings) for vector in vectors] if vectors else None
 
     async def contains(self, key: Key) -> bool:
         return (await self._stub.Contains(self._item_key(key))).Success

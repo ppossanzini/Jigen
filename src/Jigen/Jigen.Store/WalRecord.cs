@@ -206,7 +206,7 @@ public static class WalRecord
   public static int SerializeInsert(Span<byte> buffer, VectorEntry entry)
   {
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
-    var embeddings = entry.Vectors.Select(v => v.ToArray()).ToArray();
+    var embeddings = entry.Embeddings.Select(v => v.ToArray()).ToArray();
     return SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embeddings);
   }
 
@@ -341,7 +341,7 @@ public static class WalRecord
     foreach (var entry in entries)
     {
       var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
-      var embeddings = entry.Vectors.Select(v => v.ToArray()).ToArray();
+      var embeddings = entry.Embeddings.Select(v => v.ToArray()).ToArray();
       pos += SerializeInsert(buffer[pos..], entry.Id, entry.CollectionName, content, embeddings);
     }
     return pos;

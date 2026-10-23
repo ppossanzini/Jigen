@@ -42,7 +42,7 @@ public class TransactionTests
             Id = ids[i],
             CollectionName = "docs",
             Content = Encoding.UTF8.GetBytes($"doc-{i}"),
-            Embedding = new[] { i, i + 1f, i + 0.5f }
+            Embeddings = [new[] { i, i + 1f, i + 0.5f }]
           });
         await tx.CommitAsync();
         await store.SaveChangesAsync();
@@ -82,7 +82,7 @@ public class TransactionTests
           Id = persistedId,
           CollectionName = "docs",
           Content = "persisted"u8.ToArray(),
-          Embedding = new[] { 1f }
+          Embeddings = [new[] { 1f }]
         });
 
         // Write another inside a rolled-back transaction
@@ -92,7 +92,7 @@ public class TransactionTests
           Id = rolledBackId,
           CollectionName = "docs",
           Content = "rolledback"u8.ToArray(),
-          Embedding = new[] { 2f }
+          Embeddings = [new[] { 2f }]
         });
         tx.Rollback();
 
@@ -132,7 +132,7 @@ public class TransactionTests
             Id = rolledBackId,
             CollectionName = "docs",
             Content = "forgotten"u8.ToArray(),
-            Embedding = new[] { 1f }
+            Embeddings = [new[] { 1f }]
           });
         }
 
@@ -167,7 +167,7 @@ public class TransactionTests
           Id = rolledBackId,
           CollectionName = "docs",
           Content = "before-tx"u8.ToArray(),
-          Embedding = new[] { 1f }
+          Embeddings = [new[] { 1f }]
         });
         await store.SaveChangesAsync();
       }
@@ -231,12 +231,12 @@ public class TransactionTests
         await store.AppendContent(new VectorEntry
         {
           Id = keepId, CollectionName = "docs",
-          Content = "keep"u8.ToArray(), Embedding = new[] { 1f }
+          Content = "keep"u8.ToArray(), Embeddings = [new[] { 1f }]
         });
         await store.AppendContent(new VectorEntry
         {
           Id = deleteId, CollectionName = "docs",
-          Content = "delete-me"u8.ToArray(), Embedding = new[] { 2f }
+          Content = "delete-me"u8.ToArray(), Embeddings = [new[] { 2f }]
         });
         await store.SaveChangesAsync();
       }
@@ -249,7 +249,7 @@ public class TransactionTests
         tx.Append(new VectorEntry
         {
           Id = insertId, CollectionName = "docs",
-          Content = "inserted"u8.ToArray(), Embedding = new[] { 3f }
+          Content = "inserted"u8.ToArray(), Embeddings = [new[] { 3f }]
         });
         await tx.CommitAsync();
         await store.SaveChangesAsync();
@@ -284,7 +284,7 @@ public class TransactionTests
         tx.Append(new VectorEntry
         {
           Id = deletedId, CollectionName = "docs",
-          Content = "temporary"u8.ToArray(), Embedding = new[] { 1f }
+          Content = "temporary"u8.ToArray(), Embeddings = [new[] { 1f }]
         });
         tx.Delete("docs", deletedId);
         await tx.CommitAsync();
@@ -296,7 +296,7 @@ public class TransactionTests
         tx.Append(new VectorEntry
         {
           Id = insertedId, CollectionName = "docs",
-          Content = "survives"u8.ToArray(), Embedding = new[] { 2f }
+          Content = "survives"u8.ToArray(), Embeddings = [new[] { 2f }]
         });
         await tx.CommitAsync();
       }
@@ -397,7 +397,7 @@ public class TransactionTests
         Id = Guid.NewGuid().ToByteArray(),
         CollectionName = "docs",
         Content = "test"u8.ToArray(),
-        Embedding = new[] { 1f }
+        Embeddings = [new[] { 1f }]
       });
       await tx.CommitAsync();
       await Assert.ThrowsAsync<InvalidOperationException>(() => tx.CommitAsync());
@@ -421,7 +421,7 @@ public class TransactionTests
         Id = Guid.NewGuid().ToByteArray(),
         CollectionName = "docs",
         Content = "test"u8.ToArray(),
-        Embedding = new[] { 1f }
+        Embeddings = [new[] { 1f }]
       });
       tx.Rollback();
       await Assert.ThrowsAsync<InvalidOperationException>(() => tx.CommitAsync());
@@ -446,7 +446,7 @@ public class TransactionTests
         Id = Guid.NewGuid().ToByteArray(),
         CollectionName = "docs",
         Content = "late"u8.ToArray(),
-        Embedding = new[] { 1f }
+        Embeddings = [new[] { 1f }]
       }));
     }
     finally { Directory.Delete(path, recursive: true); }
@@ -473,7 +473,7 @@ public class TransactionTests
         Id = Guid.NewGuid().ToByteArray(),
         CollectionName = "docs",
         Content = "test"u8.ToArray(),
-        Embedding = new[] { 1f }
+        Embeddings = [new[] { 1f }]
       });
       await Assert.ThrowsAsync<InvalidOperationException>(() => tx.CommitAsync());
     }

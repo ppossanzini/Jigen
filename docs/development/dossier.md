@@ -195,3 +195,79 @@ Status: Completed.
 - Verification: `Jigen.Store` and `Jigen.Indexer.HNSW` built with 0 errors.
 - Verification: `JigenStoreTests` 64 passed and `HnswTest` 20 passed, excluding the classes that collide on `/data/jigendb`.
 - Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-MULTIVECTOR-QDRANT-BENCHMARK
+
+Status: Completed.
+
+- Ran the comparative macro-benchmark (`jigendb-hnsw-w8` vs `qdrant`, `random-10k`) against a local Qdrant 1.19.2 container: Jigen post-index P50 0.22 ms vs 3.12 ms, both recall 1.000, ingest 4,066 vs 33,425 vec/s.
+- Verified Qdrant's multi-vector statistics empirically: 40,000 stored vectors over 10,000 points report `points_count: 10000` and `indexed_vectors_count: 10000`. Both counters are per point; the API exposes no vector count.
+- Verified Qdrant de-duplicates multi-vector hits per point (10 results, 10 unique ids), the same pooling Jigen applies when several graph nodes share a document key.
+- Measured the like-for-like multi-vector workload (10k documents × 4 vectors × 128 dimensions): Qdrant ingest 1,989 docs/s plus 3.0 s indexing, search P50 4.94 ms over REST; Jigen `mv:4` 372 docs/s including graph build, search 910 µs in-process.
+- Kept the probe reproducible in `.ai-generated-operations/qdrant-multivector-probe.py`.
+- Verification: `MultiVectorTests` (6 tests, including collection statistics) passed.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-LAZY-INDEXING-VERIFICATION
+
+Status: Completed.
+
+- Confirmed the lazy indexing parameters: `LazyIndexer(Func<IIndexer>, int threshold = 100001)` in the store layer, `jigendb-lazy-wN` (threshold 9,999, or `-t50000`) in the comparative suite, and a new `lazy` / `lt:N` mode in the macro-benchmark.
+- Measured lazy vs eager (10k docs, 128 dim): lazy ingest 77,560 docs/s at K=1 and 43,685 docs/s at K=4 (versus 1629 and 331), but the deferred build is one serial reconciliation pass — 19.64 s and 119.68 s — so time to a searchable graph is 3.2× and 4.0× worse than eager, which builds concurrently across the index workers.
+- Recall is unchanged by lazy indexing, including through a non-first vector (0.932 at K=4), because reconciliation now re-indexes every stored vector.
+- `LazyIndexer` compares the collection's position-index size, so the threshold counts documents, not vectors.
+- Found a measurement artifact in the comparative suite: its pre-index phase issues 5 searches and the first one triggers the lazy switch, so the build cost is charged to the pre-index sample and the `Index (s)` column reports only a second no-op pass (0.02 s). Documented in `docs/benchmarks.md`; the suite itself is unchanged.
+- Verification: macro-benchmark runs for eager/lazy at K=1 and K=4, and comparative macro for `jigendb-lazy-w8`, `jigendb-hnsw-w8` and `qdrant` on `random-10k`.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-MULTIVECTOR-CLIENT-CONTRACT
+
+Status: Completed.
+
+- Found the Python client bindings stale: `_proto/Jigen_pb2.py` was generated from the pre-change proto, so `EmbeddingVector`, `Vector.Vectors` and `EmbeddingResponse.Vectors` did not exist and the client could not send or read multi-vector entries.
+- Regenerated the Python bindings from `Jigen.Client/Protos/Jigen.proto` with `grpc_tools.protoc` and restored the package-relative import in `Jigen_pb2_grpc.py`.
+- Extended the Python client: `embedding=` now accepts one vector or a list of vectors (single goes to the compatible `Embeddings` field, several to `Vectors`), `upsert_many` accepts both shapes per entry, and `get_embeddings` returns every vector while `get_embedding` keeps returning the first.
+- Documented the multi-vector usage in the Python README.
+- Verified end to end against a live .NET gRPC server: multi-vector upsert, read back, search by each of the three vectors, single-vector fallback, bulk streaming path, and the async client.
+- Recorded the reproduction in `.ai-generated-operations/check-python-multivector.py`.
+- Note: the all-in-one host (`Jigen-AllInOne.csproj`) has the `Jigen.Grpc` reference commented out, so it serves no gRPC endpoints and every call falls through to the SPA fallback; the gRPC endpoint lives in `Jigen.csproj`.
+- Verification: 10 Python tests passed (`pytest src/Client/Jigen.Python/tests`), up from 5, covering multi-vector mapping, mixed-shape rejection and `get_embeddings`.
+- Verification: `check-python-multivector.py` reported OK against the live server, and the async path returned all vectors.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-EMBEDDINGS-ONLY
+
+Status: Completed.
+
+- Removed the single-vector ambiguity end to end: `VectorEntry.Embedding`, `VectorEntry<T>.Embedding`, `IStore.GetEmbedding`, `VectorCollection.GetEmbedding`, `Store.GetEmbedding`, the REST route `/embedding`, the CQRS query `GetEmbedding` and the gRPC RPC `GetEmbedding` no longer exist.
+- `VectorEntry.Embeddings` is now the only vector payload at every layer; a single-vector entry is a list of one, and the store, WAL, transaction, shrink and indexers read that list.
+- `SmallWorldIndexer.AddToIndex` expands one entry into one node per vector, so callers no longer fan out per vector; `WriterThread` and `ReconcileAsync` pass whole entries.
+- Wire contract: `Vector` keeps only `Vectors` (field 5 reserved), the stored-vector reply is the new `StoredEmbeddingsResponse { repeated EmbeddingVector Vectors }`, and `EmbeddingResponse` keeps its single `Embeddings` because it belongs to the embedding service (one vector per sentence).
+- REST: `VectorPayload`, `BulkVectorItem` and the transaction payloads carry only `Vectors`; a payload without vectors is rejected with 400; the read route is `.../documents/{key}/embeddings`.
+- Clients: .NET `Add(key, content, float[])` wraps the vector into a one-element list, `GetEmbeddings/GetEmbeddingsAsync` are the only readers; Python regenerated bindings, `embedding=` always fills `Vectors`, `get_embeddings` is the only reader.
+- Verification: `Jigen.Primitives`, `Jigen.Store`, `Jigen.Indexer.HNSW`, `Jigen.API`, `Jigen.Grpc`, both server hosts, `Jigen.Client` and all benchmark/test projects built with 0 errors (only the pre-existing `EmbeddingControllerTests` constructor error remains).
+- Verification: `JigenStoreTests` 64 passed, `HnswTest` 20 passed, Python 10 passed.
+- Verification: live server — the Python contract script reported OK, the REST upsert returned 2 vectors from `.../embeddings`, a payload without vectors got 400, and the .NET client read back `[[1, 0]]` and `[[1, 0], [0, 1]]`.
+- Verification: macro-benchmark smoke run at 5k×64 reproduced recall 0.998.
+- Activated skills: `workflow-development`, `phase-development-technology-resolution`, `phase-development-project-conventions`, `phase-development-configuration-options`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-EMBEDDINGS-ONLY-GUARD
+
+Status: Completed.
+
+- The vector RPCs (`SetVector`, `SetVectors`, `AppendVector`, `SetRawVector`) now reject a request whose `Vectors` list is empty with `InvalidArgument`, so a client still sending the removed single-vector field fails loudly instead of storing an entry without vectors.
+- REST already rejected the same case with 400.
+- Verification: `Jigen.csproj` built with 0 errors; documented in `docs/server/grpc-api.md`.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.
+
+## DEV-EMBEDDINGS-ONLY-BENCHMARK
+
+Status: Completed.
+
+- Re-ran the macro-benchmark after the embeddings-only refactor to confirm no runtime cost: single-vector ingest 1904–2059 docs/s (was 1838), HNSW search 559–602 µs (was 745), recall 0.993 (was 0.994), graph and vectors file sizes unchanged.
+- Multi-vector unchanged within run-to-run variance: K=4 ingest 366–388 docs/s (was 372), recall 0.895–0.900 / 0.926–0.932 on a non-first vector (was 0.902 / 0.935); K=8 ingest 171 docs/s, recall 0.815 / 0.831.
+- Lazy indexing unchanged in shape: K=1 ingest 104,644 docs/s then a 14.54 s build; K=4 91,237 docs/s then 102.22 s.
+- 100k single-vector run: ingest 1186 docs/s, search 1153 µs, recall 0.807, reopen 343 ms (previous run 1048, 1349 µs, 0.798, 444 ms).
+- Comparative suite against Qdrant 1.19.2 at `random-10k` still runs: Jigen HNSW w8 4,033 vec/s and 0.18 ms post-index P50 versus Qdrant 28,066 vec/s and 2.73 ms, both recall 1.000.
+- `docs/benchmarks.md` updated with the re-measured multi-vector and lazy tables.
+- Activated skills: `workflow-development`, `phase-development-project-conventions`, `phase-development-task-execution`, `base-be-base-rules`, and `implementation-be-dotnet-dev`.

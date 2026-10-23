@@ -71,14 +71,14 @@ public class ImageTextIndexingTests
         Id = imageIds[i],
         CollectionName = Collection,
         Content = Encoding.UTF8.GetBytes($"{ImagePrefix}{sample.FileName}"),
-        Embedding = imageEmbedding
+        Embeddings = [imageEmbedding]
       });
       await store.AppendContent(new VectorEntry
       {
         Id = textIds[i],
         CollectionName = Collection,
         Content = Encoding.UTF8.GetBytes($"{TextPrefix}{descriptions[i]}"),
-        Embedding = textEmbedding
+        Embeddings = [textEmbedding]
       });
     }
 

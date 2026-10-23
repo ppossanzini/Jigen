@@ -136,7 +136,7 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndex
 
       if (!nodes.Any())
       {
-        var entrypoint = VectorEntry.Empty.ToNode(Options);
+        var entrypoint = VectorEntry.Empty.ToNode(Options, ReadOnlyMemory<float>.Empty);
         nodes.Add(entrypoint); // position 0 is reserved for entrypoint nodes
       }
 
@@ -278,15 +278,27 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndex
           nodes[node.PositionId] = node;
   }
 
+  // One entry, one node per vector: nodes sharing a document key are merged by
+  // best score at query time, so the document stays reachable through any of
+  // its vectors.
   private void AddToIndex(VectorEntry entry,
     Dictionary<IList<IndexNode>, HashSet<IndexNode>> batchDirty)
   {
-    if (entry is null || entry.Id is null || string.IsNullOrWhiteSpace(entry.CollectionName) || entry.Embedding.IsEmpty)
+    if (entry is null || entry.Id is null || string.IsNullOrWhiteSpace(entry.CollectionName) ||
+        entry.Embeddings is not { Count: > 0 })
       return;
 
+    foreach (var vector in entry.Embeddings)
+      if (!vector.IsEmpty)
+        AddVectorToIndex(entry, vector, batchDirty);
+  }
+
+  private void AddVectorToIndex(VectorEntry entry, ReadOnlyMemory<float> embeddings,
+    Dictionary<IList<IndexNode>, HashSet<IndexNode>> batchDirty)
+  {
     var collection = entry.CollectionName;
     var graph = GetGraphForCollection(collection);
-    var newNode = entry.ToNode(Options);
+    var newNode = entry.ToNode(Options, embeddings);
 
     // hnswlib-style concurrency: the graph lock covers only node allocation
     // and entrypoint changes; adjacency wiring takes per-node locks, so
@@ -716,9 +728,12 @@ public partial class SmallWorldIndexer : IIndexer, IExplorableIndex, IBatchIndex
           var embeddings = store.GetEmbeddings(collection, kv.Key);
           if (embeddings is null) continue;
 
-          foreach (var embedding in embeddings)
-            if (embedding is { Length: > 0 })
-              AddToIndex(new VectorEntry { Id = kv.Key, CollectionName = collection, Embedding = embedding });
+          AddToIndex(new VectorEntry
+          {
+            Id = kv.Key,
+            CollectionName = collection,
+            Embeddings = embeddings.Select(e => (ReadOnlyMemory<float>)e).ToArray()
+          });
         }
       }
     }

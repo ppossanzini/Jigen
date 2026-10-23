@@ -215,16 +215,16 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
     return exists ? Ok() : NotFound();
   }
 
-  [HttpGet("{collection}/documents/{key}/embedding")]
+  [HttpGet("{collection}/documents/{key}/embeddings")]
   [ProducesResponseType(typeof(float[][]), StatusCodes.Status200OK)]
   [ProducesResponseType(StatusCodes.Status400BadRequest)]
-  public async Task<IActionResult> GetEmbedding(string dbname, string collection, string key,
+  public async Task<IActionResult> GetEmbeddings(string dbname, string collection, string key,
     [FromQuery] string keyType = null)
   {
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
 
-    var result = await mediator.Send(new Core.Query.collections.GetEmbedding()
+    var result = await mediator.Send(new Core.Query.collections.GetEmbeddings()
     {
       Database = dbname,
       Collection = collection,
@@ -233,9 +233,6 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
 
     return Ok(result ?? []);
   }
-
-  private static bool HasVectors(float[] embeddings, float[][] vectors) =>
-    vectors is { Length: > 0 } || embeddings is { Length: > 0 };
 
   // ── Vector CRUD (pre-computed embeddings) ──
 
@@ -246,8 +243,8 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   public async Task<IActionResult> SetVector(string dbname, string collection, string key,
     [FromBody] VectorPayload payload, [FromQuery] string keyType = null)
   {
-    if (payload == null || !HasVectors(payload.Embeddings, payload.Vectors))
-      return BadRequest("Vector payload with embeddings or vectors array is required");
+    if (payload?.Vectors is not { Length: > 0 })
+      return BadRequest("Vector payload with a vectors array is required");
 
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
@@ -259,7 +256,6 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
       Content = payload.Payload != null
         ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
         : null,
-      Embeddings = payload.Embeddings,
       Vectors = payload.Vectors
     });
     return Ok();
@@ -299,8 +295,8 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   public async Task<IActionResult> AppendVector(string dbname, string collection, string key,
     [FromBody] VectorPayload payload, [FromQuery] string keyType = null)
   {
-    if (payload == null || !HasVectors(payload.Embeddings, payload.Vectors))
-      return BadRequest("Vector payload with embeddings or vectors array is required");
+    if (payload?.Vectors is not { Length: > 0 })
+      return BadRequest("Vector payload with a vectors array is required");
 
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
@@ -312,7 +308,6 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
       Content = payload.Payload != null
         ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
         : null,
-      Embeddings = payload.Embeddings,
       Vectors = payload.Vectors
     });
     return Ok();
@@ -324,8 +319,8 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
   public async Task<IActionResult> SetRawVector(string dbname, string collection, string key,
     [FromBody] VectorPayload payload, [FromQuery] string keyType = null)
   {
-    if (payload == null || !HasVectors(payload.Embeddings, payload.Vectors))
-      return BadRequest("Vector payload with embeddings or vectors array is required");
+    if (payload?.Vectors is not { Length: > 0 })
+      return BadRequest("Vector payload with a vectors array is required");
 
     if (!TryResolveKey(key, keyType, out var keyVector))
       return BadRequest($"Key '{key}' is not valid for key type '{keyType}'");
@@ -337,7 +332,6 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
       Content = payload.Payload != null
         ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(payload.Payload)).ToArray()
         : null,
-      Embeddings = payload.Embeddings,
       Vectors = payload.Vectors
     });
     return Ok();
@@ -365,7 +359,6 @@ public class CollectionsController(IHikyaku mediator, IDocumentSerializer serial
         Content = item.Payload != null
           ? serializer.FromJson(Newtonsoft.Json.JsonConvert.SerializeObject(item.Payload)).ToArray()
           : null,
-        Embeddings = item.Embeddings,
         Vectors = item.Vectors
       });
       accepted++;

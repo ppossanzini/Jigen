@@ -87,7 +87,7 @@ With `Quantization = VectorQuantization.SQ8`, newly written graph vectors are un
 Trade-offs:
 
 - **~4× smaller** graph vector file (`sbyte` vs `float`), and cheaper SIMD int8 dot products during graph traversal.
-- Small recall cost from the reduced precision, recovered by `ExactRerank` (default `true`): the final candidate set is rescored with the store's full-precision embeddings (via `Store.GetEmbedding`) before the results are ranked and returned.
+- Small recall cost from the reduced precision, recovered by `ExactRerank` (default `true`): the final candidate set is rescored with the store's full-precision embeddings (via `Store.GetEmbeddings`, best vector per document) before the results are ranked and returned.
 - A graph can hold a mix of `float` and `SQ8` records if quantization is turned on mid-life; a scalar mixed-precision dot product path handles that case (slower, compatibility-only).
 
 ```csharp

@@ -72,10 +72,10 @@ public class ReadWriteTest : IDisposable
         Id = s.id.ToByteArray(),
         CollectionName = "vicini",
         Content = MessagePackDocumentSerializer.Instance.Serialize(s.sentence),
-        Embedding = _embeddingGenerator.GenerateEmbedding("search_document",s.sentence),
+        Embeddings = [_embeddingGenerator.GenerateEmbedding("search_document", s.sentence)],
       });
 
-      _testOutputHelper.WriteLine($"{rr.Id} - {rr.Content} - {String.Concat(rr.Embedding.Slice(0, Math.Min(10, rr.Embedding.Length)).ToArray().Select(i => $"{i},"))}");
+      _testOutputHelper.WriteLine($"{rr.Id} - {rr.Content} - {String.Concat(rr.Embeddings[0].Slice(0, Math.Min(10, rr.Embeddings[0].Length)).ToArray().Select(i => $"{i},"))}");
     }
 
 

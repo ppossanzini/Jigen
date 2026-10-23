@@ -69,7 +69,7 @@ public sealed class BgeM3HnswScoreTests : IAsyncDisposable
             Id = Guid.CreateVersion7().ToByteArray(),
             CollectionName = CollectionName,
             Content = Encoding.UTF8.GetBytes(Ticket),
-            Embedding = ticketEmbedding
+            Embeddings = [ticketEmbedding]
         });
         await _store.SaveChangesAsync();
 

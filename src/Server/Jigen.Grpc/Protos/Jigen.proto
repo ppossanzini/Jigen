@@ -6,9 +6,9 @@ option csharp_namespace = "Jigen.Proto";
 service StoreCollectionService {
   rpc ListCollections (CollectionKey) returns (ListCollectionResult);
   rpc GetContent (ItemKey) returns (RawContentResult);
-  // Stored full-precision embedding of a key. Empty Embeddings when the key
-  // does not exist or the entry was stored without a vector.
-  rpc GetEmbedding (ItemKey) returns (EmbeddingResponse);
+  // Every stored full-precision vector of a key, in storage order. Empty
+  // Vectors when the key does not exist or the entry was stored without any.
+  rpc GetEmbeddings (ItemKey) returns (StoredEmbeddingsResponse);
   rpc SetDocument (Document) returns (Result);
   rpc SetVector (Vector) returns (Result);
   // Bulk ingestion: one call, many entries. Avoids the per-item round trip of
@@ -105,10 +105,9 @@ message Vector {
   string Collection = 2;
   bytes Key = 3;
   bytes Content = 4;
-  // Single-vector payload, kept for compatibility.
-  repeated float Embeddings = 5;
-  // Multi-vector payload: every vector of the entry, all with the collection
-  // dimensions. When non-empty it takes precedence over Embeddings.
+  reserved 5; // was a single-vector payload: entries are always multi-vector now
+  // Every vector of the entry, all with the collection dimensions. A
+  // single-vector entry is a list of one.
   repeated EmbeddingVector Vectors = 6;
 }
 
@@ -207,11 +206,14 @@ message EmbeddingRequest {
   string Model = 3;
 }
 
+// Reply of the embedding service: one vector per input sentence.
 message EmbeddingResponse {
-  // First stored vector, kept for compatibility with single-vector readers.
   repeated float Embeddings = 1;
-  // Every stored vector, in storage order.
-  repeated EmbeddingVector Vectors = 2;
+}
+
+// Reply of GetEmbeddings: every vector stored for a key, in storage order.
+message StoredEmbeddingsResponse {
+  repeated EmbeddingVector Vectors = 1;
 }
 
 message EmbeddingBatchRequest {

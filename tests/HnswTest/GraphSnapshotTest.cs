@@ -127,7 +127,7 @@ public class GraphSnapshotTest : IAsyncDisposable
         Id = id,
         CollectionName = _collectionName,
         Content = MessagePackDocumentSerializer.Instance.Serialize($"doc-{i}"),
-        Embedding = embedding
+        Embeddings = [embedding]
       });
     }
 

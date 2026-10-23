@@ -90,7 +90,7 @@ public class TransactionsControllerTests
     {
       Collection = "vecs",
       Key = "v1",
-      Embeddings = [0.1f, 0.2f]
+      Vectors = [[0.1f, 0.2f]]
     };
 
     var result = await controller.AppendVector(txId, payload);

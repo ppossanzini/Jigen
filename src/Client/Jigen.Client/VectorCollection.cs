@@ -89,11 +89,12 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     store.ServiceClient.SetDocument(BuildDocument(key, content, sentence));
   }
 
+  /// <summary>Adds a document with one vector, stored as a one-vector entry.</summary>
   public void Add(VectorKey key, T content, float[] embeddings)
   {
     this.Add(key, new VectorEntry<T>()
     {
-      Content = content, Embedding = embeddings
+      Content = content, Embeddings = [embeddings]
     });
   }
 
@@ -122,11 +123,12 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     await store.ServiceClient.SetDocumentAsync(BuildDocument(key, content, sentence), cancellationToken: cancellationToken).ConfigureAwait(false);
   }
 
+  /// <summary>Adds a document with one vector, stored as a one-vector entry.</summary>
   public Task AddAsync(VectorKey key, T content, float[] embeddings, CancellationToken cancellationToken = default)
   {
     return AddAsync(key, new VectorEntry<T>()
     {
-      Content = content, Embedding = embeddings
+      Content = content, Embeddings = [embeddings]
     }, cancellationToken);
   }
 
@@ -152,9 +154,6 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
       Key = ByteString.CopyFrom(value.Key.Value),
       Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(value.Content).Span),
     };
-
-    if (value.Embedding != null)
-      vector.Embeddings.AddRange(value.Embedding);
 
     foreach (var embeddings in value.Embeddings)
       vector.Vectors.Add(new EmbeddingVector { Embeddings = { embeddings } });
@@ -413,32 +412,12 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   }
 
   /// <summary>
-  /// Reads the stored full-precision embedding of a key, or null when the key
-  /// does not exist or the entry was stored without a vector. Useful for
-  /// "more like this" searches: <c>Search(GetEmbedding(key), top)</c>.
-  /// </summary>
-  public float[] GetEmbedding(VectorKey key)
-  {
-    var result = store.ServiceClient.GetEmbedding(ToItemKey(key));
-    return result.Embeddings.Count > 0 ? result.Embeddings.ToArray() : null;
-  }
-
-  /// <summary>
-  /// Async counterpart of <see cref="GetEmbedding"/>.
-  /// </summary>
-  public async Task<float[]> GetEmbeddingAsync(VectorKey key, CancellationToken cancellationToken = default)
-  {
-    var result = await store.ServiceClient.GetEmbeddingAsync(ToItemKey(key), cancellationToken: cancellationToken).ConfigureAwait(false);
-    return result.Embeddings.Count > 0 ? result.Embeddings.ToArray() : null;
-  }
-
-  /// <summary>
   /// Reads every stored vector of a key, or null when the key does not exist or
-  /// was stored without vectors.
+  /// was stored without vectors. Useful for "more like this" searches.
   /// </summary>
   public float[][] GetEmbeddings(VectorKey key)
   {
-    var result = store.ServiceClient.GetEmbedding(ToItemKey(key));
+    var result = store.ServiceClient.GetEmbeddings(ToItemKey(key));
     return result.Vectors.Count > 0
       ? result.Vectors.Select(v => v.Embeddings.ToArray()).ToArray()
       : null;
@@ -447,7 +426,7 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   /// <summary>Async counterpart of <see cref="GetEmbeddings"/>.</summary>
   public async Task<float[][]> GetEmbeddingsAsync(VectorKey key, CancellationToken cancellationToken = default)
   {
-    var result = await store.ServiceClient.GetEmbeddingAsync(ToItemKey(key), cancellationToken: cancellationToken).ConfigureAwait(false);
+    var result = await store.ServiceClient.GetEmbeddingsAsync(ToItemKey(key), cancellationToken: cancellationToken).ConfigureAwait(false);
     return result.Vectors.Count > 0
       ? result.Vectors.Select(v => v.Embeddings.ToArray()).ToArray()
       : null;

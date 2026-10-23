@@ -24,9 +24,9 @@ Measured on 10,000 documents × 128 dimensions, `M=16`, `efC=200`, `efS=80`, no 
 
 | Vectors/entry | Vectors file | Graph on disk | Ingest | HNSW search | Exact search | recall@10 | recall@10 on a non-first vector |
 |---|---|---|---|---|---|---|---|
-| 1 | 5.11 MB | 7.09 MB | 1838 docs/s | 745 µs | 2831 µs | 0.994 | — |
-| 4 | 19.76 MB | 28.35 MB | 372 docs/s | 910 µs | 2124 µs | 0.902 | 0.935 |
-| 8 | 39.29 MB | 56.70 MB | 159 docs/s | 951 µs | 2926 µs | 0.824 | 0.839 |
+| 1 | 5.11 MB | 7.09 MB | 1904–2059 docs/s | 559–602 µs | 2722 µs | 0.993 | — |
+| 4 | 19.76 MB | 28.35 MB | 366–388 docs/s | 866–1204 µs | 2053 µs | 0.895–0.900 | 0.926–0.932 |
+| 8 | 39.29 MB | 56.70 MB | 171 docs/s | 944 µs | 2933 µs | 0.815 | 0.831 |
 
 Reading of the numbers:
 
@@ -37,6 +37,29 @@ Reading of the numbers:
 - **Exact search pays linearly in `K`**, as expected from scanning `K` vectors per candidate document.
 
 Single-vector collections are unaffected: `mv:1` reproduces the same figures as a plain run.
+
+All figures above were re-measured after removing the single-vector field from `VectorEntry` and the first-vector readers: ingest, query latency, recall and on-disk sizes match the pre-refactor run within noise, so the embeddings-only model costs nothing at runtime. Ingest acceptance for the lazy row is a file-write-only figure and varies with machine state; treat it as an order of magnitude.
+
+### Lazy indexing
+
+`lazy` wraps the indexer in `LazyIndexer(factory, threshold)` (threshold `lt:N`, default 9999): during ingest the graph is not touched at all, and a single reconciliation pass builds it when the threshold is crossed. The benchmark reports that pass as `index build`.
+
+Measured on 10,000 documents × 128 dimensions, `M=16`, `efC=200`, `efS=80`, no quantization, WAL off, auto workers:
+
+| Indexing | Vectors/entry | Ingest | Index build | Time to searchable | Search P50 | recall@10 |
+|---|---|---|---|---|---|---|
+| eager | 1 | 1904–2059 docs/s | — | 5 s | 559–602 µs | 0.993 |
+| lazy | 1 | 104,644 docs/s | 14.54 s | 14.6 s | 547 µs | 0.996 |
+| eager | 4 | 366–388 docs/s | — | 26 s | 866–1204 µs | 0.895–0.900 |
+| lazy | 4 | 91,237 docs/s | 102.22 s | 102 s | ~900 µs | 0.903 |
+
+Reading of the numbers:
+
+- **Lazy defers, it does not accelerate.** Ingest acceptance becomes 47× faster because only bytes are appended, but the deferred reconciliation pass is **serial** (one `AddToIndex` per vector, no parallel wiring), so the total time to a searchable graph is 2–4× worse than eager indexing, which builds the graph concurrently with the writes across all `IndexerWorkers`.
+- **Recall is identical**, including through a non-first vector at `K=4` (0.932), because the reconciliation pass now re-indexes every stored vector.
+- **The threshold counts documents, not vectors**: `LazyIndexer` compares the collection's position-index size, so a `K`-vector document advances the counter by one.
+- Lazy indexing pays off when accepting writes fast matters more than reaching a searchable graph fast, or when the collection stays under the threshold and never builds a graph at all.
+- The comparative suite's lazy row does not reflect this: its pre-index phase issues 5 searches, the first of which triggers the switch, so the build cost lands in the pre-index sample and the `Index (s)` column shows only the cheap second pass.
 
 ## Comparative benchmarks (Jigen vs Qdrant vs Milvus vs pgvector)
 
@@ -114,9 +137,9 @@ dotnet run -c Release -- micro ALL random-100k
 
 | Insight | Detail |
 |---|---|
-| **Lazy indexing wins** | Ingest is 32× faster than eager HNSW while delivering identical search latency |
+| **Lazy indexing changes when you pay, not how much** | Ingest acceptance is 32–47× faster than eager HNSW with identical search latency and recall, but the deferred reconciliation pass is serial: total time to a searchable graph is 2–4× worse. See [Lazy indexing](#lazy-indexing). |
 | **In-process vs client-server** | Jigen runs **embedded in the process** (zero network, zero serialisation). Qdrant/Milvus/pgvector are **external services** accessed over gRPC/PostgreSQL — this architectural difference, not just algorithmic, drives the 6–40× latency gap. For client-server Jigen, see the [Server docs](server/overview.md). |
-| **Index build cost varies** | Jigen: 0.03s (reconciliation), pgvector: 0.02s (CREATE INDEX), Qdrant: 0.50s (background merge), Milvus: 1.18s (release→drop→create→wait→reload) |
+| **Index build cost varies** | Jigen eager: 0.03s (incremental, paid during ingest), pgvector: 0.02s (CREATE INDEX), Qdrant: 0.50s (background merge), Milvus: 1.18s (release→drop→create→wait→reload). The lazy Jigen row reports only a second no-op pass: the real build runs inside the pre-index warmup and takes ~20s per 10k vectors. |
 | **Recall parity** | All indexed backends achieve Recall@10 = 1.000 on this dataset |
 
 ## Vector index (HNSW, disk-backed)

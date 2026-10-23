@@ -72,12 +72,12 @@ public class HnswSplitStorageTest
         await store.AppendContent(new VectorEntry
         {
           Id = firstId, CollectionName = "a/b", Content = "first"u8.ToArray(),
-          Embedding = new[] { 1f, 0f }
+          Embeddings = [new[] { 1f, 0f }]
         });
         await store.AppendContent(new VectorEntry
         {
           Id = secondId, CollectionName = "a_b", Content = "second"u8.ToArray(),
-          Embedding = new[] { 0f, 1f }
+          Embeddings = [new[] { 0f, 1f }]
         });
         await store.SaveChangesAsync();
       }
@@ -253,7 +253,7 @@ public class HnswSplitStorageTest
         Id = id,
         CollectionName = "docs",
         Content = MessagePackDocumentSerializer.Instance.Serialize($"doc-{i}"),
-        Embedding = embedding
+        Embeddings = [embedding]
       });
 
       seeded.Add((id, embedding));

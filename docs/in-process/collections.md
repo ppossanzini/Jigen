@@ -30,7 +30,7 @@ var articles = store.VectorCollection<Article>("articles");
 articles.Add(Guid.NewGuid(), new VectorEntry<Article>
 {
   Content = new Article { Title = "Hello" },
-  Embedding = embeddingVector
+  Embeddings = [embeddingVector]
 });
 
 articles.ContainsKey(key);
@@ -56,7 +56,7 @@ var news = articles.Search(queryVector, top: 10, predicate: a => a.Category == "
 var results = articles.Search("vector databases in .NET", top: 10);
 
 // read back the stored full-precision embedding of a key (null when absent)
-float[] embedding = articles.GetEmbedding(key);
+float[][] vectors = articles.GetEmbeddings(key); // every vector of the entry
 ```
 
 The predicate is translated to the serialized-level filter AST and evaluated without deserializing the documents, like `DocumentCollection<T>.Search`.

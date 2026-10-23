@@ -96,7 +96,7 @@ public class HnswDeleteTest : IAsyncDisposable
       Id = freshId,
       CollectionName = _collectionName,
       Content = MessagePackDocumentSerializer.Instance.Serialize("fresh"),
-      Embedding = freshEmbedding
+      Embeddings = [freshEmbedding]
     });
     await _store.SaveChangesAsync();
 
@@ -120,7 +120,7 @@ public class HnswDeleteTest : IAsyncDisposable
         Id = id,
         CollectionName = _collectionName,
         Content = MessagePackDocumentSerializer.Instance.Serialize($"doc-{i}"),
-        Embedding = embedding
+        Embeddings = [embedding]
       });
 
       seeded.Add((id, embedding));

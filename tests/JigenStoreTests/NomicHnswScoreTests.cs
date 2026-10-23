@@ -73,7 +73,7 @@ public sealed class NomicHnswScoreTests : IAsyncDisposable
             Id = Guid.CreateVersion7().ToByteArray(),
             CollectionName = CollectionName,
             Content = Encoding.UTF8.GetBytes(Ticket),
-            Embedding = ticketEmbedding
+            Embeddings = [ticketEmbedding]
         });
         await _store.SaveChangesAsync();
 

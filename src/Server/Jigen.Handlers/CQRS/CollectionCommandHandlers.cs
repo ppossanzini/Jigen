@@ -24,33 +24,33 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    float[] embeddings = request.Vectors is { Length: > 0 }
-      ? null
-      : NullIfEmpty(request.Embeddings) ?? ( request.Sentence != null
-        ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence, Task = serverSettings.Value.EmbeddingCostructionTask }, cancellationToken)
-        : null);
+    var vectors = request.Vectors is { Length: > 0 }
+      ? request.Vectors
+      : request.Sentence is not null
+        ? [await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence, Task = serverSettings.Value.EmbeddingCostructionTask }, cancellationToken)]
+        : null;
 
-    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, embeddings, request.Vectors));
+    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, vectors));
   }
 
   public async Task Handle(SetDocument request, CancellationToken cancellationToken)
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    var embeddings = request.Vectors is { Length: > 0 }
-      ? null
-      : NullIfEmpty(request.Embeddings) ?? ( request.Sentence != null
-        ? await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence, Task = serverSettings.Value.EmbeddingCostructionTask  }, cancellationToken)
-        : null);
+    var vectors = request.Vectors is { Length: > 0 }
+      ? request.Vectors
+      : request.Sentence is not null
+        ? [await hikyaku.Send(new Embedding.Core.Commands.CalculateEmbeddings() { Sentence = request.Sentence, Task = serverSettings.Value.EmbeddingCostructionTask  }, cancellationToken)]
+        : null;
 
-    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, embeddings, request.Vectors));
+    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, vectors));
   }
 
   public async Task Handle(AppendVector request, CancellationToken cancellationToken)
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, request.Embeddings, request.Vectors));
+    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, request.Vectors));
   }
 
   public async Task Handle(DeleteVector request, CancellationToken cancellationToken)
@@ -64,14 +64,14 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, request.Embeddings, request.Vectors));
+    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, request.Vectors));
   }
 
   public async Task Handle(SetRawVector request, CancellationToken cancellationToken)
   {
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
-    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, request.Embeddings, request.Vectors));
+    await store.AppendContent(ToEntry(request.Collection, request.Key, request.Content, request.Vectors));
   }
 
   public async Task Handle(Clear request, CancellationToken cancellationToken)
@@ -81,25 +81,16 @@ public class CollectionCommandHandlers( DatabasesManager manager , IHikyaku hiky
     await store.ClearContent(request.Collection);
   }
 
-  private static VectorEntry ToEntry(string collection, byte[] key, byte[] content, float[] embeddings, float[][] vectors)
-  {
-    var entry = new VectorEntry
+  private static VectorEntry ToEntry(string collection, byte[] key, byte[] content, float[][] vectors) =>
+    new()
     {
       CollectionName = collection,
       Id = key,
-      Content = content
+      Content = content,
+      Embeddings = vectors is { Length: > 0 }
+        ? vectors.Select(v => (ReadOnlyMemory<float>)v).ToArray()
+        : []
     };
-
-    if (vectors is { Length: > 0 })
-      entry.Embeddings = vectors.Select(v => (ReadOnlyMemory<float>)v).ToArray();
-    else
-      entry.Embedding = embeddings;
-
-    return entry;
-  }
-
-  private static float[] NullIfEmpty(float[] embeddings) =>
-    embeddings is { Length: > 0 } ? embeddings : null;
 
   public Task<int> Handle(Count request, CancellationToken cancellationToken)
   {

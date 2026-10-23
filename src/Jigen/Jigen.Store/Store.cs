@@ -83,7 +83,7 @@ public partial class Store : IStore, IDisposable
 
   internal void ValidateVectorDimensions(VectorEntry entry)
   {
-    var vectors = entry?.Vectors;
+    var vectors = entry?.Embeddings;
     if (vectors is not { Count: > 0 }) return;
     if (string.IsNullOrWhiteSpace(entry.CollectionName))
       throw new ArgumentException("Collection name cannot be empty.", nameof(entry));

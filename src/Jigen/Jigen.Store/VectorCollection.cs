@@ -73,9 +73,10 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     AddAsync(key, value).GetAwaiter().GetResult();
   }
 
+  /// <summary>Adds a document with one vector, stored as a one-vector entry.</summary>
   public void Add(VectorKey key, T content, float[] embeddings)
   {
-    Add(key, new VectorEntry<T> { Content = content, Embedding = embeddings });
+    Add(key, new VectorEntry<T> { Content = content, Embeddings = [embeddings] });
   }
 
   /// <summary>Adds a document stored with several vectors (e.g. one per passage).</summary>
@@ -90,7 +91,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   /// </summary>
   public void Add(VectorKey key, T content, string sentence)
   {
-    Add(key, new VectorEntry<T> { Content = content, Embedding = EmbedSentence(sentence) });
+    Add(key, new VectorEntry<T> { Content = content, Embeddings = [EmbedSentence(sentence)] });
   }
 
   public Task AddAsync(VectorKey key, VectorEntry<T> value)
@@ -104,14 +105,13 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
       Id = key.Value,
       CollectionName = CollectionName,
       Content = _options.DocumentSerializer.Serialize(value.Content),
-      Embedding = value.Embedding,
       Embeddings = value.Embeddings.Select(e => (ReadOnlyMemory<float>)e).ToArray()
     });
   }
 
   public Task AddAsync(VectorKey key, T content, float[] embeddings)
   {
-    return AddAsync(key, new VectorEntry<T> { Content = content, Embedding = embeddings });
+    return AddAsync(key, new VectorEntry<T> { Content = content, Embeddings = [embeddings] });
   }
 
   /// <summary>Adds a document stored with several vectors (e.g. one per passage).</summary>
@@ -126,7 +126,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   /// </summary>
   public Task AddAsync(VectorKey key, T content, string sentence)
   {
-    return AddAsync(key, new VectorEntry<T> { Content = content, Embedding = EmbedSentence(sentence) });
+    return AddAsync(key, new VectorEntry<T> { Content = content, Embeddings = [EmbedSentence(sentence)] });
   }
 
   public bool ContainsKey(VectorKey key)
@@ -156,15 +156,6 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
       }
       : null;
     return result != null;
-  }
-
-  /// <summary>
-  /// Reads the stored full-precision embedding of a key, or null when the key
-  /// does not exist or was stored without a vector.
-  /// </summary>
-  public float[] GetEmbedding(VectorKey key)
-  {
-    return store.GetEmbedding(CollectionName, key.Value);
   }
 
   /// <summary>
@@ -246,7 +237,7 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
         {
           Key = k.k,
           Content = k.content is { Length: > 0 } ? _options.DocumentSerializer.Deserialize<T>(k.content) : null,
-          Embedding = k.embeddings
+          Embeddings = k.embeddings.Length > 0 ? [k.embeddings] : []
         }).ToArray();
       }
 

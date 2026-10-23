@@ -19,11 +19,11 @@ public class TornIndexLogTests
 
     await store.AppendContent(new VectorEntry
     {
-      Id = first, CollectionName = "docs", Content = "first"u8.ToArray(), Embedding = new float[] { 1f, 2f, 3f }
+      Id = first, CollectionName = "docs", Content = "first"u8.ToArray(), Embeddings = [new float[] { 1f, 2f, 3f }]
     });
     await store.AppendContent(new VectorEntry
     {
-      Id = second, CollectionName = "docs", Content = "second"u8.ToArray(), Embedding = new float[] { 4f, 5f, 6f }
+      Id = second, CollectionName = "docs", Content = "second"u8.ToArray(), Embeddings = [new float[] { 4f, 5f, 6f }]
     });
     await store.SaveChangesAsync();
     await store.Close();
@@ -88,7 +88,7 @@ public class TornIndexLogTests
       var third = Guid.NewGuid().ToByteArray();
       await reopened.AppendContent(new VectorEntry
       {
-        Id = third, CollectionName = "docs", Content = "third"u8.ToArray(), Embedding = new float[] { 7f, 8f, 9f }
+        Id = third, CollectionName = "docs", Content = "third"u8.ToArray(), Embeddings = [new float[] { 7f, 8f, 9f }]
       });
       await reopened.SaveChangesAsync();
       await reopened.Close();
@@ -146,7 +146,7 @@ public class TornIndexLogTests
       var id = Guid.NewGuid().ToByteArray();
       await store.AppendContent(new VectorEntry
       {
-        Id = id, CollectionName = "docs", Content = "payload"u8.ToArray(), Embedding = new float[] { 1f, 2f, 3f }
+        Id = id, CollectionName = "docs", Content = "payload"u8.ToArray(), Embeddings = [new float[] { 1f, 2f, 3f }]
       });
 
       // The indexer failure must not kill the writer thread: the entry is

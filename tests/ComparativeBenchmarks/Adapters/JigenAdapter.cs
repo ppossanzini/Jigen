@@ -100,7 +100,7 @@ public sealed class JigenAdapter : IVectorDbAdapter
                 Id = Guid.CreateVersion7().ToByteArray(),
                 CollectionName = "bench",
                 Content = "x"u8.ToArray(),
-                Embedding = vectors[i]
+                Embeddings = [vectors[i]]
             });
 
             if (bulk.Count >= batchSize || i == vectors.Length - 1)

@@ -1,9 +1,11 @@
 // Jigen macro-benchmark: ingest / search (with recall) / delete / reopen on a
 // disk-backed store with the HNSW indexer.
 //
-//   dotnet run -c Release [-- N [dim] [sq8] [wal] [bulk] [mv:K]]
+//   dotnet run -c Release [-- N [dim] [sq8] [wal] [bulk] [mv:K] [lazy] [lt:N]]
 //                                                     (defaults: 10000 128)
 // mv:K stores K vectors per document (multi-vector entries, e.g. passages).
+// lazy wraps the indexer in LazyIndexer: no graph while ingesting, one build
+// pass at the threshold (lt:N, default 9999) — reported as "index build".
 //
 // Run it before and after performance work: the recall column is the guard
 // against "faster but wrong" regressions.
@@ -25,6 +27,9 @@ var workersArg = args.FirstOrDefault(a => a.StartsWith("w") && int.TryParse(a.As
 var workers = workersArg is null ? (int?)null : int.Parse(workersArg.AsSpan(1));
 var vectorsArg = args.FirstOrDefault(a => a.StartsWith("mv:") && int.TryParse(a.AsSpan(3), out _));
 var vectorsPerEntry = vectorsArg is null ? 1 : Math.Max(1, int.Parse(vectorsArg.AsSpan(3)));
+var lazy = args.Contains("lazy", StringComparer.OrdinalIgnoreCase);
+var lazyThresholdArg = args.FirstOrDefault(a => a.StartsWith("lt:") && int.TryParse(a.AsSpan(3), out _));
+var lazyThreshold = lazyThresholdArg is null ? 9_999 : int.Parse(lazyThresholdArg.AsSpan(3));
 
 const int SearchQueries = 500;
 const int RecallQueries = 100;
@@ -34,20 +39,22 @@ const int Top = 10;
 var root = Path.Combine(Path.GetTempPath(), "jigen-bench", Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
 
+SmallWorldIndexer CreateGraph() => new(new SmallWorldOptions
+{
+  M = 16,
+  EfConstruction = 200,
+  EfSearch = 80,
+  StoragePath = Path.Combine(root, "hnsw"),
+  generator = new Random(4242),
+  Quantization = sq8 ? VectorQuantization.SQ8 : VectorQuantization.None
+});
+
 StoreOptions OptionsFor() => new()
 {
   DataBasePath = root,
   DataBaseName = "bench",
   IndexerWorkers = workers ?? Math.Clamp(Environment.ProcessorCount / 2, 1, 8),
-  Indexer = new SmallWorldIndexer(new SmallWorldOptions
-  {
-    M = 16,
-    EfConstruction = 200,
-    EfSearch = 80,
-    StoragePath = Path.Combine(root, "hnsw"),
-    generator = new Random(4242),
-    Quantization = sq8 ? VectorQuantization.SQ8 : VectorQuantization.None
-  }),
+  Indexer = lazy ? new LazyIndexer(CreateGraph, lazyThreshold) : CreateGraph(),
   Wal = wal ? new WalOptions
   {
     Enabled = true,
@@ -60,7 +67,8 @@ StoreOptions OptionsFor() => new()
   } : null
 };
 
-Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, wal={(wal ? walDurability ?? "group" : "off")}, workers={workers?.ToString() ?? "auto"}, ingest={(bulk ? "bulk" : "scalar")}, vectors/entry={vectorsPerEntry}");
+Console.WriteLine($"Jigen bench — N={n}, dim={dim}, M=16, efC=200, efS=80, quant={(sq8 ? "SQ8" : "none")}, wal={(wal ? walDurability ?? "group" : "off")}, workers={workers?.ToString() ?? "auto"}, ingest={(bulk ? "bulk" : "scalar")}, vectors/entry={vectorsPerEntry}"
+    + (lazy ? $", index=lazy(threshold {lazyThreshold})" : ", index=eager"));
 Console.WriteLine(new string('-', 64));
 
 try
@@ -77,15 +85,15 @@ try
 
   // Additional vectors of a multi-vector entry: independent random vectors, so
   // a query only matches the entry through the vector it embeds.
-  var extraVectors = new float[n][][];
-  if (vectorsPerEntry > 1)
-    for (var i = 0; i < n; i++)
-    {
-      extraVectors[i] = new float[vectorsPerEntry][];
-      extraVectors[i][0] = vectors[i];
-      for (var k = 1; k < vectorsPerEntry; k++)
-        extraVectors[i][k] = CreateUnitVector(random, dim);
-    }
+  // One list per document; with K=1 it holds the single vector.
+  var documentVectors = new float[n][][];
+  for (var i = 0; i < n; i++)
+  {
+    documentVectors[i] = new float[vectorsPerEntry][];
+    documentVectors[i][0] = vectors[i];
+    for (var k = 1; k < vectorsPerEntry; k++)
+      documentVectors[i][k] = CreateUnitVector(random, dim);
+  }
 
   // ---- ingest -------------------------------------------------------------
   var sw = Stopwatch.StartNew();
@@ -96,10 +104,7 @@ try
       entries[i] = new VectorEntry
       {
         Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(),
-        Embedding = vectorsPerEntry == 1 ? vectors[i] : default,
-        Embeddings = vectorsPerEntry == 1
-          ? []
-          : extraVectors[i].Select(v => (ReadOnlyMemory<float>)v).ToArray()
+        Embeddings = documentVectors[i].Select(v => (ReadOnlyMemory<float>)v).ToArray()
       };
     await store.AppendContentBulk(entries);
   }
@@ -109,16 +114,22 @@ try
       await store.AppendContent(new VectorEntry
       {
         Id = ids[i], CollectionName = "bench", Content = "x"u8.ToArray(),
-        Embedding = vectorsPerEntry == 1 ? vectors[i] : default,
-        Embeddings = vectorsPerEntry == 1
-          ? []
-          : extraVectors[i].Select(v => (ReadOnlyMemory<float>)v).ToArray()
+        Embeddings = documentVectors[i].Select(v => (ReadOnlyMemory<float>)v).ToArray()
       });
   }
   await store.SaveChangesAsync();
   sw.Stop();
   Report("ingest", $"{n / sw.Elapsed.TotalSeconds,10:0} vec/s   ({sw.Elapsed.TotalSeconds:0.0}s total)"
     + (vectorsPerEntry > 1 ? $", {n * vectorsPerEntry / sw.Elapsed.TotalSeconds:0} vectors/s stored" : ""));
+
+  // ---- index build (lazy: the one reconciliation pass) ---------------------
+  if (lazy)
+  {
+    sw.Restart();
+    await store.ReconcileIndexAsync();
+    sw.Stop();
+    Report("index build", $"{sw.Elapsed.TotalSeconds,10:0.00} s   (lazy switch, efC=200)");
+  }
 
   // ---- HNSW search + recall vs brute force --------------------------------
   var brute = new BruteForceIndexer();
@@ -148,7 +159,7 @@ try
     var tailRecallSum = 0d;
     for (var i = 0; i < RecallQueries; i++)
     {
-      var query = extraVectors[(int)((long)i * n / RecallQueries)][vectorsPerEntry - 1];
+      var query = documentVectors[(int)((long)i * n / RecallQueries)][vectorsPerEntry - 1];
       var expected = brute.Search(store, "bench", query, Top)
         .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
       var got = store.Search("bench", query, Top)

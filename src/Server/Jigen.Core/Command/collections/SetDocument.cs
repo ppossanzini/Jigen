@@ -9,8 +9,6 @@ public class SetDocument : IRequest
   public byte[] Key { get; set; }
   public byte[] Content { get; set; }
   public string Sentence { get; set; }
-  public float[] Embeddings { get; set; }
-
-  /// <summary>Every vector of a multi-vector entry; overrides <see cref="Embeddings"/> when set.</summary>
+  /// <summary>Every vector of the entry, all with the collection dimensions. A single-vector entry is an array of one.</summary>
   public float[][] Vectors { get; set; }
 }

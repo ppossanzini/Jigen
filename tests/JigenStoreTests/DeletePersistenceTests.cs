@@ -21,11 +21,11 @@ public class DeletePersistenceTests
 
       await store.AppendContent(new VectorEntry
       {
-        Id = keepId, CollectionName = "docs", Content = "keep-me"u8.ToArray(), Embedding = new float[] { 1f, 2f, 3f }
+        Id = keepId, CollectionName = "docs", Content = "keep-me"u8.ToArray(), Embeddings = [new float[] { 1f, 2f, 3f }]
       });
       await store.AppendContent(new VectorEntry
       {
-        Id = deleteId, CollectionName = "docs", Content = "delete-me"u8.ToArray(), Embedding = new float[] { 4f, 5f, 6f }
+        Id = deleteId, CollectionName = "docs", Content = "delete-me"u8.ToArray(), Embeddings = [new float[] { 4f, 5f, 6f }]
       });
       await store.SaveChangesAsync();
 
@@ -62,7 +62,7 @@ public class DeletePersistenceTests
 
       await store.AppendContent(new VectorEntry
       {
-        Id = id, CollectionName = "docs", Content = "first"u8.ToArray(), Embedding = new float[] { 1f, 2f, 3f }
+        Id = id, CollectionName = "docs", Content = "first"u8.ToArray(), Embeddings = [new float[] { 1f, 2f, 3f }]
       });
       await store.SaveChangesAsync();
 
@@ -70,7 +70,7 @@ public class DeletePersistenceTests
 
       await store.AppendContent(new VectorEntry
       {
-        Id = id, CollectionName = "docs", Content = "second"u8.ToArray(), Embedding = new float[] { 4f, 5f, 6f }
+        Id = id, CollectionName = "docs", Content = "second"u8.ToArray(), Embeddings = [new float[] { 4f, 5f, 6f }]
       });
       await store.SaveChangesAsync();
       await store.Close();

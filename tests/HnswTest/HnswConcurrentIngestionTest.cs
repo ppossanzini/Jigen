@@ -54,7 +54,7 @@ public class HnswConcurrentIngestionTest : IAsyncDisposable
         Id = id,
         CollectionName = _collectionName,
         Content = MessagePackDocumentSerializer.Instance.Serialize("doc"),
-        Embedding = embedding
+        Embeddings = [embedding]
       });
 
     await _store.SaveChangesAsync();

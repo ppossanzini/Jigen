@@ -197,12 +197,6 @@ public partial class Store
     return buffer;
   }
 
-  public float[] GetEmbedding(string collection, byte[] id)
-  {
-    var vectors = GetEmbeddings(collection, id);
-    return vectors is { Length: > 0 } ? vectors[0] : null;
-  }
-
   /// <summary>
   /// Every stored vector of a key (one per multi-vector slot), or null when the
   /// key does not exist or was stored without vectors.

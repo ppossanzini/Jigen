@@ -25,7 +25,7 @@ public class StoreLifecycleTests
           Id = ids[i],
           CollectionName = "docs",
           Content = Encoding.UTF8.GetBytes($"content-{i}"),
-          Embedding = new[] { i, i + 1f }
+          Embeddings = [new[] { i, i + 1f }]
         });
 
       // No SaveChangesAsync: Close alone must drain the ingestion queue
@@ -64,7 +64,7 @@ public class StoreLifecycleTests
           Id = id,
           CollectionName = "docs",
           Content = "via-dispose"u8.ToArray(),
-          Embedding = new[] { 1f, 2f }
+          Embeddings = [new[] { 1f, 2f }]
         });
         // Dispose (from using) must flush everything; a redundant Close must not throw
         await store.Close();
@@ -93,10 +93,10 @@ public class StoreLifecycleTests
 
       var keepId = Guid.NewGuid().ToByteArray();
       await store.AppendContent(new VectorEntry
-        { Id = keepId, CollectionName = "keepers", Content = "keep"u8.ToArray(), Embedding = new[] { 1f } });
+        { Id = keepId, CollectionName = "keepers", Content = "keep"u8.ToArray(), Embeddings = [new[] { 1f }] });
       for (var i = 0; i < 10; i++)
         await store.AppendContent(new VectorEntry
-          { Id = Guid.NewGuid().ToByteArray(), CollectionName = "wiped", Content = "gone"u8.ToArray(), Embedding = new[] { 2f } });
+          { Id = Guid.NewGuid().ToByteArray(), CollectionName = "wiped", Content = "gone"u8.ToArray(), Embeddings = [new[] { 2f }] });
       await store.SaveChangesAsync();
 
       Assert.Equal(10, await store.ClearContent("wiped"));

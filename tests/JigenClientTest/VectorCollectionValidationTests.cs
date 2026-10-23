@@ -23,7 +23,7 @@ public class VectorCollectionValidationTests
       {
         Key = 1,
         Content = new ValidationEntity { Name = "ok" },
-        Embedding = Array.Empty<float>()
+        Embeddings = []
       }));
 
     Assert.Contains("DatabaseName", exception.Message);

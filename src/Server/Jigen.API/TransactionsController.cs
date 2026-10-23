@@ -89,7 +89,6 @@ public class TransactionsController(IHikyaku mediator) : ControllerBase
       Collection = payload.Collection,
       Key = payload.Key,
       Content = payload.Payload,
-      Embeddings = payload.Embeddings,
       Vectors = payload.Vectors
     });
 
@@ -159,7 +158,6 @@ public class TransactionsController(IHikyaku mediator) : ControllerBase
               Database = state.Database,
               Collection = op.Collection,
               Key = System.Text.Encoding.UTF8.GetBytes(op.Key),
-              Embeddings = op.Embeddings,
               Vectors = op.Vectors
             });
             break;
@@ -221,7 +219,6 @@ internal class TransactionOpState
   public string Key { get; set; }
   public object Content { get; set; }
   public string Sentence { get; set; }
-  public float[] Embeddings { get; set; }
   public float[][] Vectors { get; set; }
 }
 
@@ -245,7 +242,6 @@ public class TransactionVectorPayload
   public string Collection { get; set; }
   public string Key { get; set; }
   public object Payload { get; set; }
-  public float[] Embeddings { get; set; }
   public float[][] Vectors { get; set; }
 }
 

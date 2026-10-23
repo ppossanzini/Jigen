@@ -275,30 +275,15 @@ public class Writer
               var idx = indexEntries[i];
               TempIndex.Enqueue(idx);
 
-              // One graph node per stored vector, all under the same key: the
-              // indexer merges nodes sharing a key by best score, so a
-              // multi-vector document is reachable through any of its vectors.
+              // The indexer expands the entry into one node per vector.
               var original = batch[i];
-              var vectors = original.Vectors;
-              if (vectors.Count == 0)
+              EnqueueForIndexing(new VectorEntry()
               {
-                EnqueueForIndexing(new VectorEntry()
-                {
-                  Id = idx.id,
-                  CollectionName = original.CollectionName,
-                  Content = original.Content
-                });
-                continue;
-              }
-
-              foreach (var vector in vectors)
-                EnqueueForIndexing(new VectorEntry()
-                {
-                  Id = idx.id,
-                  CollectionName = original.CollectionName,
-                  Embedding = vector,
-                  Content = original.Content
-                });
+                Id = idx.id,
+                CollectionName = original.CollectionName,
+                Embeddings = original.Embeddings,
+                Content = original.Content
+              });
             }
           }
           finally

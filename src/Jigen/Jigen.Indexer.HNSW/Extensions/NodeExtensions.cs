@@ -44,14 +44,13 @@ public static class NodeExtensions
     return (int)r;
   }
 
-  public static IndexNode ToNode(this VectorEntry item, SmallWorldOptions options)
+  public static IndexNode ToNode(this VectorEntry item, SmallWorldOptions options, ReadOnlyMemory<float> embedding)
   {
     var maxLevel = GetMaxLevel(options);
 
     // AllocateUninitializedArray avoids the zero-initialization that ToArray()
     // pays: the entire array is overwritten by CopyTo below before NormalizeInPlace
     // reads any element, so the uninitialized content is never observed.
-    var embedding = item.Embedding;
     var vector = GC.AllocateUninitializedArray<float>(embedding.Length);
     embedding.Span.CopyTo(vector);
     NormalizeInPlace(vector);

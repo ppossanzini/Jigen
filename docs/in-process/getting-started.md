@@ -44,7 +44,7 @@ await store.AppendContent(new VectorEntry
   Id = Guid.NewGuid().ToByteArray(),
   CollectionName = "articles",
   Content = MessagePackDocumentSerializer.Instance.Serialize("Hello, Jigen!"),
-  Embedding = embeddingVector // float[] or ReadOnlyMemory<float>
+  Embeddings = [embeddingVector] // one vector per entry
 });
 ```
 
@@ -62,7 +62,7 @@ var articles = store.VectorCollection<Article>("articles");
 articles.Add(Guid.NewGuid(), new VectorEntry<Article>
 {
   Content = new Article { Title = "Hello", Body = "Hello, Jigen!" },
-  Embedding = embeddingVector
+  Embeddings = [embeddingVector]
 });
 ```
 
@@ -84,7 +84,7 @@ tx.Append(new VectorEntry
   Id = key1,
   CollectionName = "orders",
   Content = serializedOrder1,
-  Embedding = embedding1
+  Embeddings = [embedding1]
 });
 tx.Delete("orders", key2);   // delete another entry atomically with the insert
 await tx.CommitAsync();      // BEGIN → [insert] → [delete] → COMMIT in one WAL write
