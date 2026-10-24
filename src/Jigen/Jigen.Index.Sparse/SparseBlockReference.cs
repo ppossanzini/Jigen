@@ -20,6 +20,8 @@ public sealed class SparseBlockReference
     public int LastVectorIndex { get; }
 
     internal int SerializedSize => checked(FixedSize + _firstDocumentId.Length + _lastDocumentId.Length);
+    internal SparsePosting LastPosting =>
+        new(_lastDocumentId, 0, _lastDocumentId.Length, LastVectorIndex, 0);
 
     public SparseBlockReference(int blockIndex, SparsePostingBlock block)
     {

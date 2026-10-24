@@ -1,5 +1,135 @@
 # Development Dossier
 
+## SP-07C: top-k e ordinamento degli intervalli
+
+Stato: annullato su richiesta dell'utente il 24 ottobre 2026 alle 10:46.
+Ripristinato il codice precedente a SP-07C; conservati SP-07B e il benchmark
+originale. Le misure sotto documentano il tentativo scartato, non il codice attuale.
+Scope: SparseMaxScoreSearch, SparseSearchResult, SparseTermDirectoryEntry,
+SparseIndex. Benchmark originale invariato.
+
+- Il top-k scarta i documenti non competitivi prima di allocare il risultato;
+  trasferisce al risultato il buffer posseduto del documento pendente senza
+  ricopiarlo. Punteggi e pareggi conservano il confronto precedente.
+- Ordinamento dei limiti una sola volta per intervallo effettivamente visitato.
+  Le selezioni successive riutilizzano l'ordine; accumulo e arrotondamento invariati.
+- Capacita iniziale dei due HashSet della directory e della lista dei termini.
+- 127 test superati in Debug e in Release; formatter verificato.
+  Nessun test modificato; warning NU1902 preesistente.
+- Baseline prima delle modifiche, protocollo originale: k=1 8,35 ms,
+  k=10 8,70 ms, k=100 9,19 ms, k=max 9,91 ms; 1.265,3 KiB/query top-10.
+- Dopo: k=1 8,81 ms, k=10 9,14 ms, k=100 9,51 ms, k=max 10,77 ms.
+  Ripetizione senza modifiche: 8,70 / 9,05 / 9,39 / 10,49 ms.
+  Allocazioni top-10 in entrambe le esecuzioni: 1.079,5 KiB/query (-14,7%).
+- Latenza top-10 osservata peggiorata del 4-5% sulla baseline immediata.
+  Il vecchio 7,76 ms resta riportato come dato storico, non sostituito dalla
+  nuova baseline. Non si attribuisce il peggioramento con certezza al codice:
+  sono esecuzioni sequenziali in ambiente condiviso, non un esperimento isolato.
+  Le modifiche restano da valutare prima di dichiarare un miglioramento prestazionale.
+- Skill attive: capabilities-dev-problem-solving-methodology,
+  analyzing-dotnet-performance, base-be-base-rules, implementation-be-dotnet-dev,
+  phase-development-project-conventions, run-tests. Capacita usate per analisi
+  delle allocazioni e confronto misurato, senza modificare il protocollo.
+
+## SP-07B Sparse: ulteriori riduzioni di copie e allocazioni
+
+Stato: code-ready. Ottimizzazioni richieste dall'utente il 24 ottobre 2026.
+Le proprieta pubbliche `Postings` e `Blocks` restano invariate per sua
+indicazione esplicita; nessuna modifica al formato persistente o allo Store.
+
+- Scope: `SparsePostingBlock`, `SparseTermDirectoryEntry`,
+  `SparseBlockReference`, `SparseMaxScoreSearch`.
+- La deserializzazione calcola i limiti durante la lettura e usa costruttori
+  privati per prendere possesso degli array gia verificati. Eliminati la
+  seconda scansione dei posting e il secondo HashSet della directory.
+  I costruttori pubblici mantengono copia degli input e controlli esistenti.
+- Prima della copia di una chiave viene verificata anche la capacita residua
+  del buffer condiviso; una lunghezza incompatibile causa InvalidDataException.
+- MaxScore alloca un array di indici e un comparatore per query, riutilizzati
+  a ogni cambio soglia. L'ordine a parita di limite resta quello dei termini;
+  l'accumulo dei punteggi non cambia.
+- Il confine di intervallo condivide la chiave posseduta dal riferimento
+  del blocco, senza allocare o copiare un nuovo identificatore.
+- Verifica: 127 test sparse superati sia in Release sia in Debug.
+  Nessun test aggiunto o modificato. Rimane NU1902 per MessagePack 3.1.7.
+- Nessuna nuova misura di latenza: la riduzione del lavoro e delle allocazioni
+  deriva dal codice; il guadagno end-to-end resta da misurare.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`. La metodologia governa le modifiche e la verifica delle
+  regressioni; `run-tests` governa l'esecuzione della suite esistente.
+
+### SP-07B: misura delle prestazioni
+
+Esecuzione Release del 24 ottobre 2026, .NET 10.0.13, Arch Linux, 22 CPU
+logiche visibili. Harness ripetibile:
+`.ai-generated-operations/sparse-performance/SparsePerformance.csproj`.
+Comando dalla radice: `dotnet run --project
+.ai-generated-operations/sparse-performance/SparsePerformance.csproj -c Release
+-- "<percorso assoluto repository>"`.
+I file dati vengono creati in una sottocartella univoca di `.temp` e rimossi
+alla fine, dopo la chiusura delle liste.
+
+- Corpus sintetico con seme 42: 3.000 documenti, due vettori per documento,
+  200 termini, probabilita di presenza 0,3 e pesi positivi uniformi.
+  359.825 posting, 5.723 blocchi da massimo 64 posting, 6.222.320 byte
+  complessivi nei file dati e indice.
+- Query con seme 73: 200 query da 20 termini distinti con pesi positivi.
+  Warm-up di 50 query per k, poi cinque round per k, ordine dei k ruotato.
+  Un solo thread; 1.000 campioni per k. Allocazioni gestite misurate sul
+  thread corrente, non memoria residente. La raccolta dei tempi aggiunge
+  un piccolo overhead di allocazione comune alle misure.
+- k=1: media 9,631 ms, P50 9,192 ms, P95 13,440 ms,
+  1.311,6 KiB allocati per query.
+- k=10: media 9,514 ms, P50 9,180 ms, P95 13,068 ms,
+  1.316,5 KiB allocati per query.
+- k=100: media 10,417 ms, P50 9,945 ms, P95 14,284 ms,
+  1.339,2 KiB allocati per query.
+- k=int.MaxValue: media 11,549 ms, P50 11,133 ms, P95 15,354 ms,
+  1.465,0 KiB allocati per query. Rimane lo stesso motore, non un
+  riferimento brute-force indipendente.
+- Generazione, scrittura, flush e chiusura: 507,01 ms. Riapertura delle
+  StoredList: 2,43 ms; costruzione SparseIndex: 8,43 ms.
+  Prima ricerca k=10: 110,26 ms, inclusi effetti di primo utilizzo/JIT.
+  Cache del sistema operativo non svuotata: non e una misura a disco freddo.
+- Le medie dei round k=10 variano da 8,922 a 9,803 ms. Il precedente
+  valore di circa 8,2 ms non e un baseline direttamente confrontabile:
+  corpus ricreato e protocollo diverso, ora media di tutti i round
+  anziche migliore round. Non viene attribuito un guadagno percentuale.
+- Nessun codice di produzione o test funzionale modificato da questa misura.
+  Skill: `capabilities-dev-problem-solving-methodology`, per protocollo,
+  separazione delle fasi e limiti di interpretazione.
+
+### SP-07B: ripristino del protocollo originale
+
+Su richiesta dell'utente e stato recuperato il sorgente originale del benchmark
+dalla cronologia della sessione, non ricostruito per approssimazione.
+L'harness precedente in `.ai-generated-operations/sparse-performance/Program.cs`
+e stato sostituito con quel protocollo. Cambiano solo la gestione sicura dei
+temporanei e la stampa aggiuntiva dei tre tempi, eseguita fuori dalle misure.
+
+- Seme 12345; 3.000 documenti, da uno a tre vettori ciascuno, 60 termini per
+  vettore su 200, chiavi BitConverter, blocchi fisicamente in ordine inverso.
+  Confermati esattamente 359.820 posting e 5.727 blocchi da massimo 64.
+- Le 200 query usano lo stesso generatore dopo la generazione del corpus:
+  20 estrazioni ciascuna, con eventuale sostituzione dei termini ripetuti.
+  Warm-up: tutte le query a k=10. Poi k=1,10,100,int.MaxValue, tre round
+  per k, migliore media di round. Allocazioni tramite
+  GC.GetTotalAllocatedBytes(true), su una successiva passata a k=10.
+- Release, risultati ripristinati: k=1 7,49 ms (precedente 7,83);
+  k=10 7,76 ms (precedente 8,17); k=100 8,29 ms (precedente 8,81);
+  k=max 9,24 ms (precedente 9,58).
+- Round top-10: 7,866 / 7,817 / 7,762 ms. Allocazioni top-10:
+  1.265,3 KiB/query rispetto ai precedenti circa 1.712 KiB/query.
+  Build con flush 507 ms; costruzione SparseIndex su liste gia aperte 1 ms.
+- Con lo stesso protocollo il valore osservato top-10 e circa il 5% inferiore,
+  con circa il 26% in meno di allocazioni. Il confronto e con una misura
+  storica, non con esecuzioni A/B contemporanee: non isola la variabilita
+  della macchina tra le sessioni.
+- I 9,51 ms della prova con protocollo diverso non sono usati per valutare
+  le ottimizzazioni. Questo harness originale resta il riferimento per
+  le prossime misure. Dati temporanei rimossi a fine esecuzione.
+
 ## Actor task planning
 
 Piano dei vettori sparsi confermato dall'utente il 23 ottobre 2026:

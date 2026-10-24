@@ -26,10 +26,12 @@ public sealed class SparseTermDirectoryEntry : IStorableItem<SparseTermDirectory
         _blocks = references;
     }
 
-    // Takes ownership of the array to avoid copying an entry that has just been deserialized.
-    internal SparseTermDirectoryEntry(int termId, SparseBlockReference[] blocks)
+    // Takes ownership of references already validated during deserialization.
+    private SparseTermDirectoryEntry(int termId, SparseBlockReference[] blocks,
+        float minimum, float maximum)
     {
-        (MinimumWeight, MaximumWeight) = Validate(termId, blocks);
+        MinimumWeight = minimum;
+        MaximumWeight = maximum;
         TermId = termId;
         _blocks = blocks;
     }
@@ -98,6 +100,8 @@ public sealed class SparseTermDirectoryEntry : IStorableItem<SparseTermDirectory
         source = source[HeaderSize..];
         var references = new SparseBlockReference[count];
         var positions = new HashSet<int>();
+        var minimum = 0f;
+        var maximum = 0f;
         for (var index = 0; index < count; index++)
         {
             var reference = SparseBlockReference.ReadFrom(ref source);
@@ -106,11 +110,13 @@ public sealed class SparseTermDirectoryEntry : IStorableItem<SparseTermDirectory
             if (index > 0 && !reference.Follows(references[index - 1]))
                 throw new InvalidDataException("Sparse block intervals overlap or are not ordered.");
             references[index] = reference;
+            minimum = MathF.Min(minimum, reference.MinimumWeight);
+            maximum = MathF.Max(maximum, reference.MaximumWeight);
         }
 
         if (!source.IsEmpty)
             throw new InvalidDataException("Unexpected trailing data in sparse term directory entry.");
 
-        return new SparseTermDirectoryEntry(termId, references);
+        return new SparseTermDirectoryEntry(termId, references, minimum, maximum);
     }
 }

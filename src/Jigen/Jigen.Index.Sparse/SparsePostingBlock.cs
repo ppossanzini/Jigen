@@ -27,10 +27,11 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
         _postings = items;
     }
 
-    // Takes ownership of the array to avoid copying a block that has just been deserialized.
-    internal SparsePostingBlock(SparsePosting[] postings)
+    // Takes ownership of postings already validated during deserialization.
+    private SparsePostingBlock(SparsePosting[] postings, float minimum, float maximum)
     {
-        (MinimumWeight, MaximumWeight) = Validate(postings);
+        MinimumWeight = minimum;
+        MaximumWeight = maximum;
         _postings = postings;
     }
 
@@ -104,6 +105,8 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
         var documentBuffer = new byte[span.Length - HeaderSize - count * PostingFixedSize];
         var documentOffset = 0;
         var offset = HeaderSize;
+        var actualMinimum = 0f;
+        var actualMaximum = 0f;
 
         for (var index = 0; index < count; index++)
         {
@@ -112,7 +115,8 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
 
             var idLength = BinaryPrimitives.ReadInt32LittleEndian(span[offset..]);
             offset += sizeof(int);
-            if (idLength <= 0 || idLength > span.Length - offset - sizeof(int) - sizeof(float))
+            if (idLength <= 0 || idLength > span.Length - offset - sizeof(int) - sizeof(float) ||
+                idLength > documentBuffer.Length - documentOffset)
                 throw new InvalidDataException("Invalid sparse posting document identifier length.");
 
             var documentId = span.Slice(offset, idLength);
@@ -130,16 +134,17 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
             documentOffset += idLength;
             if (index > 0 && CompareIdentity(postings[index - 1], postings[index]) >= 0)
                 throw new InvalidDataException("Sparse postings are not strictly ordered.");
+            actualMinimum = MathF.Min(actualMinimum, weight);
+            actualMaximum = MathF.Max(actualMaximum, weight);
         }
 
         if (offset != span.Length || documentOffset != documentBuffer.Length)
             throw new InvalidDataException("Unexpected trailing data in sparse posting block.");
 
-        var block = new SparsePostingBlock(postings);
-        if (minimum != block.MinimumWeight || maximum != block.MaximumWeight)
+        if (minimum != actualMinimum || maximum != actualMaximum)
             throw new InvalidDataException("Sparse posting block bounds do not match its weights.");
 
-        return block;
+        return new SparsePostingBlock(postings, actualMinimum, actualMaximum);
     }
 
     private static int CompareIdentity(SparsePosting left, SparsePosting right)

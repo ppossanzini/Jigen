@@ -10,6 +10,12 @@ internal static class SparseMaxScoreSearch
     {
         var terms = entries.Select(entry => new Term(
             new SparsePostingCursor(entry.Directory, blocks), entry.Weight)).ToArray();
+        var ordered = Enumerable.Range(0, terms.Length).ToArray();
+        var boundComparer = Comparer<int>.Create((left, right) =>
+        {
+            var comparison = terms[left].UpperBound.CompareTo(terms[right].UpperBound);
+            return comparison != 0 ? comparison : left.CompareTo(right);
+        });
         var top = new TopDocuments(k);
         SparsePosting? lower = null;
 
@@ -25,7 +31,7 @@ internal static class SparseMaxScoreSearch
                 if (selectedThreshold != top.Threshold)
                 {
                     selectedThreshold = top.Threshold;
-                    SelectEssentialTerms(terms, selectedThreshold);
+                    SelectEssentialTerms(terms, ordered, boundComparer, selectedThreshold);
                 }
                 if (!TryGetCandidate(terms, lower, end, cancellationToken, out var candidate))
                     break;
@@ -61,8 +67,7 @@ internal static class SparseMaxScoreSearch
                 earliest = reference;
         }
 
-        end = earliest is null ? default : new SparsePosting(
-            earliest.LastDocumentId, earliest.LastVectorIndex, 0);
+        end = earliest is null ? default : earliest.LastPosting;
         return earliest is not null;
     }
 
@@ -79,17 +84,19 @@ internal static class SparseMaxScoreSearch
         }
     }
 
-    private static void SelectEssentialTerms(Term[] terms, double threshold)
+    private static void SelectEssentialTerms(Term[] terms, int[] ordered,
+        IComparer<int> boundComparer, double threshold)
     {
-        var ordered = terms.OrderBy(term => term.UpperBound).ToArray();
+        Array.Sort(ordered, boundComparer);
         var prefix = 0;
         var bound = 0d;
-        foreach (var term in ordered)
+        foreach (var term in terms)
         {
             term.IsEssential = true;
         }
-        foreach (var term in ordered)
+        foreach (var index in ordered)
         {
+            var term = terms[index];
             var next = AddUpperBound(bound, term.UpperBound);
             if (next >= threshold)
                 break;
@@ -101,7 +108,7 @@ internal static class SparseMaxScoreSearch
         // Scoring follows term-id order. Recheck the prefix in that same order
         // so rounding cannot underestimate a score accumulated differently.
         while (prefix > 0 && SumBounds(terms, nonessentialOnly: true) >= threshold)
-            ordered[--prefix].IsEssential = true;
+            terms[ordered[--prefix]].IsEssential = true;
     }
 
     private static double SumBounds(Term[] terms, bool nonessentialOnly)
