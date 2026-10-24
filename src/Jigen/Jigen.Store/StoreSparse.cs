@@ -1,4 +1,5 @@
 using Jigen.DataStructures;
+using Jigen.Filtering;
 using Jigen.Index.Sparse;
 
 namespace Jigen;
@@ -153,16 +154,48 @@ public partial class Store
     /// when the collection has no sparse index yet.
     /// </summary>
     public IReadOnlyList<SparseSearchResult> SearchSparse(string collection,
-        IReadOnlyDictionary<int, float> query, int k, CancellationToken cancellationToken = default)
+        IReadOnlyDictionary<int, float> query, int k, CancellationToken cancellationToken = default) =>
+        SearchSparse(collection, query, k, null, cancellationToken);
+
+    /// <summary>
+    /// Same search, keeping only the documents that satisfy the filter. The
+    /// filter reads the stored content of each candidate and is evaluated on the
+    /// serialized bytes, so a rejected document never occupies a slot of the
+    /// top-k; the cost is one content read per candidate examined.
+    /// </summary>
+    public IReadOnlyList<SparseSearchResult> SearchSparse(string collection,
+        IReadOnlyDictionary<int, float> query, int k, IFilterExpression filter,
+        CancellationToken cancellationToken = default) =>
+        SearchSparse(collection, query, k, filter, double.NegativeInfinity, cancellationToken);
+
+    /// <summary>
+    /// Same search, keeping only the documents whose sparse score reaches
+    /// <paramref name="minimumScore"/>. The value also prunes earlier, so a
+    /// large k with a high minimum costs less than a plain large k.
+    /// </summary>
+    public IReadOnlyList<SparseSearchResult> SearchSparse(string collection,
+        IReadOnlyDictionary<int, float> query, int k, IFilterExpression filter, double minimumScore,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(collection);
         ArgumentNullException.ThrowIfNull(query);
         ArgumentOutOfRangeException.ThrowIfNegative(k);
 
         var storage = OpenSparseReader(collection);
-        return storage is null
-            ? Array.Empty<SparseSearchResult>()
-            : storage.Index.Search(query, k, cancellationToken);
+        if (storage is null)
+            return Array.Empty<SparseSearchResult>();
+        if (filter is null)
+            return storage.Index.Search(query, k, null, minimumScore, cancellationToken);
+
+        return storage.Index.Search(query, k,
+            documentId => MatchesFilter(collection, documentId, filter), minimumScore, cancellationToken);
+    }
+
+    private bool MatchesFilter(string collection, ReadOnlySpan<byte> documentId, IFilterExpression filter)
+    {
+        var content = GetContent(collection, documentId.ToArray());
+        return content is { Length: > 0 } &&
+               MessagePackSerializedDocumentFilter.Instance.MatchesFilter(content, filter);
     }
 
     private SparseCollectionStorage OpenSparseReader(string collection)

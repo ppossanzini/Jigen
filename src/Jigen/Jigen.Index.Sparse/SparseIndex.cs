@@ -52,7 +52,16 @@ public sealed class SparseIndex
     /// document never takes a slot of the top-k.
     /// </summary>
     public IReadOnlyList<SparseSearchResult> Search(IReadOnlyDictionary<int, float> query, int k,
-        SparseDocumentFilter filter, CancellationToken cancellationToken = default)
+        SparseDocumentFilter filter, CancellationToken cancellationToken = default) =>
+        Search(query, k, filter, double.NegativeInfinity, cancellationToken);
+
+    /// <summary>
+    /// Same search, keeping only the documents that reach
+    /// <paramref name="minimumScore"/>. The value also raises the pruning
+    /// threshold before the top-k is complete.
+    /// </summary>
+    public IReadOnlyList<SparseSearchResult> Search(IReadOnlyDictionary<int, float> query, int k,
+        SparseDocumentFilter filter, double minimumScore, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentOutOfRangeException.ThrowIfNegative(k);
@@ -72,6 +81,6 @@ public sealed class SparseIndex
         if (k == 0 || terms.Count == 0)
             return Array.Empty<SparseSearchResult>();
 
-        return SparseMaxScoreSearch.Execute(terms, _blocks, k, filter, cancellationToken);
+        return SparseMaxScoreSearch.Execute(terms, _blocks, k, filter, minimumScore, cancellationToken);
     }
 }

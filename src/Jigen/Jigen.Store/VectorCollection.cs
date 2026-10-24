@@ -182,12 +182,17 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   /// <summary>
   /// Best documents of this collection by sparse score, ordered by descending
   /// score then binary key. Returns an empty list while no document with sparse
-  /// vectors has been indexed yet.
+  /// vectors has been indexed yet. The optional predicate keeps only the
+  /// documents that satisfy it, reading their stored content to decide;
+  /// <paramref name="minimumScore"/> drops the documents below that score and
+  /// also lets the search prune earlier.
   /// </summary>
   public IReadOnlyList<SparseSearchResult> SearchSparse(IReadOnlyDictionary<int, float> query, int top = 10,
+    Expression<Func<T, bool>> predicate = null, double minimumScore = double.NegativeInfinity,
     CancellationToken cancellationToken = default)
   {
-    return store.SearchSparse(CollectionName, query, top, cancellationToken);
+    var filter = predicate != null ? ExpressionTranslator.Translate(predicate) : null;
+    return store.SearchSparse(CollectionName, query, top, filter, minimumScore, cancellationToken);
   }
 
   /// <summary>
@@ -236,13 +241,22 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   /// fused value; the partial scores stay available on the result.
   /// </para>
   /// <para>
-  /// The predicate filters the dense half only: it is evaluated on stored content
-  /// without reading it, which the sparse half cannot do.
+  /// The predicate applies to both halves: dense candidates are filtered without
+  /// reading their content, sparse ones need the content read first.
+  /// </para>
+  /// <para>
+  /// <paramref name="minDenseScore"/> and <paramref name="minSparseScore"/> drop
+  /// the documents that do not reach them in each half before the fusion, so a
+  /// weak hit in one half cannot lift a document into the result. The sparse
+  /// cut also lets that half prune earlier; the dense cut is applied to the
+  /// results the index returned.
   /// </para>
   /// </summary>
   public List<VectorSearchResult<T>> Search(float[] embeddings = null,
     IReadOnlyDictionary<int, float> sparseQuery = null, int top = 10,
     Expression<Func<T, bool>> predicate = null, int efSearch = 0,
+    double minDenseScore = double.NegativeInfinity,
+    double minSparseScore = double.NegativeInfinity,
     CancellationToken cancellationToken = default)
   {
     if (embeddings == null && sparseQuery == null)
@@ -266,14 +280,22 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     if (embeddings != null)
     {
       var denseHits = SearchDense(embeddings, top, predicate, efSearch);
-      for (var rank = 0; rank < denseHits.Count; rank++)
-        Add(denseHits[rank].Key.Value, denseHits[rank].Content,
-          1d / (ReciprocalRankOffset + rank + 1), denseHits[rank].Score, null);
+      // Ranks are assigned after the cut, so dropping the weak hits does not
+      // leave holes in the fusion.
+      var rank = 0;
+      foreach (var hit in denseHits)
+      {
+        if (hit.Score < minDenseScore)
+          continue;
+        Add(hit.Key.Value, hit.Content, 1d / (ReciprocalRankOffset + ++rank), hit.Score, null);
+      }
     }
 
     if (sparseQuery != null)
     {
-      var sparseHits = store.SearchSparse(CollectionName, sparseQuery, top, cancellationToken);
+      var sparseHits = store.SearchSparse(CollectionName, sparseQuery, top,
+        predicate != null ? ExpressionTranslator.Translate(predicate) : null, minSparseScore,
+        cancellationToken);
       for (var rank = 0; rank < sparseHits.Count; rank++)
       {
         var key = sparseHits[rank].DocumentId.ToArray();

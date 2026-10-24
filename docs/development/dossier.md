@@ -1,5 +1,116 @@
 # Development Dossier
 
+## SP-05O Soglie per meta nella ricerca ibrida
+
+Stato: completato. Attende approvazione esplicita del codice.
+
+- `VectorCollection.Search` accetta `minDenseScore` e `minSparseScore`, entrambi
+  `-infinity` per impostazione predefinita. Le soglie si applicano **prima**
+  della fusione RRF, quindi un punteggio debole in una meta non puo sollevare un
+  documento nell'altra.
+- I gradi della fusione sono ricalcolati dopo il taglio: eliminare i punteggi
+  deboli non lascia buchi nella numerazione.
+- `minSparseScore` viene passato al motore sparso e ne sfrutta la potatura
+  anticipata; `minDenseScore` e applicato ai risultati gia restituiti
+  dall'indice HNSW.
+- Semantica verificata: un documento sopravvive se passa il taglio in **almeno
+  una** meta. Un documento debole nel denso ma normale nello sparso arriva
+  comunque dallo sparso, e viceversa; sparisce solo quando entrambe le soglie lo
+  escludono. Una soglia sparsa impossibile lascia esattamente la meta densa.
+- Verifica: quattro documenti con similarita dense distinte (1,00 / 0,90 / 0,30 /
+  0,20) e pesi sparsi (1,0 / 5,0 / 2,0 / 0,5). Nove controlli superati, incluse
+  le soglie combinate con `k` e con il predicato.
+- Regressioni: Store 70 su 70, sparse 127 su 127.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05N Punteggio minimo nella ricerca sparsa
+
+Stato: completato. Attende approvazione esplicita del codice.
+
+- Nuovo parametro `minimumScore` (default `-infinity`) su
+  `VectorCollection.SearchSparse(query, top, predicate, minimumScore, token)`,
+  `Store.SearchSparse(collection, query, k, filter, minimumScore, token)`,
+  `SparseCollectionIndex.Search(...)` e `SparseIndex.Search(...)`.
+- Doppio effetto, come previsto: scarta i documenti sotto la soglia e **innalza
+  la soglia di potatura prima che il top-k sia completo**, quindi salta piu
+  intervalli di blocco. La soglia dell'heap ora vale
+  `max(punteggio k-esimo, minimumScore)`.
+- Ordine dei controlli per candidato: prima il punteggio minimo (confronto
+  aritmetico), poi la competitivita rispetto all'heap, solo alla fine il filtro
+  che legge il contenuto.
+- Verifica su 30.000 documenti, 6 termini di query, taglio al 2% dei punteggi:
+- senza minimo 6.398 risultati in 9,80 ms per query; con minimo 0,960 si
+  ottengono 132 risultati in 4,75 ms. Il sottoinsieme conserva l'ordine
+  originale; combinato con k=100 restituisce al massimo 100 risultati, tutti
+  sopra la soglia. Quattro controlli superati.
+- Regressioni: sparse 127 su 127, Store 70 su 70.
+- Non applicato alla ricerca ibrida: la fusione RRF lavora su posizioni, quindi
+  un punteggio minimo su una sola meta non avrebbe un significato definito.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05M Ipotesi: filtro per chiavi ammesse
+
+Stato: misurato, non implementato. Serve una decisione dell'utente.
+
+- Idea: invece di leggere il contenuto di ogni candidato e valutare un
+  predicato, l'applicazione fornisce l'insieme delle chiavi ammesse, che conosce
+  gia dal proprio indice; il motore fa solo un test di appartenenza, senza I/O.
+- Misura su 2000 documenti, 40 termini, 6 termini per documento, predicato che
+  tiene 200 documenti (10%), k=10, 30 esecuzioni per variante:
+  ricerca senza filtro 1,56-1,78 ms; chiavi ammesse 1,95-2,01 ms;
+  predicato con lettura del contenuto 3,37-3,65 ms.
+  Il filtro per chiavi costa circa 0,2-0,4 ms, quello per predicato circa
+  1,6-1,9 ms: la ricerca filtrata per chiavi e circa la meta del tempo.
+- Il test di appartenenza e una ricerca binaria su chiavi ordinate confrontate
+  come span, quindi senza allocazioni per candidato; la variante con
+  `ToArray()` per chiamata costa uguale solo perche il caso e piccolo.
+- Costo a carico dell'applicazione: una query per ottenere le chiavi. Utile
+  quando il filtro e un criterio indicizzato altrove; inutile quando il criterio
+  richiede comunque di leggere il documento.
+- Verifica: entrambe le vie restituiscono gli stessi 10 documenti.
+
+## SP-05L Filtro con predicato sulla ricerca sparsa
+
+Stato: completato. Attende approvazione esplicita del codice.
+
+- `VectorCollection.SearchSparse(query, top, predicate, token)` accetta ora un
+  `Expression<Func<T, bool>>`, come la ricerca densa.
+- Catena: l'espressione diventa `IFilterExpression` con `ExpressionTranslator`;
+  `Store.SearchSparse(collection, query, k, IFilterExpression, token)` la applica
+  dentro il filtro di visibilita del motore, quindi un documento rifiutato non
+  occupa un posto nel top-k. La decisione legge il contenuto serializzato del
+  candidato e lo valuta senza deserializzarlo.
+- `SparseCollectionIndex.Search` ha un overload con `SparseDocumentFilter`; il
+  filtro si combina con quello dei tombstone, quindi le copie ritirate restano
+  escluse.
+- La ricerca ibrida ora applica il predicato a entrambe le meta, non solo a
+  quella densa.
+- Costo e ottimizzazione: il filtro viene valutato solo per un documento che
+  puo ancora entrare nel top-k (soglia corrente) e la decisione e memorizzata per
+  l'ultimo documento, perche i posting di un documento arrivano consecutivi.
+  Un documento sotto soglia non puo vincere e il suo punteggio puo solo crescere,
+  quindi viene rivalutato quando un vettore successivo lo alza.
+- Misura, corpus di 400 documenti con 20 forti e il resto debolissimi, predicato
+  che tiene il 10%: valutazioni del filtro 30 a k=1, 100 a k=3, 228 a k=10,
+  229 a k>=50 (tutti i candidati). Il risparmio cresce al calare di k: con
+  k=10 servono comunque quasi tutti i candidati, perche occorre trovarne 10 che
+  superino il predicato. La potatura MaxScore aveva gia ridotto i candidati a
+  229 su 400.
+- Verifica: quattro documenti in due categorie. Senza predicato quattro
+  risultati; con il predicato solo i due della categoria attesa; un documento
+  escluso che superava il secondo classificato non ruba il posto (top=2
+  restituisce comunque due documenti buoni); predicato senza corrispondenze
+  restituisce lista vuota; la ibrida rispetta il predicato; la densa mantiene il
+  proprio comportamento. Sei controlli superati.
+- Regressioni: Store 70 su 70, sparse 127 su 127.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
 ## SP-05K Ricerca densa, sparsa e ibrida
 
 Stato: completato. Attende approvazione esplicita del codice.

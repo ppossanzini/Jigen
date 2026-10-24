@@ -7,7 +7,7 @@ internal static class SparseMaxScoreSearch
     internal static IReadOnlyList<SparseSearchResult> Execute(
         List<(SparseTermDirectoryEntry Directory, float Weight)> entries,
         StoredList<SparsePostingBlock, ValueTuple> blocks, int k, SparseDocumentFilter filter,
-        CancellationToken cancellationToken)
+        double minimumScore, CancellationToken cancellationToken)
     {
         var terms = entries.Select(entry => new Term(
             new SparsePostingCursor(entry.Directory, blocks), entry.Weight)).ToArray();
@@ -17,7 +17,7 @@ internal static class SparseMaxScoreSearch
             var comparison = terms[left].UpperBound.CompareTo(terms[right].UpperBound);
             return comparison != 0 ? comparison : left.CompareTo(right);
         });
-        var top = new TopDocuments(k, filter);
+        var top = new TopDocuments(k, filter, minimumScore);
         SparsePosting? lower = null;
 
         while (TryGetIntervalEnd(terms, out var end))
@@ -243,22 +243,26 @@ internal static class SparseMaxScoreSearch
         public bool IsEssential { get; set; }
     }
 
-    private sealed class TopDocuments(int capacity, SparseDocumentFilter filter)
+    private sealed class TopDocuments(int capacity, SparseDocumentFilter filter, double minimumScore)
     {
         private readonly PriorityQueue<SparseSearchResult, SparseSearchResult> _heap =
             new(WorstFirstComparer.Instance);
         private byte[] _pendingId;
         private double _pendingScore;
+        // Postings of one document arrive together, so a single slot avoids
+        // repeating a filter evaluation that reads the stored content.
+        private byte[] _lastFilteredId;
+        private bool _lastFilteredResult;
 
-        public double Threshold => _heap.Count == capacity ? _heap.Peek().Score : double.NegativeInfinity;
+        // Before the heap is full the minimum score is already a threshold: it
+        // prunes intervals that cannot reach it, exactly like the k-th score does
+        // once the heap is complete.
+        public double Threshold => _heap.Count == capacity
+            ? Math.Max(_heap.Peek().Score, minimumScore)
+            : minimumScore;
 
         public void Collect(ReadOnlySpan<byte> documentId, double score)
         {
-            // A rejected document must never consume a slot: the caller filters
-            // here rather than after the top-k has already been filled.
-            if (filter is not null && !filter(documentId))
-                return;
-
             if (_pendingId is not null && documentId.SequenceEqual(_pendingId))
             {
                 _pendingScore = Math.Max(_pendingScore, score);
@@ -266,8 +270,40 @@ internal static class SparseMaxScoreSearch
             }
 
             PublishPending();
+
+            // The filter is evaluated only for a document that could still enter
+            // the top-k: below the threshold it can never win, and its score only
+            // grows, so it is retried when a later vector raises it.
+            if (!CouldEnter(documentId, score) || !PassesFilter(documentId))
+                return;
+
             _pendingId = documentId.ToArray();
             _pendingScore = score;
+        }
+
+        private bool CouldEnter(ReadOnlySpan<byte> documentId, double score)
+        {
+            if (score < minimumScore)
+                return false;
+            if (_heap.Count < capacity)
+                return true;
+
+            var worst = _heap.Peek();
+            var comparison = score.CompareTo(worst.Score);
+            return comparison > 0 ||
+                   comparison == 0 && documentId.SequenceCompareTo(worst.DocumentId) < 0;
+        }
+
+        private bool PassesFilter(ReadOnlySpan<byte> documentId)
+        {
+            if (filter is null)
+                return true;
+            if (_lastFilteredId is not null && documentId.SequenceEqual(_lastFilteredId))
+                return _lastFilteredResult;
+
+            _lastFilteredResult = filter(documentId);
+            _lastFilteredId = documentId.ToArray();
+            return _lastFilteredResult;
         }
 
         public IReadOnlyList<SparseSearchResult> Results()

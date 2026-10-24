@@ -42,7 +42,24 @@ public sealed class SparseCollectionIndex
     /// the results are merged by descending score then ascending key.
     /// </summary>
     public IReadOnlyList<SparseSearchResult> Search(IReadOnlyDictionary<int, float> query, int k,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        Search(query, k, null, cancellationToken);
+
+    /// <summary>
+    /// Same search, skipping the documents the filter rejects. The filter applies
+    /// to the live copies, so a document retired in the collection never reaches
+    /// the caller even when an older segment still holds it.
+    /// </summary>
+    public IReadOnlyList<SparseSearchResult> Search(IReadOnlyDictionary<int, float> query, int k,
+        SparseDocumentFilter filter, CancellationToken cancellationToken = default) =>
+        Search(query, k, filter, double.NegativeInfinity, cancellationToken);
+
+    /// <summary>
+    /// Same search, keeping only the documents that reach
+    /// <paramref name="minimumScore"/>.
+    /// </summary>
+    public IReadOnlyList<SparseSearchResult> Search(IReadOnlyDictionary<int, float> query, int k,
+        SparseDocumentFilter filter, double minimumScore, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentOutOfRangeException.ThrowIfNegative(k);
@@ -55,7 +72,8 @@ public sealed class SparseCollectionIndex
             cancellationToken.ThrowIfCancellationRequested();
             var generation = segment.Generation;
             merged.AddRange(segment.Index.Search(query, k,
-                documentId => !IsRetiredIn(documentId, generation), cancellationToken));
+                documentId => !IsRetiredIn(documentId, generation) && (filter is null || filter(documentId)),
+                minimumScore, cancellationToken));
         }
 
         merged.Sort(CompareByRank);
