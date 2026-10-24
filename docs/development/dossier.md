@@ -250,8 +250,8 @@ Stato: closed. L'utente ha approvato esplicitamente il codice del cursore.
 
 ### SP-03 Implementare Block-Max MaxScore
 
-Stato: in-progress. Codice implementato e compilato, in attesa di approvazione
-esplicita e della verifica funzionale SP-04.
+Stato: closed. Codice implementato, compilato e approvato esplicitamente
+dall'utente; verifica funzionale eseguita nel task separato SP-04.
 
 - L'utente ha richiesto il completamento del motore, escludendo lo Store.
   `SparseIndex` riceve directory e blocchi della singola collezione. Il chiamante
@@ -293,8 +293,8 @@ esplicita e della verifica funzionale SP-04.
   invariati; nessuna configurazione o dipendenza aggiunta, nessun test modificato.
 - Verifica: build riuscita con C# 14; formatter verificato; nessun errore
   nell'editor; 96 regressioni esistenti superate. Rimane NU1902 preesistente.
-  Le regressioni non provano la nuova ricerca: confronto esaustivo, isolamento,
-  riapertura e potatura restano SP-04. Nessuna misura prestazionale eseguita.
+  La nuova ricerca e verificata dal task separato SP-04 riportato sotto.
+  Misura locale in Release riportata nella verifica indipendente del motore.
 - Skill: `workflow-development`, `phase-development-technology-resolution`,
   `phase-development-project-conventions`, `phase-development-configuration-options`,
   `phase-development-task-execution`, `phase-development-development-handoff`,
@@ -315,14 +315,144 @@ IReadOnlyDictionary<int, float> query = new Dictionary<int, float>
 var hits = index.Search(query, k: 10);
 ```
 
+### SP-04 Verificare la ricerca
+
+Stato: closed. L'utente ha approvato esplicitamente il motore e autorizzato
+tutti i test del motore, mantenendo lo Store escluso.
+
+- Aggiunti 31 casi in `tests/Jigen.Index.Sparse.Tests/SparseIndexTests.cs`.
+  Il codice di produzione e rimasto invariato.
+- L'oracolo esaustivo scorre i posting originali dei termini della query,
+  accumula per coppia documento/vettore in ordine di termine, prende il massimo
+  per documento e ordina il risultato. Non usa cursori, metadati o potatura.
+  Si confrontano sia tutte le chiavi sia i punteggi double esatti, senza tolleranza.
+- Eseguiti 3.150 confronti generati: cinque semi per tre profili di peso
+  (non negativo, firmato, estremo), 80 documenti con fino a quattro vettori,
+  12 termini indicizzati, 35 query per corpus e sei valori di k.
+  Sono inclusi termini sconosciuti, chiavi con prefissi, blocchi disallineati
+  di dimensione variabile e ordine fisico inverso rispetto agli intervalli.
+- I casi deterministici verificano massimo per vettore anziche somma dei massimi
+  per termine, esclusione dei vettori senza corrispondenze anche con punteggi
+  negativi, contributi delle liste non essenziali, pareggi, zeri e valori estremi.
+  Prevengono fusione di vettori, inserimento di zeri da documenti non candidati,
+  perdita di contributi e overflow float nel punteggio.
+- Due prove usano riferimenti non leggibili per gli intervalli potati: una
+  verifica il salto dell'intero intervallo, l'altra i candidati presenti solo
+  nelle liste non essenziali con limite totale ancora competitivo.
+  Con k maggiore, la lettura degli stessi riferimenti fallisce: il controllo
+  negativo distingue la potatura dalla mancata partecipazione del termine.
+  Un limite uguale alla soglia non viene potato.
+- Verificati flush e riapertura delle due StoredList, lookup di termini presenti,
+  vuoti e assenti, rifiuto dei duplicati, due collezioni con stessi identificatori
+  e dati differenti, e venti query lanciate tramite task sulle due istanze.
+  La chiusura di una collezione non altera l'altra.
+- Verificati query e indice vuoti, termini assenti, k zero e maggiore dei
+  candidati, argomenti invalidi, pesi non finiti, token gia cancellato e ricerca
+  successiva riuscita. I casi vuoti non leggono i posting non pertinenti.
+- Verifica: 127 test totali superati in Debug e Release, zero fallimenti o
+  test saltati. Formatter verificato e nessun errore nell'editor.
+  Temporanei sotto `.temp`, rimossi dopo la chiusura dei file.
+  Rimane NU1902 per la dipendenza MessagePack 3.1.7 preesistente.
+- File: nuovo file di test, piano e questo dossier. Nessuno snapshot allegato
+  modificato. Nessuna dipendenza o configurazione aggiunta.
+- Skill: `workflow-development`, `phase-development-technology-resolution`,
+  `phase-development-project-conventions`, `phase-development-configuration-options`,
+  `phase-development-task-execution`, `phase-development-development-handoff`,
+  `base-be-base-rules`, `implementation-be-dotnet-dev`,
+  `capabilities-dev-problem-solving-methodology`, `run-tests`.
+  La metodologia guida l'oracolo indipendente e i controlli negativi;
+  `run-tests` governa la suite VSTest/xUnit.
+- Handoff: motore consegnato nel perimetro confermato. Integrazione Store esclusa.
+
+### Verifica indipendente del motore sparse
+
+Stato: eseguita su richiesta dell'utente, senza modifiche alla produzione.
+
+- Prova differenziale piu ampia di quella dei test permanenti, eseguita con un
+  harness temporaneo poi rimosso: 40 corpus casuali, 40 query per corpus e sette
+  valori di k, per 11.200 confronti. I profili di peso includono negativi, zero,
+  estremi a 1e30, uno e subnormali; i blocchi hanno dimensione 1-4, quindi ogni
+  termine occupa piu blocchi e le identita di un documento sono divise fra blocchi.
+  Nessuna discrepanza su chiavi e punteggi double esatti.
+- Misura locale, configurazione Release, corpus sintetico con 3.000 documenti,
+  200 termini, 359.820 posting, 5.727 blocchi da 64 e query di 20 termini.
+  Costruzione dell'indice su `StoredList`: circa 350 ms. Apertura di `SparseIndex`:
+  1-7 ms, proporzionale ai termini della directory. Ricerca: 17,7 ms con k=1,
+  18,1 ms con k=10, 21,2 ms con k=100, 27,8 ms senza potatura.
+- La potatura riduce il tempo di circa un terzo, ma 18 ms per query resta lontano
+  dai tempi dichiarati dalle implementazioni pubblicate, che operano su pesi
+  quantizzati e strutture specializzate. Il confronto non e omogeneo e non
+  autorizza a stimare altri corpus.
+- Cause individuate, non ancora ottimizzate: da due a tre operazioni di cursore
+  per termine per candidato, con ricerca binaria ripetuta anche quando il cursore
+  e gia posizionato; `SelectEssentialTerms` riordina e alloca a ogni cambiamento
+  della soglia; confronto scalare delle chiavi binarie; deserializzazione dei
+  blocchi attraverso la cache di 512 voci di `StoredList`.
+- Limiti dichiarati: il motore non verifica che directory e blocchi appartengano
+  alla stessa collezione, non controlla scritture concorrenti e non comprime
+  i posting. I punteggi sono double, quindi il tipo differisce da quello denso.
+- Nel corso della verifica un merge ha spostato i test del motore e le modifiche
+  SP-04 in `stash@{0}`; su indicazione dell'utente lo stash e stato applicato
+  senza rimuoverlo e la suite e tornata a 127 test superati in Release.
+
+## Ottimizzazione del motore sparse
+
+Stato: codice pronto, verificato con le regressioni; attende approvazione.
+
+- Baseline Release, corpus sintetico con 3.000 documenti, 200 termini, 359.820
+  posting, 5.727 blocchi da 64, query di 20 termini: 16,6 ms e 2.872 KB allocati
+  per query con k=10. Lettura sequenziale dell'intero corpus: 22,7 MB allocati.
+- Intervento 1, percorsi rapidi nel cursore: `Seek` non ripete la ricerca sui
+  blocchi quando la destinazione cade nel blocco gia caricato o non supera il
+  posting corrente. 16,1 -> 9,4 ms.
+- Intervento 2, copie rimosse: i costruttori interni prendono possesso degli
+  array gia deserializzati, evitando la seconda copia che `ToArray` faceva
+  sull'intero blocco e sull'intera voce di directory. 2.872 -> 1.724 KB.
+- Intervento 3, accesso diretto: i tipi conservano l'array e lo espongono come
+  `IReadOnlyList`, senza il wrapper `ReadOnlyCollection` allocato per ogni blocco,
+  e i percorsi caldi usano l'array tramite accessore interno. 9,0 -> 8,2 ms.
+- Risultato finale con k=10: 8,2 ms e 1.712 KB per query, quindi tempo dimezzato
+  e allocazioni ridotte del 40%. Con k=1 7,8 ms, con k=100 8,8 ms, senza potatura
+  9,6 ms. La potatura da sola vale circa il 15% in questo corpus.
+- Scartata dopo misura la riduzione della dimensione dei blocchi: da 8 a 256
+  posting per blocco il tempo passa da 17,3 a 8,1 ms e le allocazioni da 5.645 a
+  1.940 KB. Blocchi piccoli moltiplicano metadati e costi per blocco e peggiorano
+  la potatura effettiva, quindi la dimensione resta una scelta di ingestione.
+- Le copie dei dati restano obbligatorie: `StoredList` legge in buffer presi da
+  `ArrayPool` e li restituisce subito dopo `Deserialize`, quindi trattenere il
+  buffer di lettura non e sicuro. Si copia una volta sola per blocco.
+- Effetto collaterale dichiarato: `Postings` e `Blocks` restituiscono
+  `IReadOnlyList` appoggiata a un array. Un chiamante che forzasse il cast all'array
+  potrebbe mutarlo. Il tipo resta immutabile nell'uso previsto e i test lo verificano.
+- Formato persistente, firme pubbliche e comportamento di ranking invariati.
+- Verifica: 127 test superati in Debug e Release; formatter verificato.
+  Rimane NU1902 della dipendenza MessagePack preesistente.
+- Skill: `workflow-development`, `phase-development-technology-resolution`,
+  `phase-development-project-conventions`, `phase-development-configuration-options`,
+  `phase-development-task-execution`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`. La metodologia ha guidato baseline, ipotesi singole e misure.
+- Proposte non implementate, da decidere: cache dei blocchi deserializzati per
+  query ripetute; formato a colonne per sostituire le copie per posting con poche
+  copie in blocco, con cambio di versione del formato; struttura dei cursori
+  tipo WAND per ridurre il lavoro per candidato.
+
 ## Development handoff
 
-Blocco, directory e cursore approvati e verificati con 96 test; fase ancora aperta.
-SP-01, SP-02, SP-03A, SP-03AT, SP-03B e SP-03BT sono chiusi.
-Lookup per collezione e ricerca Block-Max MaxScore sono implementati e compilati,
-ma attendono approvazione del codice e test SP-04 prima della chiusura del motore.
-L'integrazione Store e i relativi test sono differiti per scelta esplicita
-dell'utente. Nessun prototipo o codice di interfaccia coinvolto.
+Motore sparse consegnato nel perimetro confermato, con 127 test superati
+in Debug e Release. Blocchi, directory, cursori, lookup per collezione e ricerca
+Block-Max MaxScore sono implementati, approvati e verificati.
+SP-01, SP-02, SP-03A, SP-03AT, SP-03B, SP-03BT, SP-03 e SP-04 sono chiusi.
+Il confronto esaustivo conferma risultati e punteggi nei corpus verificati;
+le prove di potatura verificano il mancato caricamento dei payload saltati.
+Misura locale in Release riportata nella verifica indipendente: apertura
+proporzionale ai termini della directory e ricerca nell'ordine di 18 ms su
+360.000 posting. Non si dichiarano prestazioni su altri corpus ne apertura
+indipendente dal volume dei dati.
+SP-05 e SP-06, integrazione Store e relativi test, sono differiti per scelta
+esplicita dell'utente. Per riprenderli occorre definire nella fase di analisi
+il contratto pubblico dei vettori sparsi e in architettura aggiornamenti,
+WAL, compattazione e recupero. Nessun prototipo o codice di interfaccia coinvolto.
 
 ## DEV-GRANITE-R2-CONFIGURATION
 

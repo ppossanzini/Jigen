@@ -24,8 +24,9 @@ Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossi
 | 3a-test | [SP-03AT Verificare la directory](#sp-03at-verificare-la-directory), closed | suite completa: 72 test superati |
 | 3b | [SP-03B Cursore dei posting](#sp-03b-cursore-dei-posting), closed | codice approvato esplicitamente |
 | 3b-test | SP-03BT Verificare il cursore, closed | suite completa: 96 test superati |
-| 3c | [SP-03 Implementare Block-Max MaxScore](#sp-03-implementare-block-max-maxscore), in-progress | completamento del motore richiesto dall'utente |
-| 4 | [SP-04 Verificare la ricerca](#sp-04-verificare-la-ricerca), planned | approvazione del codice SP-03 |
+| 3c | [SP-03 Implementare Block-Max MaxScore](#sp-03-implementare-block-max-maxscore), closed | codice approvato esplicitamente |
+| 4 | [SP-04 Verificare la ricerca](#sp-04-verificare-la-ricerca), closed | 127 test superati in Debug e Release |
+| 4-perf | [SP-07 Ottimizzare il motore sparse](#sp-07-ottimizzare-il-motore-sparse), code-ready | dimezzato il tempo; attende approvazione |
 | 5 | [SP-05 Integrare lo Store multivettore](#sp-05-integrare-lo-store-multivettore), deferred | escluso dal completamento corrente |
 | 6 | [SP-06 Verificare il ciclo persistente](#sp-06-verificare-il-ciclo-persistente), deferred | dipende dall'integrazione Store esclusa |
 
@@ -78,7 +79,7 @@ Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossi
 
 ## SP-03 Implementare Block-Max MaxScore
 
-- Attore: questa sessione. Stato: in-progress. Ordine: 3c.
+- Attore: questa sessione. Stato: closed. Ordine: 3c.
 - Dipendenza: SP-03BT Verificare il cursore, chiuso.
 - Perimetro confermato dall'utente: completare il motore in `Jigen.Index.Sparse`,
   con lookup dei termini per collezione e ricerca Block-Max MaxScore.
@@ -99,7 +100,7 @@ Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossi
   di confronto esaustivo e isolamento nel task separato SP-04 dopo approvazione.
 - Skill: quelle di SP-03B, piu run-tests per le regressioni esistenti.
 - Esito: motore implementato, build e formatter superati, 96 regressioni
-  superate. Attende approvazione del codice; verifica della nuova ricerca in SP-04.
+  superate. Codice approvato esplicitamente; verifica della nuova ricerca in SP-04.
 
 ## SP-03B Cursore dei posting
 
@@ -187,7 +188,7 @@ Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossi
 
 ## SP-04 Verificare la ricerca
 
-- Attore: questa sessione. Stato: planned. Ordine: 4.
+- Attore: questa sessione. Stato: closed. Ordine: 4.
 - Dipendenza: SP-03 Implementare Block-Max MaxScore e approvazione del codice.
 - Incremento: confronto con ricerca esaustiva sugli stessi pesi float e
   accumulo double per termine crescente; stesso ranking e insieme dei candidati.
@@ -200,7 +201,37 @@ Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossi
   con stessi identificatori ma dati separati. Dimostrare i salti usando riferimenti
   non leggibili in intervalli sotto soglia, senza introdurre hook di produzione.
 - Verifica: suite sparse completa e formatter; nessuna soglia di copertura.
+- Esito: 31 nuovi casi, 127 test totali superati in Debug e Release;
+  3.150 confronti generati contro scansione esaustiva, oltre ai casi deterministici.
+  Formatter verificato; nessuna modifica al codice di produzione.
 - Handoff: utente per chiusura del motore. Store escluso dal perimetro corrente.
+
+## SP-07 Ottimizzare il motore sparse
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4-perf.
+- Dipendenza: SP-04 chiuso. Richiesta diretta dell'utente di migliorare le prestazioni.
+- Perimetro: `SparsePostingCursor.cs` e `SparseMaxScoreSearch.cs`; nessuna modifica
+  al formato persistente, alle firme pubbliche o ai test.
+- Baseline Release misurata: 3.000 documenti, 200 termini, 359.820 posting,
+  5.727 blocchi da 64, query di 20 termini. Ricerca k=10: 16,6 ms e 2,87 MB
+  allocati per query. Lettura sequenziale dell'intero corpus: 17,5 ms e 22,7 MB.
+  Una query tocca circa un decimo dei blocchi: il costo e quindi dominato dalla
+  deserializzazione dei blocchi e dalle ricerche binarie ripetute.
+- Ipotesi da verificare una alla volta: percorsi rapidi nel cursore quando la
+  destinazione cade nel blocco gia caricato o non supera il posting corrente;
+  assenza di ricerca ripetuta a parita di posizione; riuso degli array nella
+  selezione delle liste essenziali.
+- Metodo: una modifica per volta, misura con lo stesso harness, regressioni.
+- Esclusi: compressione o quantizzazione dei pesi, modifiche a `StoredList`,
+  cache aggiuntive, modifiche al formato o all'API pubblica.
+- Verifica: 127 regressioni esistenti, misure prima e dopo, formatter.
+- Esito: query k=10 da 16,6 a 8,2 ms, allocazioni da 2.872 a 1.712 KB.
+  Tre interventi misurati separatamente: percorsi rapidi nel cursore (16,1 -> 9,4),
+  eliminazione delle copie ridondanti (2.872 -> 1.724 KB), accesso diretto agli
+  array (9,0 -> 8,2). Il formato persistente e l'API pubblica restano invariati.
+- Handoff: approvazione esplicita del codice prima di nuovi test.
+  Ottimizzazioni ulteriori richiedono una decisione: cache dei blocchi,
+  formato a colonne con copie in blocco, struttura dei cursori tipo WAND.
 
 ## SP-05 Integrare lo Store multivettore
 

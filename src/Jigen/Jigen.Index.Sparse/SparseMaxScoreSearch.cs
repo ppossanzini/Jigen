@@ -148,10 +148,7 @@ internal static class SparseMaxScoreSearch
 
         if (lower is { } boundary)
         {
-            if (!cursor.Seek(boundary.DocumentId, boundary.VectorIndex))
-                return false;
-            var posting = cursor.Current.Value;
-            if (Compare(posting.DocumentId, posting.VectorIndex, boundary) == 0 && !cursor.MoveNext())
+            if (!AdvancePast(cursor, boundary))
                 return false;
         }
         else if (!cursor.Current.HasValue && !cursor.MoveNext())
@@ -159,6 +156,49 @@ internal static class SparseMaxScoreSearch
 
         var current = cursor.Current.Value;
         return Compare(current.DocumentId, current.VectorIndex, end) <= 0;
+    }
+
+    // Leaves the cursor on the first posting strictly after the boundary.
+    private static bool AdvancePast(SparsePostingCursor cursor, SparsePosting boundary)
+    {
+        if (cursor.Current is { } current)
+        {
+            var comparison = Compare(current.DocumentId, current.VectorIndex, boundary);
+            if (comparison > 0)
+                return true;
+            if (comparison == 0)
+                return cursor.MoveNext();
+        }
+
+        if (!cursor.Seek(boundary.DocumentId, boundary.VectorIndex))
+            return false;
+        var posting = cursor.Current.Value;
+        return Compare(posting.DocumentId, posting.VectorIndex, boundary) != 0 || cursor.MoveNext();
+    }
+
+    // Reads the weight of the term for an exact identity, leaving the cursor on it.
+    private static bool TryReadAt(SparsePostingCursor cursor, SparsePosting candidate, out float weight)
+    {
+        weight = 0;
+        if (cursor.Current is { } current)
+        {
+            var comparison = Compare(current.DocumentId, current.VectorIndex, candidate);
+            if (comparison == 0)
+            {
+                weight = current.Weight;
+                return true;
+            }
+            if (comparison > 0)
+                return false;
+        }
+
+        if (!cursor.Seek(candidate.DocumentId, candidate.VectorIndex))
+            return false;
+        current = cursor.Current.Value;
+        if (Compare(current.DocumentId, current.VectorIndex, candidate) != 0)
+            return false;
+        weight = current.Weight;
+        return true;
     }
 
     private static double Score(Term[] terms, SparsePosting candidate, CancellationToken cancellationToken)
@@ -169,13 +209,10 @@ internal static class SparseMaxScoreSearch
             cancellationToken.ThrowIfCancellationRequested();
             var reference = term.Cursor.CurrentBlock;
             if (reference is null ||
-                Compare(reference.FirstDocumentId, reference.FirstVectorIndex, candidate) > 0 ||
-                !term.Cursor.Seek(candidate.DocumentId, candidate.VectorIndex))
+                Compare(reference.FirstDocumentId, reference.FirstVectorIndex, candidate) > 0)
                 continue;
-
-            var posting = term.Cursor.Current.Value;
-            if (Compare(posting.DocumentId, posting.VectorIndex, candidate) == 0)
-                score += (double)term.Weight * posting.Weight;
+            if (TryReadAt(term.Cursor, candidate, out var weight))
+                score += (double)term.Weight * weight;
         }
         return score;
     }

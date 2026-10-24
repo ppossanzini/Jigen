@@ -57,7 +57,7 @@ public sealed class SparseIndex
             ArgumentOutOfRangeException.ThrowIfNegative(termId);
             if (!float.IsFinite(weight))
                 throw new ArgumentOutOfRangeException(nameof(query), "Query weights must be finite.");
-            if (TryGetTerm(termId, out var entry) && entry.Blocks.Count > 0)
+            if (TryGetTerm(termId, out var entry) && entry.BlockReferences.Length > 0)
                 terms.Add((entry, weight));
         }
 

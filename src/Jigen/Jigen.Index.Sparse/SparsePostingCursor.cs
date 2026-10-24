@@ -23,16 +23,16 @@ public sealed class SparsePostingCursor
         _blocks = blocks;
     }
 
-    public bool IsExhausted => _blockPosition == _directory.Blocks.Count;
-    public SparseBlockReference CurrentBlock => IsExhausted ? null : _directory.Blocks[_blockPosition];
-    public SparsePosting? Current => _postingPosition < 0 ? null : _loadedBlock.Postings[_postingPosition];
+    public bool IsExhausted => _blockPosition == _directory.BlockReferences.Length;
+    public SparseBlockReference CurrentBlock => IsExhausted ? null : _directory.BlockReferences[_blockPosition];
+    public SparsePosting? Current => _postingPosition < 0 ? null : _loadedBlock.PostingItems[_postingPosition];
 
     public bool MoveNext()
     {
         if (IsExhausted)
             return false;
 
-        if (_loadedBlock is not null && _postingPosition + 1 == _loadedBlock.Postings.Count)
+        if (_loadedBlock is not null && _postingPosition + 1 == _loadedBlock.PostingItems.Length)
             SkipBlock();
 
         if (IsExhausted)
@@ -54,12 +54,17 @@ public sealed class SparsePostingCursor
         if (IsExhausted)
             return false;
 
+        if (_postingPosition >= 0 &&
+            TrySeekWithinLoadedBlock(documentId, vectorIndex, out var withinBlock))
+            return withinBlock;
+
+        var references = _directory.BlockReferences;
         var lower = _blockPosition;
-        var upper = _directory.Blocks.Count;
+        var upper = references.Length;
         while (lower < upper)
         {
             var middle = lower + (upper - lower) / 2;
-            var reference = _directory.Blocks[middle];
+            var reference = references[middle];
             if (Compare(reference.LastDocumentId, reference.LastVectorIndex, documentId, vectorIndex) < 0)
                 lower = middle + 1;
             else
@@ -72,12 +77,13 @@ public sealed class SparsePostingCursor
             return false;
 
         LoadBlock();
+        var postings = _loadedBlock.PostingItems;
         lower = Math.Max(_postingPosition, 0);
-        upper = _loadedBlock.Postings.Count;
+        upper = postings.Length;
         while (lower < upper)
         {
             var middle = lower + (upper - lower) / 2;
-            var posting = _loadedBlock.Postings[middle];
+            var posting = postings[middle];
             if (Compare(posting.DocumentId, posting.VectorIndex, documentId, vectorIndex) < 0)
                 lower = middle + 1;
             else
@@ -98,6 +104,42 @@ public sealed class SparsePostingCursor
         return !IsExhausted;
     }
 
+    // Positions inside the already loaded block when the target falls in it,
+    // avoiding the block search that the general path would repeat.
+    private bool TrySeekWithinLoadedBlock(ReadOnlySpan<byte> documentId, int vectorIndex,
+        out bool positioned)
+    {
+        var postings = _loadedBlock.PostingItems;
+        if (Compare(postings[_postingPosition].DocumentId, postings[_postingPosition].VectorIndex,
+                documentId, vectorIndex) >= 0)
+        {
+            positioned = true;
+            return true;
+        }
+
+        if (Compare(postings[^1].DocumentId, postings[^1].VectorIndex, documentId, vectorIndex) < 0)
+        {
+            positioned = false;
+            return false;
+        }
+
+        var lower = _postingPosition + 1;
+        var upper = postings.Length;
+        while (lower < upper)
+        {
+            var middle = lower + (upper - lower) / 2;
+            var posting = postings[middle];
+            if (Compare(posting.DocumentId, posting.VectorIndex, documentId, vectorIndex) < 0)
+                lower = middle + 1;
+            else
+                upper = middle;
+        }
+
+        _postingPosition = lower;
+        positioned = true;
+        return true;
+    }
+
     private void SelectBlock(int position)
     {
         _blockPosition = position;
@@ -114,12 +156,13 @@ public sealed class SparsePostingCursor
         if (reference.BlockIndex >= _blocks.Count)
             throw new InvalidDataException("Sparse block reference points outside the block list.");
         var block = _blocks[reference.BlockIndex];
-        if (block.Postings.Count != reference.PostingCount ||
+        var items = block.PostingItems;
+        if (items.Length != reference.PostingCount ||
             block.MinimumWeight != reference.MinimumWeight ||
             block.MaximumWeight != reference.MaximumWeight ||
-            Compare(block.Postings[0].DocumentId, block.Postings[0].VectorIndex,
+            Compare(items[0].DocumentId, items[0].VectorIndex,
                 reference.FirstDocumentId, reference.FirstVectorIndex) != 0 ||
-            Compare(block.Postings[^1].DocumentId, block.Postings[^1].VectorIndex,
+            Compare(items[^1].DocumentId, items[^1].VectorIndex,
                 reference.LastDocumentId, reference.LastVectorIndex) != 0)
             throw new InvalidDataException("Sparse posting block does not match its directory reference.");
 

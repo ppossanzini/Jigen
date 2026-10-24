@@ -8,18 +8,35 @@ public sealed class SparseTermDirectoryEntry : IStorableItem<SparseTermDirectory
     private const int SerializationVersion = 1;
     private const int HeaderSize = 3 * sizeof(int);
 
-    private readonly IReadOnlyList<SparseBlockReference> _blocks;
+    private readonly SparseBlockReference[] _blocks;
 
     public int TermId { get; }
     public IReadOnlyList<SparseBlockReference> Blocks => _blocks;
+
+    internal SparseBlockReference[] BlockReferences => _blocks;
     public float MinimumWeight { get; }
     public float MaximumWeight { get; }
 
     public SparseTermDirectoryEntry(int termId, IEnumerable<SparseBlockReference> blocks)
     {
-        ArgumentOutOfRangeException.ThrowIfNegative(termId);
         ArgumentNullException.ThrowIfNull(blocks);
         var references = blocks.ToArray();
+        (MinimumWeight, MaximumWeight) = Validate(termId, references);
+        TermId = termId;
+        _blocks = references;
+    }
+
+    // Takes ownership of the array to avoid copying an entry that has just been deserialized.
+    internal SparseTermDirectoryEntry(int termId, SparseBlockReference[] blocks)
+    {
+        (MinimumWeight, MaximumWeight) = Validate(termId, blocks);
+        TermId = termId;
+        _blocks = blocks;
+    }
+
+    private static (float Minimum, float Maximum) Validate(int termId, SparseBlockReference[] references)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(termId);
         var positions = new HashSet<int>();
         var minimum = 0f;
         var maximum = 0f;
@@ -28,21 +45,18 @@ public sealed class SparseTermDirectoryEntry : IStorableItem<SparseTermDirectory
         {
             var reference = references[index];
             if (reference is null)
-                throw new ArgumentException("A block reference cannot be null.", nameof(blocks));
+                throw new ArgumentException("A block reference cannot be null.", nameof(references));
             if (!positions.Add(reference.BlockIndex))
-                throw new ArgumentException("A posting block cannot be referenced twice.", nameof(blocks));
+                throw new ArgumentException("A posting block cannot be referenced twice.", nameof(references));
             if (index > 0 && !reference.Follows(references[index - 1]))
                 throw new ArgumentException(
-                    "Block intervals must be strictly ordered and nonoverlapping.", nameof(blocks));
+                    "Block intervals must be strictly ordered and nonoverlapping.", nameof(references));
 
             minimum = MathF.Min(minimum, reference.MinimumWeight);
             maximum = MathF.Max(maximum, reference.MaximumWeight);
         }
 
-        TermId = termId;
-        _blocks = Array.AsReadOnly(references);
-        MinimumWeight = minimum;
-        MaximumWeight = maximum;
+        return (minimum, maximum);
     }
 
     public ReadOnlyMemory<byte> Serialize()
@@ -55,7 +69,7 @@ public sealed class SparseTermDirectoryEntry : IStorableItem<SparseTermDirectory
         var destination = buffer.AsSpan();
         BinaryPrimitives.WriteInt32LittleEndian(destination, SerializationVersion);
         BinaryPrimitives.WriteInt32LittleEndian(destination[4..], TermId);
-        BinaryPrimitives.WriteInt32LittleEndian(destination[8..], _blocks.Count);
+        BinaryPrimitives.WriteInt32LittleEndian(destination[8..], _blocks.Length);
 
         var offset = HeaderSize;
         foreach (var block in _blocks)

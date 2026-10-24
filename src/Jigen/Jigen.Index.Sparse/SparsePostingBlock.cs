@@ -9,9 +9,11 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
     private const int HeaderSize = 4 * sizeof(int);
     private const int PostingFixedSize = 2 * sizeof(int) + sizeof(float);
 
-    private readonly IReadOnlyList<SparsePosting> _postings;
+    private readonly SparsePosting[] _postings;
 
     public IReadOnlyList<SparsePosting> Postings => _postings;
+
+    internal SparsePosting[] PostingItems => _postings;
 
     // Missing postings contribute zero, including when query weights are negative.
     public float MinimumWeight { get; }
@@ -21,6 +23,19 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
     {
         ArgumentNullException.ThrowIfNull(postings);
         var items = postings.ToArray();
+        (MinimumWeight, MaximumWeight) = Validate(items);
+        _postings = items;
+    }
+
+    // Takes ownership of the array to avoid copying a block that has just been deserialized.
+    internal SparsePostingBlock(SparsePosting[] postings)
+    {
+        (MinimumWeight, MaximumWeight) = Validate(postings);
+        _postings = postings;
+    }
+
+    private static (float Minimum, float Maximum) Validate(SparsePosting[] items)
+    {
         var minimum = 0f;
         var maximum = 0f;
 
@@ -28,18 +43,16 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
         {
             var posting = items[index];
             if (posting.DocumentId.IsEmpty)
-                throw new ArgumentException("A posting requires a document identifier.", nameof(postings));
+                throw new ArgumentException("A posting requires a document identifier.", nameof(items));
             if (index > 0 && CompareIdentity(items[index - 1], posting) >= 0)
                 throw new ArgumentException(
-                  "Postings must be strictly ordered by document identifier and vector index.", nameof(postings));
+                  "Postings must be strictly ordered by document identifier and vector index.", nameof(items));
 
             minimum = MathF.Min(minimum, posting.Weight);
             maximum = MathF.Max(maximum, posting.Weight);
         }
 
-        _postings = Array.AsReadOnly(items);
-        MinimumWeight = minimum;
-        MaximumWeight = maximum;
+        return (minimum, maximum);
     }
 
     public ReadOnlyMemory<byte> Serialize()
@@ -51,7 +64,7 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
         var buffer = new byte[length];
         var span = buffer.AsSpan();
         BinaryPrimitives.WriteInt32LittleEndian(span, SerializationVersion);
-        BinaryPrimitives.WriteInt32LittleEndian(span[4..], _postings.Count);
+        BinaryPrimitives.WriteInt32LittleEndian(span[4..], _postings.Length);
         BinaryPrimitives.WriteSingleLittleEndian(span[8..], MinimumWeight);
         BinaryPrimitives.WriteSingleLittleEndian(span[12..], MaximumWeight);
 
@@ -88,6 +101,8 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
         var minimum = BinaryPrimitives.ReadSingleLittleEndian(span[8..]);
         var maximum = BinaryPrimitives.ReadSingleLittleEndian(span[12..]);
         var postings = new SparsePosting[count];
+        var documentBuffer = new byte[span.Length - HeaderSize - count * PostingFixedSize];
+        var documentOffset = 0;
         var offset = HeaderSize;
 
         for (var index = 0; index < count; index++)
@@ -109,12 +124,15 @@ public sealed class SparsePostingBlock : IStorableItem<SparsePostingBlock, Value
             if (vectorIndex < 0 || !float.IsFinite(weight))
                 throw new InvalidDataException("Invalid sparse posting vector index or weight.");
 
-            postings[index] = new SparsePosting(documentId, vectorIndex, weight);
+            documentId.CopyTo(documentBuffer.AsSpan(documentOffset, idLength));
+            postings[index] = new SparsePosting(documentBuffer, documentOffset, idLength,
+                vectorIndex, weight);
+            documentOffset += idLength;
             if (index > 0 && CompareIdentity(postings[index - 1], postings[index]) >= 0)
                 throw new InvalidDataException("Sparse postings are not strictly ordered.");
         }
 
-        if (offset != span.Length)
+        if (offset != span.Length || documentOffset != documentBuffer.Length)
             throw new InvalidDataException("Unexpected trailing data in sparse posting block.");
 
         var block = new SparsePostingBlock(postings);
