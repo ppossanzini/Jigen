@@ -83,7 +83,7 @@ public class HnswQuantizedTest : IAsyncDisposable
       var groupById = dataset.ToDictionary(s => Convert.ToBase64String(s.Id), s => s.Group, StringComparer.Ordinal);
       var similarityById = expected.ToDictionary(e => Convert.ToBase64String(e.Sentence.Id), e => e.Similarity, StringComparer.Ordinal);
 
-      var results = _store.Search(_collectionName, query, Top).ToList();
+      var results = _store.SearchDense(_collectionName, query, Top).ToList();
 
       Assert.NotEmpty(results);
       Assert.Equal(

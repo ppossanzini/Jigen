@@ -272,7 +272,7 @@ public class StoreReliabilityTests
       var reopened = new Store(HnswOptionsFor(path));
       Assert.True(reopened.WasUncleanShutdown);
 
-      var results = reopened.Search("docs", new[] { 1f, 0f, 0f }, 1).ToList();
+      var results = reopened.SearchDense("docs", new[] { 1f, 0f, 0f }, 1).ToList();
       Assert.Single(results);
       Assert.Equal(a, results[0].entry.Id);
 
@@ -299,11 +299,11 @@ public class StoreReliabilityTests
       // empty search results until ReconcileIndexAsync is invoked.
       var reopened = new Store(HnswOptionsFor(path));
       Assert.False(reopened.WasUncleanShutdown);
-      Assert.Empty(reopened.Search("docs", new[] { 1f, 0f, 0f }, 1));
+      Assert.Empty(reopened.SearchDense("docs", new[] { 1f, 0f, 0f }, 1));
 
       await reopened.ReconcileIndexAsync();
 
-      var results = reopened.Search("docs", new[] { 1f, 0f, 0f }, 1).ToList();
+      var results = reopened.SearchDense("docs", new[] { 1f, 0f, 0f }, 1).ToList();
       Assert.Single(results);
       Assert.Equal(a, results[0].entry.Id);
 
@@ -347,7 +347,7 @@ public class StoreReliabilityTests
       var reopened = new Store(HnswOptionsFor(path));
       Assert.True(reopened.WasUncleanShutdown);
 
-      var results = reopened.Search("docs", new[] { 0f, 1f, 0f }, 3).ToList();
+      var results = reopened.SearchDense("docs", new[] { 0f, 1f, 0f }, 3).ToList();
       Assert.DoesNotContain(results, r => r.entry.Id.SequenceEqual(b));
       Assert.Contains(results, r => r.entry.Id.SequenceEqual(a));
 

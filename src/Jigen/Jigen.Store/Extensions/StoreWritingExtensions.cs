@@ -25,7 +25,7 @@ public static class StoreWritingExtensions
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
     var embeddings = entry.Embeddings.Select(v => v.ToArray()).ToArray();
 
-    int size = WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embeddings);
+    int size = WalRecord.InsertRecordSize(entry.Id, entry.CollectionName, content, embeddings, entry.SparseVectors);
     byte[] rented = null;
     Span<byte> buffer = size <= 8192
       ? stackalloc byte[size]
@@ -33,7 +33,7 @@ public static class StoreWritingExtensions
 
     try
     {
-      WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embeddings);
+      WalRecord.SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embeddings, entry.SparseVectors);
       walStream.Write(buffer[..size]);
     }
     finally
@@ -42,8 +42,40 @@ public static class StoreWritingExtensions
     }
   }
 
-  private static void WriteWalDelete(Store store, byte[] key, string collection)
+  // ── Sparse section ──
+  // From FormatVersion 2 on every vector record ends with the sparse section of
+  // the entry, so a record is self-describing: [sparse vector count] then, per
+  // vector, [pair count] followed by the ordered term/weight pairs.
+  internal static long SparseSectionLength(VectorEntry entry) => Store.SparseSectionSize(entry.SparseVectors);
+
+  internal static int WriteSparseSection(Span<byte> destination, int offset, VectorEntry entry)
   {
+    var start = offset;
+    var sparseVectors = entry.SparseVectors;
+
+    // Counts first, then every pair: a reader loads the shape with one read and
+    // the pairs with a second, instead of alternating header and payload reads.
+    BinaryPrimitives.WriteInt32LittleEndian(destination[offset..], sparseVectors.Count);
+    offset += sizeof(int);
+    foreach (var vector in sparseVectors)
+    {
+      BinaryPrimitives.WriteInt32LittleEndian(destination[offset..], vector.Length);
+      offset += sizeof(int);
+    }
+
+    foreach (var vector in sparseVectors)
+      foreach (var term in vector)
+      {
+        BinaryPrimitives.WriteInt32LittleEndian(destination[offset..], term.Term);
+        offset += sizeof(int);
+        BinaryPrimitives.WriteSingleLittleEndian(destination[offset..], term.Weight);
+        offset += sizeof(float);
+      }
+
+    return offset - start;
+  }
+
+  private static void WriteWalDelete(Store store, byte[] key, string collection)  {
     var walStream = store.WalFileStream!;
     int size = WalRecord.DeleteRecordSize(key, collection);
     byte[] rented = null;
@@ -301,6 +333,7 @@ public static class StoreWritingExtensions
     if (result)
     {
       store.Options.Indexer?.RemoveFromIndex(collection, key);
+      store.DeleteSparseEntry(collection, key);
       // Group commit: no per-delete fsync. The tombstone becomes durable at
       // the next SaveChangesAsync/Close, exactly like appended entries.
     }
@@ -358,7 +391,10 @@ public static class StoreWritingExtensions
     if (removedKeys.Count > 0)
     {
       foreach (var key in removedKeys)
+      {
         store.Options.Indexer?.RemoveFromIndex(collection, key);
+        store.DeleteSparseEntry(collection, key);
+      }
 
       // Push the tombstone burst to the OS without fsync: durability comes
       // with the next SaveChangesAsync/Close (group commit).
@@ -389,6 +425,8 @@ public static class StoreWritingExtensions
       var vectors = e.Embeddings;
       if (vectors.Count > 0)
         embeddingTotal += Store.EmbeddingRecordSize(e.Id.Length, vectors[0].Length, vectors.Count);
+      if (store.WritesSparseSection)
+        embeddingTotal += SparseSectionLength(e);
     }
 
     // ── Allocate pooled buffers ──
@@ -436,7 +474,7 @@ public static class StoreWritingExtensions
           contentOff += entry.Content.Length;
         }
 
-        if (vectors.Count > 0)
+        if (vectors.Count > 0 || entry.SparseVectors.Count > 0)
         {
           ep = embedBasePos + embedOff;
           BinaryPrimitives.WriteInt32LittleEndian(embedBuf.AsSpan(embedOff), entry.Id.Length);
@@ -451,6 +489,9 @@ public static class StoreWritingExtensions
               .CopyTo(embedBuf.AsSpan(embedOff));
             embedOff += vector.Length * sizeof(float);
           }
+
+          if (store.WritesSparseSection)
+            embedOff += WriteSparseSection(embedBuf, embedOff, entry);
         }
 
         results.Add((entry.Id, entry.CollectionName, cp, ep, dimensions, vectors.Count, entry.Content.Length));
@@ -524,7 +565,16 @@ public static class StoreWritingExtensions
       embeddingsStream.WriteInt32Le(vectorCount);
 
       embeddingsStream.WriteByteArray(embeddings.Value.Span);
-      
+
+      // A version 2 record always carries its sparse section, empty here:
+      // otherwise a reader could not tell the record from a legacy one.
+      if (store.WritesSparseSection)
+      {
+        Span<byte> emptySection = stackalloc byte[sizeof(int)];
+        BinaryPrimitives.WriteInt32LittleEndian(emptySection, 0);
+        embeddingsStream.Write(emptySection);
+      }
+
       store.VectorStoreHeader.EmbeddingCurrentPosition = embeddingsStream.Position;
     }
 

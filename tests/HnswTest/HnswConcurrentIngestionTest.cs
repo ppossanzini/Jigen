@@ -64,7 +64,7 @@ public class HnswConcurrentIngestionTest : IAsyncDisposable
     var selfMisses = 0;
     for (var i = 0; i < total; i += 10)
     {
-      var results = _store.Search(_collectionName, seeded[i].Embedding, 1).ToList();
+      var results = _store.SearchDense(_collectionName, seeded[i].Embedding, 1).ToList();
       if (results.Count == 0 || !results[0].entry.Id.SequenceEqual(seeded[i].Id))
         selfMisses++;
     }
@@ -81,7 +81,7 @@ public class HnswConcurrentIngestionTest : IAsyncDisposable
       var query = seeded[i * (total / queries)].Embedding;
       var expected = brute.Search(_store, _collectionName, query, top)
         .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
-      var got = _store.Search(_collectionName, query, top)
+      var got = _store.SearchDense(_collectionName, query, top)
         .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
       recallSum += (double)got.Intersect(expected, StringComparer.Ordinal).Count() / top;
     }

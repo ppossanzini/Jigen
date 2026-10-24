@@ -73,13 +73,15 @@ public static class WalRecord
 
   // ── Sizing ──
 
-  public static int InsertRecordSize(byte[] id, string collection, byte[] content, IReadOnlyList<float[]> embeddings)
+  public static int InsertRecordSize(byte[] id, string collection, byte[] content,
+    IReadOnlyList<float[]> embeddings, IReadOnlyList<SparseTerm[]> sparseVectors = null)
   {
     var payload = LengthFieldSize + TypeFieldSize
                   + IdFieldSize(id)
                   + CollectionFieldSize(collection)
                   + ContentFieldSize(content ?? [])
-                  + EmbeddingFieldSize(embeddings);
+                  + EmbeddingFieldSize(embeddings)
+                  + SparseFieldSize(sparseVectors);
     return CrcFieldSize + payload;
   }
 
@@ -124,15 +126,27 @@ public static class WalRecord
     return size;
   }
 
+  // The sparse section is written only when the entry carries sparse vectors,
+  // so a record without them stays byte-identical to the pre-sparse layout.
+  private static int SparseFieldSize(IReadOnlyList<SparseTerm[]> sparseVectors)
+  {
+    if (sparseVectors is not { Count: > 0 }) return 0;
+    var size = sizeof(int);
+    foreach (var vector in sparseVectors)
+      size += sizeof(int) + vector.Length * (sizeof(int) + sizeof(float));
+    return size;
+  }
+
   // ── Serialization ──
 
   /// <summary>
   /// Serializes an insert record. Returns bytes written.
   /// Layout: [CRC(4)][Length(4)][Type:0x01][id][collection][content][vector count][dimensions][vectors]
   /// </summary>
-  public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[] content, IReadOnlyList<float[]> embeddings)
+  public static int SerializeInsert(Span<byte> buffer, byte[] id, string collection, byte[] content,
+    IReadOnlyList<float[]> embeddings, IReadOnlyList<SparseTerm[]> sparseVectors = null)
   {
-    int totalSize = InsertRecordSize(id, collection, content, embeddings);
+    int totalSize = InsertRecordSize(id, collection, content, embeddings, sparseVectors);
     int payloadOffset = CrcFieldSize + LengthFieldSize;
 
     buffer[payloadOffset] = (byte)WalRecordType.Insert;
@@ -186,6 +200,27 @@ public static class WalRecord
       pos += sizeof(int);
     }
 
+    // Sparse section: [vector count][pair count per vector][pairs].
+    if (sparseVectors is { Count: > 0 })
+    {
+      BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], sparseVectors.Count);
+      pos += sizeof(int);
+      foreach (var vector in sparseVectors)
+      {
+        BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], vector.Length);
+        pos += sizeof(int);
+      }
+
+      foreach (var vector in sparseVectors)
+        foreach (var term in vector)
+        {
+          BinaryPrimitives.WriteInt32LittleEndian(buffer[pos..], term.Term);
+          pos += sizeof(int);
+          BinaryPrimitives.WriteSingleLittleEndian(buffer[pos..], term.Weight);
+          pos += sizeof(float);
+        }
+    }
+
     Debug.Assert(pos == totalSize, "Serialization size mismatch");
 
     var payloadSize = totalSize - CrcFieldSize - LengthFieldSize;
@@ -207,7 +242,7 @@ public static class WalRecord
   {
     var content = entry.Content.IsEmpty ? null : entry.Content.ToArray();
     var embeddings = entry.Embeddings.Select(v => v.ToArray()).ToArray();
-    return SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embeddings);
+    return SerializeInsert(buffer, entry.Id, entry.CollectionName, content, embeddings, entry.SparseVectors);
   }
 
   /// <summary>
@@ -360,9 +395,11 @@ public static class WalRecord
     out string collection,
     out byte[] content,
     out float[][] embeddings,
+    out IReadOnlyList<SparseTerm[]> sparseVectors,
     out int bytesRead)
   {
-    return TryReadRecord(stream, out type, out id, out collection, out content, out embeddings, out _, out bytesRead);
+    return TryReadRecord(stream, out type, out id, out collection, out content, out embeddings,
+      out sparseVectors, out _, out bytesRead);
   }
 
   /// <summary>
@@ -378,12 +415,14 @@ public static class WalRecord
     out string collection,
     out byte[] content,
     out float[][] embeddings,
+    out IReadOnlyList<SparseTerm[]> sparseVectors,
     out Guid txId,
     out int bytesRead)
   {
     type = 0;
     id = [];
     collection = string.Empty;
+    sparseVectors = [];
     content = [];
     embeddings = [];
     txId = Guid.Empty;
@@ -528,6 +567,43 @@ public static class WalRecord
             p += dimensions * sizeof(float);
           }
         }
+      }
+
+      // Optional trailing sparse section: absent in records written before
+      // sparse vectors existed, so a missing tail means "no sparse vectors".
+      if (type == WalRecordType.Insert && p < remainingPayload)
+      {
+        if (p + sizeof(int) > remainingPayload) return false;
+        var sparseVectorCount = BinaryPrimitives.ReadInt32LittleEndian(payloadBuffer[p..]);
+        p += sizeof(int);
+        if (sparseVectorCount < 0 || sparseVectorCount > 65_536) return false;
+
+        if ((long)sparseVectorCount * sizeof(int) > remainingPayload - p) return false;
+        var pairCounts = new int[sparseVectorCount];
+        for (var i = 0; i < sparseVectorCount; i++)
+        {
+          pairCounts[i] = BinaryPrimitives.ReadInt32LittleEndian(payloadBuffer[p..]);
+          p += sizeof(int);
+          if (pairCounts[i] < 0 || pairCounts[i] > 16_777_216) return false;
+        }
+
+        var parsedSparseVectors = new SparseTerm[sparseVectorCount][];
+        for (var i = 0; i < sparseVectorCount; i++)
+        {
+          if ((long)pairCounts[i] * (sizeof(int) + sizeof(float)) > remainingPayload - p) return false;
+          var vector = new SparseTerm[pairCounts[i]];
+          for (var pair = 0; pair < pairCounts[i]; pair++)
+          {
+            var term = BinaryPrimitives.ReadInt32LittleEndian(payloadBuffer[p..]);
+            p += sizeof(int);
+            var weight = BinaryPrimitives.ReadSingleLittleEndian(payloadBuffer[p..]);
+            p += sizeof(float);
+            vector[pair] = new SparseTerm(term, weight);
+          }
+          parsedSparseVectors[i] = vector;
+        }
+
+        sparseVectors = parsedSparseVectors;
       }
 
       bytesRead = totalSize;

@@ -269,6 +269,10 @@ public class Writer
             // ── Batch-serialize: one Write per file ──
             var indexEntries = _store.AppendContentBatch(batch);
 
+            // Sparse vectors follow the same single-writer rule as the dense
+            // ones: they are indexed here, from the batch just persisted.
+            _store.IndexSparseEntries(batch);
+
             // ── Stage index records and forward to index workers ──
             for (int i = 0; i < indexEntries.Count; i++)
             {

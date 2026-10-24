@@ -9,6 +9,7 @@ using Xunit.Abstractions;
 
 namespace JigenTests;
 
+[Collection(OnnxModelCollection.Name)]
 public sealed class NomicHnswScoreTests : IAsyncDisposable
 {
     private const string ModelDirectory = "/data/onnx/nomic-embed-text-v1.5";
@@ -77,8 +78,8 @@ public sealed class NomicHnswScoreTests : IAsyncDisposable
         });
         await _store.SaveChangesAsync();
 
-        var unrelatedResult = Assert.Single(_store.Search(CollectionName, unrelatedQueryEmbedding, top: 1));
-        var relevantResult = Assert.Single(_store.Search(CollectionName, relevantQueryEmbedding, top: 1));
+        var unrelatedResult = Assert.Single(_store.SearchDense(CollectionName, unrelatedQueryEmbedding, top: 1));
+        var relevantResult = Assert.Single(_store.SearchDense(CollectionName, relevantQueryEmbedding, top: 1));
 
         _testOutputHelper.WriteLine($"prostituzuione: direct={unrelatedSimilarity:F6}, hnsw={unrelatedResult.score:F6}");
         _testOutputHelper.WriteLine($"scarsa illuminazione: direct={relevantSimilarity:F6}, hnsw={relevantResult.score:F6}");

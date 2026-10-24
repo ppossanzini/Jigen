@@ -44,7 +44,15 @@ public sealed class SparseIndex
     /// Zero-weight query terms still participate in matching.
     /// </summary>
     public IReadOnlyList<SparseSearchResult> Search(IReadOnlyDictionary<int, float> query, int k,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        Search(query, k, null, cancellationToken);
+
+    /// <summary>
+    /// Same search, skipping the documents the filter rejects. A rejected
+    /// document never takes a slot of the top-k.
+    /// </summary>
+    public IReadOnlyList<SparseSearchResult> Search(IReadOnlyDictionary<int, float> query, int k,
+        SparseDocumentFilter filter, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(query);
         ArgumentOutOfRangeException.ThrowIfNegative(k);
@@ -64,6 +72,6 @@ public sealed class SparseIndex
         if (k == 0 || terms.Count == 0)
             return Array.Empty<SparseSearchResult>();
 
-        return SparseMaxScoreSearch.Execute(terms, _blocks, k, cancellationToken);
+        return SparseMaxScoreSearch.Execute(terms, _blocks, k, filter, cancellationToken);
     }
 }

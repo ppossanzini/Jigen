@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.MemoryMappedFiles;
@@ -71,9 +72,30 @@ public partial class Store : IStore, IDisposable
   // On-disk record layouts (see StoreWritingExtensions.AppendContent):
   // content:    [id length][id][content length][content bytes]
   // embeddings: [id length][id][vector count][vector count * dimensions * float]
+  //             [sparse vector count][per vector: pair count][term int32][weight float32]...
+  // The trailing sparse section exists only from FormatVersion 2 on; records of
+  // an earlier archive end after the dense vectors.
+  internal const int SparseFormatVersion = 2;
+
   internal static long ContentRecordSize(int idLength, long contentSize) => 2 * sizeof(int) + idLength + contentSize;
   internal static long EmbeddingRecordSize(int idLength, int dimensions, int vectorCount) =>
     sizeof(int) + idLength + sizeof(int) + (long)vectorCount * dimensions * sizeof(float);
+  internal static long SparseSectionSize(IReadOnlyList<SparseTerm[]> sparseVectors)
+  {
+    // [sparse vector count][per vector: pair count][term int32][weight float32]...
+    var size = (long)sizeof(int);
+    foreach (var vector in sparseVectors)
+      size += sizeof(int) + (long)vector.Length * SparsePairSize;
+    return size;
+  }
+  internal static long SparsePairSize => sizeof(int) + sizeof(float);
+
+  /// <summary>
+  /// True when vector records of this archive carry the trailing sparse
+  /// section. False for an archive written before sparse vectors existed,
+  /// which stays dense-only and rejects sparse writes.
+  /// </summary>
+  internal bool WritesSparseSection => VectorStoreHeader.FormatVersion >= SparseFormatVersion;
 
   // Concurrent on both levels: mutations happen under IndexAppendLock (writer
   // thread, deletes, shrink) but lookups and enumerations come lock-free from
@@ -83,6 +105,13 @@ public partial class Store : IStore, IDisposable
 
   internal void ValidateVectorDimensions(VectorEntry entry)
   {
+    // An archive written before sparse vectors has no room for them in its
+    // records: accepting the write would store data no reader ever sees.
+    if (entry?.SparseVectors is { Count: > 0 } && !WritesSparseSection)
+      throw new NotSupportedException(
+        $"The database '{Options.DataBaseName}' was written without sparse vectors; " +
+        "sparse vectors require an archive created by a version that stores them.");
+
     var vectors = entry?.Embeddings;
     if (vectors is not { Count: > 0 }) return;
     if (string.IsNullOrWhiteSpace(entry.CollectionName))
@@ -241,9 +270,23 @@ public partial class Store : IStore, IDisposable
     ContentFileStream = File.Open(ContentFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     EmbeddingFileStream = File.Open(EmbeddingsFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
     IndexFileStream = File.Open(IndexFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite);
+    VectorStoreHeader.FormatVersion = ReadFormatVersion();
 
     if (Options.Wal?.Enabled == true)
       WalFileStream = File.Open(WalFullFileName, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+  }
+
+  // The vector file starts with [header length][format version][reserved].
+  // An archive written before sparse vectors leaves the version slot at zero,
+  // which marks its records as dense-only.
+  private int ReadFormatVersion()
+  {
+    if (EmbeddingFileStream.Length < 2 * sizeof(int))
+      return 0;
+
+    Span<byte> slot = stackalloc byte[sizeof(int)];
+    ReadExactly(EmbeddingFileStream.SafeFileHandle, slot, sizeof(long));
+    return BinaryPrimitives.ReadInt32LittleEndian(slot);
   }
 
   internal void EnableReading()
@@ -387,6 +430,10 @@ public partial class Store : IStore, IDisposable
     // batch still needs the streams and recreates the read mappings.
     Writer.Stop();
 
+    // The sparse files have their own writers and readers: releasing them here
+    // keeps a second Store on the same path from opening them concurrently.
+    CloseSparseIndexes();
+
     // Stop the WAL checkpointer AFTER the writer (so it drains what remains).
     if (_walCheckpointer is not null)
     {
@@ -441,7 +488,10 @@ public partial class Store : IStore, IDisposable
       stream.Seek(0, SeekOrigin.Begin);
       using var writer = new BinaryWriter(stream);
 
+      // Header: [header length][format version][reserved to 20 bytes].
       writer.Write(VectorStoreHeader.EmbeddingCurrentPosition = 2 * sizeof(long) + sizeof(int));
+      writer.Write(VectorStoreHeader.FormatVersion = SparseFormatVersion);
+
       writer.Flush();
 
       stream.Seek(VectorStoreHeader.EmbeddingCurrentPosition, SeekOrigin.Begin);

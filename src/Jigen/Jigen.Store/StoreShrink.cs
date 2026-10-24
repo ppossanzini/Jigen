@@ -1,5 +1,7 @@
 using System.Buffers;
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 using Jigen.Extensions;
 
 namespace Jigen;
@@ -52,6 +54,10 @@ public partial class Store
       if (Options.Indexer is not null)
         await Options.Indexer.ShrinkAsync();
 
+      // Sparse segments accumulate one per batch: the shrink is also the point
+      // where they are merged back into a single segment.
+      CompactSparseIndexes();
+
       return true;
     }
     finally
@@ -99,6 +105,8 @@ public partial class Store
       // Same initial headers written by EnsureFileCreated: data starts at 8.
       newContent.WriteInt64Le(sizeof(long));
       newEmbeddings.WriteInt64Le(2 * sizeof(long) + sizeof(int));
+      if (WritesSparseSection)
+        newEmbeddings.WriteInt32Le(SparseFormatVersion);
 
       // Copy live records in file order → sequential reads on the old files.
       foreach (var entry in entries.Where(e => e.OldContentPosition > 0).OrderBy(e => e.OldContentPosition))
@@ -110,7 +118,12 @@ public partial class Store
       foreach (var entry in entries.Where(e => e.OldEmbeddingPosition > 0).OrderBy(e => e.OldEmbeddingPosition))
       {
         entry.NewEmbeddingPosition = newEmbeddings.Position;
-        CopyRecord(EmbeddingFileStream, entry.OldEmbeddingPosition, EmbeddingRecordSize(entry.Id.Length, entry.Dimensions, entry.VectorCount), newEmbeddings);
+        // The sparse section is part of the record, so the copy must reach past
+        // the dense vectors: its length is read from the record itself.
+        var recordSize = EmbeddingRecordSize(entry.Id.Length, entry.Dimensions, entry.VectorCount)
+                         + SparseSectionLengthAt(entry.OldEmbeddingPosition, entry.Id.Length,
+                           entry.Dimensions, entry.VectorCount);
+        CopyRecord(EmbeddingFileStream, entry.OldEmbeddingPosition, recordSize, newEmbeddings);
       }
 
       // Rewrite the index log from scratch: only live entries, no tombstones.
@@ -170,6 +183,36 @@ public partial class Store
       CheckpointedWalPosition = 0;
       _walCheckpointer?.ResetPosition();
     }
+  }
+
+  // Reads the sparse section header of a stored record to learn its length:
+  // [sparse vector count][per vector: pair count], then the pairs themselves.
+  private long SparseSectionLengthAt(long recordPosition, int idLength, int dimensions, int vectorCount)
+  {
+    if (!WritesSparseSection) return 0;
+
+    var sectionPosition = recordPosition + sizeof(int) + idLength + sizeof(int)
+                          + (long)vectorCount * dimensions * sizeof(float);
+    Span<byte> countBuffer = stackalloc byte[sizeof(int)];
+    ReadExactly(EmbeddingFileStream.SafeFileHandle, countBuffer, sectionPosition);
+    var sparseVectorCount = BinaryPrimitives.ReadInt32LittleEndian(countBuffer);
+    if (sparseVectorCount is < 0 or > 65_536)
+      throw new InvalidDataException("Invalid sparse vector count while compacting.");
+
+    var length = (long)sizeof(int) + (long)sparseVectorCount * sizeof(int);
+    if (sparseVectorCount == 0) return length;
+
+    var counts = new int[sparseVectorCount];
+    ReadExactly(EmbeddingFileStream.SafeFileHandle, MemoryMarshal.AsBytes(counts.AsSpan()),
+      sectionPosition + sizeof(int));
+    foreach (var pairs in counts)
+    {
+      if (pairs is < 0 or > 16_777_216)
+        throw new InvalidDataException("Invalid sparse pair count while compacting.");
+      length += (long)pairs * SparsePairSize;
+    }
+
+    return length;
   }
 
   private static void CopyRecord(FileStream source, long position, long length, FileStream destination)

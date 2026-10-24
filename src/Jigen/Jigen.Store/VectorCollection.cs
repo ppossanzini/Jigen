@@ -3,6 +3,7 @@ using System.Linq.Expressions;
 using Jigen.DataStructures;
 using Jigen.Extensions;
 using Jigen.Filtering;
+using Jigen.Index.Sparse;
 
 namespace Jigen;
 
@@ -105,7 +106,8 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
       Id = key.Value,
       CollectionName = CollectionName,
       Content = _options.DocumentSerializer.Serialize(value.Content),
-      Embeddings = value.Embeddings.Select(e => (ReadOnlyMemory<float>)e).ToArray()
+      Embeddings = value.Embeddings.Select(e => (ReadOnlyMemory<float>)e).ToArray(),
+      SparseVectors = value.SparseVectors
     });
   }
 
@@ -168,38 +170,138 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
   }
 
   /// <summary>
-  /// Nearest-neighbour search by query vector, with an optional predicate
+  /// Reads every stored sparse vector of a key, each ordered by ascending term,
+  /// or null when the key does not exist, has no vector record, or the archive
+  /// predates sparse vectors.
+  /// </summary>
+  public IReadOnlyList<SparseTerm[]> GetSparseVectors(VectorKey key)
+  {
+    return store.GetSparseVectors(CollectionName, key.Value);
+  }
+
+  /// <summary>
+  /// Best documents of this collection by sparse score, ordered by descending
+  /// score then binary key. Returns an empty list while no document with sparse
+  /// vectors has been indexed yet.
+  /// </summary>
+  public IReadOnlyList<SparseSearchResult> SearchSparse(IReadOnlyDictionary<int, float> query, int top = 10,
+    CancellationToken cancellationToken = default)
+  {
+    return store.SearchSparse(CollectionName, query, top, cancellationToken);
+  }
+
+  /// <summary>
+  /// Dense nearest-neighbour search by query vector, with an optional predicate
   /// (translated to a serialized filter, evaluated without deserialization)
   /// and an optional per-query HNSW beam width (0 = index default).
   /// </summary>
-  public List<VectorSearchResult<T>> Search(float[] embeddings, int top = 10, Expression<Func<T, bool>> predicate = null, int efSearch = 0)
+  public List<VectorSearchResult<T>> SearchDense(float[] embeddings, int top = 10, Expression<Func<T, bool>> predicate = null, int efSearch = 0)
   {
     if (embeddings == null || embeddings.Length == 0)
       return [];
 
     var filter = predicate != null ? ExpressionTranslator.Translate(predicate) : null;
 
-    return store.Search(CollectionName, embeddings, top, efSearch, filter)
+    return store.SearchDense(CollectionName, embeddings, top, efSearch, filter)
       .Select(i => new VectorSearchResult<T>
       {
         Key = i.entry.Id,
         Content = i.entry.Content.Length > 0 ? _options.DocumentSerializer.Deserialize<T>(i.entry.Content) : null,
-        Score = i.score
+        Score = i.score,
+        DenseScore = i.score
       })
       .ToList();
   }
 
   /// <summary>
-  /// Nearest-neighbour search by sentence: the query embedding is computed via
-  /// <see cref="VectorCollectionOptions{T}.SentenceEmbedder"/>.
+  /// Dense nearest-neighbour search by sentence: the query embedding is computed
+  /// via <see cref="VectorCollectionOptions{T}.SentenceEmbedder"/>.
   /// </summary>
-  public List<VectorSearchResult<T>> Search(string sentence, int top = 10, Expression<Func<T, bool>> predicate = null, int efSearch = 0)
+  public List<VectorSearchResult<T>> SearchDense(string sentence, int top = 10, Expression<Func<T, bool>> predicate = null, int efSearch = 0)
   {
     if (string.IsNullOrWhiteSpace(sentence))
       return [];
 
-    return Search(EmbedSentence(sentence), top, predicate, efSearch);
+    return SearchDense(EmbedSentence(sentence), top, predicate, efSearch);
   }
+
+  /// <summary>
+  /// Hybrid search over both halves of a document. Either query may be omitted;
+  /// supplying neither is an error.
+  /// <para>
+  /// The two scores live on different scales (cosine in [-1, 1] for the dense
+  /// half, an unbounded inner product for the sparse one), so they are fused by
+  /// rank: a document scores 1 / (60 + position) in each list it appears in, and
+  /// the values are summed. <see cref="VectorSearchResult{T}.Score"/> holds that
+  /// fused value; the partial scores stay available on the result.
+  /// </para>
+  /// <para>
+  /// The predicate filters the dense half only: it is evaluated on stored content
+  /// without reading it, which the sparse half cannot do.
+  /// </para>
+  /// </summary>
+  public List<VectorSearchResult<T>> Search(float[] embeddings = null,
+    IReadOnlyDictionary<int, float> sparseQuery = null, int top = 10,
+    Expression<Func<T, bool>> predicate = null, int efSearch = 0,
+    CancellationToken cancellationToken = default)
+  {
+    if (embeddings == null && sparseQuery == null)
+      throw new ArgumentException("A hybrid search needs a dense query, a sparse query, or both.");
+    if (top <= 0)
+      return [];
+
+    var fused = new Dictionary<string, (VectorKey Key, T Content, double Score, float? Dense, float? Sparse)>(
+      StringComparer.Ordinal);
+
+    void Add(byte[] key, T content, double contribution, float? dense, float? sparse)
+    {
+      var identity = Convert.ToHexString(key);
+      if (fused.TryGetValue(identity, out var existing))
+        fused[identity] = (existing.Key, existing.Content ?? content, existing.Score + contribution,
+          dense ?? existing.Dense, sparse ?? existing.Sparse);
+      else
+        fused[identity] = (new VectorKey { Value = key }, content, contribution, dense, sparse);
+    }
+
+    if (embeddings != null)
+    {
+      var denseHits = SearchDense(embeddings, top, predicate, efSearch);
+      for (var rank = 0; rank < denseHits.Count; rank++)
+        Add(denseHits[rank].Key.Value, denseHits[rank].Content,
+          1d / (ReciprocalRankOffset + rank + 1), denseHits[rank].Score, null);
+    }
+
+    if (sparseQuery != null)
+    {
+      var sparseHits = store.SearchSparse(CollectionName, sparseQuery, top, cancellationToken);
+      for (var rank = 0; rank < sparseHits.Count; rank++)
+      {
+        var key = sparseHits[rank].DocumentId.ToArray();
+        var content = fused.TryGetValue(Convert.ToHexString(key), out var known)
+          ? known.Content
+          : TryGetValue(new VectorKey { Value = key }, out var entry) ? entry.Content : null;
+        Add(key, content, 1d / (ReciprocalRankOffset + rank + 1), null, (float)sparseHits[rank].Score);
+      }
+    }
+
+    return fused.Values
+      .OrderByDescending(hit => hit.Score)
+      .ThenBy(hit => hit.Key.Value, ByteArrayOrder.Instance)
+      .Take(top)
+      .Select(hit => new VectorSearchResult<T>
+      {
+        Key = hit.Key,
+        Content = hit.Content,
+        Score = (float)hit.Score,
+        DenseScore = hit.Dense,
+        SparseScore = hit.Sparse
+      })
+      .ToList();
+  }
+
+  // Standard reciprocal-rank constant: damps the influence of the first positions
+  // without requiring a normalization of the two scores.
+  private const int ReciprocalRankOffset = 60;
 
   private float[] EmbedSentence(string sentence)
   {

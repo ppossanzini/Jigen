@@ -77,13 +77,13 @@ public class VectorCollectionTests
       await store.SaveChangesAsync();
 
       // Plain vector search: exact hit first.
-      var results = collection.Search(UnitVector(8, 3), top: 3);
+      var results = collection.SearchDense(UnitVector(8, 3), top: 3);
       Assert.Equal(3, BitConverter.ToInt32(results[0].Key.Value));
       Assert.Equal("article 3", results[0].Content.Title);
       Assert.True(results[0].Score > 0.99f);
 
       // Predicate: the best match (3, "blog") must be excluded.
-      var newsOnly = collection.Search(UnitVector(8, 3), top: 3, predicate: a => a.Category == "news");
+      var newsOnly = collection.SearchDense(UnitVector(8, 3), top: 3, predicate: a => a.Category == "news");
       Assert.NotEmpty(newsOnly);
       Assert.All(newsOnly, r => Assert.Equal("news", r.Content.Category));
       Assert.DoesNotContain(newsOnly, r => BitConverter.ToInt32(r.Key.Value) == 3);
@@ -113,13 +113,13 @@ public class VectorCollectionTests
       await collection.AddAsync(VectorKey.From(2), new Article { Title = "bbbb" }, sentence: "bbbb");
       await store.SaveChangesAsync();
 
-      var results = collection.Search("cc", top: 1); // same length as "aa" -> same vector
+      var results = collection.SearchDense("cc", top: 1); // same length as "aa" -> same vector
       Assert.Single(results);
       Assert.Equal("aa", results[0].Content.Title);
 
       // Without an embedder the sentence overloads must fail loudly.
       var withoutEmbedder = new VectorCollection<Article>(store, new VectorCollectionOptions<Article> { Name = "sentences" });
-      Assert.Throws<InvalidOperationException>(() => withoutEmbedder.Search("x", top: 1));
+      Assert.Throws<InvalidOperationException>(() => withoutEmbedder.SearchDense("x", top: 1));
     });
   }
 

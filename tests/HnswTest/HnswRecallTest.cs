@@ -42,7 +42,7 @@ public class HnswRecallTest : IAsyncDisposable
     var query = seeded[12].Embedding;
     const int top = 20;
 
-    var hnswResults = _store.Search(_collectionName, query, top);
+    var hnswResults = _store.SearchDense(_collectionName, query, top);
     var bruteResults = new BruteForceIndexer().Search(_store, _collectionName, query, top);
 
     Assert.NotEmpty(hnswResults);

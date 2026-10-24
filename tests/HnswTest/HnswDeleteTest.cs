@@ -48,7 +48,7 @@ public class HnswDeleteTest : IAsyncDisposable
     // and no deleted entry may ever surface.
     for (var i = 1; i < seeded.Count; i += 2)
     {
-      var results = _store.Search(_collectionName, seeded[i].Embedding, 5).ToList();
+      var results = _store.SearchDense(_collectionName, seeded[i].Embedding, 5).ToList();
 
       Assert.NotEmpty(results);
       Assert.All(results, r => Assert.DoesNotContain(Convert.ToBase64String(r.entry.Id), deleted));
@@ -69,14 +69,14 @@ public class HnswDeleteTest : IAsyncDisposable
       Assert.True(await _store.DeleteContent(_collectionName, seeded[i].Id));
 
     var survivor = seeded[^1];
-    var results = _store.Search(_collectionName, survivor.Embedding, 5).ToList();
+    var results = _store.SearchDense(_collectionName, survivor.Embedding, 5).ToList();
 
     Assert.Single(results);
     Assert.Equal(Convert.ToBase64String(survivor.Id), Convert.ToBase64String(results[0].entry.Id));
 
     // Delete the survivor too: the collection must simply return nothing.
     Assert.True(await _store.DeleteContent(_collectionName, survivor.Id));
-    Assert.Empty(_store.Search(_collectionName, survivor.Embedding, 5));
+    Assert.Empty(_store.SearchDense(_collectionName, survivor.Embedding, 5));
   }
 
   [Fact]
@@ -100,7 +100,7 @@ public class HnswDeleteTest : IAsyncDisposable
     });
     await _store.SaveChangesAsync();
 
-    var results = _store.Search(_collectionName, freshEmbedding, 3).ToList();
+    var results = _store.SearchDense(_collectionName, freshEmbedding, 3).ToList();
     Assert.Single(results);
     Assert.Equal(Convert.ToBase64String(freshId), Convert.ToBase64String(results[0].entry.Id));
   }

@@ -137,7 +137,7 @@ public sealed class JigenAdapter : IVectorDbAdapter
         if (_store is null)
             throw new InvalidOperationException("Call InitializeAsync first.");
 
-        var results = _store.Search("bench", query, topK);
+        var results = _store.SearchDense("bench", query, topK);
         var list = results
             .Select(r => (Convert.ToHexString(r.entry.Id), r.score))
             .ToList();

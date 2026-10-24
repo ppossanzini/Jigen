@@ -137,7 +137,7 @@ public class MultiVectorTests
       await store.SaveChangesAsync();
 
       var query = new[] { 0f, 1f };
-      var result = store.Search("docs", query, 1).First();
+      var result = store.SearchDense("docs", query, 1).First();
       Assert.Equal(id, result.entry.Id);
       Assert.Equal(1f, result.score, 5);
     }
@@ -173,7 +173,7 @@ public class MultiVectorTests
 
       foreach (var query in new[] { v0, v1, v2 })
       {
-        var hit = store.Search("docs", query, 1).First();
+        var hit = store.SearchDense("docs", query, 1).First();
         Assert.Equal(id, hit.entry.Id);
         Assert.Equal(1f, hit.score, 4);
       }

@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Collections.Concurrent;
 using System.Data;
 using System.IO.MemoryMappedFiles;
@@ -94,7 +95,11 @@ public partial class Store
            dimensions < 0 || vectorCount < 0 || size < 0 || size > int.MaxValue ||
            (contentPosition == 0 && size != 0) ||
            (embeddingsPosition == 0 && (dimensions != 0 || vectorCount != 0)) ||
-           (embeddingsPosition > 0 && (dimensions <= 0 || vectorCount <= 0)) ||
+           // From format version 2 a record may hold only its sparse section,
+           // so an entry with no dense vectors is legitimate there.
+           (embeddingsPosition > 0 && (WritesSparseSection
+             ? dimensions < 0 || vectorCount < 0 || (dimensions == 0) != (vectorCount == 0)
+             : dimensions <= 0 || vectorCount <= 0)) ||
            (contentPosition > 0 &&
             (contentRecordSize > ContentFileStream.Length ||
              contentPosition > ContentFileStream.Length - contentRecordSize)) ||
@@ -248,6 +253,57 @@ public partial class Store
     {
       vectors[i] = new float[item.dimensions];
       Array.Copy(flat, i * item.dimensions, vectors[i], 0, item.dimensions);
+    }
+
+    return vectors;
+  }
+
+  /// <summary>
+  /// Every sparse vector of a key, in stored order, or null when the key does
+  /// not exist, has no vector record, or the archive predates sparse vectors.
+  /// Each vector holds its term/weight pairs ordered by ascending term.
+  /// </summary>
+  public IReadOnlyList<SparseTerm[]> GetSparseVectors(string collection, byte[] id)
+  {
+    if (!WritesSparseSection) return null!;
+    if (!this.GetCollectionIndexOf(collection, out var index) || !index.TryGetValue(id,
+          out (long contentposition, long embeddingposition, int dimensions, int vectorcount, long size) item)) return null!;
+    if (item.embeddingposition <= 0) return null!;
+
+    // Dense part: [id length][id][vector count][vector count * dimensions * float].
+    var denseHeaderSize = 2 * sizeof(int) + id.Length;
+    var sectionPosition = item.embeddingposition + denseHeaderSize
+                          + (long)item.vectorcount * item.dimensions * sizeof(float);
+    if (item.vectorcount == 0 || item.dimensions == 0)
+      sectionPosition = item.embeddingposition + denseHeaderSize;
+
+    Span<byte> countBuffer = stackalloc byte[sizeof(int)];
+    ReadExactly(EmbeddingFileStream.SafeFileHandle, countBuffer, sectionPosition);
+    var sparseVectorCount = BinaryPrimitives.ReadInt32LittleEndian(countBuffer);
+    if (sparseVectorCount is < 0 or > 65_536) return null!;
+    if (sparseVectorCount == 0) return [];
+
+    var counts = new int[sparseVectorCount];
+    ReadExactly(EmbeddingFileStream.SafeFileHandle, MemoryMarshal.AsBytes(counts.AsSpan()),
+      sectionPosition + sizeof(int));
+
+    var totalPairs = 0L;
+    foreach (var count in counts)
+    {
+      if (count is < 0 or > 16_777_216) return null!;
+      totalPairs += count;
+    }
+
+    var pairs = new SparseTerm[totalPairs];
+    ReadExactly(EmbeddingFileStream.SafeFileHandle, MemoryMarshal.AsBytes(pairs.AsSpan()),
+      sectionPosition + sizeof(int) + (long)sparseVectorCount * sizeof(int));
+
+    var vectors = new SparseTerm[sparseVectorCount][];
+    var offset = 0;
+    for (var vectorIndex = 0; vectorIndex < sparseVectorCount; vectorIndex++)
+    {
+      vectors[vectorIndex] = pairs.AsSpan(offset, counts[vectorIndex]).ToArray();
+      offset += counts[vectorIndex];
     }
 
     return vectors;

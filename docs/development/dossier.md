@@ -1,5 +1,387 @@
 # Development Dossier
 
+## SP-05K Ricerca densa, sparsa e ibrida
+
+Stato: completato. Attende approvazione esplicita del codice.
+
+- `VectorCollection.SearchDense(float[] embeddings, ...)` e
+  `SearchDense(string sentence, ...)`: ricerca solo densa. Prima si chiamavano
+  `Search`; il nome ora dice cosa cercano.
+- `VectorCollection.SearchSparse(query, top, token)`: invariata, solo sparsa.
+- `VectorCollection.Search(embeddings, sparseQuery, top, predicate, efSearch,
+  token)`: ibrida, entrambe le query opzionali, ma fornirle entrambe nulle e un
+  errore di argomento.
+- Fusione RRF scelta dall'utente: ogni documento vale 1/(60 + posizione) in
+  ciascuna lista e i valori si sommano; nessuna normalizzazione e nessun peso da
+  tarare. `VectorSearchResult.Score` porta il valore fuso, mentre `DenseScore` e
+  `SparseScore` restano disponibili come punteggi parziali.
+- `SearchDense` popola anche `DenseScore`, per coerenza del tipo di risultato.
+- Il predicato filtra solo la meta densa: viene valutato sul contenuto
+  serializzato senza leggerlo, cosa che la meta sparsa non puo fare.
+- Verifica: tre documenti in entrambe le liste piu uno solo denso e uno solo
+  sparso. `SearchDense` restituisce solo punteggi densi e ordina per similarita;
+  `SearchSparse` invariata; la ricerca ibrida riporta i due punteggi parziali
+  secondo la provenienza, il punteggio fuso coincide con la somma dei ranghi
+  reciproci, funziona con una sola delle due query e rifiuta l'assenza di
+  entrambe. Dieci controlli superati.
+- Regressioni: Store 70 su 70, sparse 127 su 127. Aggiornati i soli test che
+  chiamavano la vecchia `Search` densa (`VectorCollectionTests`).
+- Ordine delle coppie in ingresso non piu richiesto: `SparseIndexBuilder.Add`
+  ordina una copia di ogni vettore e rifiuta solo un termine ripetuto, perche due
+  pesi per lo stesso termine non hanno significato. Prima un vettore non ordinato
+  produceva un errore solo al salvataggio, lontano dalla chiamata che lo causava.
+- Allineamento completato su richiesta dell'utente: l'estensione
+  `Store.Search(collection, queryVector, ...)` e diventata `Store.SearchDense`
+  in entrambi gli overload con vettore, e l'overload senza vettore, che elenca
+  per filtro, e diventato `Store.SearchByFilter`. Aggiornati handler del server,
+  `DocumentCollection`, `VectorCollection` e i test che li usavano.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05J WAL e indice sparso
+
+Stato: completato. Attende approvazione esplicita del codice.
+
+- Conferma: le coppie termine/peso fanno parte del record WAL di inserimento e
+  il replay le ricostruisce, perche gli insert replicati passano dallo stesso
+  thread di scrittura che indicizza il lotto.
+- Lacuna trovata: la cancellazione non era nel percorso di recupero. `ApplyWalDelete`
+  e `ApplyWalClearCollection` rimuovevano la voce densa ma non ritiravano la
+  copia sparsa, quindi dopo un crash un documento cancellato ricompariva nella
+  ricerca sparsa. Ora entrambi chiamano `DeleteSparseEntry`.
+- Seconda lacuna, emersa dalla prova: il replay riapplica anche gli insert
+  precedenti alla cancellazione, e il documento tornava comunque. Il tombstone
+  registrato durante il replay copriva solo i segmenti gia su disco, non quello
+  che il lotto replicato avrebbe scritto dopo. Ora il replay registra l'ultima
+  operazione per chiave: un insert replicato di una chiave cancellata piu avanti
+  nel WAL non viene indicizzato.
+- Terza correzione: un insert replicato puo esistere gia in un segmento scritto
+  prima del crash senza essere nel log delle posizioni; viene quindi ritirato
+  prima di essere reindicizzato, cosi non compaiono due copie.
+- Verifica con processo separato che termina senza chiusura: inserimento di 1 e
+  2 con salvataggio, inserimento di 3 solo nel WAL, cancellazione di 1, poi
+  `Environment.Exit`. Alla riapertura: documento 2 presente, documento 3
+  recuperato dal WAL, documento 1 resta cancellato, nessun duplicato, Shrink
+  finale coerente. Cinque controlli superati.
+- Regressioni: Store 70 su 70, sparse 127 su 127.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05I Igiene dei test dello Store
+
+Stato: completato. Solo test, nessuna modifica al codice di produzione.
+
+- Causa 1, lock condiviso: `ReadWriteTest` apriva `/data/jigendb` con il nome
+  fisso `readwritetest` e lo Store prende un lock esclusivo per database. Con le
+  classi in parallelo la seconda apertura falliva con "already open in another
+  Store instance or process".
+- Causa 2, dominio ONNX: le classi che caricano un modello registrano
+  `ai.onnx.contrib`, che il runtime accetta una sola volta per processo; due
+  inizializzazioni sovrapposte facevano fallire una delle due.
+- Correzioni: `ReadWriteTest` usa una directory unica sotto `.temp` per test,
+  con pulizia in `Dispose`; le tre classi che caricano un modello
+  (`ReadWriteTest`, `NomicHnswScoreTests`, `BgeM3HnswScoreTests`) condividono la
+  collezione xUnit `onnx-models` con parallelizzazione disattivata
+  (`OnnxModelCollection`).
+- Verifica: quattro esecuzioni consecutive della suite Store, tutte 70 su 70.
+  Prima della correzione la prima esecuzione falliva 6 casi su 70 e la
+  successiva passava, senza modifiche al codice.
+- Nessuna modifica al codice di produzione; suite sparse 127 su 127 e primitive
+  14 su 14 invariate.
+- Skill attive: `phase-development-project-conventions`, `run-tests`,
+  `capabilities-dev-problem-solving-methodology`.
+
+## SP-05H Collegamento allo Store
+
+Stato: code-ready. Attende approvazione esplicita del codice.
+
+- `Store` gestisce gli indici sparsi in `{database}.sparse/<collezione>/`, con
+  uno scrittore e un lettore per collezione. Il thread di scrittura indicizza il
+  lotto appena persistito, quindi la regola di un solo scrittore resta valida.
+- `Jigen.Store` ora riferisce `Jigen.Index.Sparse`.
+- Sovrascrittura: `IndexSparseEntries` ritira le copie precedenti con un
+  tombstone quando la chiave esisteva gia o compare due volte nel lotto. Senza
+  questo il documento veniva servito due volte, una con i pesi vecchi: la
+  verifica lo ha mostrato come 175 risultati invece di 174.
+- Visibilita dei tombstone: scrittore e lettore aprono lo stesso file con handle
+  diversi, quindi i record non scaricati non erano visibili al lettore e la
+  cancellazione restava intermittente. Lo scrittore ora espone la lista viva e
+  il lettore la usa quando esiste.
+- Cancellazione e svuotamento ritirano le copie sparse. Lo Shrink dello Store
+  compatta i segmenti di ogni collezione con piu di un segmento, come richiesto
+  dall'utente.
+- API: `Store.SearchSparse(collection, query, k, token)` e
+  `VectorCollection.SearchSparse(query, top, token)`.
+- Verifica: 300 documenti con 1-4 termini per vettore, 18 ricerche attraverso lo
+  Store concordi con l'oracolo; aggiornamento del documento 10 servito con i
+  pesi nuovi; cancellazione del 20 assente; ricerca corretta dopo riapertura;
+  Shrink che lascia un solo segmento e risultati ancora concordi.
+  Sei controlli superati.
+- Regressioni: Store 70 su 70, primitive 14 su 14, sparse 127 su 127.
+  La suite Store resta instabile per cause preesistenti (lock condiviso su
+  /data/jigendb e dominio ONNX): la prima esecuzione ha fallito i sei casi di
+  ReadWriteTest, la seconda e passata.
+- Non incluso: REST, gRPC, client; compattazione fuori dallo Shrink.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05G Compattazione dei segmenti
+
+Stato: code-ready. Attende approvazione esplicita del codice.
+
+- `SparseCollectionCompactor.Compact()` fonde tutti i segmenti vivi in uno solo
+  con la generazione successiva, scarta le copie ritirate dai tombstone,
+  riscrive il manifest con la sola nuova generazione, azzera i tombstone e
+  rimuove le directory dei vecchi segmenti.
+- Memoria: fusione termine per termine con un cursore per segmento; il costo in
+  memoria e la lista piu lunga, non il corpus. Il merge emette blocchi di
+  `BlockSize` posting senza accumulare l'intero termine.
+- Sicurezza: il segmento nuovo e scritto e svuotato su disco prima che il
+  manifest lo nomini; il manifest e sostituito con una rinomina; le directory
+  non elencate vengono ignorate dai lettori e rimosse alla compattazione
+  successiva. Un'interruzione lascia quindi uno stato valido.
+- Errore corretto durante la verifica: i cursori non venivano avvanzati di un
+  posting prima della fusione, quindi il segmento risultante aveva zero termini.
+  La verifica lo ha colto come "expected 1, actual 0".
+- Verifica: cinque lotti da 60 documenti, aggiornamento di 5, 100 e 250,
+  cancellazione di 30, 200 e 299. Prima: 8 segmenti e 6 tombstone, 32 ricerche
+  concordi con l'oracolo. Dopo la compattazione: segmento g9 unico, manifest con
+  una sola voce, una directory, 15 termini, zero tombstone, 32 ricerche ancora
+  concordi, cancellati assenti e aggiornati con i pesi nuovi; una seconda
+  compattazione non fa nulla; un nuovo segmento dopo la fusione resta
+  ricercabile. Dieci controlli superati. Suite sparse 127 su 127.
+- Non incluso: politica automatica (soglia per numero di segmenti o rapporto di
+  copie ritirate), collegamento allo Store.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05F Scrittore per lotti e persistenza della collezione
+
+Stato: code-ready. Attende approvazione esplicita del codice.
+
+- `SparseCollectionWriter` accumula i documenti e `Commit` scrive un segmento
+  nuovo con la generazione successiva, poi lo pubblica nel manifest. L'ordine di
+  arrivo non conta piu: conta solo l'ordine interno al lotto, che il builder
+  stabilisce in memoria.
+- `Delete` registra un tombstone che copre i segmenti scritti fino a quel
+  momento; una versione aggiunta dopo resta visibile. Se ci sono documenti in
+  attesa li scrive prima, cosi il tombstone non nasconde un documento appena
+  accodato. Il prezzo: un aggiornamento produce un segmento in piu.
+- Tombstone generalizzato: `UpToGeneration` copre ogni copia scritta fino a
+  quella generazione. Lo scrittore non deve sapere in quale segmento si trova la
+  chiave, quindi non serve una mappa chiave-segmento all'apertura.
+- Manifest: elenco delle generazioni, scritto su file temporaneo e sostituito
+  con una rinomina, quindi un lettore non vede mai un elenco parziale.
+- Struttura per collezione: `manifest`, `tombstones` con il suo `.index`,
+  `segments/g<generazione>/{terms,terms.index,blocks,blocks.index}`.
+  Quattro file per segmento piu due per collezione.
+- `SparseCollectionStorage.Open` apre i segmenti elencati dal manifest e i
+  tombstone, e restituisce `SparseCollectionIndex`. Una directory di segmento
+  non elencata viene ignorata, quindi un segmento incompleto non entra mai.
+- Verifica: 2 lotti da 150 documenti con arrivo casuale, aggiornamento dei
+  documenti 20 e 170, cancellazione del 45. Quattro segmenti scritti, manifest
+  coerente, file presenti. Dopo la riapertura: 32 ricerche a k 1, 5, 50 e 500
+  concordi con l'oracolo; cancellato assente; aggiornati con i pesi nuovi;
+  scrittore riaperto che continua dalla generazione 4; quinto segmento visibile
+  e partecipe della ricerca fusa. Nove controlli superati.
+  Suite sparse 127 su 127.
+- Non incluso: compattazione dei segmenti, collegamento allo Store.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05E Indice a segmenti con tombstone
+
+Stato: code-ready. Attende approvazione esplicita del codice.
+
+- Requisito dell'utente: le scritture possono arrivare in ordine arbitrario e un
+  documento puo essere aggiornato dopo la scrittura. Un unico indice ordinato per
+  termine lo impediva.
+- Struttura: un segmento e un `SparseIndex` immutabile con una generazione.
+  `SparseCollectionIndex` interroga ogni segmento e unisce i risultati per
+  punteggio decrescente e chiave crescente. `SparseTombstone` ritira una singola
+  copia indicando la generazione del segmento che la contiene: un aggiornamento
+  nasconde la versione precedente e lascia viva la nuova.
+- Motore: filtro di visibilita applicato dentro il top-k. Un documento ritirato
+  non occupa un posto, altrimenti i risultati si accorcerebbero.
+- Esattezza: un documento vive in un solo segmento vivo, quindi i migliori k
+  della collezione sono tra i migliori k di ogni segmento; la fusione non perde
+  candidati.
+- Errore corretto durante la verifica: la prima versione del tombstone indicava
+  la generazione dell'operazione e nascondeva anche la versione nuova dello
+  stesso documento. Ora indica la copia da ritirare.
+- Verifica: tre segmenti da 200 documenti con aggiornamenti dei documenti 50 e
+  120 e cancellazione del 300, arrivo non ordinato nei lotti.
+  32 ricerche fuse a k 1, 5, 50 e 500 concordi con l'oracolo su chiavi e
+  punteggi; cancellato assente; aggiornato presente solo con i pesi nuovi;
+  copia ritirata sostituita dal documento successivo; 237 documenti vivi
+  restituiti oltre il k. Cinque controlli superati. Suite sparse 127 su 127.
+- SP-05D e superato: non serve piu che le chiavi crescano.
+- Non incluso: scrittore per lotti che produce un segmento per ciascun lotto,
+  manifest su disco, compattazione dei segmenti.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05D Indicizzare durante l'invio
+
+Stato: code-ready. Attende approvazione esplicita del codice.
+
+- Requisito dell'utente: la ricerca non puo restare ferma fino alla fine
+  dell'invio.
+- Implementazione: `SparseIndexWriter` riceve i documenti man mano. I posting
+  restano in memoria finche non si svuota il buffer; `Flush` ordina le coppie
+  del termine, riempie l'ultimo blocco aperto, crea i blocchi successivi e
+  riscrive la voce di directory del termine. `PendingLimit` forza il flush da
+  solo. Il chiamante puo ricercare sui documenti gia scritti.
+- Regola di ordinamento: la chiave del documento deve crescere, perche i posting
+  di un termine sono ordinati per chiave. Le chiavi generate dallo Store
+  (`Guid.CreateVersion7`) crescono nel tempo, quindi il percorso normale resta
+  incrementale. Una chiave che non avanza produce `NotSupportedException` con
+  l'indicazione di ricostruire: meglio un errore esplicito che un ordine rotto.
+- Verifica: 500 documenti, 1-3 vettori, 20 termini, blocchi da 9 e limite di 40
+  posting in attesa. Sei ricerche eseguite durante l'invio, 180 confronti con
+  l'oracolo esaustivo, tutti concordi su chiavi e punteggi; classifica finale
+  concorde; ogni documento corrispondente raggiungibile dopo molti flush;
+  contenuto conservato alla riapertura; chiave fuori ordine rifiutata.
+  Cinque controlli superati. Suite sparse: 127 su 127.
+- Limiti dichiarati: una chiave fuori ordine richiede la ricostruzione; non
+  esistono ancora tombstone per cancellazioni e aggiornamenti; ogni flush
+  riscrive l'intera voce di directory dei termini toccati, costo che cresce con
+  il numero di blocchi del termine; l'`SparseIndex` va ricreato dopo un flush
+  per vedere i termini nuovi.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05C Costruire l'indice di una collezione
+
+Stato: code-ready. Attende approvazione esplicita del codice.
+
+- Vincolo del formato: `SparsePostingBlock` esige posting strettamente ordinati
+  per chiave e indice vettore e `SparseBlockReference.Follows` esige intervalli
+  ordinati. Le scritture arrivano in ordine arbitrario, quindi un indice non si
+  puo accodare man mano: si costruisce in blocco. Aggiornamento e cancellazione
+  richiedono un nuovo indice, non una modifica in loco.
+- Implementazione: `SparseDocument`, `SparseIndexBuildSummary` (termini,
+  posting, blocchi) e `SparseIndexBuilder` con `Add` e `Write`. `Write` crea la
+  directory, rifiuta un indice gia presente e scrive directory e blocchi in
+  ordine di termine. Ogni termine e ordinato per chiave e indice vettore;
+  identita ripetute sono un errore.
+- Sicurezza dell'operazione: la scrittura avviene in una directory nuova, cosi
+  un indice in uso non viene mai toccato e la sostituzione resta al chiamante.
+- Verifica: corpus generato di 400 documenti con 1-3 vettori, 24 termini,
+  blocchi da 7 posting e ordine di arrivo mescolato. Costruzione:
+  24 termini, 2.320 posting, 340 blocchi. 36 confronti a k 1, 5 e 20 con la
+  ricerca esaustiva, tutti concordi; riapertura con lo stesso ranking;
+  rifiuto di sovrascrittura e di identita ripetuta. 5 controlli superati.
+  Suite sparse: 127 su 127.
+- Limite dichiarato: il builder tiene in memoria tutti i posting del corpus.
+  Con milioni di coppie servono partizioni per intervalli di termini, ancora
+  da implementare e da misurare.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05B Persistere le coppie nel record del documento
+
+Stato: code-ready. Attende approvazione esplicita del codice.
+
+- Formato: dal numero di versione 2, il file dei vettori chiude ogni record con
+  la sezione sparsa `[numero vettori][conteggio coppie per vettore][coppie
+  termine/peso]`. Il numero di versione occupa lo slot riservato
+  dell'intestazione (offset 8), che negli archivi precedenti vale zero.
+- Scelta di layout: la sezione sta nello stesso record dei vettori densi, cosi
+  la coppia resta una sola unita di scrittura e di lettura e non serve un
+  secondo file, un secondo indice delle posizioni o una nuova mappa in memoria.
+- Archivi esistenti: versione zero significa record senza sezione sparsa.
+  Si aprono e restano densi; una scrittura con vettori sparsi viene rifiutata
+  con `NotSupportedException` invece di perdere dati in silenzio. Non esiste
+  conversione in loco: i record vecchi non hanno spazio per la sezione.
+- Percorsi collegati: scrittura batch e record singolo, WAL (sezione scritta
+  solo quando ci sono coppie, quindi i record densi restano identici),
+  replay, compattazione con copia dell'intera sezione, validazione del log
+  delle posizioni che ora ammette un record con soli vettori sparsi,
+  `Store.GetSparseVectors`, `VectorCollection.GetSparseVectors` e passaggio
+  delle coppie da `VectorEntry<T>` allo Store.
+- Verifica funzionale, 15 controlli superati: round trip multi-vettore con
+  ordine dei termini conservato, voce solo densa con sezione vuota, voce solo
+  sparsa senza vettori densi, sovrascrittura, cancellazione, persistenza dopo
+  riapertura con replay del WAL, sopravvivenza alla compattazione, archivio
+  legacy leggibile e scrittura sparsa rifiutata.
+- Regressioni: Store 70 su 70, primitive 14 su 14, sparse 127 su 127.
+  La suite Store resta instabile per cause preesistenti: `ReadWriteTest`
+  condividono `/data/jigendb` e il registro del dominio ONNX
+  `ai.onnx.contrib`; in due esecuzioni consecutive la prima ha fallito i sei
+  casi di `ReadWriteTest` per lock e dominio duplicato, la seconda e passata
+  70 su 70, e in isolamento i sei casi passano.
+  I test API non compilano per l'errore preesistente del costruttore di
+  `EmbeddingController`; non dipende da questa modifica.
+- Nota di lavorazione: una invocazione di `dotnet format` senza `.editorconfig`
+  nel repository ha raddoppiato l'indentazione di `WalRecord.cs`. Il file e
+  stato ricostruito con l'indentazione originale e le sole modifiche
+  semantiche: il diff finale e di 82 righe aggiunte e 6 rimosse, identiche
+  con e senza confronto degli spazi.
+- Limiti dichiarati: i byte morti dei record sparsi non entrano in
+  `DeadBytes` ne in `FragmentationRatio`, quindi la compattazione non viene
+  richiesta per soli dati sparsi; `CollectionInfo.VectorSize` non conta le
+  coppie. Mancano il comando di ricostruzione dell'indice dai documenti e
+  l'indice per termine.
+- Skill attive: `phase-development-project-conventions`,
+  `phase-development-configuration-options`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05A Modello sparso nel documento
+
+Stato: code-ready. Attende approvazione esplicita del codice.
+
+- Decisione dell'utente del 24 ottobre 2026: le coppie termine/peso stanno
+  **nel documento**, unica fonte autorevole; le liste per termine sono un
+  indice derivato ricostruibile. Le coppie costano circa 472 MB per milione
+  di documenti con 64 termini e chiavi di 4 byte, in aggiunta all'indice
+  (circa 1,06 GB). Il recupero da indice corrotto e disco -> disco e in
+  streaming, a partizioni di termini; l'apertura non ricostruisce nulla.
+- Forma scelta dopo misura: coppie ordinate. `SparseTerm` e un
+  `readonly struct` con `[MessagePackObject]` e chiavi numeriche, che occupa
+  gli stessi byte di una tupla (227/472/1.027 byte per 32/64/128 termini),
+  mentre senza attributi verrebbe salvato come mappa (611/1.240/2.562 byte).
+  Rispetto al dizionario le coppie costano il 7-15% in piu ma si scorrono
+  3-6 volte piu veloci (206 ns contro 1.028 ns a 64 termini).
+- Implementazione: `SparseTerm` in `Jigen.Primitives/DataStructures` e campo
+  `SparseVectors` su `VectorEntry` e `VectorEntry<T>`, con il vettore i
+  corrispondente a `Embeddings[i]`.
+- Verifica: round trip sparso, ordine conservato, densi invariati, documento
+  scritto senza il campo ancora leggibile, voce tipizzata, valore predefinito
+  vuoto: 6 controlli superati. `PrimitiveTests` 14 superati; suite sparse 127
+  superati; `Jigen.Store` compilato; test Store su serializzazione, ricerca,
+  cancellazione e filtri: 27 superati.
+- La suite Store completa riporta 8-9 fallimenti preesistenti in
+  `IngestionTests`, `ReadWriteTest`, `NomicHnswScoreTests` e
+  `SeedDemoDatabaseTest`: il costruttore di `IngestionTests` apre
+  `/data/jigendb` e non dispone lo `Store`, quindi i casi successivi trovano il
+  lock `tests.lock.jigen` ancora aperto nel processo; `SeedDemoDatabaseTest`
+  richiede un server attivo su `localhost:13223`; `ReadWriteTest` e
+  `NomicHnswScoreTests` falliscono a intermittenza per il registro del dominio
+  ONNX `ai.onnx.contrib` e per lo stesso lock condiviso. Nessuno di questi
+  percorsi tocca la serializzazione dei vettori sparsi.
+- Su richiesta dell'utente del 24 ottobre 2026 sono stati rimossi i due file
+  che fallivano in modo deterministico: `IngestionTests.cs` (7 casi, `Store`
+  mai disposto) e `SeedDemoDatabaseTest.cs` (1 caso, richiede un server vivo).
+  `ReadWriteTest` e `NomicHnswScoreTests` restano perche dispongono lo `Store`
+  e passano quando non collidono con il lock condiviso. Dopo la rimozione la
+  suite Store riporta 70 superati, 0 falliti.
+- Non ancora collegati a questo campo: WAL, record dello storage,
+  `VectorCollection.Set` e indici. Sono il passo successivo, non questo.
+- Skill attive: `phase-development-project-conventions`,
+  `phase-development-configuration-options`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `analyzing-dotnet-performance`, `run-tests`.
+
 ## SP-07C: top-k e ordinamento degli intervalli
 
 Stato: annullato su richiesta dell'utente il 24 ottobre 2026 alle 10:46.

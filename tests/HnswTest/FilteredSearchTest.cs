@@ -88,7 +88,7 @@ public sealed class FilteredSearchTest : IAsyncDisposable
     var query = new float[Dimensions] { 1f, 0f }; // angle 0
     IFilterExpression filter = new PropertyEqualsFilter { PropertyPath = "Tag", Value = "target" };
 
-    var results = _store.Search(_collectionName, query, top: TargetCount, contentFilter: filter).ToList();
+    var results = _store.SearchDense(_collectionName, query, top: TargetCount, contentFilter: filter).ToList();
 
     Assert.Equal(TargetCount, results.Count);
 

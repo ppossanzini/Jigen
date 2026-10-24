@@ -16,7 +16,7 @@ public class DocumentCollection<T>(Store store, DocumentCollectionOptions<T> opt
 
   private IEnumerable<KeyValuePair<VectorKey, T>> EnumerateDocuments(IFilterExpression filter = null)
   {
-    var filtered = store.Search(CollectionName, filter);
+    var filtered = store.SearchByFilter(CollectionName, filter);
     foreach (var entry in filtered)
     {
       var document = _options.DocumentSerializer.Deserialize<T>(entry.Content);

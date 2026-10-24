@@ -10,21 +10,28 @@ using Xunit.Abstractions;
 
 namespace JigenTests;
 
+[Collection(OnnxModelCollection.Name)]
 public class ReadWriteTest : IDisposable
 {
   private readonly ITestOutputHelper _testOutputHelper;
+  // Each test gets its own database directory: the store holds an exclusive
+  // lock per database, and a shared path made concurrent tests fail on it.
+  private readonly string _testDirectory;
   private Store _store;
   private Jigen.SemanticTools.OnnxEmbeddingGenerator _embeddingGenerator;
 
   public ReadWriteTest(ITestOutputHelper testOutputHelper)
   {
     _testOutputHelper = testOutputHelper;
+    _testDirectory = Path.Combine(FindRepositoryRoot(), ".temp", nameof(ReadWriteTest),
+      Guid.CreateVersion7().ToString("N"));
+    Directory.CreateDirectory(_testDirectory);
     _store = new Store(new StoreOptions()
     {
       DataBaseName = "readwritetest",
-      DataBasePath = "/data/jigendb",
+      DataBasePath = _testDirectory,
       Indexer = new SmallWorldIndexer(
-        new (m : 16, efConstruction : 200, efSearch : 50, storagePath : "/data/jigendb/hnsw"))
+        new (m : 16, efConstruction : 200, efSearch : 50, storagePath : Path.Combine(_testDirectory, "hnsw")))
     });
 
     _embeddingGenerator = new(
@@ -43,6 +50,22 @@ public class ReadWriteTest : IDisposable
   public void Dispose()
   {
     _store.Dispose();
+    _embeddingGenerator?.Dispose();
+    if (Directory.Exists(_testDirectory))
+      Directory.Delete(_testDirectory, recursive: true);
+  }
+
+  private static string FindRepositoryRoot()
+  {
+    var directory = new DirectoryInfo(AppContext.BaseDirectory);
+    while (directory is not null)
+    {
+      if (Directory.Exists(Path.Combine(directory.FullName, ".git")))
+        return directory.FullName;
+      directory = directory.Parent;
+    }
+
+    throw new InvalidOperationException("Jigen repository root could not be located.");
   }
 
   (Guid id, string sentence)[] sentences =
@@ -97,7 +120,7 @@ public class ReadWriteTest : IDisposable
 
     var sw = new Stopwatch();
     sw.Start();
-    var results = _store.Search("vicini", query, 5);
+    var results = _store.SearchDense("vicini", query, 5);
     sw.Stop();
 
     _testOutputHelper.WriteLine($"Hai cercato: {search} ");

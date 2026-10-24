@@ -85,7 +85,7 @@ public class CollectionQueryHandlers(
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var top = request.Top <= 0 ? 10 : request.Top;
-    var results = store.Search(request.Collection, request.Embeddings, top, request.EfSearch, request.Filter);
+    var results = store.SearchDense(request.Collection, request.Embeddings, top, request.EfSearch, request.Filter);
 
     if (request.MinScore.HasValue)
       results = results.Where(i => i.score >= request.MinScore.Value);
@@ -138,7 +138,7 @@ public class CollectionQueryHandlers(
     {
       var collection = collections[i];
       var collectionTimer = Stopwatch.StartNew();
-      var resultItems = store.Search(collection, embeddings, top)
+      var resultItems = store.SearchDense(collection, embeddings, top)
         .Select(r => new CollectionSearchResultItem
         {
           Key = r.entry.Id,

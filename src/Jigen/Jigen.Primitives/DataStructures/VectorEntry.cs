@@ -16,6 +16,14 @@ public class VectorEntry
   /// </summary>
   public IReadOnlyList<ReadOnlyMemory<float>> Embeddings { get; set; } = [];
 
+  /// <summary>
+  /// Sparse vectors of the entry, one per vector and ordered by ascending term.
+  /// This is the authoritative copy of the term/weight pairs: the per-term
+  /// posting lists are an index derived from it and can be rebuilt from it.
+  /// The vector at position i corresponds to <see cref="Embeddings"/> at position i.
+  /// </summary>
+  public IReadOnlyList<SparseTerm[]> SparseVectors { get; set; } = [];
+
   public static VectorEntry Empty => new VectorEntry()
   {
     Id = Guid.NewGuid().ToByteArray(),
@@ -32,6 +40,13 @@ public class VectorEntry<T>
 
   /// <summary>Every vector of the entry; a single-vector entry is a list of one.</summary>
   public IReadOnlyList<float[]> Embeddings { get; set; } = [];
+
+  /// <summary>
+  /// Sparse vectors of the entry, one per vector and ordered by ascending term.
+  /// The authoritative copy of the term/weight pairs that the posting lists are
+  /// derived from; the vector at position i matches <see cref="Embeddings"/> at i.
+  /// </summary>
+  public IReadOnlyList<SparseTerm[]> SparseVectors { get; set; } = [];
 }
 
 public record struct VectorKey

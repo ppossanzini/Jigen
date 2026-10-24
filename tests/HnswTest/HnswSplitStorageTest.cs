@@ -45,7 +45,7 @@ public class HnswSplitStorageTest
 
       foreach (var probe in new[] { seeded[0], seeded[29], seeded[^1] })
       {
-        var results = reopened.Search("docs", probe.Embedding, 3).ToList();
+        var results = reopened.SearchDense("docs", probe.Embedding, 3).ToList();
         Assert.NotEmpty(results);
         Assert.Equal(Convert.ToBase64String(probe.Id), Convert.ToBase64String(results[0].entry.Id));
       }
@@ -86,8 +86,8 @@ public class HnswSplitStorageTest
       Assert.Equal(2, graphFiles.Length);
 
       using var reopened = new Store(OptionsFor(root));
-      Assert.Equal(firstId, reopened.Search("a/b", new[] { 1f, 0f }, 1).Single().entry.Id);
-      Assert.Equal(secondId, reopened.Search("a_b", new[] { 0f, 1f }, 1).Single().entry.Id);
+      Assert.Equal(firstId, reopened.SearchDense("a/b", new[] { 1f, 0f }, 1).Single().entry.Id);
+      Assert.Equal(secondId, reopened.SearchDense("a_b", new[] { 0f, 1f }, 1).Single().entry.Id);
     }
     finally
     {
@@ -119,7 +119,7 @@ public class HnswSplitStorageTest
         Assert.True(await store.DeleteContent("docs", seeded[i].Id));
 
       for (var i = 1; i < seeded.Count; i += 20)
-        Assert.NotEmpty(store.Search("docs", seeded[i].Embedding, 5));
+        Assert.NotEmpty(store.SearchDense("docs", seeded[i].Embedding, 5));
 
       await store.SaveChangesAsync();
 

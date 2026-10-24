@@ -8,6 +8,7 @@ using Jigen.SemanticTools;
 
 namespace JigenTests;
 
+[Collection(OnnxModelCollection.Name)]
 public sealed class BgeM3HnswScoreTests : IAsyncDisposable
 {
     private const string ModelDirectory = "/data/onnx/bge-m3";
@@ -73,7 +74,7 @@ public sealed class BgeM3HnswScoreTests : IAsyncDisposable
         });
         await _store.SaveChangesAsync();
 
-        var result = Assert.Single(_store.Search(CollectionName, queryEmbedding, top: 1));
+        var result = Assert.Single(_store.SearchDense(CollectionName, queryEmbedding, top: 1));
 
         Assert.True(Math.Abs(result.score - directSimilarity) < 1e-4f,
           $"HNSW score {result.score:F6} differs from direct cosine similarity {directSimilarity:F6}.");

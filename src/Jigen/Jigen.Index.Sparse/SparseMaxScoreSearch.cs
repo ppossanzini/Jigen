@@ -6,7 +6,8 @@ internal static class SparseMaxScoreSearch
 {
     internal static IReadOnlyList<SparseSearchResult> Execute(
         List<(SparseTermDirectoryEntry Directory, float Weight)> entries,
-        StoredList<SparsePostingBlock, ValueTuple> blocks, int k, CancellationToken cancellationToken)
+        StoredList<SparsePostingBlock, ValueTuple> blocks, int k, SparseDocumentFilter filter,
+        CancellationToken cancellationToken)
     {
         var terms = entries.Select(entry => new Term(
             new SparsePostingCursor(entry.Directory, blocks), entry.Weight)).ToArray();
@@ -16,7 +17,7 @@ internal static class SparseMaxScoreSearch
             var comparison = terms[left].UpperBound.CompareTo(terms[right].UpperBound);
             return comparison != 0 ? comparison : left.CompareTo(right);
         });
-        var top = new TopDocuments(k);
+        var top = new TopDocuments(k, filter);
         SparsePosting? lower = null;
 
         while (TryGetIntervalEnd(terms, out var end))
@@ -242,7 +243,7 @@ internal static class SparseMaxScoreSearch
         public bool IsEssential { get; set; }
     }
 
-    private sealed class TopDocuments(int capacity)
+    private sealed class TopDocuments(int capacity, SparseDocumentFilter filter)
     {
         private readonly PriorityQueue<SparseSearchResult, SparseSearchResult> _heap =
             new(WorstFirstComparer.Instance);
@@ -253,6 +254,11 @@ internal static class SparseMaxScoreSearch
 
         public void Collect(ReadOnlySpan<byte> documentId, double score)
         {
+            // A rejected document must never consume a slot: the caller filters
+            // here rather than after the top-k has already been filled.
+            if (filter is not null && !filter(documentId))
+                return;
+
             if (_pendingId is not null && documentId.SequenceEqual(_pendingId))
             {
                 _pendingScore = Math.Max(_pendingScore, score);

@@ -38,7 +38,8 @@ public partial class Store
 
     while (WalRecord.TryReadRecord(walStream,
              out var type, out var id, out var collection,
-             out var content, out var embeddings, out var txId, out _))
+             out var content, out var embeddings, out var sparseVectors,
+             out var txId, out _))
     {
       switch (type)
       {
@@ -77,6 +78,7 @@ public partial class Store
             if (operation.Type == WalRecordType.Insert)
             {
               ValidateVectorDimensions(operation.Entry);
+              MarkReplayedSparseEntry(operation.Entry);
               IngestionQueue.Enqueue(operation.Entry);
             }
             else
@@ -95,7 +97,8 @@ public partial class Store
               Id = id,
               CollectionName = collection,
               Content = content ?? [],
-              Embeddings = (embeddings ?? []).Select(e => (ReadOnlyMemory<float>)e).ToArray()
+              Embeddings = (embeddings ?? []).Select(e => (ReadOnlyMemory<float>)e).ToArray(),
+              SparseVectors = sparseVectors
             };
             txOperations.Add((WalRecordType.Insert, entry, null, collection));
           }
@@ -107,9 +110,11 @@ public partial class Store
               Id = id,
               CollectionName = collection,
               Content = content ?? [],
-              Embeddings = (embeddings ?? []).Select(e => (ReadOnlyMemory<float>)e).ToArray()
+              Embeddings = (embeddings ?? []).Select(e => (ReadOnlyMemory<float>)e).ToArray(),
+              SparseVectors = sparseVectors
             };
             ValidateVectorDimensions(entry);
+            MarkReplayedSparseEntry(entry);
             IngestionQueue.Enqueue(entry);
             lastValidPosition = walStream.Position;
           }
@@ -167,7 +172,7 @@ done:
     walStream.Seek(0, SeekOrigin.Begin);
 
     while (WalRecord.TryReadRecord(walStream,
-             out var type, out _, out _, out _, out _, out _))
+             out var type, out _, out _, out _, out _, out _, out _))
     {
       if (type == WalRecordType.Checkpoint)
         found = walStream.Position;
@@ -182,6 +187,7 @@ done:
   /// </summary>
   private void ApplyWalDelete(byte[] id, string collection)
   {
+    var removed = false;
     lock (IndexAppendLock)
     {
       if (PositionIndex.TryGetValue(collection, out var ci) &&
@@ -194,8 +200,15 @@ done:
 
         StoreWritingExtensions.WriteIndexRecord(IndexFileStream, id, collection,
           IndexTombstone, IndexTombstone, 0, 0, 0);
+        removed = true;
       }
     }
+
+    // The sparse index is append-only: a deletion survives a crash only if the
+    // tombstone is recorded again while replaying, or the document reappears.
+    MarkReplayedSparseDelete(collection, id);
+    if (removed)
+      DeleteSparseEntry(collection, id);
   }
 
   private void ApplyWalClearCollection(string collection)
@@ -213,6 +226,7 @@ done:
 
           StoreWritingExtensions.WriteIndexRecord(IndexFileStream, key, collection,
             IndexTombstone, IndexTombstone, 0, 0, 0);
+          DeleteSparseEntry(collection, key);
         }
       }
 

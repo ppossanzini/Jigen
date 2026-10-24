@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Jigen.Primitives\Jigen.Primitives.csproj" />
+    <ProjectReference Include="..\Jigen.Index.Sparse\Jigen.Index.Sparse.csproj" />
   </ItemGroup>
 
   <ItemGroup>

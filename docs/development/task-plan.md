@@ -27,6 +27,14 @@ Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossi
 | 3c | [SP-03 Implementare Block-Max MaxScore](#sp-03-implementare-block-max-maxscore), closed | codice approvato esplicitamente |
 | 4 | [SP-04 Verificare la ricerca](#sp-04-verificare-la-ricerca), closed | 127 test superati in Debug e Release |
 | 4-perf | [SP-07 Ottimizzare il motore sparse](#sp-07-ottimizzare-il-motore-sparse), code-ready | dimezzato il tempo; attende approvazione |
+| 4a | [SP-05A Modello sparso nel documento](#sp-05a-modello-sparso-nel-documento), code-ready | attende approvazione esplicita del codice |
+| 4b | [SP-05B Persistere le coppie nel record del documento](#sp-05b-persistere-le-coppie-nel-record-del-documento), code-ready | attende approvazione esplicita del codice |
+| 4c | [SP-05C Costruire l'indice di una collezione](#sp-05c-costruire-lindice-di-una-collezione), code-ready | attende approvazione esplicita del codice |
+| 4d | SP-05D Indicizzare durante l'invio, superseded | sostituito dall'indice a segmenti |
+| 4e | [SP-05E Indice a segmenti con tombstone](#sp-05e-indice-a-segmenti-con-tombstone), code-ready | attende approvazione esplicita del codice |
+| 4f | [SP-05F Scrittore per lotti e persistenza della collezione](#sp-05f-scrittore-per-lotti-e-persistenza-della-collezione), code-ready | attende approvazione esplicita del codice |
+| 4g | [SP-05G Compattazione dei segmenti](#sp-05g-compattazione-dei-segmenti), code-ready | attende approvazione esplicita del codice |
+| 4h | [SP-05H Collegamento allo Store](#sp-05h-collegamento-allo-store), code-ready | attende approvazione esplicita del codice |
 | 5 | [SP-05 Integrare lo Store multivettore](#sp-05-integrare-lo-store-multivettore), deferred | escluso dal completamento corrente |
 | 6 | [SP-06 Verificare il ciclo persistente](#sp-06-verificare-il-ciclo-persistente), deferred | dipende dall'integrazione Store esclusa |
 
@@ -232,6 +240,148 @@ Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossi
 - Handoff: approvazione esplicita del codice prima di nuovi test.
   Ottimizzazioni ulteriori richiedono una decisione: cache dei blocchi,
   formato a colonne con copie in blocco, struttura dei cursori tipo WAND.
+
+## SP-05A Modello sparso nel documento
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4a.
+- Dipendenza: decisione dell'utente del 24 ottobre 2026 sulla forma del dato.
+- Decisione registrata: coppie termine/peso ordinate per termine crescente,
+  conservate **nel documento**, che e la sola fonte autorevole. Le liste per
+  termine restano un indice derivato, ricostruibile dai documenti.
+- Incremento: `SparseTerm` come `readonly struct` con `[MessagePackObject]` e
+  chiavi 0/1, e campo `SparseVectors` su `VectorEntry` e `VectorEntry<T>`.
+  Il vettore in posizione i corrisponde a `Embeddings` in posizione i.
+- Misura che ha guidato la forma: una struct con chiavi numeriche occupa gli
+  stessi byte delle tuple (227/472/1.027 byte per 32/64/128 termini), mentre
+  una struct senza attributi verrebbe salvata come mappa con nomi di campo
+  (611/1.240/2.562 byte). Le coppie costano il 7-15% piu del dizionario ma
+  scorrono 3-6 volte piu veloci per costruire l'indice.
+- Verifica prevista: round trip e compatibilita con documenti privi del campo;
+  regressioni esistenti di `Jigen.Primitives` e sparse.
+
+## SP-05B Persistere le coppie nel record del documento
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4b.
+- Dipendenza: SP-05A e decisione dell'utente sul trattamento degli archivi
+  esistenti: si aprono e restano solo densi.
+- Incremento: la sezione sparsa `[numero vettori][conteggi][coppie]` chiude
+  ogni record dei vettori dal formato 2; numero di versione nell'intestazione
+  del file dei vettori; scrittura batch e singola, WAL con sezione opzionale,
+  replay, compattazione, lettura `GetSparseVectors` e passaggio dalla
+  `VectorCollection`. Un archivio con versione 0 resta denso e rifiuta
+  scritture sparse con `NotSupportedException`.
+- Non incluso: contabilita dei byte morti sparsi, comando di ricostruzione,
+  indice per termine, REST, gRPC, client.
+- Verifica prevista: 15 controlli funzionali su scrittura, rilettura,
+  sovrascrittura, cancellazione, riapertura, compattazione e archivio legacy;
+  regressioni Store, primitive e sparse.
+
+## SP-05C Costruire l'indice di una collezione
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4c.
+- Dipendenza: SP-05B e il formato dei blocchi.
+- Decisione tecnica emersa dal formato: i posting di un termine sono ordinati
+  per chiave e indice vettore, quindi le scritture non possono essere accodate
+  nell'ordine di arrivo. La costruzione avviene in un solo passaggio, dopo aver
+  raccolto tutte le coppie; un aggiornamento o una cancellazione producono un
+  nuovo indice invece di modificare quello esistente.
+- Incremento: `SparseDocument`, `SparseIndexBuildSummary` e
+  `SparseIndexBuilder` in `Jigen.Index.Sparse`. Scrittura in una directory
+  nuova, rifiuto di sovrascrivere un indice esistente e rifiuto di una coppia
+  documento/vettore/termine ripetuta.
+- Non incluso: collegamento allo Store, comando di ricostruzione, gestione
+  incrementale con segmenti e tombstone.
+- Verifica prevista: confronto con la ricerca esaustiva su un corpus generato,
+  riapertura dell'indice e casi di rifiuto.
+
+## SP-05D Indicizzare durante l'invio
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4d.
+- Motivo: l'utente ha rifiutato il vincolo di indicizzare solo a invio concluso.
+- Incremento: `SparseIndexWriter` accoda i posting dei documenti gia inviati,
+  riempie l'ultimo blocco di ogni termine e ne aggiorna la voce di directory,
+  con flush espliciti o automatici oltre `PendingLimit`. La ricerca funziona
+  sui documenti gia scritti.
+- Regola: i posting di un termine devono restare ordinati, quindi la chiave del
+  documento deve crescere. Le chiavi generate dallo Store crescono nel tempo.
+  Una chiave che non avanza produce `NotSupportedException`: la collezione va
+  ricostruita con `SparseIndexBuilder` invece di corrompere l'ordine.
+- Non incluso: gestione di chiavi fuori ordine senza ricostruzione, tombstone,
+  compattazione dei segmenti, collegamento allo Store.
+- Verifica prevista: ricerca durante l'invio confrontata con l'oracolo in piu
+  punti, classifica finale, riapertura e rifiuto della chiave fuori ordine.
+
+## SP-05E Indice a segmenti con tombstone
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4e.
+- Motivo: l'utente ha stabilito che le scritture possono arrivare in ordine
+  arbitrario e che un documento puo essere aggiornato dopo essere stato scritto.
+  Un unico indice ordinato per termine non lo consente.
+- Struttura: `SparseSegment` (generazione + `SparseIndex` immutabile) e
+  `SparseCollectionIndex` che interroga ogni segmento e unisce i risultati.
+  `SparseTombstone` ritira una singola copia indicando la generazione del
+  segmento che la contiene, quindi un aggiornamento nasconde la versione
+  precedente senza toccare la nuova.
+- Motore: `SparseIndex.Search` accetta un filtro di visibilita applicato prima
+  di occupare un posto nel top-k, altrimenti un documento ritirato
+  accorcerebbe i risultati.
+- Esattezza: un documento vive in un solo segmento vivo, quindi i migliori k
+  della collezione sono tra i migliori k di ogni segmento.
+- SP-05D e superato: il vincolo di chiavi crescenti non esiste piu. Lo scrittore
+  per lotti e il prossimo incremento.
+- Non incluso: scrittore per lotti, manifest dei segmenti su disco,
+  compattazione.
+- Verifica prevista: tre segmenti con aggiornamenti e cancellazioni confrontati
+  con l'oracolo.
+
+## SP-05F Scrittore per lotti e persistenza della collezione
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4f.
+- Incremento: `SparseCollectionWriter` accumula i documenti e scrive un
+  segmento per lotto; `Delete` registra un tombstone che copre i segmenti gia
+  scritti e forza il commit di quanto in attesa, cosi non nasconde un documento
+  appena accodato; `SparseCollectionManifest` elenca i segmenti e viene
+  sostituito in modo atomico; `SparseCollectionStorage` riapre segmenti e
+  tombstone e restituisce l'indice di collezione.
+- Struttura su disco per collezione: `manifest`, `tombstones` con il suo
+  `.index`, e `segments/g<generazione>/{terms,terms.index,blocks,blocks.index}`.
+- Non incluso: compattazione dei segmenti, collegamento allo Store.
+- Verifica prevista: lotti in ordine casuale, aggiornamenti, cancellazione,
+  riapertura, nuovo segmento dopo la riapertura, confronto con l'oracolo.
+
+## SP-05G Compattazione dei segmenti
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4g.
+- Incremento: `SparseCollectionCompactor` fonde tutti i segmenti vivi in uno
+  nuovo, scartando le copie ritirate e azzerando i tombstone; il manifest viene
+  riscritto con la sola nuova generazione e le directory dei vecchi segmenti
+  vengono rimosse.
+- Memoria: la fusione avviene termine per termine con cursori multipli, quindi
+  proporzionale alla lista piu lunga, non all'intero corpus.
+- Sicurezza: il segmento nuovo e completo prima che il manifest lo nomini; una
+  directory non elencata viene ignorata e poi rimossa, quindi un'interruzione
+  lascia uno stato valido.
+- Non incluso: politica automatica di compattazione, collegamento allo Store.
+- Verifica prevista: otto segmenti con aggiornamenti e cancellazioni, confronto
+  con l'oracolo prima e dopo, manifest e directory coerenti, nuovo segmento
+  dopo la compattazione.
+
+## SP-05H Collegamento allo Store
+
+- Attore: questa sessione. Stato: code-ready. Ordine: 4h.
+- Incremento: `Store` mantiene uno scrittore e un lettore sparse per collezione
+  sotto `{database}.sparse/`; il thread di scrittura indicizza il lotto appena
+  persistito; cancellazione e svuotamento ritirano le copie sparse; lo Shrink
+  dello Store compatta i segmenti; `Store.SearchSparse` e
+  `VectorCollection.SearchSparse` espongono la ricerca.
+- Sovrascrittura: prima di accodare la versione nuova, le copie precedenti
+  vengono ritirate con un tombstone, altrimenti il documento comparirebbe due
+  volte con pesi vecchi.
+- Tombstone in memoria: lo scrittore espone la lista viva, perche un secondo
+  handle sullo stesso file non vede i record non ancora scaricati.
+- Non incluso: REST, gRPC, client; politica di compattazione fuori dallo Shrink.
+- Verifica prevista: ricerca attraverso lo Store prima e dopo aggiornamento,
+  cancellazione, riapertura e Shrink.
 
 ## SP-05 Integrare lo Store multivettore
 

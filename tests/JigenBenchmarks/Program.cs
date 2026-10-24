@@ -136,7 +136,7 @@ try
 
   sw.Restart();
   for (var i = 0; i < SearchQueries; i++)
-    _ = store.Search("bench", vectors[(int)((long)i * n / SearchQueries)], Top).ToList();
+    _ = store.SearchDense("bench", vectors[(int)((long)i * n / SearchQueries)], Top).ToList();
   sw.Stop();
   Report("hnsw search", $"{sw.Elapsed.TotalMilliseconds * 1000 / SearchQueries,10:0} us/query");
 
@@ -146,7 +146,7 @@ try
     var query = vectors[(int)((long)i * n / RecallQueries)];
     var expected = brute.Search(store, "bench", query, Top)
       .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
-    var got = store.Search("bench", query, Top)
+    var got = store.SearchDense("bench", query, Top)
       .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
     recallSum += (double)got.Intersect(expected, StringComparer.Ordinal).Count() / Top;
   }
@@ -162,7 +162,7 @@ try
       var query = documentVectors[(int)((long)i * n / RecallQueries)][vectorsPerEntry - 1];
       var expected = brute.Search(store, "bench", query, Top)
         .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
-      var got = store.Search("bench", query, Top)
+      var got = store.SearchDense("bench", query, Top)
         .Select(r => Convert.ToBase64String(r.entry.Id)).ToHashSet(StringComparer.Ordinal);
       tailRecallSum += (double)got.Intersect(expected, StringComparer.Ordinal).Count() / Top;
     }
@@ -193,7 +193,7 @@ try
   await store.Close();
   sw.Restart();
   store = new Store(OptionsFor());
-  _ = store.Search("bench", vectors[n / 2], Top).ToList();
+  _ = store.SearchDense("bench", vectors[n / 2], Top).ToList();
   sw.Stop();
   Report("reopen+query", $"{sw.Elapsed.TotalMilliseconds,10:0} ms");
 

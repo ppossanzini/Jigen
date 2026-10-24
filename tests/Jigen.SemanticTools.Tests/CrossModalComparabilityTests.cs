@@ -262,7 +262,7 @@ public class CrossModalComparabilityTests
       for (var q = 0; q < ImageDataset.Samples.Count; q++)
       {
         var query = text.GenerateEmbedding("search_query", descriptions[q]);
-        var results = store.Search(Collection, query, top: ImageDataset.Samples.Count * 2).ToList();
+        var results = store.SearchDense(Collection, query, top: ImageDataset.Samples.Count * 2).ToList();
 
         _output.WriteLine($"\nQuery [{q}] \"{descriptions[q]}\"  (raw cosine in a mixed collection)");
         _output.WriteLine($"  {'#',-3}{"type",-7}{"entry",-40}cosine");
@@ -347,14 +347,14 @@ public class CrossModalComparabilityTests
         // (a) efSearch is a beam width, not a score calibrator: with a
         // 5-vector collection the top-1 cosine is identical for efSearch 8
         // and 64 (in larger graphs it only changes recall, still not scores).
-        var narrowTop = store.Search(imageCollection, query, 1, efSearch: 8).First().score;
-        var wideTop = store.Search(imageCollection, query, 1, efSearch: 64).First().score;
+        var narrowTop = store.SearchDense(imageCollection, query, 1, efSearch: 8).First().score;
+        var wideTop = store.SearchDense(imageCollection, query, 1, efSearch: 64).First().score;
         Assert.Equal(narrowTop, wideTop, 4);
 
         // (b) per-collection efSearch: a wide beam for the images, a narrow
         // one for the texts. Each collection ranks cleanly on its own scale.
-        var imageHits = store.Search(imageCollection, query, top: 5, efSearch: 64).ToList();
-        var textHits = store.Search(textCollection, query, top: 5, efSearch: 8).ToList();
+        var imageHits = store.SearchDense(imageCollection, query, top: 5, efSearch: 64).ToList();
+        var textHits = store.SearchDense(textCollection, query, top: 5, efSearch: 8).ToList();
 
         var ownImageRank = imageHits.FindIndex(r => r.entry.Id.AsSpan().SequenceEqual(imageIds[q]));
         var ownTextRank = textHits.FindIndex(r => r.entry.Id.AsSpan().SequenceEqual(textIds[q]));

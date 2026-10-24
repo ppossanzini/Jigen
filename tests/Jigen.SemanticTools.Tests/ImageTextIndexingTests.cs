@@ -149,7 +149,7 @@ public class ImageTextIndexingTests
     {
       var data = await EmbedAndIndexAsync(store, imagesFolder, descriptions, vision, text);
 
-      var allEntries = store.Search(Collection).ToList();
+      var allEntries = store.SearchByFilter(Collection).ToList();
       Assert.Equal(ImageDataset.Samples.Count * 2, allEntries.Count);
 
       var images = allEntries.Where(e => ContentIs(e, ImagePrefix)).ToList();
@@ -190,7 +190,7 @@ public class ImageTextIndexingTests
       for (var i = 0; i < ImageDataset.Samples.Count; i++)
       {
         var query = text.GenerateEmbedding("search_query", descriptions[i]);
-        var results = store.Search(Collection, query, top: ImageDataset.Samples.Count * 2).ToList();
+        var results = store.SearchDense(Collection, query, top: ImageDataset.Samples.Count * 2).ToList();
 
         _output.WriteLine($"\nQuery [{i}] \"{descriptions[i]}\"");
         _output.WriteLine($"  {'#',-3}{"type",-7}{"content",-52}cosine   cosineDist");
