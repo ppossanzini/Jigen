@@ -23,4 +23,5 @@ public static class SearchExtensions
   {
     return store.Options.Indexer.Search(store, collection, contentFilter);
   }
+
 }

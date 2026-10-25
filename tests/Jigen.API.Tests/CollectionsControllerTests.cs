@@ -257,4 +257,163 @@ public class CollectionsControllerTests
     Assert.IsType<OkObjectResult>(result);
     _mediatorMock.VerifyAll();
   }
+
+  // ── Sentence-derived sparse half ──
+
+  [Fact]
+  public async Task SearchCollection_derives_the_sparse_half_from_the_sentence()
+  {
+    var request = new SearchData { Sentence = "hybrid text", SparseFromSentence = true };
+
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Embedding.Core.Commands.CalculateEmbeddings>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([0.1f, 0.2f]);
+    _mediatorMock.Setup(m => m.Send(
+        It.Is<Embedding.Core.Commands.CalculateSparseEmbedding>(c => c.Sentence == "hybrid text"),
+        It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new Embedding.Core.Dto.SparseEmbeddingDto { Terms = [7], Weights = [1f] });
+    _mediatorMock.Setup(m => m.Send(It.IsAny<SearchVector>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([]);
+
+    var result = await CreateController().SearchCollection(DbName, Collection, request, CancellationToken.None);
+
+    Assert.IsType<OkObjectResult>(result);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<SearchVector>(q => q.SparseQuery != null && q.SparseQuery[7] == 1f),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SearchCollection_prefers_an_explicit_sparse_query()
+  {
+    var request = new SearchData
+    {
+      Sentence = "hybrid text",
+      SparseFromSentence = true,
+      SparseQuery = new Dictionary<int, float> { [11] = 2f }
+    };
+
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Embedding.Core.Commands.CalculateEmbeddings>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([0.1f, 0.2f]);
+    _mediatorMock.Setup(m => m.Send(It.IsAny<SearchVector>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([]);
+
+    await CreateController().SearchCollection(DbName, Collection, request, CancellationToken.None);
+
+    _mediatorMock.Verify(m => m.Send(
+      It.IsAny<Embedding.Core.Commands.CalculateSparseEmbedding>(),
+      It.IsAny<CancellationToken>()), Times.Never);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<SearchVector>(q => q.SparseQuery[11] == 2f),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetDocument_forwards_the_sparse_from_sentence_flag()
+  {
+    var payload = new DocumentPayload { Sentence = "a sentence", SparseFromSentence = true };
+    _mediatorMock.Setup(m => m.Send(It.IsAny<SetDocument>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var result = await CreateController().SetDocument(DbName, Collection, "testkey", payload, "string");
+
+    Assert.IsType<OkResult>(result);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<SetDocument>(c => c.SparseFromSentence),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  // ── Sparse terms on the write path ──
+
+  [Fact]
+  public async Task SetVector_ForwardsSparseTermsPerVector()
+  {
+    var payload = new VectorPayload
+    {
+      Vectors = [[0.1f, 0.2f]],
+      Sparse = [new Dictionary<int, float> { [7] = 1.5f }]
+    };
+    _mediatorMock.Setup(m => m.Send(It.IsAny<SetVector>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var result = await CreateController().SetVector(DbName, Collection, "testkey", payload, "string");
+
+    Assert.IsType<OkResult>(result);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<SetVector>(c =>
+        c.SparseVectors != null &&
+        c.SparseVectors.Count == 1 &&
+        c.SparseVectors[0].Length == 1 &&
+        c.SparseVectors[0][0].Term == 7),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetVector_ReturnsBadRequest_WhenSparseListsExceedVectors()
+  {
+    var payload = new VectorPayload
+    {
+      Vectors = [[0.1f]],
+      Sparse = [new Dictionary<int, float> { [7] = 1f }, new Dictionary<int, float> { [9] = 1f }]
+    };
+
+    var result = await CreateController().SetVector(DbName, Collection, "testkey", payload, "string");
+
+    Assert.IsType<BadRequestObjectResult>(result);
+    _mediatorMock.Verify(m => m.Send(It.IsAny<SetVector>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task SetVector_ReturnsBadRequest_WhenSparseTermIsNegative()
+  {
+    var payload = new VectorPayload
+    {
+      Vectors = [[0.1f]],
+      Sparse = [new Dictionary<int, float> { [-1] = 1f }]
+    };
+
+    var result = await CreateController().SetVector(DbName, Collection, "testkey", payload, "string");
+
+    Assert.IsType<BadRequestObjectResult>(result);
+    _mediatorMock.Verify(m => m.Send(It.IsAny<SetVector>(), It.IsAny<CancellationToken>()), Times.Never);
+  }
+
+  [Fact]
+  public async Task SetDocument_ForwardsSparseTerms()
+  {
+    var payload = new DocumentPayload
+    {
+      Sentence = "hello",
+      Sparse = new Dictionary<int, float> { [7] = 2f }
+    };
+    _mediatorMock.Setup(m => m.Send(It.IsAny<SetDocument>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var result = await CreateController().SetDocument(DbName, Collection, "testkey", payload, "string");
+
+    Assert.IsType<OkResult>(result);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<SetDocument>(c =>
+        c.SparseTerms != null && c.SparseTerms.Length == 1 && c.SparseTerms[0].Term == 7),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetVectorsBulk_SkipsItemsWithInvalidSparse()
+  {
+    var items = new List<BulkVectorItem>
+    {
+      new() { Key = "valid", KeyType = "string", Vectors = [[1f]], Sparse = [new Dictionary<int, float> { [7] = 1f }] },
+      new() { Key = "invalid", KeyType = "string", Vectors = [[2f]], Sparse = [new Dictionary<int, float> { [-1] = 1f }] }
+    };
+    _mediatorMock.Setup(m => m.Send(It.IsAny<SetVector>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var result = await CreateController().SetVectorsBulk(DbName, Collection, items);
+
+    var okResult = Assert.IsType<OkObjectResult>(result);
+    var bulkResult = Assert.IsType<BulkResult>(okResult.Value);
+    Assert.Equal(1, bulkResult.Accepted);
+  }
 }

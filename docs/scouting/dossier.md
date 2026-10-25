@@ -45,9 +45,9 @@ La mappa e i suoi punti di controllo sono in [Phase flow](diagrams.md#1-phase-fl
 | Nessuna ricostruzione dell'indice all'apertura | dato: decisione dell'utente, 23 ottobre | l'apertura legge un manifest e mappa i file, non rilegge le liste |
 | Nessuna duplicazione delle coppie termine/peso | dato: decisione dell'utente, 23 ottobre | una sola copia autorevole, le liste non sono un secondo archivio |
 | Un solo scrittore per database | dato: comportamento attuale dello Store | le liste si scrivono dal thread di scrittura, in append |
-| Nessun servizio esterno nella modalità embedded | dato: [Stack Profile](../../StackProfile.md) (StackProfile.md) | le liste vivono nel processo, su file memory-mapped |
+| Nessun servizio esterno nella modalità embedded | dato: [Stack Profile](../StackProfile.md) (StackProfile.md) | le liste vivono nel processo, su file memory-mapped |
 | Licenza permissiva | dato: licenza Apache-2.0 del progetto | nessuna dipendenza con licenza incompatibile |
-| Spazio e latenza dell'indice denso invariati | dato: misure correnti in [Benchmarks & Hardware Support](../../benchmarks.md) (benchmarks.md), da rieseguire dopo la prima consegna | il formato dei vettori densi non si tocca |
+| Spazio e latenza dell'indice denso invariati | dato: misure correnti in [Benchmarks & Hardware Support](../benchmarks.md) (benchmarks.md), da rieseguire dopo la prima consegna | il formato dei vettori densi non si tocca |
 
 **Fuori ambito.**
 

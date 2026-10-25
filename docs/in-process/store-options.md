@@ -23,12 +23,14 @@ A `Store` named `{name}` under `DataBasePath` creates:
 | File | Contents |
 |---|---|
 | `{name}.content.jigen` | Document payloads (append-only; a header records the current write position). |
-| `{name}.vectors.jigen` | Embeddings (append-only; multi-vector layout `[id length][id][vector count][vector count × dimensions × float]`). An entry can hold several vectors — one record either way. |
+| `{name}.vectors.jigen` | Embeddings (append-only; multi-vector layout `[id length][id][vector count][vectors][sparse vector count][pairs per vector][term/weight pairs]`). An entry can hold several vectors and several sparse vectors — one record either way. The sparse section is absent in archives written before sparse vectors existed (format version 0), which therefore open dense-only and reject sparse writes. |
 | `{name}.index.jigen` | Position index log: one record per write/delete, mapping a key to its content and embedding offsets (or a tombstone). Replayed in full at startup to rebuild the in-memory position index. |
 | `{name}.lock.jigen` | Exclusive lock for the database's lifetime; also the crash marker (see below). |
 | `{name}.wal.jigen` | **Optional** Write-Ahead Log: CRC32-protected, append-only, written *before* the ingestion queue for per-record durability. Truncated after each checkpoint. Only created when `WalOptions.Enabled = true`. |
 
 If an HNSW indexer is configured, it maintains its own files per collection under its `StoragePath` — see [HNSW index](../indexes/hnsw.md).
+
+The sparse index has its own directory, `{name}.sparse/<collection>/` (`manifest`, `tombstones`, `segments/g<generation>/{terms, terms.index, blocks, blocks.index}`). `ShrinkAsync` compacts it together with the data files — see [Sparse index](../indexes/sparse.md).
 
 ## Durability model
 

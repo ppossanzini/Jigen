@@ -119,6 +119,16 @@ class StoreCollectionServiceStub:
                 request_serializer=Jigen__pb2.EmbeddingBatchRequest.SerializeToString,
                 response_deserializer=Jigen__pb2.EmbeddingBatchResponse.FromString,
                 _registered_method=True)
+        self.CalculateSparseEmbedding = channel.unary_unary(
+                '/jigen.StoreCollectionService/CalculateSparseEmbedding',
+                request_serializer=Jigen__pb2.EmbeddingRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.SparseEmbeddingResponse.FromString,
+                _registered_method=True)
+        self.CalculateSparseEmbeddingBatch = channel.unary_unary(
+                '/jigen.StoreCollectionService/CalculateSparseEmbeddingBatch',
+                request_serializer=Jigen__pb2.EmbeddingBatchRequest.SerializeToString,
+                response_deserializer=Jigen__pb2.SparseEmbeddingBatchResponse.FromString,
+                _registered_method=True)
         self.CalculatePassageEmbeddings = channel.unary_unary(
                 '/jigen.StoreCollectionService/CalculatePassageEmbeddings',
                 request_serializer=Jigen__pb2.PassageEmbeddingRequest.SerializeToString,
@@ -293,6 +303,21 @@ class StoreCollectionServiceServicer:
         raise NotImplementedError('Method not implemented!')
 
     def CalculateEmbeddingsBatch(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CalculateSparseEmbedding(self, request, context):
+        """── Sparse lexical vector of a text: tokenizer terms with their weights. The
+        same text that produces the dense embedding produces this one, so a
+        caller can fill both slots of an entry. ──
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def CalculateSparseEmbeddingBatch(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -474,6 +499,16 @@ def add_StoreCollectionServiceServicer_to_server(servicer, server):
                     servicer.CalculateEmbeddingsBatch,
                     request_deserializer=Jigen__pb2.EmbeddingBatchRequest.FromString,
                     response_serializer=Jigen__pb2.EmbeddingBatchResponse.SerializeToString,
+            ),
+            'CalculateSparseEmbedding': grpc.unary_unary_rpc_method_handler(
+                    servicer.CalculateSparseEmbedding,
+                    request_deserializer=Jigen__pb2.EmbeddingRequest.FromString,
+                    response_serializer=Jigen__pb2.SparseEmbeddingResponse.SerializeToString,
+            ),
+            'CalculateSparseEmbeddingBatch': grpc.unary_unary_rpc_method_handler(
+                    servicer.CalculateSparseEmbeddingBatch,
+                    request_deserializer=Jigen__pb2.EmbeddingBatchRequest.FromString,
+                    response_serializer=Jigen__pb2.SparseEmbeddingBatchResponse.SerializeToString,
             ),
             'CalculatePassageEmbeddings': grpc.unary_unary_rpc_method_handler(
                     servicer.CalculatePassageEmbeddings,
@@ -1000,6 +1035,60 @@ class StoreCollectionService:
             '/jigen.StoreCollectionService/CalculateEmbeddingsBatch',
             Jigen__pb2.EmbeddingBatchRequest.SerializeToString,
             Jigen__pb2.EmbeddingBatchResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CalculateSparseEmbedding(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/CalculateSparseEmbedding',
+            Jigen__pb2.EmbeddingRequest.SerializeToString,
+            Jigen__pb2.SparseEmbeddingResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def CalculateSparseEmbeddingBatch(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/jigen.StoreCollectionService/CalculateSparseEmbeddingBatch',
+            Jigen__pb2.EmbeddingBatchRequest.SerializeToString,
+            Jigen__pb2.SparseEmbeddingBatchResponse.FromString,
             options,
             channel_credentials,
             insecure,

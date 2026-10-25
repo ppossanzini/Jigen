@@ -29,6 +29,11 @@ service StoreCollectionService {
 
   rpc CalculateEmbeddings (EmbeddingRequest) returns (EmbeddingResponse);
   rpc CalculateEmbeddingsBatch (EmbeddingBatchRequest) returns (EmbeddingBatchResponse);
+  // ── Sparse lexical vector of a text: tokenizer terms with their weights. The
+  //     same text that produces the dense embedding produces this one, so a
+  //     caller can fill both slots of an entry. ──
+  rpc CalculateSparseEmbedding (EmbeddingRequest) returns (SparseEmbeddingResponse);
+  rpc CalculateSparseEmbeddingBatch (EmbeddingBatchRequest) returns (SparseEmbeddingBatchResponse);
   rpc CalculatePassageEmbeddings (PassageEmbeddingRequest) returns (PassageEmbeddingResponse);
   rpc CalculatePassageSplitCount (PassageSplitCountRequest) returns (PassageSplitCountResponse);
 
@@ -87,12 +92,23 @@ message CountResult{
   int32 Count = 1;
 }
 
+// Weights of the sparse (lexical) terms of one vector: term id to weight.
+// Term ids come from the vocabulary the writer uses for the collection.
+message SparseTerms {
+  map<int32, float> Terms = 1;
+}
+
 message Document {
   string Database = 1;
   string Collection = 2;
   bytes Key = 3;
   bytes Content = 4;
   string Sentence = 5;
+  // Sparse terms of the document itself. Absent when it has none.
+  SparseTerms Sparse = 6;
+  // Derive the sparse terms from Sentence on the server, with the same tokenizer
+  // that produces the dense embedding. Ignored when Sparse is supplied.
+  bool SparseFromSentence = 7;
 }
 
 // One vector of a multi-vector entry, e.g. one embedding per passage.
@@ -109,6 +125,9 @@ message Vector {
   // Every vector of the entry, all with the collection dimensions. A
   // single-vector entry is a list of one.
   repeated EmbeddingVector Vectors = 6;
+  // Sparse terms per vector, aligned by index with Vectors. A shorter list
+  // leaves the remaining vectors without sparse terms.
+  repeated SparseTerms Sparse = 7;
 }
 
 // Per-query search tuning, shared by SearchVectorRequest and
@@ -122,6 +141,10 @@ message SearchTuning {
   int32 EfSearch = 1;
   bool NoContent = 2;
   optional float MinScore = 3;
+  // Drop dense hits below this similarity before the hybrid fusion.
+  optional float MinDenseScore = 4;
+  // Drop sparse hits below this score before the hybrid fusion.
+  optional float MinSparseScore = 5;
 }
 
 message SearchVectorRequest {
@@ -131,12 +154,19 @@ message SearchVectorRequest {
   int32 Top = 4;
   FilterNode Filter = 5;
   SearchTuning Tuning = 6;
+  // Sparse half of the query (term id to weight). When present the search is
+  // hybrid and the two halves are fused by reciprocal rank.
+  map<int32, float> SparseQuery = 7;
 }
 
 message SearchVectorResult {
   bytes Key = 1;
   bytes Content = 2;
   float Score = 3;
+  // Dense similarity, set when the document came from the dense half.
+  optional float DenseScore = 4;
+  // Sparse score, set when the document came from the sparse half.
+  optional float SparseScore = 5;
 }
 
 message SearchVectorResponse {
@@ -150,6 +180,12 @@ message SearchDocumentRequest {
   int32 Top = 4;
   FilterNode Filter = 5;
   SearchTuning Tuning = 6;
+  // Optional sparse half, fused with the embedded sentence by reciprocal rank.
+  map<int32, float> SparseQuery = 7;
+  // Derive that sparse half from Sentence on the server, with the same tokenizer
+  // that produced the dense embedding: a hybrid search from a sentence alone.
+  // Ignored when SparseQuery is supplied.
+  bool SparseFromSentence = 8;
 }
 
 message FilterNode {
@@ -209,6 +245,18 @@ message EmbeddingRequest {
 // Reply of the embedding service: one vector per input sentence.
 message EmbeddingResponse {
   repeated float Embeddings = 1;
+}
+
+// Sparse lexical vector: terms are tokenizer vocabulary ids, strictly increasing,
+// with one weight each in the same order.
+message SparseEmbeddingResponse {
+  repeated int32 Terms = 1;
+  repeated float Weights = 2;
+}
+
+message SparseEmbeddingBatchResponse {
+  // One entry per input message, same order.
+  repeated SparseEmbeddingResponse Results = 1;
 }
 
 // Reply of GetEmbeddings: every vector stored for a key, in storage order.

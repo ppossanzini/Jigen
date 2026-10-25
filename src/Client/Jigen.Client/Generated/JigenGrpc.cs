@@ -84,6 +84,10 @@ namespace Jigen.Proto {
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.EmbeddingBatchResponse> __Marshaller_jigen_EmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.EmbeddingBatchResponse.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SparseEmbeddingResponse> __Marshaller_jigen_SparseEmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SparseEmbeddingResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Marshaller<global::Jigen.Proto.SparseEmbeddingBatchResponse> __Marshaller_jigen_SparseEmbeddingBatchResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.SparseEmbeddingBatchResponse.Parser));
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.PassageEmbeddingRequest> __Marshaller_jigen_PassageEmbeddingRequest = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageEmbeddingRequest.Parser));
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Marshaller<global::Jigen.Proto.PassageEmbeddingResponse> __Marshaller_jigen_PassageEmbeddingResponse = grpc::Marshallers.Create(__Helper_SerializeMessage, context => __Helper_DeserializeMessage(context, global::Jigen.Proto.PassageEmbeddingResponse.Parser));
@@ -247,6 +251,22 @@ namespace Jigen.Proto {
         "CalculateEmbeddingsBatch",
         __Marshaller_jigen_EmbeddingBatchRequest,
         __Marshaller_jigen_EmbeddingBatchResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.SparseEmbeddingResponse> __Method_CalculateSparseEmbedding = new grpc::Method<global::Jigen.Proto.EmbeddingRequest, global::Jigen.Proto.SparseEmbeddingResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateSparseEmbedding",
+        __Marshaller_jigen_EmbeddingRequest,
+        __Marshaller_jigen_SparseEmbeddingResponse);
+
+    [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+    static readonly grpc::Method<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.SparseEmbeddingBatchResponse> __Method_CalculateSparseEmbeddingBatch = new grpc::Method<global::Jigen.Proto.EmbeddingBatchRequest, global::Jigen.Proto.SparseEmbeddingBatchResponse>(
+        grpc::MethodType.Unary,
+        __ServiceName,
+        "CalculateSparseEmbeddingBatch",
+        __Marshaller_jigen_EmbeddingBatchRequest,
+        __Marshaller_jigen_SparseEmbeddingBatchResponse);
 
     [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
     static readonly grpc::Method<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse> __Method_CalculatePassageEmbeddings = new grpc::Method<global::Jigen.Proto.PassageEmbeddingRequest, global::Jigen.Proto.PassageEmbeddingResponse>(
@@ -758,6 +778,82 @@ namespace Jigen.Proto {
       public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.EmbeddingBatchResponse> CalculateEmbeddingsBatchAsync(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::CallOptions options)
       {
         return CallInvoker.AsyncUnaryCall(__Method_CalculateEmbeddingsBatch, null, options, request);
+      }
+      /// <summary>
+      /// ── Sparse lexical vector of a text: tokenizer terms with their weights. The
+      ///     same text that produces the dense embedding produces this one, so a
+      ///     caller can fill both slots of an entry. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.SparseEmbeddingResponse CalculateSparseEmbedding(global::Jigen.Proto.EmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateSparseEmbedding(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Sparse lexical vector of a text: tokenizer terms with their weights. The
+      ///     same text that produces the dense embedding produces this one, so a
+      ///     caller can fill both slots of an entry. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The response received from the server.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.SparseEmbeddingResponse CalculateSparseEmbedding(global::Jigen.Proto.EmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_CalculateSparseEmbedding, null, options, request);
+      }
+      /// <summary>
+      /// ── Sparse lexical vector of a text: tokenizer terms with their weights. The
+      ///     same text that produces the dense embedding produces this one, so a
+      ///     caller can fill both slots of an entry. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="headers">The initial metadata to send with the call. This parameter is optional.</param>
+      /// <param name="deadline">An optional deadline for the call. The call will be cancelled if deadline is hit.</param>
+      /// <param name="cancellationToken">An optional token for canceling the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.SparseEmbeddingResponse> CalculateSparseEmbeddingAsync(global::Jigen.Proto.EmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateSparseEmbeddingAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      /// <summary>
+      /// ── Sparse lexical vector of a text: tokenizer terms with their weights. The
+      ///     same text that produces the dense embedding produces this one, so a
+      ///     caller can fill both slots of an entry. ──
+      /// </summary>
+      /// <param name="request">The request to send to the server.</param>
+      /// <param name="options">The options for the call.</param>
+      /// <returns>The call object.</returns>
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.SparseEmbeddingResponse> CalculateSparseEmbeddingAsync(global::Jigen.Proto.EmbeddingRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_CalculateSparseEmbedding, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.SparseEmbeddingBatchResponse CalculateSparseEmbeddingBatch(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateSparseEmbeddingBatch(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual global::Jigen.Proto.SparseEmbeddingBatchResponse CalculateSparseEmbeddingBatch(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.BlockingUnaryCall(__Method_CalculateSparseEmbeddingBatch, null, options, request);
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.SparseEmbeddingBatchResponse> CalculateSparseEmbeddingBatchAsync(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))
+      {
+        return CalculateSparseEmbeddingBatchAsync(request, new grpc::CallOptions(headers, deadline, cancellationToken));
+      }
+      [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
+      public virtual grpc::AsyncUnaryCall<global::Jigen.Proto.SparseEmbeddingBatchResponse> CalculateSparseEmbeddingBatchAsync(global::Jigen.Proto.EmbeddingBatchRequest request, grpc::CallOptions options)
+      {
+        return CallInvoker.AsyncUnaryCall(__Method_CalculateSparseEmbeddingBatch, null, options, request);
       }
       [global::System.CodeDom.Compiler.GeneratedCode("grpc_csharp_plugin", null)]
       public virtual global::Jigen.Proto.PassageEmbeddingResponse CalculatePassageEmbeddings(global::Jigen.Proto.PassageEmbeddingRequest request, grpc::Metadata headers = null, global::System.DateTime? deadline = null, global::System.Threading.CancellationToken cancellationToken = default(global::System.Threading.CancellationToken))

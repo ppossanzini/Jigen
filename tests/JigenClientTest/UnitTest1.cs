@@ -24,16 +24,16 @@ public class UnitTest1
     });
   }
 
-  [Fact]
+  [ServerFact(database: "Test")]
   public void Insert()
   {
     db.Sentences.Add(1, new VectorEntry<Entity1>()
     {
-      Key = 1, Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, Embeddings = []
+      Key = 1, Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, Embeddings = [[0.1f, 0.2f]]
     });
   }
   
-  [Theory]
+  [ServerTheory(database: "Test")]
   [InlineData(1)]
   [InlineData(10)]
   [InlineData(100)]
@@ -55,7 +55,7 @@ public class UnitTest1
       {
         Key = i, 
         Content = new Entity1() { Id = Guid.NewGuid(), Sentence = "blablabla", Title = "allora..." }, 
-        Embeddings = []
+        Embeddings = [[0.1f, 0.2f]]
       });
     }
     
@@ -63,7 +63,7 @@ public class UnitTest1
     _testOutputHelper.WriteLine($"Elapsed: {sw.ElapsedMilliseconds}");
   }
 
-  [Fact]
+  [ServerFact(database: "Test")]
   public void SerializationRoundTripTest()
   {
     // Arrange
@@ -83,7 +83,7 @@ public class UnitTest1
     {
       Key = testKeyVector,
       Content = expectedEntity,
-      Embeddings = []
+      Embeddings = [[0.1f, 0.2f]]
     });
 
     // Act: Read back
@@ -107,7 +107,7 @@ public class UnitTest1
     _testOutputHelper.WriteLine("✓ Serialization round-trip verified: content is identical");
   }
 
-  [Fact]
+  [ServerFact(database: "Test", embeddings: true)]
   public void SearchBySemanticSimilarityTest()
   {
     // Arrange

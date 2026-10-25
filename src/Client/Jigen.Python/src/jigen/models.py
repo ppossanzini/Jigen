@@ -33,6 +33,8 @@ class SearchOptions:
     ef_search: int = 0
     no_content: bool = False
     min_score: float | None = None
+    min_dense_score: float | None = None
+    min_sparse_score: float | None = None
 
 
 @dataclass(slots=True)
@@ -47,6 +49,8 @@ class SearchResult(Generic[DocumentT]):
     key: bytes
     content: DocumentT | None
     score: float
+    dense_score: float | None = None
+    sparse_score: float | None = None
 
 
 @dataclass(slots=True, frozen=True)

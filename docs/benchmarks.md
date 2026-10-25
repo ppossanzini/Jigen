@@ -160,6 +160,106 @@ Additional characteristics:
 - **Brute force** (exact) is roughly 1.7 ms/query at 5k × 128 and scales linearly with collection size — see [Brute-force index](indexes/brute-force.md) for when that is the right choice.
 - **SQ8 quantization** cuts graph vector storage 4× with negligible recall loss when `ExactRerank` is enabled (default).
 
+## Sparse and hybrid search
+
+Sparse search answers from the per-collection inverted index described in
+[Sparse index](indexes/sparse.md); the hybrid search runs both halves and fuses
+them by reciprocal rank. All figures below are from the same machine as the rest
+of this page, in Release, best of 3 rounds over 200 queries.
+
+The sparse figures come from a dedicated harness driving `Jigen.Index.Sparse`
+and `Jigen.Store` directly (the parameters are in each table, so the
+measurements can be reproduced against those APIs); they are not yet part of the
+macro-benchmark in `tests/JigenBenchmarks`.
+
+### Engine, reference corpus (worst case for term frequency)
+
+3,000 documents, 1–3 vectors per document, 60 terms per vector drawn from a
+**200-term** vocabulary, 20-term queries. Every term therefore appears in about
+60% of the documents — a pathological corpus that makes each query scan a large
+part of the index.
+
+| Metric | Value |
+|---|---|
+| Corpus | 362,220 postings, 5,751 blocks × 64 |
+| Build / open | 447 ms / ~0 ms |
+| Index on disk | 5.97 MB |
+| Search k=1 / k=10 / k=100 / all | 8.3 / 8.6 / 9.0 / 11.4 ms per query |
+| Allocation at k=10 | 1,052 KiB per query |
+| k=all with `minimumScore` keeping ~30 documents | 9.2 ms |
+
+### Engine, realistic vocabulary
+
+30,000 documents, 2 vectors each, 60 terms per vector drawn from a
+**50,000-term** vocabulary, so a term matches about 70 documents.
+
+| Metric | Value |
+|---|---|
+| Corpus | 3.6 M postings, 90,458 blocks × 64 |
+| Build | 1.70 s |
+| Index on disk | 63.55 MB — **18.5 B per posting** |
+| Search k=1 / k=10 / k=100 / all | 0.84 / **0.89** / 1.03 / 1.41 ms per query |
+| Allocation at k=10 | 68 KiB per query |
+
+The two tables together are the point: with the same engine and a corpus 10×
+larger, the realistic vocabulary is ~10× faster. Sparse cost follows
+**query terms × posting-list length**, not collection size.
+
+### Store, dense + sparse + hybrid
+
+10,000 documents, 2 vectors of 128 dimensions and 120 sparse terms each, HNSW
+`M=16`, `efC=200`, `efS=80`, WAL off, batches of 1,000.
+
+| Metric | Value |
+|---|---|
+| Ingest acceptance (queue) | 36 ms — 277,000 docs/s |
+| Durable ingest (write + index) | 13.3 s — **751 docs/s** |
+| Sparse k=10, 2 segments | 6.5 ms |
+| Sparse k=10, after `Shrink` (1 segment) | **3.7 ms** |
+| Sparse k=10, after reopen | 3.5 ms |
+| Dense k=10 | 0.63 ms |
+| Hybrid k=10 | 8.1 ms → 4.6 ms after reopen |
+| `Shrink` / reopen | 490 ms / 60 ms |
+
+Query shape on a 30,000-document collection (3.6 M postings, 200-term
+vocabulary), k=10:
+
+| Query terms | Sparse search |
+|---|---|
+| 5 | 9.9 ms |
+| 20 | 82 ms |
+| 60 | 336 ms |
+
+### Transport (gRPC)
+
+2,000 documents with 1 vector of 128 dimensions and 60 sparse terms, fresh
+database, local server on the same machine:
+
+| Operation | Value |
+|---|---|
+| `SetVector`, one call per document | 313 docs/s (1.5–3.2 ms per call across runs) |
+| `SetVectors`, client streaming | 79 ms — **25,000 docs/s** |
+| `SearchSparse` k=10 | 8.3 ms per query, round trip included |
+| Unary reference call (`Count`) | 1.7 ms per call |
+
+### Reading the numbers
+
+- **Compaction is on the read path.** The same query costs 6.5 ms with two live
+  segments and 3.7 ms with one: the search asks every segment and merges. A
+  delete-heavy workload, and a repeated `Clear`, degrade sparse latency until a
+  `Shrink` compacts the collection (observed: 8.3 → 16.8 → 24.2 ms per query
+  over three clear-and-reload cycles with no compaction in between).
+- **Hybrid ≈ dense + sparse.** 8.1 ms against 0.63 ms dense and 6.5 ms sparse on
+  the same collection: the fusion itself is noise.
+- **`minimumScore` pays.** At k=all it drops the query from 11.4 to 9.2 ms by
+  pruning whole blocks, on top of filtering the results.
+- **Batch the ingestion.** Over gRPC, streaming 2,000 entries in one call is
+  ~80× faster than one call per document; in-process, the batch is what closes a
+  sparse segment.
+- **Sparse ingest is cheap, HNSW is not.** The 751 docs/s of durable ingest above
+  is dominated by graph construction (2 vectors per document, single indexer);
+  the sparse index writes at ~0.47 µs per posting (1.70 s for 3.6 M postings).
+
 ## Embedding generation (CPU)
 
 Model `nomic-embed-text-v1.5`, ~250-token texts, concurrency 2, 22-core CPU:

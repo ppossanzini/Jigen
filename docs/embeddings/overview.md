@@ -127,7 +127,7 @@ collection.Add(1, "a photo of a cat", textGenerator.GenerateEmbedding("search_do
 collection.Add(2, imageVector);  // image content
 
 // 4. Cross-modal search: a text query retrieves the matching image.
-var results = collection.Search(textGenerator.GenerateEmbedding("search_query", "un gatto"), top: 10);
+var results = collection.SearchDense(textGenerator.GenerateEmbedding("search_query", "un gatto"), top: 10);
 ```
 
 Because collections accept raw `float[]` vectors, any of the deployment modes below work for images too.

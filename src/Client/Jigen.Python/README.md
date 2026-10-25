@@ -101,6 +101,92 @@ An entry is always a list of vectors: one stored vector comes back as a list of
 one, and there is no single-vector reader. Search scores a document by its
 closest vector.
 
+### Dense, sparse and hybrid search
+
+The three names match the in-process engine: `search_dense`, `search_sparse` and
+`search` for the hybrid search (`search_hybrid` stays as an alias of `search`).
+
+```python
+hits = articles.search_dense([0.14, -0.29, 0.84], top=5)  # dense, by vector
+hits = articles.search_dense("vector database for .NET", top=5)  # dense, by text
+```
+
+`search_sparse` runs the lexical half only. The query maps term identifiers to
+weights; those identifiers are the ones Jigen's server-side sparse index assigns
+to terms, so the client receives them from the same tokenizer that built it:
+
+```python
+hits = articles.search_sparse({1204: 1.0, 77: 0.4}, top=5)
+```
+
+`search` fuses both halves with reciprocal rank; either half may be omitted, but
+not both. With `sparse_from_sentence=True` the server derives the sparse half
+from the sentence it embeds, so a hybrid search needs nothing but text:
+
+```python
+hits = articles.search([0.14, -0.29, 0.84], {1204: 1.0}, top=5)
+hits = articles.search("vector database", {1204: 1.0}, top=5)  # server embeds the text
+hits = articles.search("how do I reset my password?", top=5, sparse_from_sentence=True)
+```
+
+Each hit carries the fused `score` plus the partial `dense_score` and
+`sparse_score` that produced it, when the server computed them. Use
+`min_dense_score` and `min_sparse_score` to drop weak candidates before the
+fusion, and `min_score` for a floor on the fused score:
+
+```python
+from jigen import SearchOptions
+
+hits = articles.search(
+    query_vector,
+    {1204: 1.0},
+    top=10,
+    options=SearchOptions(min_dense_score=0.3, min_sparse_score=0.05),
+)
+```
+
+Async collections expose the same three methods with `await`.
+
+### Writing sparse terms
+
+The sparse pairs a document carries are supplied by the writer: pass `sparse`
+on `upsert` and `append` as a mapping of term id to weight. A one-vector entry
+takes one mapping; a multi-vector entry takes a list with one mapping per
+vector.
+
+```python
+articles.upsert(
+    "article-42",
+    {"title": "Vector search"},
+    embedding=[0.12, -0.31, 0.88],
+    sparse={1204: 1.0, 77: 0.4},
+)
+
+# One sparse list per vector, aligned by index.
+articles.upsert(
+    "article-43",
+    {"title": "Multi vector"},
+    embedding=[[0.12, -0.31, 0.88], [0.4, 0.1, -0.2]],
+    sparse=[{1204: 1.0}, {77: 0.4}],
+)
+
+# A document whose embedding the server computes.
+articles.upsert("article-44", {"title": "By text"}, text="sparse retrieval", sparse={1204: 1.0})
+
+# Both slots from the sentence: the server embeds it densely and derives the sparse terms.
+articles.upsert("article-45", {"title": "Derived"}, text="sparse retrieval", sparse_from_sentence=True)
+
+# Bulk: the fourth item is optional.
+articles.upsert_many([
+    ("a", {"title": "A"}, [0.1, 0.2], {1204: 1.0}),
+    ("b", {"title": "B"}, [0.3, 0.4]),
+])
+```
+
+Term ids must be non-negative and must be the ids the queries use: a mapping
+longer than the vector list, or a single mapping on a multi-vector entry, is
+refused instead of being attached to a vector that does not exist.
+
 ## Filters and tuning
 
 ```python

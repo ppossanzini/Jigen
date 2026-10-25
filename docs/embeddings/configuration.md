@@ -97,6 +97,21 @@ Fixed-resolution checkpoints are supported; NaFlex exports requiring
 | `PaddingTokenId` | long | `0` | Token id written into padded positions; set it from the checkpoint tokenizer configuration. |
 | `ExecutionProvider` | string | `"cpu"` | ONNX Runtime execution provider. See [execution providers](execution-providers.md) for the full list and build requirements. |
 | `GpuDeviceId` | int | `0` | Device index used by GPU execution providers (`cuda`, `dml`, `rocm`, `migraphx`). |
+| `Sparse` | object | see below | `SparseEmbeddingOptions` for the sparse lexical vector the generator can produce from the same text as the dense one. |
+
+### `SparseEmbeddingOptions`
+
+`IEmbeddingGenerator.GenerateSparseEmbedding` turns a text into `(term id, weight)`
+pairs from the model's own tokenizer — the same ids the dense path uses, so a
+document and a query embedded by the same model share one vocabulary. It works
+for every profile, involves no model inference, and is what feeds the collection's
+[sparse index](../indexes/sparse.md#producing-the-pairs).
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `Sparse.MaxTerms` | int | `1024` | Maximum number of terms kept in one sparse vector. The heaviest terms survive a truncation. |
+| `Sparse.Offset` | float | `1` | Weight of a term appearing once. |
+| `Sparse.LogBase` | float | `1` | Damping applied to repetitions (`offset + LogBase · ln(count)`), so a repeated word counts more without dominating the dot product. Must be greater than zero. |
 
 ## Example: BGE-M3
 
@@ -122,8 +137,11 @@ The official `BAAI/bge-m3` ONNX export can be configured directly with its
 }
 ```
 
-The profile exposes BGE-M3 dense embeddings only. Sparse lexical weights and
-ColBERT multi-vector outputs are not part of Jigen's embedding contract.
+The profile exposes BGE-M3 dense embeddings. The sparse lexical vector is
+available too (`GenerateSparseEmbedding`, `CalculateSparseEmbedding`), produced
+from the model's tokenizer with the XLM-R id mapping the profile applies; the
+model's *learned* sparse head and the ColBERT multi-vector outputs are not part of
+Jigen's embedding contract — the lexical weights are TF-based.
 
 ## `ImageEmbeddingGeneratorOptions`
 

@@ -403,3 +403,57 @@ Decisioni e fonti: [Paper su prestazioni e struttura dei dati](../scouting/dossi
 - Incremento: test comportamentali di persistenza e recupero, misure di apertura,
   memoria e ricerca. Corpus e soglie da confermare prima di ready.
 - Handoff finale: utente; evidenze nel dossier.
+
+## SP-05P Ricerca sparsa e ibrida su REST, gRPC e client
+
+- Attore: questa sessione. Stato: implemented. Ordine: 5p.
+- Motivo: l'utente ha chiesto di espandere la ricerca sparsa e ibrida ai
+  trasporti e ai client, estendendo i messaggi esistenti.
+- Incremento: campi sparsi e soglie su entrambi i proto, `SearchData` e
+  `SearchCollection` su REST, percorso ibrido nell'handler, metodi sparsi e
+  ibridi nel client .NET e nel client Python con i binding rigenerati.
+- Non incluso: scrittura di coppie sparse dai trasporti, verifica end-to-end su
+  server vivo, riparazione dei progetti di test API e gRPC.
+- Verifica prevista: build dei quattro progetti toccati, test del client Python,
+  `ruff`, confronto dei due proto; poi un giro reale quando l'autenticazione del
+  server lo consente.
+
+## SP-05Q Scrittura delle coppie sparse sui trasporti e test riparati
+
+- Attore: questa sessione. Stato: implemented. Ordine: 5q.
+- Motivo: l'utente ha chiesto di aggiungere la scrittura delle coppie sparse ai
+  trasporti e di riparare i test per proseguire anche con il client .NET.
+- Incremento: `SparseTerms` su entrambi i proto per `Vector` (per vettore) e
+  `Document` (termini del documento), campi nelle command del Core, conversione
+  con validazione in gRPC e REST, scrittura nei client .NET e Python, test dei
+  trasporti, riparazione dei progetti di test API, gRPC e client.
+- Non incluso: nessuna RPC nuova, nessuna modifica al formato su disco (le coppie
+  usano il percorso gia esistente di `VectorEntry.SparseVectors`).
+- Verifica prevista: build dei progetti toccati, suite sparse, Store, API, gRPC,
+  client .NET e Python, piu un giro reale gRPC di scrittura e ricerca sparsa.
+
+## SP-05S Documentazione allineata allo stato attuale
+
+- Attore: questa sessione. Stato: done. Ordine: 5s.
+- Motivo: l'utente ha chiesto di aggiornare la documentazione allo stato attuale
+  e di riportarvi il giro di benchmark appena eseguito.
+- Incremento: pagina `indexes/sparse.md` con nav e indice; sezione sparse e
+  ibride in `benchmarks.md`; correzione delle API rinominate in tutti gli esempi;
+  campi sparsi nei riferimenti gRPC e REST; note su indice sparso e file su disco
+  in overview e store-options; due link relativi rotti sistemati.
+- Verifica: `mkdocs build --strict` verde, nessun avviso.
+
+## SP-05T Nomi del client allineati, vettore sparso dal motore di embedding
+
+- Attore: questa sessione. Stato: done. Ordine: 5t.
+- Motivo: l'utente ha chiesto di allineare i nomi del client all'in-process e di
+  avere metodi ibridi che facciano calcolare al server sia il denso sia lo sparso
+  della sentenza, con il motore di embedding in grado di produrre vettori sparsi.
+- Incremento: generazione sparsa nel motore (`GenerateSparseEmbedding`), comandi
+  e RPC dedicati, `SparseFromSentence` su ricerca e scrittura, client .NET e
+  Python riallineati.
+- Non incluso: testa sparsa appresa (SPLADE/BGE-M3), batch sparso vettoriale
+  separato, misure di latenza della generazione sparsa.
+- Verifica prevista: build dei progetti toccati, suite SemanticTools/API/gRPC/
+  client/Python, `mkdocs --strict`.
+

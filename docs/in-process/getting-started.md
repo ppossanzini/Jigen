@@ -97,7 +97,7 @@ If `CommitAsync()` is not called (rolled back, or the `using` block ends without
 ## Searching
 
 ```csharp
-var results = store.Search("articles", queryVector, top: 5);
+var results = store.SearchDense("articles", queryVector, top: 5);
 
 foreach (var (entry, score) in results)
 {
@@ -106,7 +106,9 @@ foreach (var (entry, score) in results)
 }
 ```
 
-`Search` ranks by cosine similarity, whether the collection uses the brute-force or the HNSW index — see [Brute-force index](../indexes/brute-force.md) and [HNSW index](../indexes/hnsw.md).
+`SearchDense` ranks by cosine similarity, whether the collection uses the brute-force or the HNSW index — see [Brute-force index](../indexes/brute-force.md) and [HNSW index](../indexes/hnsw.md).
+
+The same collection can also be searched by lexical weight (`store.SearchSparse(collection, query, k, ...)`) or by both halves at once (`store.SearchHybrid(collection, embeddings, sparseQuery, ...)`); see [Sparse index](../indexes/sparse.md).
 
 ## Durability and shutdown
 

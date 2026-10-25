@@ -6,4 +6,10 @@ public class VectorPayload
 
   /// <summary>Every vector of the entry, all with the collection dimensions. A single-vector entry is an array of one.</summary>
   public float[][] Vectors { get; set; }
+
+  /// <summary>
+  /// Sparse (lexical) terms of each vector, aligned by index with
+  /// <see cref="Vectors"/>: one object mapping term id to weight per vector.
+  /// </summary>
+  public Dictionary<int, float>[] Sparse { get; set; }
 }

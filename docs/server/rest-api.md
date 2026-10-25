@@ -28,6 +28,9 @@ User/database access management is part of the identity module; it is only menti
 | `GET` | `/api/database/{db}/collections` | List collection names in a database. |
 | `GET` | `/api/database/{db}/collections/{collection}/info` | Collection info: `Name`, `Vectors`, `Dimensions`, `ContentSize`, `VectorSize`. |
 | `POST` | `/api/database/{db}/collections/search` | Search across one or more collections. Body: `SearchCollectionsData`. |
+| `POST` | `/api/database/{db}/collections/{collection}/search` | Search one collection by sentence, by vector, by sparse weights, or both (hybrid). Body: `SearchData`. |
+| `POST` | `/api/database/{db}/collections/{collection}/vectors/{key}` | Insert a vector entry. Body: `VectorPayload`. |
+| `POST` | `/api/database/{db}/collections/{collection}/vectors/bulk` | Insert many vector entries in one request. Body: `BulkVectorItem[]`. |
 | `POST` | `/api/database/{db}/collections/{collection}/documents/{key}` | Create/insert a document. Body: `DocumentPayload`. |
 | `PUT` | `/api/database/{db}/collections/{collection}/documents/{key}` | Same as `POST` (upsert). |
 | `PATCH` | `/api/database/{db}/collections/{collection}/documents/{key}` | Same as `POST`/`PUT`. |
@@ -50,12 +53,36 @@ The response (`SearchCollectionsResult`) reports timing breakdown (`EmbeddingsCa
 
 Note: the server's Newtonsoft.Json configuration does not add a camelCase contract resolver, so both request and response JSON use the C# (PascalCase) property names shown above; request deserialization is case-insensitive, but responses will come back PascalCase.
 
+### `SearchData` (single-collection search body)
+
+| Field | Type | Description |
+|---|---|---|
+| `Sentence` | string | Free-text query; the server computes the embedding (requires an embedding module). |
+| `Embeddings` | float[] | A precomputed query vector. |
+| `SparseQuery` | object | Sparse half of the query: term id (as a JSON key) to weight, e.g. `{"1204": 1.0, "77": 0.4}`. Alone it is a sparse-only search; together with `Sentence` or `Embeddings` it is hybrid. |
+| `SparseFromSentence` | bool | Derive the sparse half from `Sentence` with the same tokenizer that produces the dense embedding: a hybrid search from a sentence alone. Ignored when `SparseQuery` is present. |
+| `Top` | int | Number of results to return (default 10). |
+| `MinDenseScore` | float? | Hybrid only: drop dense hits below this similarity before the fusion. |
+| `MinSparseScore` | float? | Hybrid only: drop sparse hits below this score before the fusion. |
+
+One of `Sentence`, `Embeddings` or `SparseQuery` is required. Each result carries `Key`, `Content`, `Score` (the fused score for a hybrid search) and, when the server computed them, `DenseScore` and `SparseScore`. The term ids in `SparseQuery` are your vocabulary — the server does not tokenize text; see [Sparse index](../indexes/sparse.md).
+
+### `VectorPayload` (vector insert body)
+
+| Field | Type | Description |
+|---|---|---|
+| `Payload` | object | The document content, serialized server-side with the collection's `IDocumentSerializer`. |
+| `Vectors` | float[][] | Every vector of the entry; a single-vector entry is an array of one. |
+| `Sparse` | object[] | Sparse terms per vector, aligned by index with `Vectors`: one object mapping term id to weight per vector, e.g. `[{"1204": 1.0}]`. A longer list than `Vectors`, or a negative term id, is rejected with 400. |
+
 ### `DocumentPayload` (insert/update request body)
 
 | Field | Type | Description |
 |---|---|---|
 | `Payload` | object | The document content, serialized server-side with the collection's configured `IDocumentSerializer` (MessagePack by default). |
 | `Sentence` | string | Text to embed and store as the document's vector. Requires an embedding module, same as search by sentence. |
+| `Sparse` | object | Sparse terms of the document: term id to weight, e.g. `{"1204": 1.0, "77": 0.4}`. Optional; negative term ids are rejected with 400. |
+| `SparseFromSentence` | bool | Derive the sparse terms from `Sentence` on the server, with the same tokenizer that produces the dense embedding, so a write fills both slots. Ignored when `Sparse` is present. |
 
 ## Embeddings
 

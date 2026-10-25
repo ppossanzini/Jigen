@@ -1,4 +1,5 @@
 using Jigen.DataStructures;
+using Jigen.Extensions;
 using Jigen.Filtering;
 using Jigen.Index.Sparse;
 
@@ -190,6 +191,88 @@ public partial class Store
         return storage.Index.Search(query, k,
             documentId => MatchesFilter(collection, documentId, filter), minimumScore, cancellationToken);
     }
+
+
+    /// <summary>
+    /// Hybrid search over the two halves of a collection. Either query may be
+    /// omitted; supplying neither is an error.
+    /// <para>
+    /// The scores live on different scales, so they are fused by rank: a document
+    /// scores 1 / (60 + position) in each list it appears in and the values are
+    /// summed. <paramref name="minDenseScore"/> and <paramref name="minSparseScore"/>
+    /// drop the weak hits of each half before the fusion.
+    /// </para>
+    /// </summary>
+    public IReadOnlyList<SparseHybridHit> SearchHybrid(string collection, float[] embeddings,
+        IReadOnlyDictionary<int, float> sparseQuery, int top = 10, int efSearch = 0,
+        IFilterExpression filter = null, double minDenseScore = double.NegativeInfinity,
+        double minSparseScore = double.NegativeInfinity, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+        if (embeddings is not { Length: > 0 } && sparseQuery is null)
+            throw new ArgumentException("A hybrid search needs a dense query, a sparse query, or both.");
+        if (top <= 0)
+            return Array.Empty<SparseHybridHit>();
+
+        var fused = new Dictionary<string, SparseHybridHit>(StringComparer.Ordinal);
+
+        void Add(byte[] key, VectorEntry entry, double contribution, float? dense, float? sparse)
+        {
+            var identity = Convert.ToHexString(key);
+            if (fused.TryGetValue(identity, out var existing))
+                fused[identity] = existing with
+                {
+                    Entry = existing.Entry ?? entry,
+                    Score = existing.Score + contribution,
+                    DenseScore = dense ?? existing.DenseScore,
+                    SparseScore = sparse ?? existing.SparseScore
+                };
+            else
+                fused[identity] = new SparseHybridHit(key, entry, contribution, dense, sparse);
+        }
+
+        if (embeddings is { Length: > 0 })
+        {
+            var rank = 0;
+            foreach (var hit in Jigen.Extensions.SearchExtensions.SearchDense(this, collection, embeddings,
+                top, efSearch, filter))
+            {
+                if (hit.score < minDenseScore)
+                    continue;
+                Add(hit.entry.Id, hit.entry, 1d / (ReciprocalRankOffset + ++rank), hit.score, null);
+            }
+        }
+
+        if (sparseQuery is not null)
+        {
+            var sparseHits = SearchSparse(collection, sparseQuery, top, filter, minSparseScore, cancellationToken);
+            for (var rank = 0; rank < sparseHits.Count; rank++)
+            {
+                var key = sparseHits[rank].DocumentId.ToArray();
+                var entry = fused.TryGetValue(Convert.ToHexString(key), out var known)
+                    ? known.Entry
+                    : PositionIndex.TryGetValue(collection, out var index) && index.ContainsKey(key)
+                        ? new VectorEntry
+                        {
+                            Id = key,
+                            CollectionName = collection,
+                            Content = GetContent(collection, key) ?? ReadOnlyMemory<byte>.Empty
+                        }
+                        : null!;
+                Add(key, entry, 1d / (ReciprocalRankOffset + rank + 1), null, (float)sparseHits[rank].Score);
+            }
+        }
+
+        return fused.Values
+            .OrderByDescending(hit => hit.Score)
+            .ThenBy(hit => hit.Key, ByteArrayOrder.Instance)
+            .Take(top)
+            .ToArray();
+    }
+
+    // Standard reciprocal-rank constant: damps the influence of the first positions
+    // without requiring a normalization of the two scores.
+    private const int ReciprocalRankOffset = 60;
 
     private bool MatchesFilter(string collection, ReadOnlySpan<byte> documentId, IFilterExpression filter)
     {

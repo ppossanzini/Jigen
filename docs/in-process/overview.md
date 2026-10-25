@@ -8,7 +8,8 @@ A `Store` (`Jigen.Store` package, targets `net10.0`) represents one database: a 
 
 - **Content** — arbitrary document payloads (serialized with MessagePack by default), one per key, grouped into named collections.
 - **Embeddings** — an optional `float[]` vector attached to the same key, used for similarity search.
-- **A pluggable index** — the component that answers `Search` queries. The default is exact brute-force search; `Jigen.Indexer.HNSW` plugs in an approximate nearest-neighbor index for larger collections. See [Brute-force index](../indexes/brute-force.md) and [HNSW index](../indexes/hnsw.md).
+- **A pluggable index** — the component that answers `SearchDense` queries. The default is exact brute-force search; `Jigen.Indexer.HNSW` plugs in an approximate nearest-neighbor index for larger collections. See [Brute-force index](../indexes/brute-force.md) and [HNSW index](../indexes/hnsw.md).
+- **A per-collection sparse index** — an inverted index over the `(term id, weight)` pairs the writer supplies, answering `SearchSparse` and the sparse half of `Search`. Always available, no extra package. See [Sparse index](../indexes/sparse.md).
 
 Collections are not declared up front: a collection is simply a name shared by a group of entries, created the first time an entry is written to it.
 
@@ -19,7 +20,7 @@ Each database `{name}` is made of five files, all under `StoreOptions.DataBasePa
 | File | Purpose |
 |---|---|
 | `{name}.content.jigen` | Document payloads, append-only |
-| `{name}.vectors.jigen` | Embeddings, append-only |
+| `{name}.vectors.jigen` | Embeddings, append-only (each record can also carry the entry's sparse term/weight pairs) |
 | `{name}.index.jigen` | Position index log (key → offsets), append-only |
 | `{name}.lock.jigen` | Exclusivity lock; also doubles as the crash marker |
 | `{name}.wal.jigen` | **Optional** Write-Ahead Log: CRC32-protected, written before the ingestion queue for per-record durability (see [Store options](store-options.md#write-ahead-log-wal)) |
@@ -27,6 +28,8 @@ Each database `{name}` is made of five files, all under `StoreOptions.DataBasePa
 Content and embeddings are read through memory-mapped files and written through plain `FileStream`s. The position index (key → content/embedding offsets) is rebuilt in memory at startup by replaying the index log, and kept as a `ConcurrentDictionary` per collection for lock-free lookups.
 
 If `Jigen.Indexer.HNSW` is used, it adds its own on-disk graph files per collection — see [HNSW index](../indexes/hnsw.md).
+
+The sparse side lives in its own directory, `{name}.sparse/<collection>/`, with one manifest, a tombstone list and one immutable segment per committed batch — see [Sparse index](../indexes/sparse.md#structure-on-disk).
 
 ## Writes are asynchronous
 

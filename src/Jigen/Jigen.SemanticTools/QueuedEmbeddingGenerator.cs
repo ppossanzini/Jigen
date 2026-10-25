@@ -53,6 +53,11 @@ public sealed class QueuedEmbeddingGenerator : IEmbeddingGenerator, IDisposable
 
   public int CountTokens(string input) => _inner.CountTokens(input);
 
+  public SparseEmbedding GenerateSparseEmbedding(string input) => _inner.GenerateSparseEmbedding(input);
+
+  public Task<SparseEmbedding> GenerateSparseEmbeddingAsync(string input, CancellationToken cancellationToken = default) =>
+    _inner.GenerateSparseEmbeddingAsync(input, cancellationToken);
+
   public Task<float[]> GenerateEmbeddingAsync(string input, CancellationToken cancellationToken = default) =>
     EnqueueAsync(input, cancellationToken);
 

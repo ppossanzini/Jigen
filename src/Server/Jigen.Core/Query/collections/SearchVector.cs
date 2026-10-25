@@ -19,11 +19,31 @@ public class SearchVector : IRequest<IEnumerable<SearchVectorResultItem>>
 
   /// <summary>Drop results scoring below this similarity.</summary>
   public float? MinScore { get; set; }
+
+  /// <summary>
+  /// Sparse half of the query: term identifier to weight. When present the
+  /// search becomes hybrid and the two halves are fused by reciprocal rank.
+  /// </summary>
+  public IReadOnlyDictionary<int, float> SparseQuery { get; set; }
+
+  /// <summary>Drop dense hits below this similarity before the fusion.</summary>
+  public float? MinDenseScore { get; set; }
+
+  /// <summary>Drop sparse hits below this score before the fusion.</summary>
+  public float? MinSparseScore { get; set; }
 }
 
 public class SearchVectorResultItem
 {
   public byte[] Key { get; set; }
   public byte[] Content { get; set; }
+
+  /// <summary>Fused score for a hybrid search, the similarity otherwise.</summary>
   public float Score { get; set; }
+
+  /// <summary>Dense similarity, when the document came from the dense half.</summary>
+  public float? DenseScore { get; set; }
+
+  /// <summary>Sparse score, when the document came from the sparse half.</summary>
+  public float? SparseScore { get; set; }
 }

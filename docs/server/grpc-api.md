@@ -16,8 +16,8 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 | `SetVector` | `Vector` | `Result` | Insert/update a document with a precomputed embedding. |
 | `SetVectors` | `stream Vector` | `IngestResult` | Bulk insert with precomputed embeddings over a single client-streaming call: one round trip for the whole batch. |
 | `SetDocuments` | `stream Document` | `IngestResult` | Bulk insert from raw `Sentence`s; the server batches the embedding calculation (windows of 64 sentences per embedding dispatch). |
-| `SearchVector` | `SearchVectorRequest` | `SearchVectorResponse` | Search by a precomputed query vector, optionally with a filter and per-query tuning. |
-| `SearchDocument` | `SearchDocumentRequest` | `SearchVectorResponse` | Search by a raw `Sentence`; the server computes the embedding and optionally applies a filter and per-query tuning. |
+| `SearchVector` | `SearchVectorRequest` | `SearchVectorResponse` | Search by a precomputed query vector, optionally with a filter, per-query tuning and a sparse query (hybrid). |
+| `SearchDocument` | `SearchDocumentRequest` | `SearchVectorResponse` | Search by a raw `Sentence`; the server computes the embedding and optionally applies a filter, per-query tuning and a sparse query (hybrid). |
 | `DeleteVector` | `ItemKey` | `Result` | Delete a document/vector by key. |
 | `GetAllKeys` | `CollectionKey` | `KeysResult` | List all keys in a collection (single message — prefer `StreamKeys` on large collections). |
 | `StreamKeys` | `StreamKeysRequest` | `stream KeysResult` | Stream all keys in chunks (default 1000 per message); safe at any collection size. |
@@ -26,11 +26,15 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 | `Count` | `CollectionKey` | `CountResult` | Count documents in a collection. |
 | `CalculateEmbeddings` | `EmbeddingRequest` | `EmbeddingResponse` | Compute an embedding for a sentence, optionally with a task prefix. |
 | `CalculateEmbeddingsBatch` | `EmbeddingBatchRequest` | `EmbeddingBatchResponse` | Compute embeddings for many sentences in one call; results keep the input order (blank inputs yield an empty row). |
+| `CalculateSparseEmbedding` | `EmbeddingRequest` | `SparseEmbeddingResponse` | Sparse lexical vector of the text: tokenizer term ids and weights, the same text that produces the dense embedding. |
+| `CalculateSparseEmbeddingBatch` | `EmbeddingBatchRequest` | `SparseEmbeddingBatchResponse` | One sparse vector per input message, same order. |
 | `CalculateImageEmbedding` | `ImageEmbeddingRequest` | `EmbeddingResponse` | Compute the embedding of an image from its raw bytes. Requires `ImagesModelPath` configured (vision model). |
 | `CalculateImageEmbeddingBatch` | `ImageEmbeddingBatchRequest` | `EmbeddingBatchResponse` | Compute embeddings for many images in one call; results keep the input order (empty images yield an empty row). |
 | `CalculateImageTileEmbeddings` | `ImageEmbeddingRequest` | `ImageTileEmbeddingsResponse` | Compute tile embeddings of an image: overlapping tiles each embedded separately, plus the whole-image embedding as the last entry. |
 
 `IngestResult.Accepted` counts the entries accepted into the server's ingestion pipeline; durability follows the server's group-commit policy, exactly like the unary `Set` operations.
+
+A `SearchVectorRequest` with only `SparseQuery` is a sparse-only search; with both `Embeddings` and `SparseQuery` it is hybrid. `SearchDocumentRequest` can fill the sparse half itself from the sentence (`SparseFromSentence`), so a hybrid search needs nothing but text. `SparseTerms` carries term ids and weights: the server stores them as given and never tokenizes text on its own — the embedding module produces them on request. See [Sparse index](../indexes/sparse.md#producing-the-pairs).
 
 `SetDocument`, `SetDocuments` and `SearchDocument` require an embedding module reachable from the server process (in-process on the all-in-one image, or remote over RabbitMQ from a `jigendb` server) — see [embeddings overview](../embeddings/overview.md). The image RPCs additionally require the vision model to be configured (`JigenEmbeddings:ImagesModelPath`); without it the server runs text-only and image RPCs fail with a clear configuration error.
 
@@ -50,12 +54,21 @@ message CollectionKey{
   string Collection = 2;
 }
 
+// Weights of the sparse (lexical) terms of one vector: term id to weight.
+message SparseTerms {
+  map<int32, float> Terms = 1;
+}
+
 message Document {
   string Database = 1;
   string Collection = 2;
   bytes Key = 3;
   bytes Content = 4;
   string Sentence = 5;
+  SparseTerms Sparse = 6;   // sparse terms of the document itself
+  // Derive the sparse terms from Sentence on the server, with the same tokenizer
+  // that produces the dense embedding. Ignored when Sparse is supplied.
+  bool SparseFromSentence = 7;
 }
 
 // One vector of a multi-vector entry, e.g. one embedding per passage.
@@ -68,10 +81,13 @@ message Vector {
   string Collection = 2;
   bytes Key = 3;
   bytes Content = 4;
-  // Single-vector payload, kept for compatibility.
   reserved 5; // was a single-vector payload: entries are always multi-vector now
-  // Every vector of the entry; a single-vector entry is a list of one.
+  // Every vector of the entry, all with the collection dimensions. A
+  // single-vector entry is a list of one.
   repeated EmbeddingVector Vectors = 6;
+  // Sparse terms per vector, aligned by index with Vectors. A shorter list
+  // leaves the remaining vectors without sparse terms.
+  repeated SparseTerms Sparse = 7;
 }
 ```
 
@@ -85,6 +101,9 @@ message SearchVectorRequest {
   int32 Top = 4;
   FilterNode Filter = 5;
   SearchTuning Tuning = 6;
+  // Sparse half of the query (term id to weight). When present the search is
+  // hybrid and the two halves are fused by reciprocal rank.
+  map<int32, float> SparseQuery = 7;
 }
 
 message SearchDocumentRequest {
@@ -94,19 +113,24 @@ message SearchDocumentRequest {
   int32 Top = 4;
   FilterNode Filter = 5;
   SearchTuning Tuning = 6;
+  map<int32, float> SparseQuery = 7;
 }
 
 // Optional per-query tuning; zero values keep the server defaults.
 message SearchTuning {
-  int32 EfSearch = 1;         // HNSW beam width override (recall vs latency)
-  bool NoContent = 2;         // return keys and scores only
+  int32 EfSearch = 1;          // HNSW beam width override (recall vs latency)
+  bool NoContent = 2;          // return keys and scores only
   optional float MinScore = 3; // drop results below this similarity
+  optional float MinDenseScore = 4;  // hybrid: drop weak dense hits before the fusion
+  optional float MinSparseScore = 5; // hybrid: drop weak sparse hits before the fusion
 }
 
 message SearchVectorResult {
   bytes Key = 1;
   bytes Content = 2;
-  float Score = 3;
+  float Score = 3;                     // fused score for a hybrid search, the similarity otherwise
+  optional float DenseScore = 4;       // set when the document came from the dense half
+  optional float SparseScore = 5;      // set when the document came from the sparse half
 }
 
 message SearchVectorResponse {

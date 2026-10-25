@@ -224,8 +224,8 @@ different spaces are not directly comparable, so standardize each returned
 candidate set independently and merge on `CalibratedScore`:
 
 ```csharp
-var qwenHits = qwenCollection.Search(queryVectors["qwen3"], top: 40);
-var siglipHits = siglipCollection.Search(queryVectors["siglip2"], top: 40);
+var qwenHits = qwenCollection.SearchDense(queryVectors["qwen3"], top: 40);
+var siglipHits = siglipCollection.SearchDense(queryVectors["siglip2"], top: 40);
 
 var calibrated = CrossModalSearch.MergeCalibrated(
     ("qwen3", qwenHits),

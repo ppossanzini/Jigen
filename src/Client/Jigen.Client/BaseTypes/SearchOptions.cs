@@ -20,4 +20,10 @@ public sealed class SearchOptions
 
   /// <summary>Drop results scoring below this similarity.</summary>
   public float? MinScore { get; set; }
+
+  /// <summary>Drop dense hits below this similarity before the hybrid fusion.</summary>
+  public float? MinDenseScore { get; set; }
+
+  /// <summary>Drop sparse hits below this score before the hybrid fusion.</summary>
+  public float? MinSparseScore { get; set; }
 }

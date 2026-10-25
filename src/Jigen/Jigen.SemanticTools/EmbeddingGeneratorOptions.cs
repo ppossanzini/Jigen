@@ -13,6 +13,13 @@ public enum EmbeddingModelProfile
 public sealed class EmbeddingGeneratorOptions
 {
   public EmbeddingModelProfile Profile { get; set; } = EmbeddingModelProfile.Nomic;
+
+  /// <summary>
+  /// Configuration of the sparse lexical vector this generator can produce from
+  /// the same text as the dense embedding (see
+  /// <see cref="IEmbeddingGenerator.GenerateSparseEmbedding"/>).
+  /// </summary>
+  public SparseEmbeddingOptions Sparse { get; set; } = new();
   public int MaxTokens { get; set; } = 384;
   public bool UseChunking { get; set; } = true;
   public int ChunkSize { get; set; } = 320;

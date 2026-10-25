@@ -1,5 +1,254 @@
 # Development Dossier
 
+## SP-05T Nomi del client allineati, vettore sparso dal motore di embedding
+
+Stato: completato. Attendono approvazione esplicita del codice.
+
+- Motore di embedding: `IEmbeddingGenerator.GenerateSparseEmbedding(Async)` e il
+  tipo `SparseEmbedding` (termini = id di vocabolario del tokenizer, pesi =
+  frequenza con damping logaritmico), con `SparseEmbeddingOptions` (MaxTerms 1024,
+  Offset 1, LogBase 1) esposte da `EmbeddingGeneratorOptions.Sparse`. Funziona per
+  ogni profilo, `BgeM3` compreso (mappatura XLM-R degli id gia presente nel
+  generatore); i marker di sequenza vengono esclusi dal calcolo dei termini.
+  Implementato in `OnnxEmbeddingGenerator`, inoltrato da
+  `QueuedEmbeddingGenerator` e da `DefaultEmbeddingGenerator`.
+- Modulo embedding: DTO `SparseEmbeddingDto`/`VectorPairDto` e comandi
+  `CalculateSparseEmbedding` e `CalculateVectorPair` (un solo dispatch per
+  entrambi i vettori), con gli handler corrispondenti.
+- Trasporti: RPC `CalculateSparseEmbedding` e `CalculateSparseEmbeddingBatch` su
+  entrambi i proto; `SearchDocumentRequest.SparseFromSentence = 8` (la meta
+  sparsa viene ricavata dalla sentenza che il server gia embedda) e
+  `Document.SparseFromSentence = 7` (la scrittura riempie entrambi gli slot). Un
+  valore esplicito (`SparseQuery`/`Sparse`) vince sempre su quello derivato.
+  REST: `SearchData.SparseFromSentence`, `DocumentPayload` e `BulkDocumentItem`
+  idem; il controller calcola la meta sparsa con lo stesso comando.
+- Core e handler: `SetDocument`/`AppendDocument` ricevono `SparseFromSentence`;
+  `ResolveSparseTerms` usa i termini espliciti o li deriva dalla sentenza.
+- Client .NET: nomi allineati all'in-process — `SearchDense`/`SearchDenseAsync`
+  (vettore e sentenza), `SearchSparse`/`SearchSparseAsync`, e `Search`/
+  `SearchAsync` ora ibrida. `SearchHybrid`/`SearchHybridAsync` rimossi.
+  `Search(sentence, ..., sparseFromSentence: true)` fa derivare dal server
+  entrambe le meta; `Add`/`AddAsync` hanno la variante con il flag e
+  `AddRangeAsync(..., sparseFromSentence, ...)` per il lotto di sentenze.
+- Client Python: stessi nomi (`search_dense`, `search_sparse`, `search` ibrida,
+  `search_hybrid` come alias), `sparse_from_sentence` su `search`, `upsert` e
+  `append`.
+- Test: 6 nuovi test del motore (`EmbeddingSparseTests`, deterministico, id
+  crescenti, pesi positivi, testo vuoto, peso maggiore con ripetizione, cap
+  `MaxTerms`) eseguiti sul tokenizer nomic reale; 4 nuovi test gRPC e 3 REST per
+  la meta derivata; 2 nuovi test del client .NET e 4 del client Python.
+- Verifica: SemanticTools 6 su 6 (filtro), API 55, gRPC 21, client 21 + 5
+  saltati, Python 28, sparse 127, Store 70; tutti i progetti toccati compilano;
+  `mkdocs build --strict` verde.
+- Limite noto: la generazione e lessicale (TF dal tokenizer), non la testa sparsa
+  appresa del modello (SPLADE/BGE-M3); sostituirla significa implementare lo
+  stesso metodo dietro `IEmbeddingGenerator`.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05S Documentazione allineata allo stato attuale
+
+Stato: completato. Attendono approvazione.
+
+- Nuova pagina `docs/indexes/sparse.md` (in `mkdocs.yml` e in `docs/index.md`):
+  cosa indicizza, dove vivono le coppie, le tre ricerche, la fusione RRF, il
+  filtro, `minimumScore`, la struttura su disco (segmenti, tombstone, manifest),
+  il ciclo di vita nello Store, il modello di costo misurato e i limiti.
+- `docs/benchmarks.md`: nuova sezione "Sparse and hybrid search" con le misure di
+  SP-05R (corpus di riferimento, corpus realistico, Store 10k e 30k, trasporto
+  gRPC) e le letture che ne derivano.
+- Corrette le API cambiate in tutta la documentazione: `store.Search` ->
+  `SearchDense` (in-process), `VectorEntry.Embedding` -> `Embeddings`,
+  `Search(sentence)` -> `SearchDense(sentence)` negli esempi in-process.
+  Negli esempi del client `Search` resta la meta densa, con `SearchSparse` e
+  `SearchHybrid` accanto.
+- Aggiunti i campi sparsi ai riferimenti dei trasporti: `SparseTerms`,
+  `Sparse`/`SparseQuery`, `MinDenseScore`/`MinSparseScore`, `DenseScore`/
+  `SparseScore` in `docs/server/grpc-api.md`; `SearchData`, `VectorPayload` e
+  `DocumentPayload` in `docs/server/rest-api.md`.
+- Aggiornati `docs/in-process/overview.md` (indice sparso e directory
+  `{name}.sparse/`), `docs/in-process/store-options.md` (layout del record
+  vettori con la sezione sparsa e la sua directory), `docs/server/overview.md`,
+  `docs/client/usage.md`, `docs/client/python.md` e il README (higlights, quick
+  taste).
+- Sistemati due link relativi rotti in `docs/scouting/dossier.md`: `mkdocs build
+  --strict` ora passa senza avvisi.
+- Verifica: `mkdocs build --strict` verde (restano solo le pagine fuori nav).
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`.
+
+## SP-05R Giro di benchmark: sparso, ibrido, Store e trasporti
+
+Stato: misure raccolte in Release sulla stessa macchina delle misure
+precedenti. Attendono approvazione.
+
+Protocollo di riferimento del motore sparso (non modificato nei parametri):
+3000 documenti, 1-3 vettori per documento, 60 termini per vettore su 200, blocco
+64, 200 query da 20 termini generate dopo il corpus, migliore di 3 giri.
+Corpus prodotto: 362.220 posting, 5.751 blocchi (lo storico riportava 359.820 e
+5.727: la sequenza del generatore non e recuperabile dai log, quindi il corpus
+differisce dello 0,7% e le latenze vanno lette con questo margine).
+
+Motore sparso, corpus di riferimento (peggior caso: ogni termine compare nel 60%
+dei documenti):
+- build 447 ms, 5,97 MB su disco, apertura ~0 ms
+- k=1 8,33 ms, k=10 8,58 ms, k=100 8,95 ms, k=3000 11,37 ms; 1.052 KiB per query
+  a k=10 (storico 7,76 ms e 1.265 KiB: +10% tempo, -17% memoria)
+- k=3000 con `minimumScore` che lascia ~30 documenti: 9,15 ms
+
+Motore sparso, corpus realistico (30.000 documenti, 2 vettori, vocabolario
+50.000, quindi ogni termine in ~72 documenti; 3,6 M posting):
+- build 1.703 ms, 63,55 MB, 18,5 B/posting, 90.458 blocchi
+- 20 termini: k=1 0,84 ms, k=10 0,89 ms (68 KiB), k=100 1,03 ms, k=30000 1,41 ms
+- Lettura: il costo e dominato da termini della query x lunghezza delle liste,
+  non dalla dimensione del corpus. Lo stesso numero di posting costa 335 ms con
+  il vocabolario da 200 termini e 0,89 ms con quello da 50.000.
+
+Store, 10.000 documenti con 2 vettori da 128 dimensioni e 120 termini sparsi
+(HNSW M=16 efC=200 efS=80, WAL off):
+- accettazione in lotti da 1000: 36 ms (277.555 doc/s); ingestione durevole
+  (scrittura + indice): 13.324 ms, 751 doc/s
+- sparso k=10 6,48 ms con 2 segmenti, 3,69 ms dopo Shrink, 3,54 ms dopo riapertura
+- denso k=10 0,63 ms; ibrido k=10 8,08 ms prima, 4,57 ms dopo la riapertura
+- Shrink 490 ms, segmenti da 2 a 1; riapertura 60 ms, prima ricerca 7,75 ms
+
+Store, 30.000 documenti (3,6 M posting, vocabolario 200), costo per forma della
+query: 5 termini 9,86 ms, 20 termini 81,63 ms, 60 termini 335,79 ms (k=10).
+Indice sparso 59,25 MB, dati 161 MB, Shrink 1.314 ms.
+
+Trasporti, gRPC su database appena creato, 2.000 documenti:
+- `SetVector` una chiamata per documento: 313 doc/s (3,20 ms per documento);
+  in run precedenti 486-678 doc/s, quindi 1,5-3,2 ms per chiamata
+- `SetVectors` in streaming: 79 ms, 25.103 doc/s (da 14 a 80 volte piu veloce)
+- `SearchSparse` k=10: 8,32 ms per query round trip incluso; una chiamata unaria
+  di riferimento (`Count`) costa 1,68 ms, quindi ~6,6 ms sono il server
+- `Clear` ripetuto senza compattazione degrada la ricerca: 8,32 -> 16,82 ->
+  24,21 ms per query in tre giri, perche i segmenti restano e i tombstone
+  crescono finche non si esegue Shrink.
+
+Denso, benchmark della suite `tests/JigenBenchmarks` (10.000 x 128, due giri):
+ingest 1.556-1.780 vettori/s, ricerca HNSW 771-875 us, recall@10 0,992-0,993,
+brute force 1.546-1.577 us, riapertura 89-90 ms, vettori 5,15 MB e grafo
+7,09 MB. Dimensioni e recall sono identiche ai numeri documentati; latenza e
+ingest sono piu lenti dei 1.904-2.059 vettori/s e 559-602 us del documento, che
+sono stati misurati su una macchina meno carica.
+
+Letture:
+- La fusione dei segmenti costa: a parita di dati, passare da 2 segmenti a 1
+  dimezza quasi la latenza sparsa. La compattazione non e un'operazione di
+  manutenzione opzionale, e parte del percorso di lettura.
+- Un carico con molte cancellazioni o `Clear` peggiora la ricerca finche non si
+  compatta: da valutare una compattazione automatica dopo un Clear.
+- Il costo della ricerca sparsa dipende dal vocabolario: con termini molto
+  frequenti (200 termini, corpus sintetico) servono centinaia di ms, con un
+  vocabolario reale si resta sotto il millisecondo sugli stessi posting.
+- Sul trasporto il lotto in streaming e l'unica scelta ragionevole per
+  l'ingestione; la ricerca paga ~1,7 ms di chiamata, accettabile rispetto a
+  qualunque bagaglio lessicale reale.
+
+Harness: temporaneo, in `.temp/bench` durante la sessione, rimosso a fine giro.
+Se il giro deve essere ripetibile, i modi `sparse`, `sparse-real`, `store`,
+`storeq` e `grpc` vanno promossi in `tests/JigenBenchmarks`.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05Q Scrittura delle coppie sparse sui trasporti e test riparati
+
+Stato: completato. Attende approvazione esplicita del codice.
+
+- Proto: nuovo messaggio `SparseTerms { map<int32,float> Terms }`. `Vector` porta
+  `repeated SparseTerms Sparse = 7` allineato per indice con `Vectors` (una lista
+  piu corta lascia gli ultimi vettori senza termini); `Document` porta
+  `SparseTerms Sparse = 6`, cioe i termini del documento quando il server calcola
+  l'embedding. Una lista piu lunga dei vettori o un termine negativo viene
+  rifiutata: allegare termini a vettori inesistenti o a termini che nessuna query
+  puo nominare sarebbe una scrittura muta.
+- Core: `SetVector`, `AppendVector`, `SetRawVector` ricevono `SparseVectors`
+  (per vettore); `SetDocument`, `AppendDocument` ricevono `SparseTerms`.
+- Handler: `ToEntry` porta le coppie nella `VectorEntry`, quindi la scrittura
+  segue il percorso gia esistente (WAL, record, indice sparso).
+- REST: `VectorPayload` e `BulkVectorItem` accettano `sparse` come array di mappe
+  termine/peso; `DocumentPayload` e `BulkDocumentItem` come mappa singola. Un
+  payload non valido risponde 400, e nel bulk salta l'elemento invece di
+  scriverlo senza i suoi termini.
+- gRPC: `Service` converte le mappe in `SparseTerm[]` con le stesse due regole di
+  validazione, restituendo `InvalidArgument`.
+- Client .NET: `VectorEntry<T>.SparseVectors`, `BuildVector`/`BuildDocument`
+  mappano i termini, e `Add`/`AddAsync` hanno le varianti con `sparse` per uno o
+  piu vettori e per il documento con sentence.
+- Client Python: `upsert`, `append`, `upsert_many` e `upsert_texts` accettano
+  `sparse`; una mappa su un entry multivettore viene rifiutata invece di essere
+  replicata su tutti i vettori.
+- Test riparati: `Jigen.Grpc.Tests` non compilava (ctor di `Server` senza
+  `passageOptions`, `Vector.Embeddings` rimosso) e ora passa 17 su 17;
+  `Jigen.API.Tests` idem (ctor di `EmbeddingController`) e passa 52 su 52.
+  Nel progetto client i test che parlano con un server vivo sono marcati
+  `[ServerFact]`/`[ServerTheory]`: si saltano con il motivo quando il server, il
+  database o il modulo embedding non ci sono, invece di fallire con un errore di
+  trasporto. `Add(key, null)` ora lancia `ArgumentNullException` come il test si
+  aspettava, e gli entry dei test di inserimento hanno un vettore (il server
+  rifiuta un entry senza vettori).
+- Verifica end-to-end reale: server avviato con un database provisionato, test
+  `SparseRoundTripTests` eseguito sul client .NET: scrittura con coppie sparse
+  via gRPC e ricerca sparsa che ritrova il documento. 27 test, 26 passati e 1
+  saltato (modulo embedding non presente nella build di debug).
+- Limite noto: REST non e stato provato su un server vivo. L'identity del server
+  non espone un modo headless per ottenere un token utente: il flusso password
+  non e fra quelli gestiti (`client_credentials`, `authorization_code`,
+  `refresh_token`), e un token client non porta ruoli, quindi i criteri di
+  autorizzazione dei controller non possono passare da uno script. REST e
+  comunque coperto dai test dei controller, incluso il binding JSON dei payload
+  sparsi.
+- Nota operativa scoperta: lanciando `dotnet bin/.../Jigen.dll` dalla radice del
+  repository la content root e la radice, quindi `appsettings.json` non viene
+  letto (niente seed di identity) e i moduli vengono cercati nella radice. Serve
+  content root sulla cartella di output, oppure avviare dalla cartella di output.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
+## SP-05P Ricerca sparsa e ibrida su REST, gRPC e client
+
+Stato: implementato. Manca la verifica end-to-end sui trasporti.
+
+- Confini invariati: i messaggi esistenti sono stati estesi, non sostituiti. Una
+  nuova RPC avrebbe duplicato `SearchVector` e `SearchDocument` per una
+  differenza di soli campi opzionali.
+- `SearchVectorRequest.SparseQuery` (7) e `SearchTuning.MinDenseScore` (4) /
+  `MinSparseScore` (5) portano la meta sparsa e le soglie; `SearchDocumentRequest`
+  riceve `SparseQuery` (7) perche il server calcola l'embedding del testo e la
+  meta sparsa arriva dal client. `SearchVectorResult` espone `DenseScore` (4) e
+  `SparseScore` (5) come campi opzionali, cosi un risultato denso non dichiara
+  uno score sparso inesistente.
+- REST: `SearchData` accetta `sparseQuery`, `minDenseScore` e `minSparseScore`;
+  `SearchCollection` non rifiuta piu una richiesta senza sentence ed embeddings
+  se c'e `sparseQuery`.
+- Handler: `SearchVector` usa `Store.SearchHybrid` quando `SparseQuery` e
+  presente, altrimenti il percorso denso di sempre.
+- Client .NET: `SearchSparse`, `SearchSparseAsync`, `SearchHybrid`,
+  `SearchHybridAsync`, `SearchOptions.MinDenseScore`/`MinSparseScore`,
+  `VectorSearchResult.DenseScore`/`SparseScore`. Il costruttore della richiesta
+  accetta embedding assente, sparso assente o entrambi.
+- Client Python: binding rigenerati dal proto aggiornato; `search_dense` (con
+  `search` mantenuto come alias), `search_sparse`, `search_hybrid`,
+  `SearchOptions.min_dense_score`/`min_sparse_score`, `SearchResult.dense_score`/
+  `sparse_score`. I test del client passano da 10 a 17.
+- Verifica fatta: i due proto sono identici, i progetti `Jigen.Grpc`,
+  `Jigen.API`, `Jigen.Handlers`, `Jigen.Client` compilano, `pytest` 17 su 17,
+  `ruff` pulito.
+- Verifica non fatta: giro end-to-end su un server vivo. Il server parte, ma
+  l'identity non crea utente e client seminati, quindi ogni chiamata REST
+  risponde 401; `Jigen.API.Tests` e `Jigen.Grpc.Tests` non compilano gia prima
+  di questo incremento.
+- Limite noto e non risolto: nessun trasporto sa scrivere coppie sparse. Le
+  `VectorEntry.SparseVectors` arrivano solo da chiamate in-process, quindi via
+  REST/gRPC e possibile interrogare l'indice sparso ma non popolarlo.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
 ## SP-05O Soglie per meta nella ricerca ibrida
 
 Stato: completato. Attende approvazione esplicita del codice.

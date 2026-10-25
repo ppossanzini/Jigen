@@ -2,8 +2,11 @@ using Google.Protobuf;
 using Grpc.Core;
 using Hikyaku;
 using Jigen.DataStructures;
+using Jigen.Handlers;
+using Jigen.Embedding.Core.Options;
 using Jigen.Grpc;
 using Jigen.Proto;
+using Microsoft.Extensions.Options;
 
 namespace Jigen.Grpc.Tests;
 
@@ -14,7 +17,11 @@ public class ServiceTests
   private const string DbName = "testdb";
   private const string Collection = "testcoll";
 
-  private Server CreateServer() => new(_mediatorMock.Object, _hikyakuMock.Object);
+  private Server CreateServer() => new(
+    _mediatorMock.Object,
+    _hikyakuMock.Object,
+    Options.Create(new PassageSplittingOptions()),
+    Options.Create(new JigenServerSettings()));
 
   private static ServerCallContext CreateContext() =>
     new TestServerCallContext();
@@ -249,7 +256,7 @@ public class ServiceTests
       .Returns(Task.CompletedTask);
 
     var response = await CreateServer().AppendVector(
-      new Vector { Database = DbName, Collection = Collection, Key = ByteString.CopyFromUtf8("k"), Embeddings = { 0.5f } },
+      new Vector { Database = DbName, Collection = Collection, Key = ByteString.CopyFromUtf8("k"), Vectors = { new EmbeddingVector { Embeddings = { 0.5f } } } },
       CreateContext());
 
     Assert.True(response.Success);
@@ -268,13 +275,251 @@ public class ServiceTests
       .Returns(Task.CompletedTask);
 
     var response = await CreateServer().SetRawVector(
-      new Vector { Database = DbName, Collection = Collection, Key = ByteString.CopyFromUtf8("k"), Embeddings = { 0.5f } },
+      new Vector { Database = DbName, Collection = Collection, Key = ByteString.CopyFromUtf8("k"), Vectors = { new EmbeddingVector { Embeddings = { 0.5f } } } },
       CreateContext());
 
     Assert.True(response.Success);
     _mediatorMock.Verify(m => m.Send(
       It.Is<Core.Command.collections.SetRawVector>(c =>
         c.Database == DbName && c.Collection == Collection),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  // ── Sparse terms on the write path ──
+
+  [Fact]
+  public async Task SetVector_ForwardsSparseTermsPerVector()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Command.collections.SetVector>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var request = new Vector
+    {
+      Database = DbName,
+      Collection = Collection,
+      Key = ByteString.CopyFromUtf8("k"),
+      Vectors = { new EmbeddingVector { Embeddings = { 0.5f } } }
+    };
+    var terms = new SparseTerms();
+    terms.Terms[7] = 1.5f;
+    request.Sparse.Add(terms);
+
+    var response = await CreateServer().SetVector(request, CreateContext());
+
+    Assert.True(response.Success);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Command.collections.SetVector>(c =>
+        c.SparseVectors != null &&
+        c.SparseVectors.Count == 1 &&
+        c.SparseVectors[0].Length == 1 &&
+        c.SparseVectors[0][0].Term == 7 &&
+        Math.Abs(c.SparseVectors[0][0].Weight - 1.5f) < 0.0001f),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetVector_LeavesSparseVectorsNull_WhenNoTermsAreSent()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Command.collections.SetVector>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    await CreateServer().SetVector(
+      new Vector
+      {
+        Database = DbName,
+        Collection = Collection,
+        Key = ByteString.CopyFromUtf8("k"),
+        Vectors = { new EmbeddingVector { Embeddings = { 0.5f } } }
+      },
+      CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Command.collections.SetVector>(c => c.SparseVectors == null),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetVector_RejectsMoreSparseListsThanVectors()
+  {
+    var request = new Vector
+    {
+      Database = DbName,
+      Collection = Collection,
+      Key = ByteString.CopyFromUtf8("k"),
+      Vectors = { new EmbeddingVector { Embeddings = { 0.5f } } }
+    };
+    request.Sparse.Add(new SparseTerms { Terms = { [7] = 1f } });
+    request.Sparse.Add(new SparseTerms { Terms = { [9] = 1f } });
+
+    var ex = await Assert.ThrowsAsync<RpcException>(() => CreateServer().SetVector(request, CreateContext()));
+
+    Assert.Equal(StatusCode.InvalidArgument, ex.StatusCode);
+  }
+
+  [Fact]
+  public async Task SetVector_RejectsNegativeTermIds()
+  {
+    var request = new Vector
+    {
+      Database = DbName,
+      Collection = Collection,
+      Key = ByteString.CopyFromUtf8("k"),
+      Vectors = { new EmbeddingVector { Embeddings = { 0.5f } } }
+    };
+    request.Sparse.Add(new SparseTerms { Terms = { [-1] = 1f } });
+
+    var ex = await Assert.ThrowsAsync<RpcException>(() => CreateServer().SetVector(request, CreateContext()));
+
+    Assert.Equal(StatusCode.InvalidArgument, ex.StatusCode);
+  }
+
+  [Fact]
+  public async Task SetDocument_ForwardsSparseTerms()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Command.collections.SetDocument>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var response = await CreateServer().SetDocument(
+      new Document
+      {
+        Database = DbName,
+        Collection = Collection,
+        Key = ByteString.CopyFromUtf8("k"),
+        Sentence = "hello",
+        Sparse = new SparseTerms { Terms = { [7] = 2f } }
+      },
+      CreateContext());
+
+    Assert.True(response.Success);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Command.collections.SetDocument>(c =>
+        c.SparseTerms != null && c.SparseTerms.Length == 1 && c.SparseTerms[0].Term == 7),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task AppendVector_ForwardsSparseTerms()
+  {
+    _mediatorMock.Setup(m => m.Send(It.IsAny<Core.Command.collections.AppendVector>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    var request = new Vector
+    {
+      Database = DbName,
+      Collection = Collection,
+      Key = ByteString.CopyFromUtf8("k"),
+      Vectors = { new EmbeddingVector { Embeddings = { 0.5f } } }
+    };
+    request.Sparse.Add(new SparseTerms { Terms = { [11] = 0.25f } });
+
+    await CreateServer().AppendVector(request, CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Command.collections.AppendVector>(c =>
+        c.SparseVectors != null && c.SparseVectors.Count == 1 && c.SparseVectors[0][0].Term == 11),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  // ── Sparse embedding RPCs and sentence-derived sparse ──
+
+  [Fact]
+  public async Task CalculateSparseEmbedding_returns_the_terms_of_the_sentence()
+  {
+    _hikyakuMock.Setup(m => m.Send(
+        It.Is<Jigen.Embedding.Core.Commands.CalculateSparseEmbedding>(c => c.Sentence == "hello"),
+        It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new Jigen.Embedding.Core.Dto.SparseEmbeddingDto
+      {
+        Terms = [7, 11],
+        Weights = [1f, 0.5f]
+      });
+
+    var response = await CreateServer().CalculateSparseEmbedding(
+      new EmbeddingRequest { Message = "hello" }, CreateContext());
+
+    Assert.Equal([7, 11], response.Terms);
+    Assert.Equal([1f, 0.5f], response.Weights);
+  }
+
+  [Fact]
+  public async Task SearchDocument_with_sparse_from_sentence_derives_the_sparse_half()
+  {
+    _hikyakuMock.Setup(m => m.Send(
+        It.IsAny<Jigen.Embedding.Core.Commands.CalculateEmbeddings>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([0.1f, 0.2f]);
+    _hikyakuMock.Setup(m => m.Send(
+        It.Is<Jigen.Embedding.Core.Commands.CalculateSparseEmbedding>(c => c.Sentence == "hybrid text"),
+        It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new Jigen.Embedding.Core.Dto.SparseEmbeddingDto { Terms = [7], Weights = [1f] });
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Core.Query.collections.SearchVector>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([]);
+
+    await CreateServer().SearchDocument(
+      new SearchDocumentRequest
+      {
+        Database = DbName,
+        Collection = Collection,
+        Sentence = "hybrid text",
+        SparseFromSentence = true
+      },
+      CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Query.collections.SearchVector>(q =>
+        q.SparseQuery != null && q.SparseQuery.ContainsKey(7) && q.SparseQuery[7] == 1f),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SearchDocument_prefers_an_explicit_sparse_query()
+  {
+    _hikyakuMock.Setup(m => m.Send(
+        It.IsAny<Jigen.Embedding.Core.Commands.CalculateEmbeddings>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([0.1f, 0.2f]);
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Core.Query.collections.SearchVector>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([]);
+
+    var request = new SearchDocumentRequest
+    {
+      Database = DbName,
+      Collection = Collection,
+      Sentence = "hybrid text",
+      SparseFromSentence = true
+    };
+    request.SparseQuery[11] = 2f;
+
+    await CreateServer().SearchDocument(request, CreateContext());
+
+    _hikyakuMock.Verify(m => m.Send(
+      It.IsAny<Jigen.Embedding.Core.Commands.CalculateSparseEmbedding>(),
+      It.IsAny<CancellationToken>()), Times.Never);
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Query.collections.SearchVector>(q => q.SparseQuery[11] == 2f),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SetDocument_forwards_the_sparse_from_sentence_flag()
+  {
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Core.Command.collections.SetDocument>(), It.IsAny<CancellationToken>()))
+      .Returns(Task.CompletedTask);
+
+    await CreateServer().SetDocument(
+      new Document
+      {
+        Database = DbName,
+        Collection = Collection,
+        Key = ByteString.CopyFromUtf8("k"),
+        Sentence = "a sentence",
+        SparseFromSentence = true
+      },
+      CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Command.collections.SetDocument>(c => c.SparseFromSentence),
       It.IsAny<CancellationToken>()), Times.Once);
   }
 

@@ -32,6 +32,7 @@
 
 - [Brute-force index](indexes/brute-force.md) — exact search, the default
 - [HNSW index](indexes/hnsw.md) — approximate nearest neighbor, all `SmallWorldOptions` parameters, SQ8 quantization, tuning
+- [Sparse index](indexes/sparse.md) — lexical and learned-sparse search over term/weight pairs, segments, compaction, hybrid fusion
 
 ### Embeddings
 

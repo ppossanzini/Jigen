@@ -10,7 +10,7 @@ This page covers inserting, searching and filtering with `VectorCollection<T>`, 
 articles.Add(42, article, embeddings: myFloatVector);
 
 // or, building the entry explicitly:
-articles.Add(42, new VectorEntry<Article> { Content = article, Embedding = myFloatVector });
+articles.Add(42, new VectorEntry<Article> { Content = article, Embeddings = [myFloatVector] });
 ```
 
 Use this form when the embedding is computed client-side (any generator, not necessarily Jigen's) or already available. See [embeddings overview](../embeddings/overview.md) for the "client-side" deployment mode.
@@ -42,7 +42,7 @@ articles.Add(44, new VectorEntry<Article>
 
 float[][] all = articles.GetEmbeddings(43);   // [[1,0,0], [0,1,0], [0,0,1]]
 
-var hits = articles.Search(new[] { 0f, 1f, 0f }, top: 2); // finds 43 through its second vector
+var hits = articles.SearchDense(new[] { 0f, 1f, 0f }, top: 2); // finds 43 through its second vector
 ```
 
 An entry is always a list of vectors: one stored vector comes back as a list of one, and there is no separate single-vector reader. Search scores a document by its closest vector — exact collections scan all of them, HNSW collections index one graph node per vector and merge the nodes of a document by best score.
@@ -54,6 +54,31 @@ articles.Add(42, article, sentence: "Jigen is a vector database written in C#.")
 ```
 
 This calls the gRPC `SetDocument` method, which requires the server to have a reachable embedding module (all-in-one server, or a distributed server with a reachable `jigen-embeddings` worker). See [server overview](../server/overview.md) for the two topologies.
+
+### With sparse (lexical) terms
+
+A document can also carry sparse `(term id, weight)` pairs, which feed the collection's sparse index and the hybrid search. A one-vector entry takes one mapping; a multi-vector entry takes one mapping per vector, aligned by index.
+
+```csharp
+// One vector, one sparse list.
+articles.Add(42, new Article { Title = "Sparse" }, new[] { 0.1f, 0.2f },
+  new Dictionary<int, float> { [1204] = 1.0f, [77] = 0.4f });
+
+// Several vectors, one sparse list each.
+articles.Add(43, new Article { Title = "Multi" },
+  new float[][] { [0.1f, 0.2f], [0.3f, 0.4f] },
+  new List<IReadOnlyDictionary<int, float>>
+  {
+    new Dictionary<int, float> { [1204] = 1.0f },
+    new Dictionary<int, float> { [77] = 0.4f }
+  });
+
+// Sentence-based, with its sparse terms.
+articles.Add(44, new Article { Title = "By text" }, sentence: "sparse retrieval",
+  new Dictionary<int, float> { [1204] = 1.0f });
+```
+
+Term ids and weights come from your own vocabulary — the collection stores them as given, and a query must use the same ids. A sparse list longer than the vector list, or a single mapping on a multi-vector entry, is refused client-side with an `ArgumentException`. See [Sparse index](../indexes/sparse.md) for what the index does with them.
 
 ### Bulk insert
 
@@ -89,35 +114,78 @@ All of them take an optional `CancellationToken`. The synchronous methods (`Add`
 
 ## Searching
 
-### By precomputed vector
+The three entry points follow the in-process names: `SearchDense`/`SearchDenseAsync` for the **dense** half, `SearchSparse`/`SearchSparseAsync` for the **sparse** half, and `Search`/`SearchAsync` for the **hybrid** search that fuses the two. `SearchHybrid` from earlier previews is gone: it is `Search` now.
+
+### Dense, by precomputed vector
 
 ```csharp
-List<VectorSearchResult<Article>> results = articles.Search(myFloatVector, top: 10);
+List<VectorSearchResult<Article>> results = articles.SearchDense(myFloatVector, top: 10);
 ```
 
-### By sentence (server computes the embedding)
+### Dense, by sentence (server computes the embedding)
 
 ```csharp
-List<VectorSearchResult<Article>> results = articles.Search("vector databases in .NET", top: 10);
+List<VectorSearchResult<Article>> results = articles.SearchDense("vector databases in .NET", top: 10);
 ```
+
+### Sparse only
+
+```csharp
+var results = articles.SearchSparse(
+  new Dictionary<int, float> { [1204] = 1.0f, [77] = 0.4f },
+  top: 10);
+```
+
+Each result carries the sparse score in `SparseScore` and no `DenseScore`. The `top` parameter is the number of documents to return.
+
+### Hybrid (dense + sparse)
+
+Hybrid results are fused by reciprocal rank: a document scores `1 / (60 + position)` in each half where it appears and the contributions are summed, so `Score` is the fused value while `DenseScore`/`SparseScore` keep the partial ones. Either half may be omitted, but not both.
+
+```csharp
+var hybrid = articles.Search(myFloatVector, new Dictionary<int, float> { [1204] = 1.0f }, top: 10);
+
+// With a predicate and per-half cuts applied before the fusion.
+var tuned = articles.Search(myFloatVector, sparseQuery, predicate: a => a.Category == "news", top: 10,
+  options: new SearchOptions { MinDenseScore = 0.30f, MinSparseScore = 0.05f });
+
+// Sparse half alone is the sparse search; the dense half alone is SearchDense.
+```
+
+A document that is weak in one half cannot be lifted into the result by the other: `MinDenseScore` and `MinSparseScore` drop it before the fusion, and the sparse cut also lets that half prune earlier.
+
+### Hybrid from a sentence (the server derives both halves)
+
+With `sparseFromSentence` the server embeds the sentence densely *and* derives the sparse terms from the same text with the model's tokenizer, then fuses the two halves: no sparse query is needed on the client.
+
+```csharp
+var results = articles.Search("how do I reset my password?", top: 10, sparseFromSentence: true);
+
+// Same, with a predicate; the sentence-derived sparse half can be replaced by
+// passing an explicit sparseQuery, which always wins.
+var news = articles.Search("password reset", predicate: a => a.Category == "news", top: 10,
+  sparseFromSentence: true);
+```
+
+Without the flag a sentence fills only the dense half, exactly like `SearchDense`. The same flag exists on writes — `articles.Add(42, article, sentence: "...", sparseFromSentence: true)` stores both slots from one server-side tokenizer pass. See [Sparse index](../indexes/sparse.md#producing-the-pairs).
 
 ### By sentence with a filter predicate
 
 ```csharp
-var results = articles.Search(
+var results = articles.SearchDense(
   "vector databases in .NET",
   predicate: a => a.Category == "news",
   top: 10);
 
-var results2 = articles.Search(
+var results2 = articles.SearchDense(
   "vector databases in .NET",
   predicate: a => a.Tags.Any(t => t == "ai") && a.Category == "news",
   top: 10);
 ```
 
-The predicate is a LINQ expression tree; it is translated client-side into the gRPC filter AST (`FilterNode`/`PropertyEqualsCondition`/`PropertyCollectionAnyCondition`/`LogicalCondition`, see [gRPC API](../server/grpc-api.md)) and evaluated server-side against the stored document. Supported shapes are property equality (`x.Prop == value`), collection membership (`x.Tags.Any(t => t == value)`), and `&&`/`||` combinations of those — the same subset documented for [in-process filtering](../in-process/collections.md). The same predicate parameter is available on the vector-based `Search(embeddings, predicate, ...)`.
+The predicate is a LINQ expression tree; it is translated client-side into the gRPC filter AST (`FilterNode`/`PropertyEqualsCondition`/`PropertyCollectionAnyCondition`/`LogicalCondition`, see [gRPC API](../server/grpc-api.md)) and evaluated server-side against the stored document. Supported shapes are property equality (`x.Prop == value`), collection membership (`x.Tags.Any(t => t == value)`), and `&&`/`||` combinations of those — the same subset documented for [in-process filtering](../in-process/collections.md). The same predicate parameter is available on the vector-based `SearchDense(embeddings, predicate, ...)` and on the hybrid `Search`.
 
-`Search(sentence, ...)` always requires the server to have an embedding module; `Search(embeddings, top)` never does.
+`SearchDense(sentence, ...)` and the sentence forms of `Search` require the server to have an embedding module; the vector forms never do. `SearchSparse` needs no embedding module at all.
 
 ### By example (embedding of an existing document)
 
@@ -125,19 +193,21 @@ The predicate is a LINQ expression tree; it is translated client-side into the g
 
 ```csharp
 var vectors = await articles.GetEmbeddingsAsync(42);
-var similar = await articles.SearchAsync(vectors[0], top: 10); // one query vector per search
+var similar = await articles.SearchDenseAsync(vectors[0], top: 10); // one query vector per search
 ```
 
 ### Per-query tuning
 
-Every `Search`/`SearchAsync` overload accepts an optional `SearchOptions`:
+Every search overload accepts an optional `SearchOptions`:
 
 ```csharp
-var results = await articles.SearchAsync(myFloatVector, top: 10, options: new SearchOptions
+var results = await articles.SearchDenseAsync(myFloatVector, top: 10, options: new SearchOptions
 {
-  EfSearch = 200,    // HNSW beam width for THIS query (recall vs latency); 0 = server default
-  NoContent = true,  // keys and scores only: results come back with Content == null
-  MinScore = 0.35f   // drop results below this similarity
+  EfSearch = 200,        // HNSW beam width for THIS query (recall vs latency); 0 = server default
+  NoContent = true,      // keys and scores only: results come back with Content == null
+  MinScore = 0.35f,      // drop results below this similarity
+  MinDenseScore = 0.30f, // hybrid: drop the weak dense hits before the fusion
+  MinSparseScore = 0.05f // hybrid: drop the weak sparse hits before the fusion
 });
 ```
 

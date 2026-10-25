@@ -55,6 +55,42 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     return response;
   }
 
+  public override async Task<SparseEmbeddingResponse> CalculateSparseEmbedding(EmbeddingRequest request,
+    ServerCallContext context)
+  {
+    var sparse = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateSparseEmbedding
+    {
+      Model = request.Model,
+      Sentence = request.Message
+    }, context.CancellationToken);
+
+    var response = new SparseEmbeddingResponse();
+    response.Terms.AddRange(sparse.Terms);
+    response.Weights.AddRange(sparse.Weights);
+    return response;
+  }
+
+  public override async Task<SparseEmbeddingBatchResponse> CalculateSparseEmbeddingBatch(
+    EmbeddingBatchRequest request, ServerCallContext context)
+  {
+    var response = new SparseEmbeddingBatchResponse();
+    foreach (var message in request.Messages)
+    {
+      var sparse = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateSparseEmbedding
+      {
+        Model = request.Model,
+        Sentence = message
+      }, context.CancellationToken);
+
+      var item = new SparseEmbeddingResponse();
+      item.Terms.AddRange(sparse.Terms);
+      item.Weights.AddRange(sparse.Weights);
+      response.Results.Add(item);
+    }
+
+    return response;
+  }
+
   public override async Task<PassageEmbeddingResponse> CalculatePassageEmbeddings(
     PassageEmbeddingRequest request,
     ServerCallContext context)
@@ -217,6 +253,67 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     return new ListCollectionResult() { Collections = { result } };
   }
 
+  /// <summary>
+  /// Sparse half of a query derived from its text: the same tokenizer pass that
+  /// yields the dense embedding yields these terms, so a caller can search in
+  /// hybrid with a sentence alone.
+  /// </summary>
+  private async Task<IReadOnlyDictionary<int, float>> SparseQueryFromSentence(string sentence,
+    CancellationToken cancellationToken)
+  {
+    if (string.IsNullOrWhiteSpace(sentence))
+      return null;
+
+    var sparse = await hikyaku.Send(new Jigen.Embedding.Core.Commands.CalculateSparseEmbedding
+    {
+      Sentence = sentence
+    }, cancellationToken);
+
+    if (sparse.Terms.Length == 0)
+      return null;
+
+    var query = new Dictionary<int, float>(sparse.Terms.Length);
+    for (var i = 0; i < sparse.Terms.Length; i++)
+      query[sparse.Terms[i]] = sparse.Weights[i];
+
+    return query;
+  }
+
+  // Sparse terms arrive as term-id/weight maps. A negative term id cannot name
+  // a term, so the whole request is rejected instead of indexing a document
+  // that no query could ever match.
+  private static SparseTerm[] ToSparseTerms(SparseTerms sparse)
+  {
+    if (sparse is null || sparse.Terms.Count == 0)
+      return null;
+
+    var terms = new SparseTerm[sparse.Terms.Count];
+    var index = 0;
+    foreach (var (term, weight) in sparse.Terms)
+    {
+      if (term < 0)
+        throw new RpcException(new Status(StatusCode.InvalidArgument, "Sparse term ids cannot be negative."));
+      terms[index++] = new SparseTerm(term, weight);
+    }
+
+    return terms;
+  }
+
+  // One sparse list per vector, aligned by index with Vectors: a shorter list
+  // leaves the trailing vectors without sparse terms, a longer one is refused
+  // because it would attach terms to vectors that do not exist.
+  private static SparseTerm[][] ToSparseVectors(Vector request)
+  {
+    if (request.Sparse.Count == 0)
+      return null;
+
+    if (request.Sparse.Count > request.Vectors.Count)
+      throw new RpcException(new Status(StatusCode.InvalidArgument,
+        "Sparse carries more term lists than Vectors; they are aligned by index."));
+
+    return request.Sparse.Select(sparse => ToSparseTerms(sparse) ?? []).ToArray();
+  }
+
   public override async Task<Result> SetDocument(Document request, ServerCallContext context)
   {
     await mediator.Send(new Core.Command.collections.SetDocument()
@@ -225,7 +322,9 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Sentence = request.Sentence
+      Sentence = request.Sentence,
+      SparseTerms = ToSparseTerms(request.Sparse),
+      SparseFromSentence = request.SparseFromSentence
     });
 
     return new Result() { Success = true };
@@ -249,7 +348,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Vectors = RequireVectors(request)
+      Vectors = RequireVectors(request),
+      SparseVectors = ToSparseVectors(request)
     });
 
     return new Result() { Success = true };
@@ -267,7 +367,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         Collection = request.Collection,
         Key = request.Key.ToByteArray(),
         Content = request.Content.ToByteArray(),
-        Vectors = RequireVectors(request)
+        Vectors = RequireVectors(request),
+        SparseVectors = ToSparseVectors(request)
       }, context.CancellationToken);
 
       accepted++;
@@ -326,7 +427,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
         Content = document.Content.ToByteArray(),
         Vectors = embeddingsByDocument.TryGetValue(document, out var embedding) && embedding is { Length: > 0 }
           ? [embedding]
-          : null
+          : null,
+        SparseTerms = ToSparseTerms(document.Sparse)
       }, cancellationToken);
 
       ingested++;
@@ -344,7 +446,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Embeddings = request.Embeddings.ToArray(),
       Top = request.Top,
-      Filter = ToFilterExpression(request.Filter)
+      Filter = ToFilterExpression(request.Filter),
+      SparseQuery = request.SparseQuery.Count == 0 ? null : request.SparseQuery
     }, request.Tuning), context.CancellationToken);
 
     return ToSearchResponse(result);
@@ -361,13 +464,24 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Task = serverSettings.Value.EmbeddingQueryTask
     }, context.CancellationToken);
     var filter = ToFilterExpression(request.Filter);
+
+    // An explicit sparse query always wins; asking for the derived one fills the
+    // half the caller did not send, from the same sentence that produced the
+    // dense embedding.
+    IReadOnlyDictionary<int, float> sparseQuery = request.SparseQuery.Count > 0
+      ? request.SparseQuery
+      : request.SparseFromSentence
+        ? await SparseQueryFromSentence(request.Sentence, context.CancellationToken)
+        : null;
+
     var result = await mediator.Send(ApplyTuning(new Core.Query.collections.SearchVector
     {
       Database = request.Database,
       Collection = request.Collection,
       Embeddings = embeddings,
       Top = request.Top,
-      Filter = filter
+      Filter = filter,
+      SparseQuery = sparseQuery
     }, request.Tuning), context.CancellationToken);
 
     return ToSearchResponse(result);
@@ -380,6 +494,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     query.EfSearch = tuning.EfSearch;
     query.NoContent = tuning.NoContent;
     if (tuning.HasMinScore) query.MinScore = tuning.MinScore;
+    if (tuning.HasMinDenseScore) query.MinDenseScore = tuning.MinDenseScore;
+    if (tuning.HasMinSparseScore) query.MinSparseScore = tuning.MinSparseScore;
     return query;
   }
 
@@ -389,11 +505,18 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     {
       Results =
       {
-        result.Select(i => new SearchVectorResult
+        result.Select(i =>
         {
-          Key = ByteString.CopyFrom(i.Key),
-          Content = i.Content is null ? ByteString.Empty : ByteString.CopyFrom(i.Content),
-          Score = i.Score
+          var item = new SearchVectorResult
+          {
+            Key = ByteString.CopyFrom(i.Key),
+            Content = i.Content is null ? ByteString.Empty : ByteString.CopyFrom(i.Content),
+            Score = i.Score
+          };
+          // Assigning the optional field is what marks it as present on the wire.
+          if (i.DenseScore.HasValue) item.DenseScore = i.DenseScore.Value;
+          if (i.SparseScore.HasValue) item.SparseScore = i.SparseScore.Value;
+          return item;
         })
       }
     };
@@ -617,7 +740,9 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Sentence = request.Sentence
+      Sentence = request.Sentence,
+      SparseTerms = ToSparseTerms(request.Sparse),
+      SparseFromSentence = request.SparseFromSentence
     });
 
     return new Result() { Success = true };
@@ -631,7 +756,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Vectors = RequireVectors(request)
+      Vectors = RequireVectors(request),
+      SparseVectors = ToSparseVectors(request)
     });
 
     return new Result() { Success = true };
@@ -645,7 +771,8 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Collection = request.Collection,
       Key = request.Key.ToByteArray(),
       Content = request.Content.ToByteArray(),
-      Vectors = RequireVectors(request)
+      Vectors = RequireVectors(request),
+      SparseVectors = ToSparseVectors(request)
     });
 
     return new Result() { Success = true };

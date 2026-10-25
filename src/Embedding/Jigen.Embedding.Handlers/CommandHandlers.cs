@@ -14,6 +14,8 @@ public class CommandHandlers(
   : IRequestHandler<Embedding.Core.Commands.CalculateEmbeddings, float[]>,
     IRequestHandler<Embedding.Core.Commands.CalculateEmbeddingsBatch, float[][]>,
     IRequestHandler<Embedding.Core.Commands.CalculateEmbeddingsMulti, Dictionary<string, float[]>>,
+    IRequestHandler<Embedding.Core.Commands.CalculateSparseEmbedding, SparseEmbeddingDto>,
+    IRequestHandler<Embedding.Core.Commands.CalculateVectorPair, VectorPairDto>,
     IRequestHandler<Embedding.Core.Commands.CalculatePassageEmbeddings, PassageEmbedding[]>,
     IRequestHandler<Embedding.Core.Commands.CalculatePassageSplitCount, int>,
     IRequestHandler<Embedding.Core.Commands.CalculateImageEmbedding, float[]>,
@@ -25,6 +27,35 @@ public class CommandHandlers(
     var generator = registry.Get(request.Model);
     var task = string.IsNullOrWhiteSpace(request.Task) ? registry.GetDefaultTask(request.Model) : request.Task;
     return generator.GenerateEmbeddingAsync(registry.PrepareInput(request.Model, task, request.Sentence), cancellationToken);
+  }
+
+  public async Task<SparseEmbeddingDto> Handle(CalculateSparseEmbedding request, CancellationToken cancellationToken)
+  {
+    var generator = registry.Get(request.Model);
+    var sparse = await generator
+      .GenerateSparseEmbeddingAsync(request.Sentence ?? string.Empty, cancellationToken)
+      .ConfigureAwait(false);
+
+    return new SparseEmbeddingDto { Terms = sparse.Terms, Weights = sparse.Weights };
+  }
+
+  public async Task<VectorPairDto> Handle(CalculateVectorPair request, CancellationToken cancellationToken)
+  {
+    var generator = registry.Get(request.Model);
+    var task = string.IsNullOrWhiteSpace(request.Task) ? registry.GetDefaultTask(request.Model) : request.Task;
+    var sentence = request.Sentence ?? string.Empty;
+
+    // One dispatch, two vectors: the sparse one comes from the same tokenizer
+    // pass as the input of the dense one.
+    var denseTask = generator.GenerateEmbeddingAsync(
+      registry.PrepareInput(request.Model, task, sentence), cancellationToken);
+    var sparse = await generator.GenerateSparseEmbeddingAsync(sentence, cancellationToken).ConfigureAwait(false);
+
+    return new VectorPairDto
+    {
+      Dense = await denseTask.ConfigureAwait(false),
+      Sparse = new SparseEmbeddingDto { Terms = sparse.Terms, Weights = sparse.Weights }
+    };
   }
 
   public Task<float[][]> Handle(CalculateEmbeddingsBatch request, CancellationToken cancellationToken)

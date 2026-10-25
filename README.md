@@ -33,9 +33,10 @@ This project was born as a research initiative to understand the inner workings 
 
 - **In-process engine** (`Jigen.Store`): append-only memory-mapped storage, asynchronous ingestion, crash recovery, exact (brute-force) search out of the box.
 - **HNSW index** (`Jigen.Indexer.HNSW`): disk-backed approximate nearest neighbor graph with concurrent inserts, deletes, optional SQ8 quantization and exact reranking.
-- **Server**: multi-database host with gRPC (port 3223) and REST (port 13223) APIs, per-collection search with content filters, periodic durability checkpoints.
+- **Sparse index** (`Jigen.Index.Sparse`): per-collection inverted index over term/weight pairs, with segment compaction and hybrid dense+sparse search fused by reciprocal rank.
+- **Server**: multi-database host with gRPC (port 3223) and REST (port 13223) APIs, per-collection dense, sparse and hybrid search with content filters, periodic durability checkpoints.
 - **Embeddings**: server-side text embedding generation (ONNX), in-process or scaled out to dedicated worker containers over RabbitMQ; CPU by default, GPU execution providers available.
-- **Typed .NET client** (`Jigen.Client`): dictionary-like collections, LINQ predicates translated to server-side filters.
+- **Typed .NET client** (`Jigen.Client`): dictionary-like collections, dense/sparse/hybrid search, LINQ predicates translated to server-side filters.
 - **Python client** (`jigen-client`): sync/async gRPC API, MessagePack-compatible collections, and optional LangChain/LlamaIndex adapters.
 
 ## Installation
@@ -94,10 +95,12 @@ await store.AppendContent(new VectorEntry
   Id = Guid.NewGuid().ToByteArray(),
   CollectionName = "articles",
   Content = MessagePackDocumentSerializer.Instance.Serialize("hello vectors"),
-  Embedding = embedding                       // float[] from your embedding model
+  Embeddings = [embedding],                   // float[] from your embedding model
+  SparseVectors = [[new SparseTerm(1204, 1.0f), new SparseTerm(77, 0.4f)]]  // optional lexical side
 });
 
-var results = store.Search("articles", queryEmbedding, top: 10);
+var results = store.SearchDense("articles", queryEmbedding, top: 10);
+var lexical = store.SearchSparse("articles", new Dictionary<int, float> { [1204] = 1f }, k: 10);
 await store.SaveChangesAsync();
 ```
 
@@ -110,7 +113,13 @@ var ctx = new Context(new ConnectionOptions { HostName = "localhost", Port = 322
 var articles = new VectorCollection<Article>(ctx);
 
 articles.Add(Guid.NewGuid(), new Article { Title = "..." }, sentence: "text embedded by the server");
-var hits = articles.Search("query text", x => x.Category == "news", top: 5);
+var hits = articles.SearchDense("query text", x => x.Category == "news", top: 5);
+
+// Hybrid: dense query plus sparse weights, fused by reciprocal rank.
+var hybrid = articles.Search(queryEmbedding, new Dictionary<int, float> { [1204] = 1f }, top: 5);
+
+// Hybrid from a sentence: the server embeds it and derives the sparse terms.
+var fromText = articles.Search("how do I reset my password?", top: 5, sparseFromSentence: true);
 ```
 
 ## Documentation

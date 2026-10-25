@@ -36,6 +36,7 @@ nav:
   - Indexes:
       - Brute force: indexes/brute-force.md
       - HNSW: indexes/hnsw.md
+      - Sparse: indexes/sparse.md
   - Embeddings:
       - Overview: embeddings/overview.md
       - Configuration: embeddings/configuration.md

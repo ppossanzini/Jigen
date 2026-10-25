@@ -14,6 +14,8 @@ The server is composed of a fixed host (`Program.cs`) plus a set of modules disc
 
 Commands and queries flow through a CQRS mediator (Hikyaku); when `Kaido:Enabled` is set, the same mediator can dispatch selected requests (embedding calculation) to remote workers over RabbitMQ instead of handling them locally — this is what lets the database server and the embedding workers be separate processes without the API or gRPC surface changing.
 
+Search is exposed in three shapes on both surfaces: dense (`SearchVector`/`SearchDocument`, and the collection search endpoints), sparse (a `SparseQuery` without embeddings) and hybrid (both together, fused by reciprocal rank). The sparse half is answered by the per-collection sparse index described in [Sparse index](../indexes/sparse.md).
+
 Each open database is a regular in-process `Jigen.Store` (see [in-process engine](../in-process/overview.md)) managed by a `DatabasesManager`: on startup it reopens every known database from `JigenServer:DataFolderPath`, and on creation it wires the HNSW indexer with the server-wide index settings (see [configuration](configuration.md)) into a per-database graph folder (`hnsw/{database}/`) so that same-named collections in different databases never collide.
 
 ## Deployment topologies

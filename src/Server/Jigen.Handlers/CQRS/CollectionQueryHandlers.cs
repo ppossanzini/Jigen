@@ -85,17 +85,42 @@ public class CollectionQueryHandlers(
     if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store)) throw new ArgumentException("Database not found");
 
     var top = request.Top <= 0 ? 10 : request.Top;
-    var results = store.SearchDense(request.Collection, request.Embeddings, top, request.EfSearch, request.Filter);
+    var hasDense = request.Embeddings is { Length: > 0 };
+    if (!hasDense && request.SparseQuery is null)
+      throw new ArgumentException("Provide either embeddings, sparseQuery, or both.");
 
-    if (request.MinScore.HasValue)
-      results = results.Where(i => i.score >= request.MinScore.Value);
+    if (request.SparseQuery is null)
+    {
+      var results = store.SearchDense(request.Collection, request.Embeddings, top, request.EfSearch, request.Filter);
 
-    return Task.FromResult(results
-      .Select(i => new SearchVectorResultItem
+      if (request.MinScore.HasValue)
+        results = results.Where(i => i.score >= request.MinScore.Value);
+
+      return Task.FromResult(results
+        .Select(i => new SearchVectorResultItem
+        {
+          Key = i.entry.Id,
+          Content = request.NoContent ? null : i.entry.Content.ToArray(),
+          Score = i.score,
+          DenseScore = i.score
+        })
+        .AsEnumerable());
+    }
+
+    var fused = store.SearchHybrid(request.Collection, hasDense ? request.Embeddings : null,
+      request.SparseQuery, top, request.EfSearch, request.Filter,
+      request.MinDenseScore ?? double.NegativeInfinity,
+      request.MinSparseScore ?? double.NegativeInfinity,
+      cancellationToken);
+
+    return Task.FromResult(fused
+      .Select(hit => new SearchVectorResultItem
       {
-        Key = i.entry.Id,
-        Content = request.NoContent ? null : i.entry.Content.ToArray(),
-        Score = i.score
+        Key = hit.Key,
+        Content = request.NoContent ? null : hit.Entry?.Content.ToArray(),
+        Score = (float)hit.Score,
+        DenseScore = hit.DenseScore,
+        SparseScore = hit.SparseScore
       })
       .AsEnumerable());
   }

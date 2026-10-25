@@ -259,71 +259,21 @@ public class VectorCollection<T>(Store store, VectorCollectionOptions<T> options
     double minSparseScore = double.NegativeInfinity,
     CancellationToken cancellationToken = default)
   {
-    if (embeddings == null && sparseQuery == null)
-      throw new ArgumentException("A hybrid search needs a dense query, a sparse query, or both.");
-    if (top <= 0)
-      return [];
-
-    var fused = new Dictionary<string, (VectorKey Key, T Content, double Score, float? Dense, float? Sparse)>(
-      StringComparer.Ordinal);
-
-    void Add(byte[] key, T content, double contribution, float? dense, float? sparse)
-    {
-      var identity = Convert.ToHexString(key);
-      if (fused.TryGetValue(identity, out var existing))
-        fused[identity] = (existing.Key, existing.Content ?? content, existing.Score + contribution,
-          dense ?? existing.Dense, sparse ?? existing.Sparse);
-      else
-        fused[identity] = (new VectorKey { Value = key }, content, contribution, dense, sparse);
-    }
-
-    if (embeddings != null)
-    {
-      var denseHits = SearchDense(embeddings, top, predicate, efSearch);
-      // Ranks are assigned after the cut, so dropping the weak hits does not
-      // leave holes in the fusion.
-      var rank = 0;
-      foreach (var hit in denseHits)
-      {
-        if (hit.Score < minDenseScore)
-          continue;
-        Add(hit.Key.Value, hit.Content, 1d / (ReciprocalRankOffset + ++rank), hit.Score, null);
-      }
-    }
-
-    if (sparseQuery != null)
-    {
-      var sparseHits = store.SearchSparse(CollectionName, sparseQuery, top,
-        predicate != null ? ExpressionTranslator.Translate(predicate) : null, minSparseScore,
-        cancellationToken);
-      for (var rank = 0; rank < sparseHits.Count; rank++)
-      {
-        var key = sparseHits[rank].DocumentId.ToArray();
-        var content = fused.TryGetValue(Convert.ToHexString(key), out var known)
-          ? known.Content
-          : TryGetValue(new VectorKey { Value = key }, out var entry) ? entry.Content : null;
-        Add(key, content, 1d / (ReciprocalRankOffset + rank + 1), null, (float)sparseHits[rank].Score);
-      }
-    }
-
-    return fused.Values
-      .OrderByDescending(hit => hit.Score)
-      .ThenBy(hit => hit.Key.Value, ByteArrayOrder.Instance)
-      .Take(top)
+    var filter = predicate != null ? ExpressionTranslator.Translate(predicate) : null;
+    return store.SearchHybrid(CollectionName, embeddings, sparseQuery, top, efSearch, filter,
+        minDenseScore, minSparseScore, cancellationToken)
       .Select(hit => new VectorSearchResult<T>
       {
         Key = hit.Key,
-        Content = hit.Content,
+        Content = hit.Entry is { Content.Length: > 0 }
+          ? _options.DocumentSerializer.Deserialize<T>(hit.Entry.Content)
+          : null,
         Score = (float)hit.Score,
-        DenseScore = hit.Dense,
-        SparseScore = hit.Sparse
+        DenseScore = hit.DenseScore,
+        SparseScore = hit.SparseScore
       })
       .ToList();
   }
-
-  // Standard reciprocal-rank constant: damps the influence of the first positions
-  // without requiring a normalization of the two scores.
-  private const int ReciprocalRankOffset = 60;
 
   private float[] EmbedSentence(string sentence)
   {

@@ -20,9 +20,12 @@ public class VectorEntry<T> where T : class, new()
 {
   public VectorKey Key;
   public T Content { get; set; }
-  public float[] Embedding { get; set; }
+  public IReadOnlyList<float[]> Embeddings { get; set; } = [];          // one vector per passage
+  public IReadOnlyList<IReadOnlyDictionary<int, float>> SparseVectors { get; set; } = [];
 }
 ```
+
+An entry is always a list of vectors: a single-vector entry is a list of one. The sparse side is a list too, aligned by index with `Embeddings` — see [Sparse index](../indexes/sparse.md).
 
 ```csharp
 var articles = store.VectorCollection<Article>("articles");
@@ -44,24 +47,39 @@ foreach (var kv in articles) { /* key, VectorEntry<T> */ }
 
 ### Searching
 
-`VectorCollection<T>` searches its own collection directly — the same shape the gRPC client exposes:
+`VectorCollection<T>` exposes three searches — the same shape the gRPC client offers:
 
 ```csharp
-// nearest neighbours by query vector, with an optional predicate and
-// per-query HNSW beam width (efSearch, 0 = index default)
-List<VectorSearchResult<T>> hits = articles.Search(queryVector, top: 10);
-var news = articles.Search(queryVector, top: 10, predicate: a => a.Category == "news", efSearch: 200);
+// Dense half only: nearest neighbours by query vector, with an optional
+// predicate and per-query HNSW beam width (efSearch, 0 = index default).
+List<VectorSearchResult<T>> hits = articles.SearchDense(queryVector, top: 10);
+var news = articles.SearchDense(queryVector, top: 10, predicate: a => a.Category == "news", efSearch: 200);
 
-// by sentence: requires SentenceEmbedder in the options
-var results = articles.Search("vector databases in .NET", top: 10);
+// Dense half only, by sentence: requires SentenceEmbedder in the options.
+var results = articles.SearchDense("vector databases in .NET", top: 10);
 
-// read back the stored full-precision embedding of a key (null when absent)
-float[][] vectors = articles.GetEmbeddings(key); // every vector of the entry
+// Sparse half only: term id -> query weight, optional predicate and score floor.
+var sparse = articles.SearchSparse(
+  new Dictionary<int, float> { [1204] = 1.0f, [77] = 0.4f },
+  top: 10, predicate: a => a.Category == "news", minimumScore: 0.2);
+
+// Both halves, fused by reciprocal rank. Either half may be omitted.
+var hybrid = articles.Search(queryVector, sparseQuery: new Dictionary<int, float> { [1204] = 1.0f }, top: 10);
+
+// Hybrid with per-half cuts applied before the fusion.
+var tuned = articles.Search(queryVector, sparseQuery: query, top: 10,
+  minDenseScore: 0.30, minSparseScore: 0.05);
+
+// Read back what was stored for a key.
+float[][] vectors = articles.GetEmbeddings(key);                  // every dense vector
+IReadOnlyList<SparseTerm[]> pairs = articles.GetSparseVectors(key); // every sparse vector
 ```
 
-The predicate is translated to the serialized-level filter AST and evaluated without deserializing the documents, like `DocumentCollection<T>.Search`.
+The predicate is translated to the serialized-level filter AST and evaluated without deserializing the documents, like `DocumentCollection<T>.Search`. On the sparse side the predicate is only evaluated for the documents that can still enter the top-k; the hybrid search applies it to both halves.
 
-The sentence-based `Add(key, content, sentence)` / `Search(sentence, ...)` overloads use `VectorCollectionOptions<T>.SentenceEmbedder` to turn text into a vector; wire it to an embedding generator and they throw a clear `InvalidOperationException` when it is missing:
+A hybrid result carries the fused `Score` plus the partial `DenseScore` and `SparseScore` that produced it. `minimumScore` (sparse only) drops weak documents *and* lets the search prune earlier. Details of the scoring, the fusion and the index structure are in [Sparse index](../indexes/sparse.md).
+
+The sentence-based `Add(key, content, sentence)` / `SearchDense(sentence, ...)` overloads use `VectorCollectionOptions<T>.SentenceEmbedder` to turn text into a vector; wire it to an embedding generator and they throw a clear `InvalidOperationException` when it is missing:
 
 ```csharp
 using var generator = new OnnxEmbeddingGenerator(tokenizerPath, modelPath);
@@ -72,7 +90,7 @@ var articles = new VectorCollection<Article>(store, new VectorCollectionOptions<
 });
 
 articles.Add(42, new Article { Title = "Hello" }, sentence: "Jigen is a vector database");
-var hits = articles.Search("vector databases", top: 5);
+var hits = articles.SearchDense("vector databases", top: 5);
 ```
 
 ### VectorCollectionOptions\<T\>
@@ -167,7 +185,7 @@ var shardB = shardedDoc.GetShard(() => $"{DateTime.UtcNow:yyyyMM}");
 
 // each shard behaves like any other collection
 shardA.Add(42, entry);
-var hits = shardA.Search(queryVector, top: 10, predicate: a => a.Category == "news");
+var hits = shardA.SearchDense(queryVector, top: 10, predicate: a => a.Category == "news");
 ```
 
 `GetShard` accepts a `Func<string>` delegate evaluated lazily at each call. The shard inherits the parent's `Dimensions`, `SentenceEmbedder` (for `VectorCollection`), and `DocumentSerializer` options.
