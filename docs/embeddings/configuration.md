@@ -138,10 +138,16 @@ The official `BAAI/bge-m3` ONNX export can be configured directly with its
 ```
 
 The profile exposes BGE-M3 dense embeddings. The sparse lexical vector is
-available too (`GenerateSparseEmbedding`, `CalculateSparseEmbedding`), produced
-from the model's tokenizer with the XLM-R id mapping the profile applies; the
-model's *learned* sparse head and the ColBERT multi-vector outputs are not part of
-Jigen's embedding contract — the lexical weights are TF-based.
+available too (`GenerateSparseEmbedding`, `CalculateSparseEmbedding`): the terms
+are the model's vocabulary ids with the XLM-R mapping the profile applies
+(`<s>`, `<pad>`, `</s>`, `<unk>` are excluded — they are markers, not words), and
+the weights are TF with log damping.
+
+The official export this profile targets exposes `sentence_embedding` and
+`token_embeddings` only: it carries no lexical head, so the model's *learned*
+sparse weights (the `sparse_linear` projection) cannot be computed from it, and
+the lexical weights above are what Jigen produces. ColBERT multi-vector outputs
+are likewise not part of Jigen's embedding contract.
 
 ## `ImageEmbeddingGeneratorOptions`
 

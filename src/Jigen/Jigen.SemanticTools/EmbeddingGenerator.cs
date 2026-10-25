@@ -14,7 +14,7 @@ namespace Jigen.SemanticTools;
 public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 {
   private readonly InferenceSession _tokenizerSession;
-  private readonly Tokenizer _jsonTokenizer;
+  private readonly SentencePieceTokenizer _jsonTokenizer;
   private readonly HuggingFaceTokenizer _huggingFaceTokenizer;
   private readonly string _tokenizerInputName;
 
@@ -194,8 +194,11 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 
     if (_jsonTokenizer != null)
     {
-      // Markers off: the same tokenizer instance may have been created with them.
-      var ids = _jsonTokenizer.EncodeToIds(text, false, false);
+      // Markers off: the tokenizer instance is created with them (the dense path
+      // needs them), and a marker is not a term of the text.
+      var ids = _jsonTokenizer.EncodeToIds(text,
+        addBeginningOfSentence: false, addEndOfSentence: false,
+        considerPreTokenization: true, considerNormalization: true);
 
       return _profile == EmbeddingModelProfile.BgeM3
         ? ids.Select(static id => (long)MapSentencePieceIdToXlmRobertaId(id)).ToArray()
@@ -208,13 +211,16 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     if (content.Length == 0)
       return content;
 
-    var markers = TokenizeToInputIds(string.Empty);
-    if (markers.Length == 0)
+    // Cached: the marker set of a session is fixed, and this path runs once per
+    // generated sparse vector.
+    _specialTokenIds ??= TokenizeToInputIds(string.Empty).ToHashSet();
+    if (_specialTokenIds.Count == 0)
       return content;
 
-    var special = markers.ToHashSet();
-    return content.Where(id => !special.Contains(id)).ToArray();
+    return content.Where(id => !_specialTokenIds.Contains(id)).ToArray();
   }
+
+  private HashSet<long> _specialTokenIds;
 
   /// <summary>
   /// Generates embeddings for multiple input texts, fusing token sequences
@@ -414,7 +420,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   }
 
 
-  private static Tokenizer CreateSentencePieceTokenizerFromJsonPath(string tokenizerJsonPath)
+  private static SentencePieceTokenizer CreateSentencePieceTokenizerFromJsonPath(string tokenizerJsonPath)
   {
     if (!File.Exists(tokenizerJsonPath))
       throw new FileNotFoundException($"Tokenizer JSON not found at path '{tokenizerJsonPath}'.", tokenizerJsonPath);

@@ -69,6 +69,11 @@ SparseEmbedding sparse = generator.GenerateSparseEmbedding("a lexical query");
 // terms: vocabulary ids, strictly increasing; weights: TF with log damping
 ```
 
+For `BgeM3` the ids are the model's XLM-R vocabulary ids (the profile applies the
+SentencePiece → XLM-R mapping) and the sequence markers are excluded. The export
+Jigen targets carries no lexical head, so these weights are lexical (TF), not the
+model's learned sparse weights.
+
 `SparseEmbeddingOptions` (`EmbeddingGeneratorOptions.Sparse`) controls it:
 `MaxTerms` (default 1024) caps the vector, `Offset` is the weight of a single
 occurrence and `LogBase` damps repetitions, so a word used twice weighs more than

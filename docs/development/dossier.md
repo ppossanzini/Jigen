@@ -43,6 +43,30 @@ Stato: completato. Attendono approvazione esplicita del codice.
 - Limite noto: la generazione e lessicale (TF dal tokenizer), non la testa sparsa
   appresa del modello (SPLADE/BGE-M3); sostituirla significa implementare lo
   stesso metodo dietro `IEmbeddingGenerator`.
+- Difetto trovato provando il modello BGE-M3 reale: il ramo SentencePiece usava
+  l'overload `EncodeToIds(text, bool, bool)` della classe base `Tokenizer`, che
+  sono `considerPreTokenization`/`considerNormalization` e non
+  `addBeginningOfSentence`/`addEndOfSentence`: `<s>` e `</s>` finivano fra i
+  termini (id 0 e 2). Il campo ora e tipizzato `SentencePieceTokenizer` e la
+  chiamata usa i parametri nominati; aggiunto un test che rifiuta gli id 0..3.
+  Verificato sul modello reale: 16 termini, id XLM-R, nessun marker, denso a 1024.
+- L'export ufficiale di BGE-M3 espone solo `sentence_embedding` e
+  `token_embeddings`: nessuna testa lessicale, quindi i pesi sparsi appresi non
+  sono calcolabili da quei file. Documentato.
+- Confronto con `oldoldold` (d2c4aa4) fatto con un worktree temporaneo e lo stesso
+  modello: dopo la correzione, tokenizzazione e uscita coincidono esattamente.
+  Su cinque testi gli id e i pesi sono identici; denso (somma -0.745755, sha
+  CF1BA5F6...) e sparso (sha 38C62B84.../9628E545...) hanno lo stesso hash nei
+  due rami. Il ramo vecchio tipizzava gia il campo `SentencePieceTokenizer` e
+  usava l'overload con `addBeginningOfSentence`/`addEndOfSentence`: ero io ad
+  averlo involontariamente degradato nel porting.
+- Allineati due dettagli al ramo vecchio: cache di `_specialTokenIds` (una
+  chiamata di tokenizzazione in meno per vettore generato) e suite di test
+  adottata da li (9 test: BGE-M3 e nomic, marker esclusi per entrambi i
+  tokenizzatori, termini condivisi fra testi, ripetizione pesata, cap dei
+  termini), piu il controllo degli id nel range 4..250001.
+- Differenza residua voluta: `TokenizeContentIds` abbassa il testo per il profilo
+  `SigLip2`, come fa gia il percorso denso; il ramo vecchio non lo faceva.
 - Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
   `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
   `run-tests`.
