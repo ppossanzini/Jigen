@@ -1,5 +1,71 @@
 # Development Dossier
 
+## SP-05V Soluzione in formato .slnx
+
+Stato: completato.
+
+- Il `.sln` non era convertibile cosi com'era: conteneva quattro cartelle di
+  soluzione vuote tutte chiamate "Jigen" (quindi lo stesso percorso `/Jigen/`) e
+  una dichiarazione duplicata dello stesso GUID con due nomi ("Store" e "Jigen").
+  `dotnet sln migrate` falliva con "Duplicate item '/Jigen/' of type 'Folder'".
+- Ripulite le cinque dichiarazioni (erano tutte vuote tranne quella reale, che
+  resta col nome "Jigen" e contiene i sei progetti del motore), poi
+  `dotnet sln migrate`: 37 progetti convertiti.
+- Tolti dal nuovo file i quattro progetti sotto `.temp/` e il `Dockerfile` di
+  radice, che non esistono piu: con quelli `dotnet restore Jigen.slnx` falliva
+  con MSB3202 (anche il `.sln` vecchio era rotto per lo stesso motivo). I
+  Solution Items ora puntano ai due Dockerfile reali
+  (`src/Server/Jigen/Dockerfile`, `src/Embedding/Jigen.Embedding/Dockerfile`).
+  33 progetti finali.
+- `Jigen.sln` rimosso. Aggiornati i riferimenti: workflow CI
+  (`restore`/`build` su `Jigen.slnx`), README, e `TestStorageDirectory` che
+  cercava `Jigen.sln` per trovare la radice del repository (ora accetta
+  entrambi i formati).
+- Effetto collaterale positivo: il `.sln` non si compilava per il nome di
+  progetto duplicato "Jigen" (host e cartella). Con `.slnx` i progetti sono
+  identificati dal percorso e `dotnet build Jigen.slnx -m:1` completa con 0
+  errori (83 warning, tutti preesistenti).
+- Verifica: `dotnet restore Jigen.slnx` verde, `dotnet build Jigen.slnx
+  --no-restore -m:1` 0 errori, `dotnet sln Jigen.slnx list` 33 progetti,
+  `dotnet test Jigen.slnx --no-build --filter SparseCollectionInfoTests` esegue
+  dal file di soluzione.
+- Nota: i dossier e i task plan precedenti citano `Jigen.sln` come documenti
+  storici; non sono stati riscritti.
+## SP-05U Management allineato all'indice sparso
+
+Stato: completato. Attendono approvazione esplicita del codice.
+
+- Prima: la vista di management non sapeva nulla dello sparso. `CollectionInfo`
+  riportava solo i byte di contenuto e vettori piu i metrici HNSW;
+  `DatabaseDetails` sommava `IndexSize` dei grafi densi, quindi una collezione
+  con indice sparso risultava piu piccola di quanto occupasse davvero.
+- Nuovo `SparseCollectionInfo` (segmenti, termini, blocchi, dimensione blocco,
+  tombstone, byte su disco) esposto da `Store.GetSparseInfo(collection)` e
+  agganciato a `CollectionInfo.Sparse`; `Store.GetSparseInfo` riusa il reader che
+  serve le ricerche, quindi i numeri descrivono lo stesso stato. Il conteggio dei
+  posting non c'e: sommarlo significa leggere ogni blocco.
+- `SparseIndex.BlockCount` per il numero di blocchi (O(1) sull'header della lista).
+- `DatabaseDetails.SparseSize` sommato ai totali del database.
+- Trasporti: `CollectionInfoResponse.Sparse = 7` con
+  `SparseCollectionInfoResponse`; REST lo restituisce automaticamente perche
+  serializza `CollectionInfo`, e `/details` guadagna `SparseSize`.
+- Client Python: `SparseCollectionInfo` e `CollectionInfo.sparse`, con due test.
+- Difetto trovato scrivendo i test: una collezione con **un solo segmento** e
+  tombstone non veniva mai compattata. `CompactSparseIndexes` chiamava il
+  compattatore solo con piu di un segmento, e il compattatore stesso usciva
+  subito con `generations.Count <= 1`: le copie ritirate restavano su disco per
+  sempre e il file dei tombstone cresceva senza limite. Ora il negozio compatta
+  anche con un segmento se ci sono tombstone, e il compattatore riscrive il
+  segmento singolo quando deve scartare copie ritirate.
+- Verifica: Store 73 su 73 (3 nuovi test sull'info sparsa), sparse 127 su 127,
+  gRPC 23 su 23 (2 nuovi), API 55 su 55, client 21 piu 5 saltati, Python 30 su
+  30; `mkdocs --strict` verde.
+- Non incluso: campionamento dei metrici sparsi nel modulo Metrics (campiona solo
+  l'indice denso), grafo sparso nella visualizzazione.
+- Skill attive: `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`, `capabilities-dev-problem-solving-methodology`,
+  `run-tests`.
+
 ## SP-05T Nomi del client allineati, vettore sparso dal motore di embedding
 
 Stato: completato. Attendono approvazione esplicita del codice.

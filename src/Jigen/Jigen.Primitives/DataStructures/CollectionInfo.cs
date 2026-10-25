@@ -10,4 +10,7 @@ public class CollectionInfo
 
   /// <summary>Vector-index metrics; null when the indexer does not expose them.</summary>
   public CollectionIndexInfo Index { get; set; }
+
+  /// <summary>Sparse-index metrics; null when the collection has no sparse index.</summary>
+  public SparseCollectionInfo Sparse { get; set; }
 }

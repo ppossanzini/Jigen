@@ -12,6 +12,9 @@ public class DatabaseDetails
   public long VectorSize => Collections.Sum(c => c.VectorSize);
   public long IndexSize => Collections.Sum(c => c.Index?.IndexSizeBytes ?? 0);
 
+  /// <summary>On-disk size of every collection's sparse index.</summary>
+  public long SparseSize => Collections.Sum(c => c.Sparse?.SizeBytes ?? 0);
+
   public long AllocatedContentSize { get; set; }
   public long AllocatedVectorSize { get; set; }
 

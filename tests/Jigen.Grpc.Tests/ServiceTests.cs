@@ -420,6 +420,54 @@ public class ServiceTests
       It.IsAny<CancellationToken>()), Times.Once);
   }
 
+  // ── Management: sparse index metrics ──
+
+  [Fact]
+  public async Task GetCollectionInfo_reports_the_sparse_index()
+  {
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Core.Query.collections.GetCollectionInfo>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new DataStructures.CollectionInfo
+      {
+        Name = Collection,
+        Vectors = 10,
+        Dimensions = 8,
+        Sparse = new DataStructures.SparseCollectionInfo
+        {
+          Segments = 2,
+          Terms = 40,
+          Blocks = 80,
+          BlockSize = 64,
+          Tombstones = 3,
+          SizeBytes = 9000
+        }
+      });
+
+    var response = await CreateServer().GetCollectionInfo(
+      new CollectionKey { Database = DbName, Collection = Collection }, CreateContext());
+
+    Assert.NotNull(response.Sparse);
+    Assert.Equal(2, response.Sparse.Segments);
+    Assert.Equal(40, response.Sparse.Terms);
+    Assert.Equal(80, response.Sparse.Blocks);
+    Assert.Equal(64, response.Sparse.BlockSize);
+    Assert.Equal(3, response.Sparse.Tombstones);
+    Assert.Equal(9000, response.Sparse.SizeBytes);
+  }
+
+  [Fact]
+  public async Task GetCollectionInfo_leaves_the_sparse_block_absent_when_there_is_no_sparse_index()
+  {
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Core.Query.collections.GetCollectionInfo>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new DataStructures.CollectionInfo { Name = Collection, Vectors = 1, Dimensions = 8 });
+
+    var response = await CreateServer().GetCollectionInfo(
+      new CollectionKey { Database = DbName, Collection = Collection }, CreateContext());
+
+    Assert.Null(response.Sparse);
+  }
+
   // ── Sparse embedding RPCs and sentence-derived sparse ──
 
   [Fact]

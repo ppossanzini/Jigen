@@ -30,6 +30,7 @@ class FakeStub:
         self.request = None
         self.embedding = None
         self.response = None
+        self.info = pb.CollectionInfoResponse()
 
     def SetVector(self, request):
         self.request = request
@@ -54,6 +55,9 @@ class FakeStub:
     def SearchDocument(self, request):
         self.request = request
         return self.response or _response()
+
+    def GetCollectionInfo(self, request):
+        return self.info
 
 
 def test_key_encoding_matches_dotnet_conventions():
@@ -388,3 +392,36 @@ async def test_async_search_can_ask_for_the_sparse_half_of_a_sentence():
 
     assert isinstance(stub.request, pb.SearchDocumentRequest)
     assert stub.request.SparseFromSentence is True
+
+
+def test_collection_info_reports_the_sparse_index():
+    stub = FakeStub()
+    stub.info = pb.CollectionInfoResponse(
+        Name="articles",
+        Vectors=10,
+        Dimensions=128,
+        ContentSize=1024,
+        VectorSize=5120,
+        Sparse=pb.SparseCollectionInfoResponse(
+            Segments=2, Terms=40, Blocks=80, BlockSize=64, Tombstones=1, SizeBytes=9000
+        ),
+    )
+    collection = VectorCollection(stub, "demo", "articles")
+
+    info = collection.info()
+
+    assert info.sparse is not None
+    assert info.sparse.segments == 2
+    assert info.sparse.terms == 40
+    assert info.sparse.blocks == 80
+    assert info.sparse.block_size == 64
+    assert info.sparse.tombstones == 1
+    assert info.sparse.size_bytes == 9000
+
+
+def test_collection_info_without_sparse_index_reports_none():
+    stub = FakeStub()
+    stub.info = pb.CollectionInfoResponse(Name="articles", Vectors=1, Dimensions=8)
+    collection = VectorCollection(stub, "demo", "articles")
+
+    assert collection.info().sparse is None

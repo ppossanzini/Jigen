@@ -198,6 +198,8 @@ public partial class Store : IStore, IDisposable
     if (Options.Indexer is IExplorableIndex explorable)
       info.Index = explorable.GetIndexInfo(name);
 
+    info.Sparse = GetSparseInfo(name);
+
     return info;
   }
 

@@ -817,6 +817,17 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       response.Index.NodesPerLevel.AddRange(info.Index.NodesPerLevel);
     }
 
+    if (info.Sparse is not null)
+      response.Sparse = new SparseCollectionInfoResponse
+      {
+        Segments = info.Sparse.Segments,
+        Terms = info.Sparse.Terms,
+        Blocks = info.Sparse.Blocks,
+        BlockSize = info.Sparse.BlockSize,
+        Tombstones = info.Sparse.Tombstones,
+        SizeBytes = info.Sparse.SizeBytes
+      };
+
     return response;
   }
 }

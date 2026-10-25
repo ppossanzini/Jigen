@@ -30,6 +30,9 @@ public sealed class SparseIndex
 
     public int TermCount => _termPositions.Count;
 
+  /// <summary>Posting blocks the index spans; each holds at most the builder's block size.</summary>
+  public int BlockCount => _blocks.Count;
+
     public bool TryGetTerm(int termId, out SparseTermDirectoryEntry entry)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(termId);

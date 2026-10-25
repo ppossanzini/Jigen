@@ -115,6 +115,19 @@ Two batch facts worth knowing:
 - **Commit per batch.** Each `SaveChangesAsync` (or the writer's batch flush) closes a segment. Ingesting in batches is therefore both faster and cheaper to read than one document at a time.
 - **Deletes cost until compaction.** A `Clear` or a delete-heavy workload leaves segments behind with tombstones; search keeps reading them until a shrink compacts the collection. Measured on a 10.000-document collection, the same query took 6,5 ms with two segments and 3,7 ms after the shrink.
 
+## Monitoring it
+
+`GetCollectionInfo` (gRPC and REST) carries a `Sparse` block next to the dense
+index metrics: segments, distinct terms, posting blocks, block size, tombstones
+and the on-disk size of the collection's sparse directory. `DatabaseDetails`
+adds `SparseSize` to the database totals, so the sparse footprint is not missing
+from a disk-usage view.
+
+Two numbers are worth watching: `Segments` and `Tombstones`. Searches read every
+segment and merge, so a collection that writes often and never shrinks pays for
+it in latency; `ShrinkAsync` compacts the segments to one and clears the
+tombstones, dropping the retired copies from disk too.
+
 ## Cost model
 
 Sparse search cost is dominated by **query terms × posting-list length**, not by corpus size. Measured on 30.000 documents carrying 3,6 M postings:

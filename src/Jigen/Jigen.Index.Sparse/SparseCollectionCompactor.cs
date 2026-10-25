@@ -33,11 +33,6 @@ public sealed class SparseCollectionCompactor
     public long? Compact()
     {
         var generations = SparseCollectionManifest.Read(_directoryPath);
-        if (generations.Count <= 1)
-        {
-            RemoveSegmentDirectoriesNotIn(generations);
-            return null;
-        }
 
         var segmentsPath = Path.Combine(_directoryPath, "segments");
         var segments = new List<OpenSegment>(generations.Count);
@@ -45,6 +40,15 @@ public sealed class SparseCollectionCompactor
             new StoreListOptions { FilePath = Path.Combine(_directoryPath, "tombstones") }, default);
         try
         {
+            // One segment is still worth rewriting when it carries tombstones:
+            // the retired copies are inside it and nothing else would ever drop
+            // them from disk.
+            if (generations.Count == 0 || (generations.Count == 1 && tombstones.Count == 0))
+            {
+                RemoveSegmentDirectoriesNotIn(generations);
+                return null;
+            }
+
             foreach (var generation in generations)
             {
                 var directoryPath = SparseCollectionWriter.SegmentPath(segmentsPath, generation);

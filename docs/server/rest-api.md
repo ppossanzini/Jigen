@@ -17,7 +17,9 @@ All request/response bodies are JSON.
 | `GET` | `/api/database/{name}/users` | List users with access to the database. |
 | `PUT` | `/api/database/{name}/users` | Replace the set of users with access to the database (body: `{ "Users": [{ "UserId": "...", "UserName": "..." }] }`). |
 
-`GET /api/database/{name}/details` returns a `DatabaseDetails` object: `Name`, `CreatedAtUtc`, `Vectors`, `ContentSize`, `VectorSize`, `AllocatedContentSize`, `AllocatedVectorSize`, `ContentFreeSpace`, `VectorFreeSpace`, `CollectionsCount`, `UsersCount`, and per-collection `Collections` (`Name`, `Vectors`, `Dimensions`, `ContentSize`, `VectorSize`).
+`GET /api/database/{name}/details` returns a `DatabaseDetails` object: `Name`, `CreatedAtUtc`, `Vectors`, `ContentSize`, `VectorSize`, `IndexSize` (dense graphs), `SparseSize` (sparse indexes), `AllocatedContentSize`, `AllocatedVectorSize`, `ContentFreeSpace`, `VectorFreeSpace`, `CollectionsCount`, `UsersCount`, and per-collection `Collections` (`Name`, `Vectors`, `Dimensions`, `ContentSize`, `VectorSize`, `Index`, `Sparse`).
+
+The sparse block reports `Segments`, `Terms`, `Blocks`, `BlockSize`, `Tombstones` and `SizeBytes`; `Tombstones` counts the documents retired by a delete or an overwrite that are still on disk until the next `Shrink`, which compacts the segments and clears them.
 
 User/database access management is part of the identity module; it is only mentioned briefly here, since the web admin UI it primarily serves is out of scope for this documentation.
 
@@ -26,7 +28,7 @@ User/database access management is part of the identity module; it is only menti
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/api/database/{db}/collections` | List collection names in a database. |
-| `GET` | `/api/database/{db}/collections/{collection}/info` | Collection info: `Name`, `Vectors`, `Dimensions`, `ContentSize`, `VectorSize`. |
+| `GET` | `/api/database/{db}/collections/{collection}/info` | Collection info: `Name`, `Vectors`, `Dimensions`, `ContentSize`, `VectorSize`, `Index` (dense index metrics, absent for exact search) and `Sparse` (sparse index metrics, absent when the collection has none). |
 | `POST` | `/api/database/{db}/collections/search` | Search across one or more collections. Body: `SearchCollectionsData`. |
 | `POST` | `/api/database/{db}/collections/{collection}/search` | Search one collection by sentence, by vector, by sparse weights, or both (hybrid). Body: `SearchData`. |
 | `POST` | `/api/database/{db}/collections/{collection}/vectors/{key}` | Insert a vector entry. Body: `VectorPayload`. |

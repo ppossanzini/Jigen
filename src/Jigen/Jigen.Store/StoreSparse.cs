@@ -151,6 +151,41 @@ public partial class Store
     }
 
     /// <summary>
+    /// Metrics of a collection's sparse index, or null when the collection has
+    /// none. Reads the segments the searches read, so the numbers describe the
+    /// same state; the postings count is not included because summing it means
+    /// walking every posting block.
+    /// </summary>
+    public SparseCollectionInfo GetSparseInfo(string collection)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(collection);
+
+        var path = SparseCollectionPath(collection);
+        if (!Directory.Exists(path))
+            return null!;
+
+        var info = new SparseCollectionInfo
+        {
+            SizeBytes = Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories)
+                .Sum(file => new FileInfo(file).Length)
+        };
+
+        var storage = OpenSparseReader(collection);
+        if (storage is null)
+            return info;
+
+        foreach (var segment in storage.Index.Segments)
+        {
+            info.Terms += segment.Index.TermCount;
+            info.Blocks += segment.Index.BlockCount;
+        }
+
+        info.Segments = storage.Index.Segments.Count;
+        info.Tombstones = storage.Index.TombstoneCount;
+        return info;
+    }
+
+    /// <summary>
     /// Best k documents of a collection by sparse score. Returns an empty list
     /// when the collection has no sparse index yet.
     /// </summary>
@@ -349,8 +384,30 @@ public partial class Store
                 return;
 
             foreach (var directory in Directory.EnumerateDirectories(SparsePath))
-                if (SparseCollectionManifest.Read(directory).Count > 1)
+                if (NeedsSparseCompaction(directory))
                     new SparseCollectionCompactor(directory).Compact();
+        }
+    }
+
+    /// <summary>
+    /// A collection is worth compacting when it reads more than one segment, or
+    /// when it carries tombstones: retired copies of a single-segment collection
+    /// would otherwise stay on disk forever, because nothing else ever rewrites
+    /// that segment.
+    /// </summary>
+    private static bool NeedsSparseCompaction(string directory)
+    {
+        if (SparseCollectionManifest.Read(directory).Count > 1)
+            return true;
+
+        var storage = SparseCollectionStorage.Open(directory);
+        try
+        {
+            return storage.Index.TombstoneCount > 0;
+        }
+        finally
+        {
+            storage.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 }

@@ -7,7 +7,7 @@ internal sealed class TestStorageDirectory : IDisposable
     public TestStorageDirectory()
     {
         var root = new DirectoryInfo(AppContext.BaseDirectory);
-        while (root is not null && !File.Exists(Path.Combine(root.FullName, "Jigen.sln")))
+        while (root is not null && !IsRepositoryRoot(root))
             root = root.Parent;
         if (root is null)
             throw new InvalidOperationException("Cannot locate the repository for test storage.");
@@ -17,4 +17,10 @@ internal sealed class TestStorageDirectory : IDisposable
     }
 
     public void Dispose() => Directory.Delete(DirectoryPath, recursive: true);
+
+    // The solution file marks the root; both formats are accepted so the check
+    // survives a conversion from .sln to .slnx.
+    private static bool IsRepositoryRoot(DirectoryInfo directory) =>
+        File.Exists(Path.Combine(directory.FullName, "Jigen.slnx")) ||
+        File.Exists(Path.Combine(directory.FullName, "Jigen.sln"));
 }

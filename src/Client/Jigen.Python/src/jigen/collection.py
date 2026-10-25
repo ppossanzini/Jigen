@@ -12,6 +12,7 @@ from .models import (
     Key,
     SearchOptions,
     SearchResult,
+    SparseCollectionInfo,
     encode_key,
 )
 from .serialization import DocumentSerializer, MessagePackSerializer
@@ -106,8 +107,26 @@ def _map_info(info: pb.CollectionInfoResponse) -> CollectionInfo:
             raw.AverageDegree,
             raw.Quantization,
         )
+    sparse = None
+    if info.HasField("Sparse"):
+        raw_sparse = info.Sparse
+        sparse = SparseCollectionInfo(
+            raw_sparse.Segments,
+            raw_sparse.Terms,
+            raw_sparse.Blocks,
+            raw_sparse.BlockSize,
+            raw_sparse.Tombstones,
+            raw_sparse.SizeBytes,
+        )
+
     return CollectionInfo(
-        info.Name, info.Vectors, info.Dimensions, info.ContentSize, info.VectorSize, index
+        info.Name,
+        info.Vectors,
+        info.Dimensions,
+        info.ContentSize,
+        info.VectorSize,
+        index,
+        sparse,
     )
 
 

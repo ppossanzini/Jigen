@@ -138,6 +138,36 @@ message SearchVectorResponse {
 }
 ```
 
+## Collection metrics
+
+`GetCollectionInfo` and `GetCollectionsInfo` report the collection's data sizes
+and the metrics of both indexes:
+
+```proto
+message CollectionInfoResponse {
+  string Name = 1;
+  int32 Vectors = 2;
+  int32 Dimensions = 3;
+  int64 ContentSize = 4;
+  int64 VectorSize = 5;
+  CollectionIndexInfoResponse Index = 6;    // dense index; absent for exact search
+  SparseCollectionInfoResponse Sparse = 7;  // sparse index; absent when the collection has none
+}
+
+message SparseCollectionInfoResponse {
+  int32 Segments = 1;    // immutable segments read by searches; compaction leaves one
+  int32 Terms = 2;       // distinct terms across segments
+  int32 Blocks = 3;      // posting blocks across segments
+  int32 BlockSize = 4;   // postings per block
+  int32 Tombstones = 5;  // retired documents still present until compaction
+  int64 SizeBytes = 6;   // on-disk size of the collection's sparse directory
+}
+```
+
+`Terms`, `Blocks`, `Segments` and `Tombstones` describe the same segments the
+searches read. The postings count is not reported: summing it means walking every
+posting block, which is not a metrics call.
+
 ## Embedding RPCs
 
 Text embedding messages:

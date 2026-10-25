@@ -65,6 +65,18 @@ class CollectionIndexInfo:
 
 
 @dataclass(slots=True, frozen=True)
+class SparseCollectionInfo:
+    """Metrics of a collection's sparse index; absent when it has none."""
+
+    segments: int
+    terms: int
+    blocks: int
+    block_size: int
+    tombstones: int
+    size_bytes: int
+
+
+@dataclass(slots=True, frozen=True)
 class CollectionInfo:
     name: str
     vectors: int
@@ -72,6 +84,7 @@ class CollectionInfo:
     content_size: int
     vector_size: int
     index: CollectionIndexInfo | None = None
+    sparse: SparseCollectionInfo | None = None
 
 
 LlmDocument = dict[str, Any]
