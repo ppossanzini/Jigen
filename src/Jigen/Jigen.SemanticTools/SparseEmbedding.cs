@@ -35,4 +35,13 @@ public sealed class SparseEmbeddingOptions
 
   /// <summary>Damping of repeated occurrences; must be greater than zero.</summary>
   public float LogBase { get; set; } = 1f;
+
+  /// <summary>
+  /// Path of the learned sparse head (<c>sparse_linear.pt</c> from <c>BAAI/bge-m3</c>),
+  /// <c>BgeM3</c> profile only. A relative path is resolved against the model
+  /// directory. When set, the weights come from the model instead of from term
+  /// frequencies (<see cref="Offset"/> and <see cref="LogBase"/> are then unused).
+  /// Empty keeps the lexical weights.
+  /// </summary>
+  public string HeadPath { get; set; }
 }

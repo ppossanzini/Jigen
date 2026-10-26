@@ -103,15 +103,18 @@ Fixed-resolution checkpoints are supported; NaFlex exports requiring
 
 `IEmbeddingGenerator.GenerateSparseEmbedding` turns a text into `(term id, weight)`
 pairs from the model's own tokenizer — the same ids the dense path uses, so a
-document and a query embedded by the same model share one vocabulary. It works
-for every profile, involves no model inference, and is what feeds the collection's
+document and a query embedded by the same model share one vocabulary. By default
+the weights are lexical: it works for every profile and involves no model
+inference. With `HeadPath` on the `BgeM3` profile the weights are BGE-M3's learned
+ones. Either way it is what feeds the collection's
 [sparse index](../indexes/sparse.md#producing-the-pairs).
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `Sparse.MaxTerms` | int | `1024` | Maximum number of terms kept in one sparse vector. The heaviest terms survive a truncation. |
-| `Sparse.Offset` | float | `1` | Weight of a term appearing once. |
-| `Sparse.LogBase` | float | `1` | Damping applied to repetitions (`offset + LogBase · ln(count)`), so a repeated word counts more without dominating the dot product. Must be greater than zero. |
+| `Sparse.Offset` | float | `1` | Weight of a term appearing once (lexical weights only). |
+| `Sparse.LogBase` | float | `1` | Damping applied to repetitions (`offset + LogBase · ln(count)`), so a repeated word counts more without dominating the dot product. Must be greater than zero (lexical weights only). |
+| `Sparse.HeadPath` | string | *(empty)* | `BgeM3` only. Path of BGE-M3's learned sparse head, the `sparse_linear.pt` file of the `BAAI/bge-m3` repository; a relative path is resolved against the model directory. Empty keeps the lexical weights. Any other profile with a value fails at startup. |
 
 ## Example: BGE-M3
 
@@ -131,23 +134,43 @@ The official `BAAI/bge-m3` ONNX export can be configured directly with its
       "OutputDimension": 1024,
       "PaddingTokenId": 1,
       "ExecutionProvider": "cpu",
-      "MaxBatchSize": 1
+      "MaxBatchSize": 1,
+      "Sparse": {
+        "HeadPath": "sparse_linear.pt"
+      }
     }
   }
 }
 ```
 
-The profile exposes BGE-M3 dense embeddings. The sparse lexical vector is
-available too (`GenerateSparseEmbedding`, `CalculateSparseEmbedding`): the terms
-are the model's vocabulary ids with the XLM-R mapping the profile applies
-(`<s>`, `<pad>`, `</s>`, `<unk>` are excluded — they are markers, not words), and
-the weights are TF with log damping.
+The profile exposes BGE-M3 dense embeddings and the sparse vector
+(`GenerateSparseEmbedding`, `CalculateSparseEmbedding`). The terms are the
+model's vocabulary ids with the XLM-R mapping the profile applies (`<s>`,
+`<pad>`, `</s>`, `<unk>` are excluded — they are markers, not words).
 
-The official export this profile targets exposes `sentence_embedding` and
-`token_embeddings` only: it carries no lexical head, so the model's *learned*
-sparse weights (the `sparse_linear` projection) cannot be computed from it, and
-the lexical weights above are what Jigen produces. ColBERT multi-vector outputs
-are likewise not part of Jigen's embedding contract.
+**Learned sparse weights.** The ONNX export ships without BGE-M3's sparse head,
+but it exposes `token_embeddings`, which is all the head needs. Download
+`sparse_linear.pt` from the `BAAI/bge-m3` repository (MIT licence) into the model
+directory and set `Sparse.HeadPath` as above. Each token then weighs
+`relu(w · h + b)` from its hidden state, a word repeated in the text keeps its
+highest weight, and a distinctive word weighs more than a common one. The file is
+read as it is: no conversion and no PyTorch needed.
+
+- A dense and a sparse vector of the same text come from one inference
+  (`GenerateEmbeddingWithSparseAsync`, used by the server for writes and
+  searches from a sentence), so the learned side adds little cost there. A
+  sparse-only request now runs the model and goes through the same queue as
+  the dense ones.
+- Only the tokens the model sees are weighed: with truncation, the cut tokens
+  get no weight; with chunking, a term keeps its highest weight across chunks.
+- The weights change scale (learned values are typically below 0.5, lexical ones
+  start at 1), so collections indexed with lexical weights must be re-indexed,
+  and `minSparseScore` thresholds re-tuned.
+- Synonyms still carry no sparse weight: only the tokens of the text are scored.
+
+Without `HeadPath` the weights are TF with log damping.
+
+ColBERT multi-vector outputs are not part of Jigen's embedding contract.
 
 ## `ImageEmbeddingGeneratorOptions`
 

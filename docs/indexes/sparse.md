@@ -66,20 +66,25 @@ model:
 
 ```csharp
 SparseEmbedding sparse = generator.GenerateSparseEmbedding("a lexical query");
-// terms: vocabulary ids, strictly increasing; weights: TF with log damping
+// terms: vocabulary ids, strictly increasing; weights: lexical (TF with log damping)
+// or, for BgeM3 with Sparse.HeadPath, BGE-M3's learned weights
 ```
 
 For `BgeM3` the ids are the model's XLM-R vocabulary ids (the profile applies the
-SentencePiece → XLM-R mapping) and the sequence markers are excluded. The export
-Jigen targets carries no lexical head, so these weights are lexical (TF), not the
-model's learned sparse weights.
+SentencePiece → XLM-R mapping) and the sequence markers are excluded. The ONNX
+export carries no sparse head, so by default the weights are lexical (TF). Point
+`SparseEmbeddingOptions.HeadPath` at BGE-M3's `sparse_linear.pt` to get the
+model's learned weights instead: a distinctive word then weighs more than a
+common one. See [BGE-M3 configuration](../embeddings/configuration.md#example-bge-m3).
+Switching between the two changes every weight, so re-index the collection and
+re-tune `minSparseScore`.
 
 `SparseEmbeddingOptions` (`EmbeddingGeneratorOptions.Sparse`) controls it:
-`MaxTerms` (default 1024) caps the vector, `Offset` is the weight of a single
-occurrence and `LogBase` damps repetitions, so a word used twice weighs more than
-once without dominating the dot product. Words the tokenizer splits into subword
-pieces contribute one term per piece, which is what makes the sparse side work
-without an analyzer.
+`MaxTerms` (default 1024) caps the vector; for the lexical weights `Offset` is the
+weight of a single occurrence and `LogBase` damps repetitions, so a word used
+twice weighs more than once without dominating the dot product. Words the
+tokenizer splits into subword pieces contribute one term per piece, which is
+what makes the sparse side work without an analyzer.
 
 Over the network the same values are available from two places:
 

@@ -1,5 +1,43 @@
 # Development Dossier
 
+## SP-06E Pesi sparsi appresi di BGE-M3
+
+- Ambito: `Jigen.SemanticTools` (`LearnedSparseHead.cs` nuovo,
+  `EmbeddingGenerator.cs`, `QueuedEmbeddingGenerator.cs`, `IEmbeddingGenerator.cs`,
+  `SparseEmbedding.cs`), `Jigen.Embedding.Handlers` (`CommandHandlers.cs`,
+  `EmbeddingGeneratorRegistry.cs`), test e docs.
+- Skill: `base-be-base-rules`, `implementation-be-dotnet-dev`.
+- Nuova opzione `Sparse.HeadPath` (solo profilo `BgeM3`, relativa alla cartella
+  del modello): carica `sparse_linear.pt` di `BAAI/bge-m3` leggendo lo zip
+  PyTorch senza PyTorch. Peso del token `relu(w·h+b)` sui `token_embeddings`
+  dell'export ONNX, massimo per termine, marker XLM-R esclusi, `MaxTerms` invariato.
+  Senza `HeadPath` i pesi restano lessicali.
+- Densa e sparsa dalla stessa inferenza (`GenerateEmbeddingWithSparseAsync`, usato
+  da `CalculateVectorPair` quando l'input non ha prefisso di task). Con la testa la
+  sparsa passa dalla coda del generatore; in modalità lessicale continua a saltarla.
+- Configurazione errata (profilo diverso, file mancante o malformato) fallisce
+  all'avvio, prima di aprire le sessioni ONNX.
+- Da fare lato operativo: scaricare `sparse_linear.pt` nella cartella del modello
+  (qui non scaricabile), reindicizzare le collezioni e ritarare `minSparseScore`.
+- Verifica: build `Jigen.slnx` 0 errori; `Jigen.SemanticTools.Tests` 50/50 (9 nuovi
+  con testa sintetica nel formato PyTorch); `Jigen.API.Tests` 55/55;
+  `Jigen.Grpc.Tests` 25/25. Non verificato con la testa reale.
+- Esito: completato, in attesa del file della testa per la prova reale.
+
+## SP-06D Timeout del client web Insight configurabile
+
+- Ambito: `src/Management/Jigen.Insight` (`utils/app-settings.ts`, `main.ts`,
+  `public/settings.json`).
+- Skill: `base-fe-base-rules`, `implementation-fe-axios-dev`.
+- Il timeout axios di default era 10 s: con il server sotto carico (ingest
+  massivo) il client chiudeva la richiesta prima della risposta.
+- Nuova impostazione runtime `api.timeoutMs` in `settings.json` (default
+  300000 = 5 minuti, `0` = nessun limite), applicata all'avvio come default
+  dell'istanza axios. Le chiamate con timeout proprio (shrink, `0`) lo
+  mantengono.
+- Verifica: `tsc --noEmit` 0 errori. Non provato nel browser.
+- Esito: completato.
+
 ## SP-06C Build e test backend di nuovo verdi
 
 - Ambito: `tests/JigenClientTest`, `tests/Jigen.API.Tests`.

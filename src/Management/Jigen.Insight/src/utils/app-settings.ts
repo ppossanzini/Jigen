@@ -7,12 +7,18 @@ export interface AppSettings {
   api: {
     /** Backend API base url, e.g. `http://localhost:13223/api` */
     baseUrl: string;
+    /**
+     * Request timeout in milliseconds; `0` disables it. Kept long because a busy server (e.g.
+     * during a massive ingest) can take well over the axios default to answer.
+     */
+    timeoutMs: number;
   };
 }
 
 const defaultSettings: AppSettings = {
   api: {
-    baseUrl: 'http://localhost:13223/api'
+    baseUrl: 'http://localhost:13223/api',
+    timeoutMs: 5 * 60 * 1000
   }
 };
 
@@ -27,7 +33,7 @@ function normalizeBaseUrl(value: string): string {
 /** Fetch `settings.json` and merge it over the defaults. Failures fall back to the defaults. */
 export async function loadAppSettings(): Promise<AppSettings> {
   runtimeSettings = {
-    api: { baseUrl: normalizeBaseUrl(defaultSettings.api.baseUrl) }
+    api: { ...defaultSettings.api, baseUrl: normalizeBaseUrl(defaultSettings.api.baseUrl) }
   };
 
   try {
@@ -41,6 +47,11 @@ export async function loadAppSettings(): Promise<AppSettings> {
 
     if (payload.api?.baseUrl) {
       runtimeSettings.api.baseUrl = normalizeBaseUrl(payload.api.baseUrl);
+    }
+
+    const timeoutMs = payload.api?.timeoutMs;
+    if (typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs >= 0) {
+      runtimeSettings.api.timeoutMs = timeoutMs;
     }
 
     return runtimeSettings;

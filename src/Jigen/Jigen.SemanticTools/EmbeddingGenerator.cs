@@ -31,6 +31,13 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   private readonly int _outputDimension;
   private readonly long _paddingTokenId;
   private readonly SparseEmbeddingOptions _sparseOptions;
+  private readonly LearnedSparseHead _sparseHead;
+
+  /// <summary>
+  /// XLM-R markers (&lt;s&gt;, &lt;pad&gt;, &lt;/s&gt;, &lt;unk&gt;): BGE-M3 never
+  /// turns them into terms.
+  /// </summary>
+  private static readonly HashSet<long> BgeM3MarkerIds = [0, 1, 2, 3];
 
   /// <summary>
   /// Initializes a new instance of the OnnxEmbeddingGenerator class.
@@ -46,6 +53,8 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     _logger = logger;
     options ??= new EmbeddingGeneratorOptions();
     _profile = options.Profile;
+    // Before any ONNX session: a wrong head configuration fails without leaking one.
+    _sparseHead = LoadSparseHead(options.Sparse?.HeadPath, modelPath);
 
     if (tokenizerPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
     {
@@ -128,14 +137,24 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   public int CountTokens(string input) => TokenizeToInputIds(input).Length;
 
   /// <summary>
-  /// Generates the sparse lexical vector of a text from its tokenizer ids: the
-  /// term is the vocabulary id, the weight grows with the number of occurrences.
+  /// True when the sparse side runs the model (learned sparse head): it then
+  /// shares the queue with the dense requests instead of bypassing it.
+  /// </summary>
+  public bool HasLearnedSparseHead => _sparseHead != null;
+
+  /// <summary>
+  /// Generates the sparse vector of a text. The term is always the vocabulary id;
+  /// the weight depends on the configuration.
   /// <para>
-  /// No model is involved, so the result is deterministic and available for every
-  /// profile. The trade-off is that the weights are lexical, not learned: a
-  /// synonym carries no weight, and a rare word weighs as much as a common one. A
-  /// learned sparse head (SPLADE, BGE-M3's sparse output) would replace this
-  /// method behind the same interface.
+  /// Lexical (default, every profile): the weight grows with the number of
+  /// occurrences. No model is involved, so it is cheap and deterministic, but a
+  /// rare word weighs as much as a common one and a synonym carries no weight.
+  /// </para>
+  /// <para>
+  /// Learned (<c>BgeM3</c> with <see cref="SparseEmbeddingOptions.HeadPath"/>):
+  /// BGE-M3's sparse head weighs each token from its hidden state, so distinctive
+  /// words weigh more than common ones. It needs a model inference; synonyms
+  /// still carry no weight, because only the tokens of the text are scored.
   /// </para>
   /// </summary>
   public SparseEmbedding GenerateSparseEmbedding(string input)
@@ -143,42 +162,97 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     if (string.IsNullOrWhiteSpace(input))
       return SparseEmbedding.Empty;
 
+    if (_sparseHead != null)
+      return Generate([input], withSparse: true).Sparse[0];
+
     var ids = TokenizeContentIds(input);
     if (ids.Length == 0)
       return SparseEmbedding.Empty;
 
-    var frequencies = new Dictionary<int, int>();
+    var frequencies = new Dictionary<int, float>();
     foreach (var id in ids)
       frequencies[(int)id] = frequencies.TryGetValue((int)id, out var count) ? count + 1 : 1;
 
     var offset = Math.Max(0f, _sparseOptions.Offset);
     var damping = _sparseOptions.LogBase > 0 ? _sparseOptions.LogBase : 1f;
+    foreach (var term in frequencies.Keys.ToArray())
+      frequencies[term] = offset + damping * MathF.Log(frequencies[term]);
+
+    return ToSparseEmbedding(frequencies);
+  }
+
+  public Task<SparseEmbedding> GenerateSparseEmbeddingAsync(string input,
+    CancellationToken cancellationToken = default) =>
+    Task.Run(() => GenerateSparseEmbedding(input), cancellationToken);
+
+  /// <summary>
+  /// Dense and sparse vector of one text. With a learned sparse head both come
+  /// from the same inference; otherwise the sparse side is lexical and costs no
+  /// inference anyway.
+  /// </summary>
+  public (float[] Dense, SparseEmbedding Sparse) GenerateEmbeddingWithSparse(string input)
+  {
+    if (_sparseHead == null)
+      return (GenerateEmbedding(input), GenerateSparseEmbedding(input));
+
+    var (dense, sparse) = Generate([input], withSparse: true);
+    return (dense[0], sparse[0]);
+  }
+
+  public Task<(float[] Dense, SparseEmbedding Sparse)> GenerateEmbeddingWithSparseAsync(string input,
+    CancellationToken cancellationToken = default) =>
+    Task.Run(() => GenerateEmbeddingWithSparse(input), cancellationToken);
+
+  /// <summary>
+  /// Turns term weights into the vector: zero weights dropped, the heaviest
+  /// <see cref="SparseEmbeddingOptions.MaxTerms"/> kept, terms in increasing order.
+  /// </summary>
+  private SparseEmbedding ToSparseEmbedding(IReadOnlyDictionary<int, float> weightsByTerm)
+  {
+    if (weightsByTerm == null || weightsByTerm.Count == 0)
+      return SparseEmbedding.Empty;
+
     var maxTerms = _sparseOptions.MaxTerms > 0 ? _sparseOptions.MaxTerms : 1024;
 
     // Heaviest terms win the cap: keeping the lowest ids would drop exactly the
     // distinctive words of the text.
-    var selected = frequencies
-      .Select(pair => (term: pair.Key, weight: offset + damping * MathF.Log(pair.Value)))
-      .OrderByDescending(pair => pair.weight)
-      .ThenBy(pair => pair.term)
+    var selected = weightsByTerm
+      .Where(pair => pair.Value > 0f)
+      .OrderByDescending(pair => pair.Value)
+      .ThenBy(pair => pair.Key)
       .Take(maxTerms)
-      .OrderBy(pair => pair.term)
+      .OrderBy(pair => pair.Key)
       .ToArray();
 
     var terms = new int[selected.Length];
     var weights = new float[selected.Length];
     for (var i = 0; i < selected.Length; i++)
     {
-      terms[i] = selected[i].term;
-      weights[i] = selected[i].weight;
+      terms[i] = selected[i].Key;
+      weights[i] = selected[i].Value;
     }
 
     return new SparseEmbedding(terms, weights);
   }
 
-  public Task<SparseEmbedding> GenerateSparseEmbeddingAsync(string input,
-    CancellationToken cancellationToken = default) =>
-    Task.Run(() => GenerateSparseEmbedding(input), cancellationToken);
+  private LearnedSparseHead LoadSparseHead(string headPath, string modelPath)
+  {
+    if (string.IsNullOrWhiteSpace(headPath))
+      return null;
+
+    if (_profile != EmbeddingModelProfile.BgeM3)
+      throw new InvalidOperationException(
+        $"Sparse.HeadPath is supported by the BgeM3 profile only (configured profile: {_profile}).");
+
+    var resolved = Path.IsPathRooted(headPath)
+      ? headPath
+      : Path.Combine(Path.GetDirectoryName(Path.GetFullPath(modelPath)) ?? string.Empty, headPath);
+
+    var head = LearnedSparseHead.Load(resolved);
+    _logger?.LogInformation("Loaded learned sparse head from {HeadPath} (hidden={HiddenSize})",
+      resolved, head.HiddenSize);
+    return head;
+  }
 
   /// <summary>
   /// Token ids of the text without the markers that frame a sequence (beginning,
@@ -226,12 +300,19 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
   /// Generates embeddings for multiple input texts, fusing token sequences
   /// (texts and chunks of long texts) into batched inference runs.
   /// </summary>
-  public float[][] GenerateEmbeddings(IReadOnlyList<string> texts)
+  public float[][] GenerateEmbeddings(IReadOnlyList<string> texts) => Generate(texts, withSparse: false).Dense;
+
+  /// <summary>
+  /// Batched inference over the texts. With <paramref name="withSparse"/> the same
+  /// runs also feed the learned sparse head: a term keeps its highest weight over
+  /// the tokens and chunks of its text, as BGE-M3 does.
+  /// </summary>
+  private (float[][] Dense, SparseEmbedding[] Sparse) Generate(IReadOnlyList<string> texts, bool withSparse)
   {
     ArgumentNullException.ThrowIfNull(texts);
 
     if (texts.Count == 0)
-      return [];
+      return ([], []);
 
     // Plan: for each text, the token sequences to infer (one sequence, or its chunks).
     var sequences = new List<(int TextIndex, long[] Tokens)>(texts.Count);
@@ -283,6 +364,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       .ToArray();
 
     var vectorsByText = new List<(float[] Vector, int Weight)>[texts.Count];
+    var sparseByText = withSparse ? new Dictionary<int, float>[texts.Count] : null;
 
     for (var start = 0; start < order.Length; start += _maxBatchSize)
     {
@@ -291,14 +373,24 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       for (var j = 0; j < batchSize; j++)
         batchTokens[j] = sequences[order[start + j]].Tokens;
 
-      var rows = RunModelBatch(batchTokens);
+      var batchSparse = withSparse ? new Dictionary<int, float>[batchSize] : null;
+      var rows = RunModelBatch(batchTokens, batchSparse);
 
       for (var j = 0; j < batchSize; j++)
       {
+        var (textIndex, tokens) = sequences[order[start + j]];
+
+        if (batchSparse?[j] is { } chunkTerms)
+        {
+          var textTerms = sparseByText[textIndex] ??= new Dictionary<int, float>();
+          foreach (var (term, weight) in chunkTerms)
+            if (!textTerms.TryGetValue(term, out var current) || weight > current)
+              textTerms[term] = weight;
+        }
+
         if (rows[j].Length == 0)
           continue;
 
-        var (textIndex, tokens) = sequences[order[start + j]];
         (vectorsByText[textIndex] ??= []).Add((rows[j], tokens.Length));
       }
     }
@@ -314,7 +406,14 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
       };
     }
 
-    return results;
+    if (!withSparse)
+      return (results, null);
+
+    var sparse = new SparseEmbedding[texts.Count];
+    for (var i = 0; i < texts.Count; i++)
+      sparse[i] = ToSparseEmbedding(sparseByText[i]);
+
+    return (results, sparse);
   }
 
 
@@ -445,7 +544,7 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
     _ => id + 1
   };
 
-  private float[][] RunModelBatch(IReadOnlyList<long[]> sequences)
+  private float[][] RunModelBatch(IReadOnlyList<long[]> sequences, Dictionary<int, float>[] sparseTerms = null)
   {
     var batchSize = sequences.Count;
     var maxLength = 0;
@@ -490,7 +589,57 @@ public class OnnxEmbeddingGenerator : IDisposable, IEmbeddingGenerator
 
     using var modelResults = _modelSession.Run(modelInputs);
     var results = modelResults.ToList();
+    if (sparseTerms != null)
+      ScoreSparseTerms(results, sequences, sparseTerms);
+
     return ExtractEmbeddingVectors(results, tokenCounts);
+  }
+
+  /// <summary>
+  /// Applies the learned sparse head to every content token of the batch. BGE-M3
+  /// pads on the right, so token <c>i</c> of a row sits at position <c>i</c>.
+  /// </summary>
+  private void ScoreSparseTerms(IReadOnlyList<DisposableNamedOnnxValue> results, IReadOnlyList<long[]> sequences,
+    Dictionary<int, float>[] sparseTerms)
+  {
+    var output = results.FirstOrDefault(result =>
+                   string.Equals(result.Name, "token_embeddings", StringComparison.OrdinalIgnoreCase) ||
+                   string.Equals(result.Name, "last_hidden_state", StringComparison.OrdinalIgnoreCase))
+                 ?? throw new InvalidOperationException(
+                   "The learned sparse head needs the per-token hidden states: the ONNX model must expose " +
+                   "a token_embeddings or last_hidden_state output.");
+
+    var tensor = output.AsTensor<float>();
+    var dims = tensor.Dimensions;
+    if (dims.Length != 3 || dims[0] != sequences.Count || dims[2] != _sparseHead.HiddenSize)
+      throw new InvalidOperationException(
+        $"Token hidden states [{string.Join(", ", dims.ToArray())}] do not match the sparse head " +
+        $"(batch {sequences.Count}, hidden {_sparseHead.HiddenSize}).");
+
+    var sequenceLength = dims[1];
+    var hiddenSize = dims[2];
+    ReadOnlySpan<float> values = tensor is DenseTensor<float> dense ? dense.Buffer.Span : tensor.ToArray();
+
+    for (var row = 0; row < sequences.Count; row++)
+    {
+      var terms = sparseTerms[row] = new Dictionary<int, float>();
+      var tokens = sequences[row];
+      var count = Math.Min(tokens.Length, sequenceLength);
+
+      for (var position = 0; position < count; position++)
+      {
+        if (BgeM3MarkerIds.Contains(tokens[position]))
+          continue;
+
+        var weight = _sparseHead.Score(values.Slice((row * sequenceLength + position) * hiddenSize, hiddenSize));
+        if (weight <= 0f)
+          continue;
+
+        var term = (int)tokens[position];
+        if (!terms.TryGetValue(term, out var current) || weight > current)
+          terms[term] = weight;
+      }
+    }
   }
 
   private float[][] ExtractEmbeddingVectors(IReadOnlyList<DisposableNamedOnnxValue> results, int[] tokenCounts)

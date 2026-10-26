@@ -44,11 +44,22 @@ public class CommandHandlers(
     var generator = registry.Get(request.Model);
     var task = string.IsNullOrWhiteSpace(request.Task) ? registry.GetDefaultTask(request.Model) : request.Task;
     var sentence = request.Sentence ?? string.Empty;
+    var input = registry.PrepareInput(request.Model, task, sentence);
 
-    // One dispatch, two vectors: the sparse one comes from the same tokenizer
-    // pass as the input of the dense one.
-    var denseTask = generator.GenerateEmbeddingAsync(
-      registry.PrepareInput(request.Model, task, sentence), cancellationToken);
+    // Same text on both sides (BGE-M3 adds no task prefix): one call, and with a
+    // learned sparse head one inference fills both vectors.
+    if (input == sentence)
+    {
+      var (dense, pair) = await generator.GenerateEmbeddingWithSparseAsync(sentence, cancellationToken)
+        .ConfigureAwait(false);
+      return new VectorPairDto
+      {
+        Dense = dense,
+        Sparse = new SparseEmbeddingDto { Terms = pair.Terms, Weights = pair.Weights }
+      };
+    }
+
+    var denseTask = generator.GenerateEmbeddingAsync(input, cancellationToken);
     var sparse = await generator.GenerateSparseEmbeddingAsync(sentence, cancellationToken).ConfigureAwait(false);
 
     return new VectorPairDto

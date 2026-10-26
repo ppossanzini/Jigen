@@ -6,13 +6,16 @@ import { setupStore } from './store';
 import { setupRouter } from './router';
 import { setupI18n } from './locales';
 import { loadAppSettings } from './utils/app-settings';
+import { request } from './service/request';
 import App from './App.vue';
 
 async function setupApp() {
   setupLoading();
 
-  // runtime deployment config (API base url) must be resolved before any request is made
-  await loadAppSettings();
+  // runtime deployment config (API base url, timeout) must be resolved before any request is made
+  const settings = await loadAppSettings();
+  // instance default only: calls that set their own timeout (e.g. shrink) keep it
+  request.instance.defaults.timeout = settings.api.timeoutMs;
 
   setupNProgress();
 
