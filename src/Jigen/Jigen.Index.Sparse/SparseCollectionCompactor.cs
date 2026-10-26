@@ -30,9 +30,36 @@ public sealed class SparseCollectionCompactor
     /// Merges all segments into one. Returns the new generation, or null when
     /// there was nothing to merge.
     /// </summary>
-    public long? Compact()
+    public long? Compact() => Compact(null);
+
+    /// <summary>
+    /// Merges only the listed live segments into one new segment; the others
+    /// stay as they are. The tombstones are kept, because they may still hide
+    /// copies in the segments left out. They cannot hide anything in the merged
+    /// segment: its generation is above every tombstone, and the copies they
+    /// retire are dropped during the merge. Returns the new generation, or null
+    /// when fewer than two of the listed segments are live.
+    /// </summary>
+    public long? CompactSegments(IEnumerable<long> generations)
     {
-        var generations = SparseCollectionManifest.Read(_directoryPath);
+        ArgumentNullException.ThrowIfNull(generations);
+        return Compact(new HashSet<long>(generations));
+    }
+
+    /// <summary>On-disk size of one segment of the collection.</summary>
+    public static long SegmentSizeBytes(string collectionDirectoryPath, long generation)
+    {
+        var path = SparseCollectionWriter.SegmentPath(Path.Combine(collectionDirectoryPath, "segments"), generation);
+        return Directory.Exists(path)
+            ? Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).Sum(file => new FileInfo(file).Length)
+            : 0;
+    }
+
+    private long? Compact(HashSet<long> selection)
+    {
+        var live = SparseCollectionManifest.Read(_directoryPath);
+        var generations = selection is null ? live : live.Where(selection.Contains).ToList();
+        var kept = selection is null ? [] : live.Where(generation => !selection.Contains(generation)).ToList();
 
         var segmentsPath = Path.Combine(_directoryPath, "segments");
         var segments = new List<OpenSegment>(generations.Count);
@@ -42,10 +69,11 @@ public sealed class SparseCollectionCompactor
         {
             // One segment is still worth rewriting when it carries tombstones:
             // the retired copies are inside it and nothing else would ever drop
-            // them from disk.
-            if (generations.Count == 0 || (generations.Count == 1 && tombstones.Count == 0))
+            // them from disk. A partial merge needs two segments.
+            if (generations.Count == 0 ||
+                (generations.Count == 1 && (selection is not null || tombstones.Count == 0)))
             {
-                RemoveSegmentDirectoriesNotIn(generations);
+                RemoveSegmentDirectoriesNotIn(live);
                 return null;
             }
 
@@ -60,19 +88,21 @@ public sealed class SparseCollectionCompactor
             }
 
             var retired = new TombstoneLookup(tombstones);
-            var nextGeneration = generations[^1] + 1;
+            var nextGeneration = live[^1] + 1;
             var targetPath = SparseCollectionWriter.SegmentPath(segmentsPath, nextGeneration);
             if (Directory.Exists(targetPath))
                 Directory.Delete(targetPath, recursive: true);
             Merge(segments, retired, targetPath, nextGeneration);
 
-            SparseCollectionManifest.Write(_directoryPath, [nextGeneration]);
+            List<long> published = [.. kept, nextGeneration];
+            SparseCollectionManifest.Write(_directoryPath, published);
 
-            tombstones.Clear();
+            if (selection is null)
+                tombstones.Clear();
             foreach (var segment in segments)
                 segment.Dispose();
             segments.Clear();
-            RemoveSegmentDirectoriesNotIn([nextGeneration]);
+            RemoveSegmentDirectoriesNotIn(published);
             return nextGeneration;
         }
         finally

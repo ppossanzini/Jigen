@@ -5,8 +5,7 @@ namespace Jigen;
 /// <para>
 /// Each commit writes one immutable segment, so committing every ingestion
 /// batch produces thousands of tiny segments during a bulk load. Documents are
-/// buffered instead, and a background worker merges the segments back when a
-/// collection reads too many of them.
+/// buffered instead, and a background worker merges small segments by size.
 /// </para>
 /// </summary>
 public class SparseOptions
@@ -25,15 +24,23 @@ public class SparseOptions
   public TimeSpan CommitMaxDelay { get; set; } = TimeSpan.FromSeconds(60);
 
   /// <summary>
-  /// A collection reading more segments than this is compacted into one by the
-  /// background worker. Default 10. Values below 1 disable the automatic
-  /// compaction; <see cref="Store.ShrinkAsync"/> still merges the segments.
+  /// Size a segment can reach through background merges: a segment at or above
+  /// it is never merged again by the worker. Default 256 MB. Zero or negative
+  /// disables the automatic merges; <see cref="Store.ShrinkAsync"/> still
+  /// merges every segment into one.
   /// </summary>
-  public int MaxSegments { get; set; } = 10;
+  public long MaxSegmentBytes { get; set; } = 256L * 1024 * 1024;
+
+  /// <summary>
+  /// Segments below this size count as this size when the worker compares
+  /// them, so tiny segments are merged as soon as a second one appears.
+  /// Larger segments merge only with peers of similar size. Default 1 MB.
+  /// </summary>
+  public long MinSegmentBytes { get; set; } = 1024L * 1024;
 
   /// <summary>
   /// Interval of the background worker that commits the expired buffers and
-  /// compacts the collections over <see cref="MaxSegments"/>. Default 5s.
+  /// merges the segments chosen by size. Default 5s.
   /// Zero or negative disables the worker: buffers are then committed only by
   /// ingestion, WAL checkpoints, <see cref="Store.FlushSparseIndexes"/>,
   /// shrink and close.

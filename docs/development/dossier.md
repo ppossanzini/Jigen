@@ -1,5 +1,63 @@
 # Development Dossier
 
+## SP-06B Shrink da Insight e segmenti sparsi vincolati per dimensione
+
+Stato: backend completato e verificato; frontend da verificare con typecheck.
+
+- Shrink: comando `ShrinkDatabase`, endpoint `POST /api/database/{name}/shrink`
+  (policy `database.admin`, `409` se già in corso). In Insight, pagina
+  Databases: azione "Shrink" con conferma, senza timeout sulla chiamata.
+- Segmenti: rimosso `MaxSegments`. `SparseMergePolicy` sceglie le fusioni per
+  dimensione. Un segmento che ha raggiunto `MaxSegmentBytes` (256 MB) non si
+  fonde più. I più piccoli si fondono con segmenti più recenti di dimensione
+  simile. Sotto `MinSegmentBytes` (1 MB) un segmento conta come 1 MB.
+- `SparseCollectionCompactor.CompactSegments` fonde solo i segmenti scelti e
+  conserva i tombstone, che restano validi sui segmenti esclusi.
+- File: `SparseMergePolicy.cs`, `SparseCollectionCompactor.cs`,
+  `SparseOptions.cs`, `StoreSparse.cs`, `ShrinkDatabase.cs`,
+  `DatabaseCommandHandlers.cs`, `DatabaseController.cs`; Insight
+  `service/api/database.ts`, `views/databases/index.vue`, `en-us.ts`,
+  `typings/app.d.ts`; documenti `docs/indexes/sparse.md`,
+  `docs/server/rest-api.md`.
+- Verifica: `JigenStoreTests` 89/89, `Jigen.Index.Sparse.Tests` 127/127,
+  `Jigen.Grpc.Tests` 25/25. `Jigen.API.Tests` 54/55: fallisce
+  `SearchCollection_UsesSearchQueryTask_ForSentence`, su codice già modificato
+  prima di questa task e non toccato qui. Typecheck di Insight non eseguito:
+  `node_modules` incompleto e `pnpm install` fallisce per autenticazione.
+- Skill attivate: `phase-development-task-execution`,
+  `phase-development-configuration-options`, `base-be-base-rules`,
+  `base-fe-base-rules`, `implementation-be-dotnet-dev`.
+
+## SP-06A Buffer dei commit sparsi e compattazione in background
+
+Stato: completato e verificato.
+
+- Problema: ogni lotto di ingest scriveva un segmento sparso; un ingest massivo
+  produceva migliaia di segmenti, letti tutti a ogni ricerca.
+- Buffer: il writer conta i termini distinti in attesa. Il segmento si scrive
+  quando sono almeno `SparseOptions.CommitMinTerms` (1000) oppure quando sono
+  passati `CommitMaxDelay` (60 s) dall'ultimo commit della collezione. Una
+  cancellazione non forza più il commit: la copia bufferizzata viene scartata.
+- Worker: `SparseMaintenanceWorker` gira ogni `MaintenanceInterval` (5 s) e
+  committa i buffer scaduti. Le fusioni sono per dimensione (vedi SP-06B).
+  Intervallo zero lo disattiva.
+- Commit forzato: `Store.FlushSparseIndexes()`, checkpoint WAL (prima del
+  troncamento), shrink e `Close`. Senza WAL un crash perde il buffer sparso.
+- Lettori: le ricerche tengono un lease sul lettore; la compattazione e il
+  rinnovo attendono la fine delle ricerche in corso prima di chiudere i file.
+  Il lettore in cache si invalida anche quando cambia il numero di tombstone.
+- Server: opzioni in `JigenServer:Sparse`.
+- File: `SparseOptions.cs`, `SparseMaintenanceWorker.cs`, `StoreSparse.cs`,
+  `Store.cs`, `StoreOptions.cs`, `WalCheckpointer.cs`,
+  `SparseCollectionWriter.cs`, `JigenServerSettings.cs`, `DatabasesManager.cs`,
+  `docs/indexes/sparse.md`, test `SparseBufferingTests.cs`,
+  `SparseCollectionInfoTests.cs` (commit a ogni lotto esplicito).
+- Verifica: `JigenStoreTests` 80/80, `Jigen.Index.Sparse.Tests` 127/127,
+  `Jigen.Grpc.Tests` 25/25.
+- Skill attivate: `phase-development-task-execution`,
+  `phase-development-configuration-options`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`.
+
 ## SP-05Z Client .NET: la frase implica la metà sparsa
 
 Stato: codice pronto, test del client da aggiornare. Attende approvazione.

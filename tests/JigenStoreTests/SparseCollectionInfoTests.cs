@@ -23,7 +23,12 @@ public class SparseCollectionInfoTests
 
     try
     {
-      var store = new Store(new StoreOptions { DataBaseName = "sparseinfo", DataBasePath = basePath });
+      // Every batch is committed, so each SaveChanges closes one segment.
+      var store = new Store(new StoreOptions
+      {
+        DataBaseName = "sparseinfo", DataBasePath = basePath,
+        Sparse = new SparseOptions { CommitMinTerms = 1, MaintenanceInterval = TimeSpan.Zero }
+      });
       try
       {
         await test(store);

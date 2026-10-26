@@ -15,6 +15,7 @@ All request/response bodies are JSON.
 | `GET` | `/api/database` | List database names. |
 | `GET` | `/api/database/{name}/details` | Database details: size, vector/collection counts, users. |
 | `GET` | `/api/database/{name}/users` | List users with access to the database. |
+| `POST` | `/api/database/{name}/shrink` | Compact the database: data files, vector index and sparse segments. Ingestion pauses while it runs; `409` when a shrink is already running. |
 | `PUT` | `/api/database/{name}/users` | Replace the set of users with access to the database (body: `{ "Users": [{ "UserId": "...", "UserName": "..." }] }`). |
 
 `GET /api/database/{name}/details` returns a `DatabaseDetails` object: `Name`, `CreatedAtUtc`, `Vectors`, `ContentSize`, `VectorSize`, `IndexSize` (dense graphs), `SparseSize` (sparse indexes), `AllocatedContentSize`, `AllocatedVectorSize`, `ContentFreeSpace`, `VectorFreeSpace`, `CollectionsCount`, `UsersCount`, and per-collection `Collections` (`Name`, `Vectors`, `Dimensions`, `ContentSize`, `VectorSize`, `Index`, `Sparse`).

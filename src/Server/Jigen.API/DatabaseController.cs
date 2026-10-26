@@ -69,6 +69,20 @@ public class DatabaseController(IHikyaku mediator) : ControllerBase
   }
 
   [Authorize(Policy = "database.admin")]
+  [HttpPost("{name}/shrink")]
+  [ProducesResponseType(StatusCodes.Status200OK)]
+  [ProducesResponseType(StatusCodes.Status409Conflict)]
+  public async Task<IActionResult> Shrink(string name, CancellationToken cancellationToken)
+  {
+    var completed = await mediator.Send(new Jigen.Core.Command.database.ShrinkDatabase
+    {
+      Database = name
+    }, cancellationToken);
+
+    return completed ? Ok() : Conflict("A shrink of this database is already running.");
+  }
+
+  [Authorize(Policy = "database.admin")]
   [HttpGet("{name}/users")]
   [ProducesResponseType(typeof(IEnumerable<DatabaseUserInfo>), StatusCodes.Status200OK)]
   public async Task<IActionResult> ListUsers(string name, CancellationToken cancellationToken)

@@ -104,18 +104,21 @@ An explicit `Sparse`/`SparseQuery` always wins over the derived one.
     blocks, blocks.index    # posting blocks, at most 64 postings each
 ```
 
-- **Segments are immutable and one per committed batch.** Writes never edit an existing segment, so they may arrive in any order and a document may be updated afterwards. A search asks every live segment and merges the results; because a document lives in exactly one live segment, the best k of the collection are among the best k of each segment.
-- **A delete or an update writes a tombstone** `(documentId, upToGeneration)` that hides the copies in segments at or below that generation. The new version, written in a later segment, stays visible.
-- **Compaction** merges every live segment into one, drops the retired copies and clears the tombstones. It runs as part of `Store.ShrinkAsync`.
+- **Segments are immutable and one per commit.** Writes never edit an existing segment, so they may arrive in any order and a document may be updated afterwards. A search asks every live segment and merges the results; because a document lives in exactly one live segment, the best k of the collection are among the best k of each segment.
+- **A delete or an update writes a tombstone** `(documentId, upToGeneration)` that hides the copies in segments at or below that generation. The new version, written in a later segment, stays visible. A copy still in the commit buffer is simply dropped from it.
+- **Compaction** merges every live segment into one, drops the retired copies and clears the tombstones. It runs as part of `Store.ShrinkAsync` and in the background worker described below.
 
 ## Lifecycle in the store
 
 Writes are indexed by the store's writer thread after they are persisted, so the index follows the same single-writer rule as the data files. Recovery replays the write-ahead log: an insert re-indexes the document, and a key whose last record is a delete is not indexed again. Deleting a document, clearing a collection and shrinking all keep the sparse side in step with the dense one.
 
-Two batch facts worth knowing:
+Batch facts worth knowing:
 
-- **Commit per batch.** Each `SaveChangesAsync` (or the writer's batch flush) closes a segment. Ingesting in batches is therefore both faster and cheaper to read than one document at a time.
+- **Buffered commits.** Indexed documents are buffered per collection and written as a segment only when the buffer holds at least `SparseOptions.CommitMinTerms` distinct terms (default 1000) or `SparseOptions.CommitMaxDelay` has passed since the collection's last commit (default 60 s). Until then they are not searchable. `Store.FlushSparseIndexes()`, a WAL checkpoint, a shrink and `Close` commit every buffer. Without the WAL, a crash loses the buffered documents from the sparse index (the dense side is not affected).
+- **Background merges by size.** A worker runs every `SparseOptions.MaintenanceInterval` (default 5 s). It commits the buffers past the maximum delay, then merges segments by size, not by count. A segment that reached `MaxSegmentBytes` (default 256 MB) is never merged again. The smaller ones merge with newer segments of similar size, so each byte is rewritten only a few times. Segments under `MinSegmentBytes` (default 1 MB) count as that size, so tiny ones merge as soon as a second one appears. A partial merge keeps the tombstones, so retired copies in large segments leave the disk only at `ShrinkAsync`. Ingestion into the sparse index waits while a collection is merged. A zero interval disables the worker; `MaxSegmentBytes` of zero disables only the merges.
 - **Deletes cost until compaction.** A `Clear` or a delete-heavy workload leaves segments behind with tombstones; search keeps reading them until a shrink compacts the collection. Measured on a 10.000-document collection, the same query took 6,5 ms with two segments and 3,7 ms after the shrink.
+
+On the server the same options live under `JigenServer:Sparse` (`CommitMinTerms`, `CommitMaxDelay`, `MaxSegmentBytes`, `MinSegmentBytes`, `MaintenanceInterval`; durations as `hh:mm:ss`). A full shrink can also be started from the Databases page of Jigen Insight or with `POST /api/database/{name}/shrink`.
 
 ## Monitoring it
 

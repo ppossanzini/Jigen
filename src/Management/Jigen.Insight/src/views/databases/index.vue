@@ -2,7 +2,7 @@
 import { h, onMounted, ref } from 'vue';
 import { NButton } from 'naive-ui';
 import type { DataTableColumns } from 'naive-ui';
-import { fetchDatabaseDetails, fetchListDatabases } from '@/service/api';
+import { fetchDatabaseDetails, fetchListDatabases, fetchShrinkDatabase } from '@/service/api';
 import type { DatabaseDetails, DatabaseUserInfo } from '@/service/api-types';
 import { useDatabaseStore } from '@/store/modules/database';
 import { formatBytes, formatCount, toNum } from '@/utils/format';
@@ -71,6 +71,34 @@ function handleDeleted(name: string) {
     databaseStore.setCurrent('');
   }
   loadRows();
+}
+
+// --- shrink ---
+const shrinking = ref(new Set<string>());
+
+function openShrink(name: string) {
+  window.$dialog?.warning({
+    title: $t('common.tip'),
+    content: $t('page.databases.shrink.warning', { name }),
+    positiveText: $t('common.confirm'),
+    negativeText: $t('common.cancel'),
+    onPositiveClick: () => {
+      runShrink(name);
+    }
+  });
+}
+
+async function runShrink(name: string) {
+  shrinking.value = new Set(shrinking.value).add(name);
+  const { error } = await fetchShrinkDatabase(name);
+  const remaining = new Set(shrinking.value);
+  remaining.delete(name);
+  shrinking.value = remaining;
+
+  if (!error) {
+    window.$message?.success($t('page.databases.shrink.success', { name }));
+    loadRows();
+  }
 }
 
 // --- detail drawer ---
@@ -167,18 +195,31 @@ const rawColumns: DataTableColumns<DatabaseDetails> = [
   {
     title: () => $t('common.action'),
     key: 'actions',
-    width: 90,
+    width: 170,
     render: row =>
-      h(
-        NButton,
-        {
-          size: 'small',
-          type: 'error',
-          quaternary: true,
-          onClick: () => openDelete(row.name ?? '')
-        },
-        () => $t('page.databases.actions.delete')
-      )
+      h('div', { class: 'flex-y-center gap-4px' }, [
+        h(
+          NButton,
+          {
+            size: 'small',
+            quaternary: true,
+            loading: shrinking.value.has(row.name ?? ''),
+            disabled: shrinking.value.has(row.name ?? ''),
+            onClick: () => openShrink(row.name ?? '')
+          },
+          () => $t('page.databases.actions.shrink')
+        ),
+        h(
+          NButton,
+          {
+            size: 'small',
+            type: 'error',
+            quaternary: true,
+            onClick: () => openDelete(row.name ?? '')
+          },
+          () => $t('page.databases.actions.delete')
+        )
+      ])
   }
 ];
 

@@ -43,6 +43,22 @@ export function fetchDatabaseDetails(name: string) {
 }
 
 /**
+ * Compact a database: data files, vector index and sparse segments — `POST /api/database/{name}/shrink`
+ *
+ * Ingestion pauses while it runs; the server answers 409 when a shrink is already running.
+ *
+ * @param name Database name
+ */
+export function fetchShrinkDatabase(name: string) {
+  return request<null>({
+    url: `/database/${encodeURIComponent(name)}/shrink`,
+    method: 'post',
+    // a shrink rewrites every file of the database: it can take far longer than the default timeout
+    timeout: 0
+  });
+}
+
+/**
  * Users assigned to a database — `GET /api/database/{name}/users`
  *
  * @param name Database name

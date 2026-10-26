@@ -291,7 +291,13 @@ const local: App.I18n.Schema = {
       },
       actions: {
         create: 'Create database',
-        delete: 'Delete'
+        delete: 'Delete',
+        shrink: 'Shrink'
+      },
+      shrink: {
+        warning:
+          'Shrink "{name}"? Free space is reclaimed and the sparse segments are merged. Ingestion on this database pauses until it ends.',
+        success: 'Database "{name}" shrunk'
       },
       create: {
         title: 'Create database',

@@ -119,8 +119,8 @@ public partial class Store
 
     /// <summary>
     /// One pass of the background sparse worker: commits the expired buffers,
-    /// then compacts every collection reading more than
-    /// <see cref="SparseOptions.MaxSegments"/> segments.
+    /// then merges the segments that <see cref="SparseMergePolicy"/> selects by
+    /// size, until no merge is due.
     /// </summary>
     internal void RunSparseMaintenance()
     {
@@ -129,8 +129,8 @@ public partial class Store
 
         CommitSparseBuffers(force: false);
 
-        var maxSegments = SparsePolicy.MaxSegments;
-        if (maxSegments < 1)
+        var policy = SparsePolicy;
+        if (policy.MaxSegmentBytes <= 0)
             return;
 
         lock (_sparseLock)
@@ -139,8 +139,19 @@ public partial class Store
                 return;
 
             foreach (var directory in Directory.EnumerateDirectories(SparsePath))
-                if (SparseCollectionManifest.Read(directory).Count > maxSegments)
-                    CompactSparseCollection(directory);
+            {
+                // Every merge removes at least one segment, so the loop ends.
+                while (true)
+                {
+                    var sizes = SparseCollectionManifest.Read(directory)
+                        .Select(generation => (generation, SparseCollectionCompactor.SegmentSizeBytes(directory, generation)))
+                        .ToArray();
+                    var selected = SparseMergePolicy.Select(sizes, policy.MinSegmentBytes, policy.MaxSegmentBytes);
+                    if (selected.Count < 2)
+                        break;
+                    CompactSparseCollection(directory, selected);
+                }
+            }
         }
     }
 
@@ -484,12 +495,13 @@ public partial class Store
     }
 
     /// <summary>
-    /// Merges one collection into a single segment. Called under
-    /// <see cref="_sparseLock"/>: the buffer is committed first so nothing is
-    /// lost, and the writer and reader are closed because the compaction
-    /// rewrites the manifest and clears the tombstones they hold in memory.
+    /// Merges one collection: every segment, or only <paramref name="generations"/>.
+    /// Called under <see cref="_sparseLock"/>: the buffer is committed first so
+    /// nothing is lost, and the writer and reader are closed because the
+    /// compaction rewrites the manifest and may clear the tombstones they hold
+    /// in memory.
     /// </summary>
-    private void CompactSparseCollection(string directory)
+    private void CompactSparseCollection(string directory, IReadOnlyList<long> generations = null)
     {
         foreach (var collection in _sparseWriters.Keys.ToArray())
         {
@@ -505,7 +517,11 @@ public partial class Store
             if (string.Equals(SparseCollectionPath(collection), directory, StringComparison.Ordinal))
                 RetireSparseReader(collection);
 
-        new SparseCollectionCompactor(directory).Compact();
+        var compactor = new SparseCollectionCompactor(directory);
+        if (generations is null)
+            compactor.Compact();
+        else
+            compactor.CompactSegments(generations);
     }
 
     /// <summary>

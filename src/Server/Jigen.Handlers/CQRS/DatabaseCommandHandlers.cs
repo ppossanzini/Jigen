@@ -16,8 +16,24 @@ public class DatabaseCommandHandlers(
 ) :
   Hikyaku.IRequestHandler<Core.Command.database.CreateDatabase>,
   Hikyaku.IRequestHandler<Core.Command.database.DeleteDatabase>,
-  Hikyaku.IRequestHandler<Core.Command.database.SetDatabaseUsers>
+  Hikyaku.IRequestHandler<Core.Command.database.SetDatabaseUsers>,
+  Hikyaku.IRequestHandler<Core.Command.database.ShrinkDatabase, bool>
 {
+  public async Task<bool> Handle(ShrinkDatabase request, CancellationToken cancellationToken)
+  {
+    ownershipGuard.EnsureCanReadDatabase(request.Database);
+
+    if (!manager.ActiveDatabases.TryGetValue(request.Database, out var store))
+      throw new ArgumentException("Database not found");
+
+    logger.LogInformation("Shrinking database {Database}", request.Database);
+    var completed = await store.ShrinkAsync();
+    logger.LogInformation(completed
+      ? "Database {Database} shrunk"
+      : "Database {Database}: a shrink is already running", request.Database);
+    return completed;
+  }
+
   public async Task Handle(CreateDatabase request, CancellationToken cancellationToken)
   {
     logger.LogInformation("Creating database: " + request.Name);

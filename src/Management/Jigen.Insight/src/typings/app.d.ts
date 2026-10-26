@@ -551,6 +551,11 @@ declare namespace App {
           actions: {
             create: string;
             delete: string;
+            shrink: string;
+          };
+          shrink: {
+            warning: string;
+            success: string;
           };
           create: {
             title: string;
