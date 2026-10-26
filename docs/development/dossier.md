@@ -1,5 +1,27 @@
 # Development Dossier
 
+## SP-06F Rilascio dei pesi sparsi appresi in produzione (namespace `jigendb`)
+
+- Ambito: cluster di produzione, solo ispezione in lettura. Lo script operativo è
+  `.ai-generated-operations/enable-learned-sparse-prod.sh` e non va nel repository.
+- Skill attivate: `phase-development-task-execution`.
+- Stato rilevato: 4 worker `jigendb-embeddings` con `Profile: BgeM3`. Il modello sta sul volume
+  RWX condiviso `onnx-pv-claim` (`/data/onnx/bge-m3`). `sparse_linear.pt` manca, così come la
+  sezione `Sparse` in `jigen-embeddings-config`. Le immagini sono `:latest` con `pull Always`.
+  Il job container della CI è disattivato, quindi le immagini vanno pubblicate a mano.
+- Passi: scaricare l'head, copiarlo una volta sul volume condiviso, aggiungere
+  `GeneratorOptions.Sparse.HeadPath = "sparse_linear.pt"`, pubblicare le immagini con SP-06E,
+  riavviare worker e server, controllare il log `Loaded learned sparse head`, re-indicizzare
+  e ritarare `minSparseScore`.
+- Esito: primo rilascio fallito. Il file pubblicato è fp16 (`HalfStorage`, 2048 + 2 byte), il
+  loader accettava solo float32 e ogni richiesta di embedding ai worker rispondeva 500
+  (`InvalidDataException`). Correzione: `LearnedSparseHead` legge fp32/fp16/bf16 secondo
+  `data.pkl`; test aggiunti (fp16 sintetico, file reale se presente). SemanticTools 52/52.
+  Serve una nuova immagine prima di riattivare `HeadPath`.
+- Secondo rilascio (immagine `jigen-embeddings@sha256:d5723e04…`): tutti e 4 i worker caricano
+  l'head (`Loaded learned sparse head … hidden=1024`) e rispondono 200 con vettore denso 1024.
+  Restano da fare: re-indicizzazione delle collezioni e taratura di `minSparseScore`.
+
 ## SP-06E Pesi sparsi appresi di BGE-M3
 
 - Ambito: `Jigen.SemanticTools` (`LearnedSparseHead.cs` nuovo,

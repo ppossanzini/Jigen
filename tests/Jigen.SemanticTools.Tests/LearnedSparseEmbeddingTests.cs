@@ -36,7 +36,7 @@ public sealed class LearnedSparseEmbeddingTests : IDisposable
       stream.Write(bytes);
     }
 
-    // data.pkl is never interpreted: the storages are recognised by their size.
+    // Without a storage class name in data.pkl the storages are read as float32.
     Write("sparse_linear/data.pkl", [0x80, 0x02, 0x7D, 0x2E]);
     Write("sparse_linear/byteorder", "little"u8.ToArray());
     Write("sparse_linear/data/0", ToBytes(weight));
@@ -86,6 +86,58 @@ public sealed class LearnedSparseEmbeddingTests : IDisposable
     // relu: a negative logit is "not a term".
     hidden[10] = -1000f;
     Assert.Equal(0f, head.Score(hidden));
+  }
+
+  [Fact]
+  public void AHalfPrecisionHeadIsReadLikeThePublishedFile()
+  {
+    // The published BGE-M3 head stores both tensors as HalfStorage.
+    var path = Path.Combine(_directory, "half.pt");
+    using (var archive = ZipFile.Open(path, ZipArchiveMode.Create))
+    {
+      void Write(string entryName, byte[] bytes)
+      {
+        using var stream = archive.CreateEntry(entryName, CompressionLevel.NoCompression).Open();
+        stream.Write(bytes);
+      }
+
+      static byte[] Halves(float[] values)
+      {
+        var bytes = new byte[values.Length * sizeof(ushort)];
+        for (var i = 0; i < values.Length; i++)
+          BinaryPrimitives.WriteHalfLittleEndian(bytes.AsSpan(i * sizeof(ushort)), (Half)values[i]);
+        return bytes;
+      }
+
+      Write("sparse_linear/data.pkl", "ctorch\nHalfStorage\n"u8.ToArray());
+      Write("sparse_linear/byteorder", "little"u8.ToArray());
+      var weight = new float[HiddenSize];
+      weight[10] = 0.25f;
+      Write("sparse_linear/data/0", Halves(weight));
+      Write("sparse_linear/data/1", Halves([0.5f]));
+    }
+
+    var head = LearnedSparseHead.Load(path);
+    Assert.Equal(HiddenSize, head.HiddenSize);
+
+    var hidden = new float[HiddenSize];
+    hidden[10] = 2f;
+    Assert.Equal(1f, head.Score(hidden), 3);
+  }
+
+  [Fact]
+  public void ThePublishedHeadGivesPlausibleWeights()
+  {
+    // Runs only where the real BAAI/bge-m3 sparse_linear.pt sits next to the model.
+    if (!File.Exists(Path.Combine(ModelDirectory, "sparse_linear.pt")))
+      return;
+
+    using var generator = CreateBgeM3(new SparseEmbeddingOptions { HeadPath = "sparse_linear.pt" });
+    Assert.True(generator.HasLearnedSparseHead);
+
+    var sparse = generator.GenerateSparseEmbedding("the cat sat on the mat");
+    Assert.NotEmpty(sparse.Terms);
+    Assert.All(sparse.Weights, value => Assert.True(value is > 0f and < 2f));
   }
 
   [Fact]

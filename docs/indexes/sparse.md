@@ -4,7 +4,7 @@ Alongside the dense HNSW graph, every collection can carry a **sparse** index: a
 
 The index itself does **not** tokenize text or invent term ids: the writer decides the vocabulary, and the query must use the same one. Term `1204` in a document and term `1204` in a query mean the same thing because your indexer said so, which keeps the engine independent of any language, analyzer or model.
 
-The embedding module can produce those pairs for you: `IEmbeddingGenerator.GenerateSparseEmbedding` returns the tokenizer terms of a text and their weights (TF with a log damping), for every model profile, so the same text that yields the dense embedding yields the sparse one. See [Producing the pairs](#producing-the-pairs).
+The embedding module can produce those pairs for you: `IEmbeddingGenerator.GenerateSparseEmbedding` returns the tokenizer terms of a text and their weights, so the same text that yields the dense embedding yields the sparse one. The weights are lexical (TF with a log damping, every model profile) or, for BGE-M3 with its sparse head configured, learned by the model. See [Producing the pairs](#producing-the-pairs).
 
 ## Where the pairs live
 
@@ -33,9 +33,11 @@ Three entry points on `VectorCollection<T>` (and on the client):
 
 | Method | What it searches |
 |---|---|
-| `SearchDense(vector or sentence, ...)` | dense half only — the HNSW graph |
-| `SearchSparse(query, top, predicate, minimumScore)` | sparse half only — the inverted index |
+| `SearchDense(vector, ...)` | dense half only — the HNSW graph |
+| `SearchSparse(query, top, ...)` | sparse half only — the inverted index |
 | `Search(embeddings, sparseQuery, top, ...)` | both halves, fused (hybrid) |
+
+From a sentence the two sides differ. In process, `SearchDense(sentence, ...)` embeds the sentence and searches the dense half only. On the .NET client, `Search(sentence, ...)` is always hybrid: the server derives both halves from the sentence (see [`SparseFromSentence`](#producing-the-pairs)).
 
 ```csharp
 // Sparse only: term id -> query weight.
@@ -55,14 +57,23 @@ A document scores the **maximum inner product over its vectors** against the que
 
 **Filtering.** The predicate is translated to the same serialized filter the dense search uses. A dense candidate is filtered without reading its content; a sparse candidate needs its content read first, so the predicate is only evaluated for documents that can still enter the top-k.
 
-**`minimumScore`.** It drops documents below the score and *also* raises the pruning threshold before the top-k is full, so it skips whole blocks instead of scoring them.
+**`minimumScore` / `minSparseScore`.** It drops documents below the score and *also* raises the pruning threshold before the top-k is full, so it skips whole blocks instead of scoring them. In a hybrid search it applies to the sparse half only: a document the dense half finds stays in the results, with the dense contribution alone.
+
+### Choosing `minSparseScore`
+
+Unlike the dense threshold (a similarity in `[0, 1]`), the sparse score has no fixed range: it is the sum, over the shared terms, of query weight × document weight. A good threshold therefore depends on the weights and on the length of the query.
+
+- **Lexical weights.** A term appearing once weighs 1, so the score is roughly the number of query tokens found in the document, a little more when the document repeats them. A threshold that grows with the query works: `1 + 0.5 × words` asks for about half of the words, and the `+1` rules out single-token matches. With one-word queries it also requires the word at least twice, so apply it from two words up if that is too strict. Counting the query's sparse terms instead of its words is more precise, because a word often splits into several tokens.
+- **Learned weights (BGE-M3).** Weights are typically below 0.5 and common words weigh almost nothing, so scores are much lower and the rule above does not apply. Tune the threshold on real queries, starting low (around `0.05`–`0.1`).
+- **Hybrid searches.** Keep the sparse threshold lower than in a sparse-only search: the rank fusion already absorbs the noise, and a high threshold only removes candidates.
+
+Neither weighting has IDF or length normalisation built into the index, so no absolute threshold is ideal; re-tune whenever the weighting or the model changes.
 
 ## Producing the pairs
 
-The embedding module turns text into `(term id, weight)` pairs with the tokenizer
-of the configured model — no separate sparse model is involved, so the ids are
-the model's vocabulary ids and documents and queries must be produced by the same
-model:
+The embedding module turns text into `(term id, weight)` pairs with the configured
+model — no separate sparse model is involved. The ids are the model's vocabulary
+ids, so documents and queries must be produced by the same model:
 
 ```csharp
 SparseEmbedding sparse = generator.GenerateSparseEmbedding("a lexical query");
@@ -111,7 +122,7 @@ An explicit `Sparse`/`SparseQuery` always wins over the derived one.
 
 - **Segments are immutable and one per commit.** Writes never edit an existing segment, so they may arrive in any order and a document may be updated afterwards. A search asks every live segment and merges the results; because a document lives in exactly one live segment, the best k of the collection are among the best k of each segment.
 - **A delete or an update writes a tombstone** `(documentId, upToGeneration)` that hides the copies in segments at or below that generation. The new version, written in a later segment, stays visible. A copy still in the commit buffer is simply dropped from it.
-- **Compaction** merges every live segment into one, drops the retired copies and clears the tombstones. It runs as part of `Store.ShrinkAsync` and in the background worker described below.
+- **Compaction** comes in two forms. A full compaction, run by `Store.ShrinkAsync`, merges every live segment into one, drops the retired copies and clears the tombstones. A partial merge, run by the background worker described below, merges a few segments chosen by size and drops the retired copies they contain, but keeps the tombstones.
 
 ## Lifecycle in the store
 
@@ -134,9 +145,11 @@ adds `SparseSize` to the database totals, so the sparse footprint is not missing
 from a disk-usage view.
 
 Two numbers are worth watching: `Segments` and `Tombstones`. Searches read every
-segment and merge, so a collection that writes often and never shrinks pays for
-it in latency; `ShrinkAsync` compacts the segments to one and clears the
-tombstones, dropping the retired copies from disk too.
+segment and merge, so many segments cost latency. The background worker keeps
+the count in check by merging small segments, but it never clears tombstones:
+a collection with many deletes or updates keeps them until a shrink.
+`ShrinkAsync` (or the Shrink action in Jigen Insight) compacts the segments to
+one and clears the tombstones, dropping the retired copies from disk too.
 
 ## Cost model
 

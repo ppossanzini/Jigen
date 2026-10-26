@@ -147,7 +147,7 @@ var tuned = articles.Search(myFloatVector, sparseQuery, predicate: a => a.Catego
 // Sparse half alone is the sparse search; the dense half alone is SearchDense.
 ```
 
-A document that is weak in one half cannot be lifted into the result by the other: `MinDenseScore` and `MinSparseScore` drop it before the fusion, and the sparse cut also lets that half prune earlier.
+`MinDenseScore` and `MinSparseScore` cut each half before the fusion: a weak hit loses that half's contribution, so a strong score in one half cannot lift a weak score in the other. The document can still appear through the other half if it passes there, ranked on that contribution alone. The sparse cut also lets that half prune earlier. See [Choosing `minSparseScore`](../indexes/sparse.md#choosing-minsparsescore) for a sensible sparse threshold.
 
 `MinDenseScore` and `MinSparseScore` are the only score floors, and each one means the same thing on every path: `MinDenseScore` cuts the dense half of a `SearchDense` as well as of a hybrid `Search`; `MinSparseScore` cuts a `SearchSparse` as well as the sparse half of a hybrid one. (An earlier `MinScore` property applied only to the dense-only path and has been removed.)
 
@@ -155,7 +155,7 @@ One difference remains in *where* the cut happens. On the dense-only path the in
 
 ### Hybrid from a sentence (the server derives both halves)
 
-A sentence carries no vectors and no sparse terms: the server embeds it densely *and* derives the sparse terms from the same text with the model's tokenizer, then fuses the two halves. There is no flag to turn that off.
+A sentence carries no vectors and no sparse terms: the server embeds it densely *and* derives the sparse terms from the same text with the same model, then fuses the two halves. There is no flag to turn that off.
 
 ```csharp
 var results = articles.Search("how do I reset my password?", top: 10);
@@ -164,7 +164,7 @@ var results = articles.Search("how do I reset my password?", top: 10);
 var news = articles.Search("password reset", predicate: a => a.Category == "news", top: 10);
 ```
 
-The same rule holds on writes: `articles.Add(42, article, sentence: "...")` stores both slots from one server-side tokenizer pass, and no overload accepts sparse terms together with a sentence. See [Sparse index](../indexes/sparse.md#producing-the-pairs).
+The same rule holds on writes: `articles.Add(42, article, sentence: "...")` stores both slots from one server-side pass over the text, and no overload accepts sparse terms together with a sentence. See [Sparse index](../indexes/sparse.md#producing-the-pairs).
 
 ### By sentence with a filter predicate
 

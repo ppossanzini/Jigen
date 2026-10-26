@@ -9,9 +9,10 @@ namespace Jigen.SemanticTools;
 /// to a single weight, <c>relu(w · h + b)</c>.
 /// <para>
 /// The file is read as PyTorch writes it, without PyTorch: a zip whose
-/// <c>data/</c> entries are the raw little-endian float32 storages of the state
-/// dict. The layer has exactly two, so they are told apart by size: the bias is
-/// one float, the weight is one float per hidden dimension.
+/// <c>data/</c> entries are the raw little-endian storages of the state dict
+/// (float32, float16 or bfloat16, as named in <c>data.pkl</c>; the published
+/// file is float16). The layer has exactly two, so they are told apart by size:
+/// the bias is one value, the weight is one value per hidden dimension.
 /// </para>
 /// </summary>
 public sealed class LearnedSparseHead
@@ -62,24 +63,57 @@ public sealed class LearnedSparseHead
       .Where(entry => entry.FullName.Contains("/data/", StringComparison.Ordinal) && entry.Length > 0)
       .ToArray();
 
-    var bias = storages.Where(entry => entry.Length == sizeof(float)).ToArray();
-    var weight = storages.Where(entry => entry.Length > sizeof(float)).ToArray();
-    if (storages.Length != 2 || bias.Length != 1 || weight.Length != 1 || weight[0].Length % sizeof(float) != 0)
-      throw new InvalidDataException(
-        $"'{path}' is not a sparse head: expected one weight and one single-float bias storage.");
+    var type = ReadStorageType(archive);
+    var elementSize = type == StorageType.Float ? sizeof(float) : sizeof(ushort);
 
-    return new LearnedSparseHead(ReadFloats(weight[0]), ReadFloats(bias[0])[0]);
+    var bias = storages.Where(entry => entry.Length == elementSize).ToArray();
+    var weight = storages.Where(entry => entry.Length > elementSize).ToArray();
+    if (storages.Length != 2 || bias.Length != 1 || weight.Length != 1 || weight[0].Length % elementSize != 0)
+      throw new InvalidDataException(
+        $"'{path}' is not a sparse head: expected one weight and one single-value bias storage.");
+
+    return new LearnedSparseHead(ReadValues(weight[0], type), ReadValues(bias[0], type)[0]);
   }
 
-  private static float[] ReadFloats(ZipArchiveEntry entry)
+  private enum StorageType { Float, Half, BFloat16 }
+
+  // The pickled state dict names the storage class of its tensors
+  // (the published BGE-M3 head is HalfStorage).
+  private static StorageType ReadStorageType(ZipArchive archive)
+  {
+    var pickle = archive.Entries.FirstOrDefault(entry => entry.Name == "data.pkl");
+    if (pickle == null)
+      return StorageType.Float;
+
+    using var reader = new StreamReader(pickle.Open(), System.Text.Encoding.Latin1);
+    var text = reader.ReadToEnd();
+    if (text.Contains("BFloat16Storage", StringComparison.Ordinal))
+      return StorageType.BFloat16;
+    return text.Contains("HalfStorage", StringComparison.Ordinal) ? StorageType.Half : StorageType.Float;
+  }
+
+  private static float[] ReadValues(ZipArchiveEntry entry, StorageType type)
   {
     var bytes = new byte[entry.Length];
     using (var stream = entry.Open())
       stream.ReadExactly(bytes);
 
-    var values = new float[bytes.Length / sizeof(float)];
+    if (type == StorageType.Float)
+    {
+      var floats = new float[bytes.Length / sizeof(float)];
+      for (var i = 0; i < floats.Length; i++)
+        floats[i] = BinaryPrimitives.ReadSingleLittleEndian(bytes.AsSpan(i * sizeof(float)));
+      return floats;
+    }
+
+    var values = new float[bytes.Length / sizeof(ushort)];
     for (var i = 0; i < values.Length; i++)
-      values[i] = BinaryPrimitives.ReadSingleLittleEndian(bytes.AsSpan(i * sizeof(float)));
+    {
+      var raw = BinaryPrimitives.ReadUInt16LittleEndian(bytes.AsSpan(i * sizeof(ushort)));
+      values[i] = type == StorageType.Half
+        ? (float)BitConverter.UInt16BitsToHalf(raw)
+        : BitConverter.Int32BitsToSingle(raw << 16);
+    }
 
     return values;
   }
