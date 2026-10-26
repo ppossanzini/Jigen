@@ -1,5 +1,109 @@
 # Development Dossier
 
+## SP-05Z Client .NET: la frase implica la metà sparsa
+
+Stato: codice pronto, test del client da aggiornare. Attende approvazione.
+
+- Regola: un metodo che riceve una frase non riceve vettori, quindi non riceve
+  nemmeno termini sparsi; il server calcola il denso e deriva lo sparso dalla
+  stessa frase. Il flag non esiste più nella superficie del client.
+- Rimossi: `sparseFromSentence` da `Add`, `AddAsync`, `AddRangeAsync`, `Search`,
+  `SearchAsync`; gli overload `Add`/`AddAsync(key, content, sentence, sparse)` e
+  `Add(key, content, sentence, bool)`; `sparseQuery` dalle forme
+  `Search`/`SearchAsync(sentence, ...)`; `SearchDense(sentence, ...)` e
+  `SearchDenseAsync(sentence, ...)`.
+- Restano: `Add`/`AddAsync`/`AddRangeAsync` con frase derivano sempre lo sparso;
+  `SearchDense(float[])`, `SearchSparse` e `Search(float[], sparseQuery)` restano
+  i percorsi a vettori, dove lo sparso è esplicito.
+- Contratto sul filo invariato: REST e gRPC continuano ad accettare il campo,
+  così gli altri client non cambiano. Rimuoverlo dal trasporto è una decisione
+  separata, non presa qui.
+- Documentazione: `docs/client/usage.md` e l'esempio del `README.md` aggiornati.
+- File: `src/Client/Jigen.Client/VectorCollection.cs`, `docs/client/usage.md`,
+  `README.md`.
+- Verifica: build di `Jigen.Client` 0 errori. `JigenClientTest` non compila per
+  cinque chiamate alle API rimosse (`VectorCollectionSparseTests` righe 71, 195,
+  215; `VectorCollectionSearchTests` righe 101, 141): da riscrivere nella task di
+  test dopo l'approvazione, senza modificare la produzione.
+- Skill attivate: `phase-development-task-execution`,
+  `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`.
+## SP-05Y Metà sparsa attiva di default nei percorsi ibridi
+
+Stato: codice pronto, una verifica di regressione rossa. Attende approvazione e
+una decisione sugli archivi in formato 0.
+
+- Motivo: `SparseFromSentence` era opt-in, ma la decisione di progetto e che la
+  metà sparsa sia attiva di default su ricerca e ingestion quando il testo e
+  presente; il flag resta solo per rinunciarvi.
+- REST: `SearchData`, `DocumentPayload`, `BulkDocumentItem` e
+  `SearchCollectionsData` inizializzano il flag a `true`; un `false` esplicito
+  nel corpo resta rispettato.
+- gRPC: i due campi diventano `optional bool`, cosi l'assenza e distinguibile da
+  un `false` esplicito; `Service.cs` mappa l'assenza su `true` in `SetDocument`,
+  `AppendDocument` e `SearchDocument`. Stub rigenerati da protoc in build.
+- Client .NET: `BuildDocument` e `BuildSearchDocumentRequest` impostano sempre
+  il campo e i default passano a `true` (`Search`, `SearchAsync`, `AddRangeAsync`
+  per sentenze), quindi `false` continua a significare denso-solo.
+- Non toccato: client Python, dove il campo viene ancora inviato solo quando
+  richiesto; l'assenza vale `true` lato server, quindi il default effettivo e
+  gia quello nuovo, ma un `False` esplicito non disattiva la metà sparsa.
+- Archivio formato 0: con il default attivo, una scrittura con frase su
+  `WT-Production` o `WT-Staging` ora incontra `NotSupportedException`; la
+  decisione se scartare la metà sparsa o lasciare fallire la scrittura e aperta.
+- File: DTO REST e Core, due `Jigen.proto`, `Service.cs`, `VectorCollection.cs`,
+  stub generati, `rest-api.md`, `grpc-api.md`, `client/usage.md`,
+  `client/python.md`, `indexes/sparse.md`.
+- Verifica: build di `Jigen.Client` e `Jigen.Grpc` 0 errori; `Jigen.Grpc.Tests`
+  25 superati; `JigenClientTest` 23 superati piu 5 saltati;
+  `Jigen.API.Tests` 54 superati e 1 fallito
+  (`SearchCollection_UsesSearchQueryTask_ForSentence`), perche il test presume
+  che una ricerca per frase non richieda la metà sparsa: premessa superata dalla
+  decisione, da aggiornare nella task di test dopo l'approvazione.
+- Skill attivate: `phase-development-task-execution`,
+  `phase-development-project-conventions`, `base-be-base-rules`,
+  `implementation-be-dotnet-dev`.
+## SP-05X Punteggi separati e soglie nella ricerca del Workbench
+
+Stato: codice pronto. Attende approvazione esplicita del codice.
+
+- Motivo: la ricerca multi-collezione (`POST /api/database/{db}/collections/search`)
+  eseguiva solo la meta densa e restituiva il solo `Score`; il client di
+  management mostrava quindi un unico punteggio denso, mentre il percorso a
+  collezione singola esponeva gia le due meta e le soglie.
+- Contratto: `SearchCollectionsData` accetta `SparseFromSentence`,
+  `MinDenseScore` e `MinSparseScore`; `CollectionSearchResultItem` espone
+  `DenseScore` e `SparseScore` accanto a `Score`, che resta il valore fuso
+  (RRF) quando la ricerca e ibrida.
+- Backend: con `SparseFromSentence` l'handler deriva la meta sparsa dalla frase
+  con `CalculateSparseEmbedding`, poi usa `SearchHybrid` e applica entrambe le
+  soglie. Senza meta sparsa usa `SearchDense` con la sola soglia densa.
+  Scelta confermata dall'utente: ibrida automatica dalla frase, densa sola in
+  modalita embeddings.
+- Client: la modalita frase invia `sparseFromSentence`; il form espone le due
+  soglie; la tabella e il dettaglio mostrano RRF, denso e sparso su colonne
+  separate, con `—` dove la meta non esiste.
+- Schema OpenAPI del client aggiornato a mano: la rigenerazione richiede un
+  server con queste modifiche, mentre il server raggiungibile su 13223 e una
+  build precedente. Alla prossima rigenerazione i campi devono coincidere.
+- File: `SearchCollectionsData.cs`, `SearchCollectionsResult.cs`,
+  `CollectionQueryHandlers.cs`, `api-schema.d.ts`, `workbench/index.vue`,
+  `results-table.vue`, `result-detail-drawer.vue`, `en-us.ts`, `app.d.ts`.
+- Verifica: build di `Jigen.API` 0 errori, `Jigen.API.Tests` 55 superati,
+  `vue-tsc` senza errori, `oxfmt` eseguito sui file toccati, `eslint` 0 errori
+  (resta il warning preesistente sul nome del componente `workbench`).
+- Confronto visivo: nessun prototipo congelato nel repository. La form e stata
+  aperta nel client in esecuzione a due larghezze (mobile e 1600 px) e mostra le
+  due soglie accanto a Top K e al selettore di modalita. Le colonne dei tre
+  punteggi non sono state esercitate con risultati reali: l'istanza locale non
+  ha database visibili per l'utente e il server remoto rifiuta la redirect URI
+  di sviluppo.
+- Skill attivate: `phase-development-task-execution`,
+  `phase-development-project-conventions`, `base-be-base-rules`,
+  `base-fe-base-rules`, `implementation-be-dotnet-dev`,
+  `implementation-fe-vue-dev`, `implementation-fe-vue-element-plus` non
+  applicabile (il client usa Naive UI), `capabilities-interface-design` non
+  attivata: la modifica estende una surface esistente con colonne e due campi.
 ## SP-05W Un solo nome per la soglia densa: via MinScore
 
 Stato: completato. Attendono approvazione esplicita del codice.

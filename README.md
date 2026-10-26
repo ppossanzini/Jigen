@@ -113,13 +113,13 @@ var ctx = new Context(new ConnectionOptions { HostName = "localhost", Port = 322
 var articles = new VectorCollection<Article>(ctx);
 
 articles.Add(Guid.NewGuid(), new Article { Title = "..." }, sentence: "text embedded by the server");
-var hits = articles.SearchDense("query text", x => x.Category == "news", top: 5);
+var hits = articles.Search("query text", x => x.Category == "news", top: 5);
 
 // Hybrid: dense query plus sparse weights, fused by reciprocal rank.
 var hybrid = articles.Search(queryEmbedding, new Dictionary<int, float> { [1204] = 1f }, top: 5);
 
 // Hybrid from a sentence: the server embeds it and derives the sparse terms.
-var fromText = articles.Search("how do I reset my password?", top: 5, sparseFromSentence: true);
+var fromText = articles.Search("how do I reset my password?", top: 5);
 ```
 
 ## Documentation

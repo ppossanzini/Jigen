@@ -14,6 +14,8 @@ export interface ResultRow {
   collection: string;
   key: string;
   score: number;
+  denseScore: number | null;
+  sparseScore: number | null;
   content: unknown;
 }
 
@@ -38,12 +40,28 @@ function contentPreview(content: unknown): string {
   return text.length > 140 ? `${text.slice(0, 140)}…` : text;
 }
 
+function scoreText(value: number | null): string {
+  return value === null ? '—' : value.toFixed(4);
+}
+
 const rawColumns: DataTableColumns<ResultRow> = [
   {
-    title: () => $t('page.workbench.results.score'),
+    title: () => $t('page.workbench.results.scoreRrf'),
     key: 'score',
-    width: 100,
+    width: 110,
     render: row => toNum(row.score).toFixed(4)
+  },
+  {
+    title: () => $t('page.workbench.results.scoreDense'),
+    key: 'denseScore',
+    width: 110,
+    render: row => scoreText(row.denseScore)
+  },
+  {
+    title: () => $t('page.workbench.results.scoreSparse'),
+    key: 'sparseScore',
+    width: 110,
+    render: row => scoreText(row.sparseScore)
   },
   {
     title: () => $t('page.workbench.results.key'),

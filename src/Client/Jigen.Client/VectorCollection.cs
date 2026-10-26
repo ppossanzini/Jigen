@@ -85,6 +85,7 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     Add(value);
   }
 
+  /// <summary>Adds a document whose embedding and sparse terms the server computes from the sentence.</summary>
   public void Add(VectorKey key, T content, string sentence)
   {
     store.ServiceClient.SetDocument(BuildDocument(key, content, sentence));
@@ -125,22 +126,6 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     {
       Content = content, Embeddings = embeddings, SparseVectors = sparse
     });
-  }
-
-  /// <summary>Adds a document whose embedding the server computes, with its sparse terms.</summary>
-  public void Add(VectorKey key, T content, string sentence, IReadOnlyDictionary<int, float> sparse)
-  {
-    store.ServiceClient.SetDocument(BuildDocument(key, content, sentence, sparse));
-  }
-
-  /// <summary>
-  /// Adds a document and lets the server fill both slots from the sentence: the
-  /// dense embedding and, with <paramref name="sparseFromSentence"/>, the sparse
-  /// terms, from the same tokenizer pass.
-  /// </summary>
-  public void Add(VectorKey key, T content, string sentence, bool sparseFromSentence)
-  {
-    store.ServiceClient.SetDocument(BuildDocument(key, content, sentence, null, sparseFromSentence));
   }
 
   public async Task AddAsync(VectorEntry<T> value, CancellationToken cancellationToken = default)
@@ -198,29 +183,6 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
     }, cancellationToken);
   }
 
-  /// <summary>Adds a document whose embedding the server computes, with its sparse terms.</summary>
-  public async Task AddAsync(VectorKey key, T content, string sentence, IReadOnlyDictionary<int, float> sparse,
-    CancellationToken cancellationToken = default)
-  {
-    await store.ServiceClient
-      .SetDocumentAsync(BuildDocument(key, content, sentence, sparse), cancellationToken: cancellationToken)
-      .ConfigureAwait(false);
-  }
-
-  /// <summary>
-  /// Adds a document and lets the server fill both slots from the sentence: the
-  /// dense embedding and, with <paramref name="sparseFromSentence"/>, the sparse
-  /// terms, from the same tokenizer pass.
-  /// </summary>
-  public async Task AddAsync(VectorKey key, T content, string sentence, bool sparseFromSentence,
-    CancellationToken cancellationToken = default)
-  {
-    await store.ServiceClient
-      .SetDocumentAsync(BuildDocument(key, content, sentence, null, sparseFromSentence),
-        cancellationToken: cancellationToken)
-      .ConfigureAwait(false);
-  }
-
   private Vector BuildVector(VectorEntry<T> value)
   {
     ArgumentNullException.ThrowIfNull(value);
@@ -270,30 +232,9 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
       Collection = GetCollectionName(),
       Key = ByteString.CopyFrom(key.Value),
       Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(content).Span),
-      Sentence = sentence
+      Sentence = sentence,
+      SparseFromSentence = true
     };
-  }
-
-  private Document BuildDocument(VectorKey key, T content, string sentence, IReadOnlyDictionary<int, float> sparse,
-    bool sparseFromSentence = false)
-  {
-    var document = BuildDocument(key, content, sentence);
-    if (sparseFromSentence)
-      document.SparseFromSentence = true;
-    if (sparse is { Count: > 0 })
-    {
-      var terms = new SparseTerms();
-      foreach (var (term, weight) in sparse)
-      {
-        if (term < 0)
-          throw new ArgumentException("Sparse term ids cannot be negative.", nameof(sparse));
-        terms.Terms[term] = weight;
-      }
-
-      document.Sparse = terms;
-    }
-
-    return document;
   }
 
   /// <summary>
@@ -327,22 +268,13 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   }
 
   /// <summary>
-  /// Bulk insert of documents whose embeddings are computed server-side from
-  /// the given sentence, batched on the server. Entries with a null or empty
-  /// sentence are stored without a vector. Returns the number of entries
-  /// accepted by the server.
-  /// </summary>
-  public Task<int> AddRangeAsync(IEnumerable<(VectorKey Key, T Content, string Sentence)> entries,
-    CancellationToken cancellationToken = default) =>
-    AddRangeAsync(entries, sparseFromSentence: false, cancellationToken);
-
-  /// <summary>
-  /// Same batch, letting the server fill both slots of every entry from its
-  /// sentence: the dense embedding and, with <paramref name="sparseFromSentence"/>,
-  /// the sparse terms, from the same tokenizer pass.
+  /// Bulk insert of documents whose embeddings and sparse terms are computed
+  /// server-side from the given sentence, batched on the server. Entries with a
+  /// null or empty sentence are stored without a vector. Returns the number of
+  /// entries accepted by the server.
   /// </summary>
   public async Task<int> AddRangeAsync(IEnumerable<(VectorKey Key, T Content, string Sentence)> entries,
-    bool sparseFromSentence, CancellationToken cancellationToken = default)
+    CancellationToken cancellationToken = default)
   {
     ArgumentNullException.ThrowIfNull(entries);
 
@@ -360,7 +292,7 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
         Key = ByteString.CopyFrom(key.Value),
         Content = ByteString.CopyFrom(_options.DocumentSerializer.Serialize(content).Span),
         Sentence = sentence ?? string.Empty,
-        SparseFromSentence = sparseFromSentence
+        SparseFromSentence = true
       }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -411,42 +343,6 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
 
     var result = await store.ServiceClient
       .SearchVectorAsync(BuildSearchVectorRequest(embeddings, predicate, top, options),
-        cancellationToken: cancellationToken).ConfigureAwait(false);
-    return MapResults(result);
-  }
-
-  /// <summary>Dense half only, by sentence: the server computes the embedding.</summary>
-  public List<VectorSearchResult<T>> SearchDense(string sentence, int top = 10, SearchOptions options = null)
-  {
-    return SearchDense(sentence, predicate: null, top: top, options: options);
-  }
-
-  public Task<List<VectorSearchResult<T>>> SearchDenseAsync(string sentence, int top = 10,
-    SearchOptions options = null, CancellationToken cancellationToken = default)
-  {
-    return SearchDenseAsync(sentence, predicate: null, top: top, options: options,
-      cancellationToken: cancellationToken);
-  }
-
-  public List<VectorSearchResult<T>> SearchDense(string sentence, Expression<Func<T, bool>> predicate, int top = 10,
-    SearchOptions options = null)
-  {
-    if (string.IsNullOrWhiteSpace(sentence))
-      return [];
-
-    return MapResults(store.ServiceClient.SearchDocument(
-      BuildSearchDocumentRequest(sentence, predicate, top, options)));
-  }
-
-  public async Task<List<VectorSearchResult<T>>> SearchDenseAsync(string sentence,
-    Expression<Func<T, bool>> predicate, int top = 10, SearchOptions options = null,
-    CancellationToken cancellationToken = default)
-  {
-    if (string.IsNullOrWhiteSpace(sentence))
-      return [];
-
-    var result = await store.ServiceClient
-      .SearchDocumentAsync(BuildSearchDocumentRequest(sentence, predicate, top, options),
         cancellationToken: cancellationToken).ConfigureAwait(false);
     return MapResults(result);
   }
@@ -528,49 +424,34 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
   }
 
   /// <summary>
-  /// Hybrid search from a sentence. With <paramref name="sparseFromSentence"/>
-  /// the server derives the sparse half from the same text it embeds densely, so
-  /// a hybrid search needs no sparse query at all; without it the sentence fills
-  /// only the dense half, unless <paramref name="sparseQuery"/> is supplied.
+  /// Hybrid search from a sentence: the server embeds it densely and derives the
+  /// sparse half from the same text, then fuses the two by reciprocal rank.
   /// </summary>
-  public List<VectorSearchResult<T>> Search(string sentence,
-    IReadOnlyDictionary<int, float> sparseQuery = null, Expression<Func<T, bool>> predicate = null, int top = 10,
-    SearchOptions options = null, bool sparseFromSentence = false)
+  public List<VectorSearchResult<T>> Search(string sentence, Expression<Func<T, bool>> predicate = null, int top = 10,
+    SearchOptions options = null)
   {
     if (string.IsNullOrWhiteSpace(sentence))
       return [];
 
     return MapResults(store.ServiceClient.SearchDocument(
-      BuildSearchDocumentRequest(sentence, predicate, top, options, sparseQuery, sparseFromSentence)));
+      BuildSearchDocumentRequest(sentence, predicate, top, options)));
   }
 
-  /// <summary>Hybrid search from a sentence with a predicate and no explicit sparse query.</summary>
-  public List<VectorSearchResult<T>> Search(string sentence, Expression<Func<T, bool>> predicate, int top = 10,
-    SearchOptions options = null, bool sparseFromSentence = false) =>
-    Search(sentence, sparseQuery: null, predicate, top, options, sparseFromSentence);
-
-  public Task<List<VectorSearchResult<T>>> SearchAsync(string sentence, Expression<Func<T, bool>> predicate,
-    int top = 10, SearchOptions options = null, bool sparseFromSentence = false,
-    CancellationToken cancellationToken = default) =>
-    SearchAsync(sentence, sparseQuery: null, predicate, top, options, sparseFromSentence, cancellationToken);
-
   public async Task<List<VectorSearchResult<T>>> SearchAsync(string sentence,
-    IReadOnlyDictionary<int, float> sparseQuery, Expression<Func<T, bool>> predicate = null, int top = 10,
-    SearchOptions options = null, bool sparseFromSentence = false,
+    Expression<Func<T, bool>> predicate = null, int top = 10, SearchOptions options = null,
     CancellationToken cancellationToken = default)
   {
     if (string.IsNullOrWhiteSpace(sentence))
       return [];
 
     var result = await store.ServiceClient
-      .SearchDocumentAsync(BuildSearchDocumentRequest(sentence, predicate, top, options, sparseQuery, sparseFromSentence),
+      .SearchDocumentAsync(BuildSearchDocumentRequest(sentence, predicate, top, options),
         cancellationToken: cancellationToken).ConfigureAwait(false);
     return MapResults(result);
   }
 
   private SearchDocumentRequest BuildSearchDocumentRequest(string sentence, Expression<Func<T, bool>> predicate,
-    int top, SearchOptions options, IReadOnlyDictionary<int, float> sparseQuery = null,
-    bool sparseFromSentence = false)
+    int top, SearchOptions options)
   {
     var request = new SearchDocumentRequest
     {
@@ -578,17 +459,12 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
       Collection = GetCollectionName(),
       Sentence = sentence,
       Top = top,
-      Tuning = BuildTuning(options)
+      Tuning = BuildTuning(options),
+      SparseFromSentence = true
     };
 
     if (predicate != null)
       request.Filter = ProtoExpressionTranslator.Translate(predicate);
-
-    if (sparseQuery is not null)
-      foreach (var (term, weight) in sparseQuery)
-        request.SparseQuery[term] = weight;
-    if (sparseFromSentence)
-      request.SparseFromSentence = true;
 
     return request;
   }

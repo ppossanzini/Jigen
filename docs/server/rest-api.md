@@ -50,8 +50,11 @@ User/database access management is part of the identity module; it is only menti
 | `Sentence` | string | Free-text query; the server computes the embedding (requires an embedding module — all-in-one, or a `jigendb` server with `Kaido:Enabled` and a reachable embedding worker). Mutually exclusive with `Embeddings` but one of the two is required. |
 | `Embeddings` | float[] | A precomputed query vector. Use this to search without depending on the server's embedding module. |
 | `Top` | int | Number of results to return. |
+| `SparseFromSentence` | bool | Derive the sparse half from `Sentence`, turning the query into a hybrid search fused by reciprocal rank. Defaults to `true`; send `false` for a dense-only search. |
+| `MinDenseScore` | float? | Drop dense hits below this similarity. |
+| `MinSparseScore` | float? | Drop sparse hits below this score. |
 
-The response (`SearchCollectionsResult`) reports timing breakdown (`EmbeddingsCalculationTime`, `SearchTime`, `MergeTime`, `SortingTime`) plus per-collection results (`CollectionsResults`, each with its own `Results`) and a single `MergedResults` list ranked across all requested collections. Each result item carries `Key`, `Content`, `Score`.
+The response (`SearchCollectionsResult`) reports timing breakdown (`EmbeddingsCalculationTime`, `SearchTime`, `MergeTime`, `SortingTime`) plus per-collection results (`CollectionsResults`, each with its own `Results`) and a single `MergedResults` list ranked across all requested collections. Each result item carries `Key`, `Content`, `Score` (the fused RRF score for a hybrid search) and, when the server computed them, `DenseScore` and `SparseScore`.
 
 Note: the server's Newtonsoft.Json configuration does not add a camelCase contract resolver, so both request and response JSON use the C# (PascalCase) property names shown above; request deserialization is case-insensitive, but responses will come back PascalCase.
 
@@ -62,7 +65,7 @@ Note: the server's Newtonsoft.Json configuration does not add a camelCase contra
 | `Sentence` | string | Free-text query; the server computes the embedding (requires an embedding module). |
 | `Embeddings` | float[] | A precomputed query vector. |
 | `SparseQuery` | object | Sparse half of the query: term id (as a JSON key) to weight, e.g. `{"1204": 1.0, "77": 0.4}`. Alone it is a sparse-only search; together with `Sentence` or `Embeddings` it is hybrid. |
-| `SparseFromSentence` | bool | Derive the sparse half from `Sentence` with the same tokenizer that produces the dense embedding: a hybrid search from a sentence alone. Ignored when `SparseQuery` is present. |
+| `SparseFromSentence` | bool | Derive the sparse half from `Sentence` with the same tokenizer that produces the dense embedding: a hybrid search from a sentence alone. Ignored when `SparseQuery` is present. Defaults to `true`; send `false` for a dense-only search. |
 | `Top` | int | Number of results to return (default 10). |
 | `MinDenseScore` | float? | Drop dense hits below this similarity: on a dense-only search and on the dense half of a hybrid one. |
 | `MinSparseScore` | float? | Drop sparse hits below this score: on a sparse-only search and on the sparse half of a hybrid one. |
@@ -84,7 +87,7 @@ One of `Sentence`, `Embeddings` or `SparseQuery` is required. Each result carrie
 | `Payload` | object | The document content, serialized server-side with the collection's configured `IDocumentSerializer` (MessagePack by default). |
 | `Sentence` | string | Text to embed and store as the document's vector. Requires an embedding module, same as search by sentence. |
 | `Sparse` | object | Sparse terms of the document: term id to weight, e.g. `{"1204": 1.0, "77": 0.4}`. Optional; negative term ids are rejected with 400. |
-| `SparseFromSentence` | bool | Derive the sparse terms from `Sentence` on the server, with the same tokenizer that produces the dense embedding, so a write fills both slots. Ignored when `Sparse` is present. |
+| `SparseFromSentence` | bool | Derive the sparse terms from `Sentence` on the server, with the same tokenizer that produces the dense embedding, so a write fills both slots. Ignored when `Sparse` is present. Defaults to `true`; send `false` to store the document dense-only. |
 
 ## Embeddings
 

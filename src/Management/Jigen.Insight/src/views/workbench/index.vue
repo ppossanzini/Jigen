@@ -53,6 +53,8 @@ const mode = ref<'sentence' | 'embeddings'>('sentence');
 const sentenceInput = ref('');
 const embeddingsInput = ref('');
 const topK = ref(10);
+const minDenseScore = ref<number | null>(null);
+const minSparseScore = ref<number | null>(null);
 const validationError = ref('');
 
 const searching = ref(false);
@@ -99,13 +101,19 @@ async function handleSearch() {
     collections: selectedCollections.value,
     sentence: sentence || undefined,
     embeddings: embeddings ?? undefined,
-    top: topK.value
+    top: topK.value,
+    sparseFromSentence: mode.value === 'sentence',
+    minDenseScore: minDenseScore.value ?? undefined,
+    minSparseScore: minSparseScore.value ?? undefined
   });
 
   searching.value = false;
 
   if (error) {
-    searchError.value = error.response?.data && typeof error.response.data === 'string' ? error.response.data : $t('request.serverUnreachable');
+    searchError.value =
+      error.response?.data && typeof error.response.data === 'string'
+        ? error.response.data
+        : $t('request.serverUnreachable');
     result.value = null;
     return;
   }
@@ -124,6 +132,8 @@ const rows = computed<ResultRow[]>(() => {
       collection: group.collection ?? '',
       key: item.key ?? '',
       score: Number(item.score ?? 0),
+      denseScore: item.denseScore === null || item.denseScore === undefined ? null : Number(item.denseScore),
+      sparseScore: item.sparseScore === null || item.sparseScore === undefined ? null : Number(item.sparseScore),
       content: item.content
     }))
   );
@@ -132,7 +142,9 @@ const rows = computed<ResultRow[]>(() => {
 });
 
 // --- "Visualizza nel grafo": hand the current search off to Graph Explorer ---
-const collectionsWithResults = computed(() => (result.value?.collectionsResults ?? []).filter(group => (group.results?.length ?? 0) > 0));
+const collectionsWithResults = computed(() =>
+  (result.value?.collectionsResults ?? []).filter(group => (group.results?.length ?? 0) > 0)
+);
 
 const graphMenuOptions = computed(() =>
   collectionsWithResults.value.map(group => ({ label: group.collection ?? '', key: group.collection ?? '' }))
@@ -215,7 +227,7 @@ onActivated(async () => {
   <div class="h-full flex-col gap-16px">
     <NCard :bordered="false" size="small" class="card-wrapper">
       <div class="flex-col gap-12px">
-        <div class="grid grid-cols-1 gap-12px md:grid-cols-2 xl:grid-cols-5">
+        <div class="grid grid-cols-1 gap-12px md:grid-cols-2 xl:grid-cols-8">
           <NFormItem :label="$t('page.workbench.query.database')" :show-feedback="false">
             <NSelect
               :value="databaseStore.current || null"
@@ -236,7 +248,26 @@ onActivated(async () => {
           <NFormItem :label="$t('page.workbench.query.top')" :show-feedback="false">
             <NInputNumber v-model:value="topK" :min="1" :max="1000" class="w-full" />
           </NFormItem>
-          <NFormItem :show-feedback="false" label=" ">
+          <NFormItem :label="$t('page.workbench.query.minDenseScore')" :show-feedback="false">
+            <NInputNumber
+              v-model:value="minDenseScore"
+              clearable
+              :step="0.01"
+              :placeholder="$t('page.workbench.query.noThreshold')"
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem :label="$t('page.workbench.query.minSparseScore')" :show-feedback="false">
+            <NInputNumber
+              v-model:value="minSparseScore"
+              clearable
+              :step="0.01"
+              :disabled="mode === 'embeddings'"
+              :placeholder="$t('page.workbench.query.noThreshold')"
+              class="w-full"
+            />
+          </NFormItem>
+          <NFormItem class="xl:col-span-2" :show-feedback="false" label=" ">
             <NRadioGroup v-model:value="mode">
               <NRadioButton value="sentence">{{ $t('page.workbench.query.mode.sentence') }}</NRadioButton>
               <NRadioButton value="embeddings">{{ $t('page.workbench.query.mode.embeddings') }}</NRadioButton>
@@ -269,7 +300,14 @@ onActivated(async () => {
           </NButton>
         </div>
 
-        <NAlert v-if="validationError" type="warning" :show-icon="true" :bordered="false" closable @close="validationError = ''">
+        <NAlert
+          v-if="validationError"
+          type="warning"
+          :show-icon="true"
+          :bordered="false"
+          closable
+          @close="validationError = ''"
+        >
           {{ validationError }}
         </NAlert>
       </div>
@@ -297,7 +335,12 @@ onActivated(async () => {
             <template #icon><SvgIcon icon="mdi:graph-outline" /></template>
             {{ $t('page.workbench.results.viewInGraph') }}
           </NButton>
-          <NDropdown v-else-if="collectionsWithResults.length > 1" trigger="click" :options="graphMenuOptions" @select="viewInGraph">
+          <NDropdown
+            v-else-if="collectionsWithResults.length > 1"
+            trigger="click"
+            :options="graphMenuOptions"
+            @select="viewInGraph"
+          >
             <NButton size="small" quaternary>
               <template #icon><SvgIcon icon="mdi:graph-outline" /></template>
               {{ $t('page.workbench.results.viewInGraph') }}
@@ -316,11 +359,7 @@ onActivated(async () => {
         :description="searchError"
         class="flex-1 flex-center"
       />
-      <NEmpty
-        v-else-if="!result"
-        :description="$t('page.workbench.results.selectPrompt')"
-        class="flex-1 flex-center"
-      />
+      <NEmpty v-else-if="!result" :description="$t('page.workbench.results.selectPrompt')" class="flex-1 flex-center" />
       <NEmpty v-else-if="!rows.length" :description="$t('page.workbench.results.empty')" class="flex-1 flex-center" />
       <ResultsTable v-else :rows="rows" :loading="searching" @select="openDetail" />
     </NCard>

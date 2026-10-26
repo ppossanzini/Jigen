@@ -324,7 +324,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Content = request.Content.ToByteArray(),
       Sentence = request.Sentence,
       SparseTerms = ToSparseTerms(request.Sparse),
-      SparseFromSentence = request.SparseFromSentence
+      SparseFromSentence = !request.HasSparseFromSentence || request.SparseFromSentence
     });
 
     return new Result() { Success = true };
@@ -470,7 +470,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
     // dense embedding.
     IReadOnlyDictionary<int, float> sparseQuery = request.SparseQuery.Count > 0
       ? request.SparseQuery
-      : request.SparseFromSentence
+      : (!request.HasSparseFromSentence || request.SparseFromSentence)
         ? await SparseQueryFromSentence(request.Sentence, context.CancellationToken)
         : null;
 
@@ -741,7 +741,7 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
       Content = request.Content.ToByteArray(),
       Sentence = request.Sentence,
       SparseTerms = ToSparseTerms(request.Sparse),
-      SparseFromSentence = request.SparseFromSentence
+      SparseFromSentence = !request.HasSparseFromSentence || request.SparseFromSentence
     });
 
     return new Result() { Success = true };

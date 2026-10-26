@@ -42,8 +42,14 @@ const prettyContent = computed(() => {
             {{ row.collection }}
           </NDescriptionsItem>
           <NDescriptionsItem :label="$t('page.workbench.results.key')">{{ decodedKey }}</NDescriptionsItem>
-          <NDescriptionsItem :label="$t('page.workbench.results.score')">
+          <NDescriptionsItem :label="$t('page.workbench.results.scoreRrf')">
             {{ row.score.toFixed(4) }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="$t('page.workbench.results.scoreDense')">
+            {{ row.denseScore === null ? '—' : row.denseScore.toFixed(4) }}
+          </NDescriptionsItem>
+          <NDescriptionsItem :label="$t('page.workbench.results.scoreSparse')">
+            {{ row.sparseScore === null ? '—' : row.sparseScore.toFixed(4) }}
           </NDescriptionsItem>
         </NDescriptions>
         <div class="flex-col gap-8px">

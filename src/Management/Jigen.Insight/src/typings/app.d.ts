@@ -629,6 +629,9 @@ declare namespace App {
             embeddingsPlaceholder: string;
             embeddingsInvalid: string;
             top: string;
+            minDenseScore: string;
+            minSparseScore: string;
+            noThreshold: string;
             search: string;
             collectionsRequired: string;
             inputRequired: string;
@@ -643,7 +646,9 @@ declare namespace App {
           };
           results: {
             title: string;
-            score: string;
+            scoreRrf: string;
+            scoreDense: string;
+            scoreSparse: string;
             key: string;
             collection: string;
             content: string;

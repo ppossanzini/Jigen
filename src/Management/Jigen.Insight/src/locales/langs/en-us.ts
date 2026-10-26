@@ -370,6 +370,9 @@ const local: App.I18n.Schema = {
         embeddingsPlaceholder: 'Comma-separated numbers, e.g. 0.12, -0.5, 0.87',
         embeddingsInvalid: 'Enter a comma-separated list of numbers',
         top: 'Top K',
+        minDenseScore: 'Dense min score',
+        minSparseScore: 'Sparse min score',
+        noThreshold: 'No threshold',
         search: 'Search',
         collectionsRequired: 'Select at least one collection',
         inputRequired: 'Enter a sentence or an embeddings vector'
@@ -384,7 +387,9 @@ const local: App.I18n.Schema = {
       },
       results: {
         title: 'Results',
-        score: 'Score',
+        scoreRrf: 'RRF score',
+        scoreDense: 'Dense score',
+        scoreSparse: 'Sparse score',
         key: 'Key',
         collection: 'Collection',
         content: 'Content',

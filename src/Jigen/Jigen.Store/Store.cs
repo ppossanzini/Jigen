@@ -39,6 +39,7 @@ public partial class Store : IStore, IDisposable
   // Opened with FileShare.Read so the checkpointer can read the same handle.
   internal FileStream WalFileStream;
   private WalCheckpointer _walCheckpointer;
+  private SparseMaintenanceWorker _sparseMaintenance;
 
   // Serializes the complete WAL acceptance boundary: append + registration in
   // the ingestion pipeline (or inline delete) must be atomic with respect to a
@@ -231,6 +232,10 @@ public partial class Store : IStore, IDisposable
 
       if (_uncleanShutdown && options.ReconcileOnUncleanShutdown)
         ReconcileIndexAsync().GetAwaiter().GetResult();
+
+      var sparseInterval = options.Sparse?.MaintenanceInterval ?? new SparseOptions().MaintenanceInterval;
+      if (sparseInterval > TimeSpan.Zero)
+        _sparseMaintenance = new SparseMaintenanceWorker(this, sparseInterval);
     }
     catch
     {
@@ -238,6 +243,7 @@ public partial class Store : IStore, IDisposable
       // workers have started (for example during WAL replay/reconciliation).
       // Tear down every successfully-created component before releasing the
       // exclusive database lock, otherwise a retry leaks handles and threads.
+      try { _sparseMaintenance?.Stop(); } catch { }
       try { Writer?.Stop(); } catch { }
       try { _walCheckpointer?.Stop(); } catch { }
       try { Options.Indexer?.CloseAsync().GetAwaiter().GetResult(); } catch { }
@@ -428,12 +434,16 @@ public partial class Store : IStore, IDisposable
     // Idempotent: Close followed by Dispose (or double Close) must not throw.
     if (Interlocked.Exchange(ref _closed, 1) == 1) return;
 
+    // No compaction may start while the store is shutting down.
+    _sparseMaintenance?.Stop();
+
     // Stop the writer FIRST: it drains the ingestion queue, and its final
     // batch still needs the streams and recreates the read mappings.
     Writer.Stop();
 
     // The sparse files have their own writers and readers: releasing them here
     // keeps a second Store on the same path from opening them concurrently.
+    // Buffered sparse documents are committed first.
     CloseSparseIndexes();
 
     // Stop the WAL checkpointer AFTER the writer (so it drains what remains).

@@ -57,7 +57,7 @@ This calls the gRPC `SetDocument` method, which requires the server to have a re
 
 ### With sparse (lexical) terms
 
-A document can also carry sparse `(term id, weight)` pairs, which feed the collection's sparse index and the hybrid search. A one-vector entry takes one mapping; a multi-vector entry takes one mapping per vector, aligned by index.
+A document written with precomputed vectors can also carry sparse `(term id, weight)` pairs, which feed the collection's sparse index and the hybrid search. A one-vector entry takes one mapping; a multi-vector entry takes one mapping per vector, aligned by index.
 
 ```csharp
 // One vector, one sparse list.
@@ -73,9 +73,8 @@ articles.Add(43, new Article { Title = "Multi" },
     new Dictionary<int, float> { [77] = 0.4f }
   });
 
-// Sentence-based, with its sparse terms.
-articles.Add(44, new Article { Title = "By text" }, sentence: "sparse retrieval",
-  new Dictionary<int, float> { [1204] = 1.0f });
+// Sentence-based: the server derives the sparse terms from the text.
+articles.Add(44, new Article { Title = "By text" }, sentence: "sparse retrieval");
 ```
 
 Term ids and weights come from your own vocabulary — the collection stores them as given, and a query must use the same ids. A sparse list longer than the vector list, or a single mapping on a multi-vector entry, is refused client-side with an `ArgumentException`. See [Sparse index](../indexes/sparse.md) for what the index does with them.
@@ -116,16 +115,12 @@ All of them take an optional `CancellationToken`. The synchronous methods (`Add`
 
 The three entry points follow the in-process names: `SearchDense`/`SearchDenseAsync` for the **dense** half, `SearchSparse`/`SearchSparseAsync` for the **sparse** half, and `Search`/`SearchAsync` for the **hybrid** search that fuses the two. `SearchHybrid` from earlier previews is gone: it is `Search` now.
 
+A method that takes a sentence never takes vectors or sparse terms: the server computes the dense embedding and derives the sparse half from the same text, so the sentence forms of `Search` are always hybrid. Dense-only search takes a precomputed vector.
+
 ### Dense, by precomputed vector
 
 ```csharp
 List<VectorSearchResult<Article>> results = articles.SearchDense(myFloatVector, top: 10);
-```
-
-### Dense, by sentence (server computes the embedding)
-
-```csharp
-List<VectorSearchResult<Article>> results = articles.SearchDense("vector databases in .NET", top: 10);
 ```
 
 ### Sparse only
@@ -160,28 +155,26 @@ One difference remains in *where* the cut happens. On the dense-only path the in
 
 ### Hybrid from a sentence (the server derives both halves)
 
-With `sparseFromSentence` the server embeds the sentence densely *and* derives the sparse terms from the same text with the model's tokenizer, then fuses the two halves: no sparse query is needed on the client.
+A sentence carries no vectors and no sparse terms: the server embeds it densely *and* derives the sparse terms from the same text with the model's tokenizer, then fuses the two halves. There is no flag to turn that off.
 
 ```csharp
-var results = articles.Search("how do I reset my password?", top: 10, sparseFromSentence: true);
+var results = articles.Search("how do I reset my password?", top: 10);
 
-// Same, with a predicate; the sentence-derived sparse half can be replaced by
-// passing an explicit sparseQuery, which always wins.
-var news = articles.Search("password reset", predicate: a => a.Category == "news", top: 10,
-  sparseFromSentence: true);
+// The same, with a predicate.
+var news = articles.Search("password reset", predicate: a => a.Category == "news", top: 10);
 ```
 
-Without the flag a sentence fills only the dense half, exactly like `SearchDense`. The same flag exists on writes — `articles.Add(42, article, sentence: "...", sparseFromSentence: true)` stores both slots from one server-side tokenizer pass. See [Sparse index](../indexes/sparse.md#producing-the-pairs).
+The same rule holds on writes: `articles.Add(42, article, sentence: "...")` stores both slots from one server-side tokenizer pass, and no overload accepts sparse terms together with a sentence. See [Sparse index](../indexes/sparse.md#producing-the-pairs).
 
 ### By sentence with a filter predicate
 
 ```csharp
-var results = articles.SearchDense(
+var results = articles.Search(
   "vector databases in .NET",
   predicate: a => a.Category == "news",
   top: 10);
 
-var results2 = articles.SearchDense(
+var results2 = articles.Search(
   "vector databases in .NET",
   predicate: a => a.Tags.Any(t => t == "ai") && a.Category == "news",
   top: 10);
@@ -189,7 +182,7 @@ var results2 = articles.SearchDense(
 
 The predicate is a LINQ expression tree; it is translated client-side into the gRPC filter AST (`FilterNode`/`PropertyEqualsCondition`/`PropertyCollectionAnyCondition`/`LogicalCondition`, see [gRPC API](../server/grpc-api.md)) and evaluated server-side against the stored document. Supported shapes are property equality (`x.Prop == value`), collection membership (`x.Tags.Any(t => t == value)`), and `&&`/`||` combinations of those — the same subset documented for [in-process filtering](../in-process/collections.md). The same predicate parameter is available on the vector-based `SearchDense(embeddings, predicate, ...)` and on the hybrid `Search`.
 
-`SearchDense(sentence, ...)` and the sentence forms of `Search` require the server to have an embedding module; the vector forms never do. `SearchSparse` needs no embedding module at all.
+The sentence forms of `Search` require the server to have an embedding module; the vector forms never do. `SearchSparse` needs no embedding module at all.
 
 ### By example (embedding of an existing document)
 

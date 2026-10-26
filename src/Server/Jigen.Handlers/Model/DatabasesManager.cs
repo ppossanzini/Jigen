@@ -59,7 +59,8 @@ public class DatabasesManager
       DataBaseName = name,
       DataBasePath = _settings.DataFolderPath,
       ReconcileOnUncleanShutdown = _settings.ReconcileOnUncleanShutdown,
-      Indexer = indexer
+      Indexer = indexer,
+      Sparse = _settings.Sparse ?? new SparseOptions()
     };
 
     if (_settings.IndexerWorkers > 0)

@@ -21,6 +21,8 @@ public sealed class SparseCollectionWriter : IDisposable
     private readonly List<(byte[] DocumentId, IReadOnlyList<SparseTerm[]> Vectors)> _buffered = [];
     private readonly List<SparseTombstone> _retired = [];
     private readonly SparseTombstone[] _retiredLoaded;
+    private readonly HashSet<int> _bufferedTerms = [];
+    private long _lastCommitTicks = Environment.TickCount64;
     private long _lastGeneration;
     private bool _disposed;
 
@@ -56,6 +58,12 @@ public sealed class SparseCollectionWriter : IDisposable
     /// <summary>Documents waiting for the next commit.</summary>
     public int BufferedDocuments => _buffered.Count;
 
+    /// <summary>Distinct terms of the documents waiting for the next commit.</summary>
+    public int BufferedTerms => _bufferedTerms.Count;
+
+    /// <summary>Time elapsed since the last segment was written, or since the writer opened.</summary>
+    public TimeSpan SinceLastCommit => TimeSpan.FromMilliseconds(Environment.TickCount64 - _lastCommitTicks);
+
     internal string SegmentsPath => Path.Combine(_directoryPath, "segments");
 
     internal static string SegmentPath(string segmentsPath, long generation) =>
@@ -71,12 +79,14 @@ public sealed class SparseCollectionWriter : IDisposable
             throw new ArgumentException("A document requires a key.", nameof(documentId));
 
         _buffered.Add((documentId, vectors));
+        AddTerms(vectors);
     }
 
     /// <summary>
-    /// Retires every copy of the document written so far. Buffered documents are
-    /// committed first, so the tombstone never hides a document queued in this
-    /// batch; a version added afterwards stays visible.
+    /// Retires every copy of the document written so far. A copy still buffered
+    /// is dropped from the buffer; the other buffered documents land in a later
+    /// generation than the tombstone, so they stay visible, as does a version
+    /// added afterwards.
     /// </summary>
     public void Delete(byte[] documentId)
     {
@@ -85,8 +95,12 @@ public sealed class SparseCollectionWriter : IDisposable
         if (documentId.Length == 0)
             throw new ArgumentException("A document requires a key.", nameof(documentId));
 
-        if (_buffered.Count > 0)
-            Commit();
+        if (_buffered.RemoveAll(document => document.DocumentId.AsSpan().SequenceEqual(documentId)) > 0)
+        {
+            _bufferedTerms.Clear();
+            foreach (var document in _buffered)
+                AddTerms(document.Vectors);
+        }
 
         if (_lastGeneration == 0)
             return;
@@ -116,7 +130,17 @@ public sealed class SparseCollectionWriter : IDisposable
         _lastGeneration = generation;
         SparseCollectionManifest.Write(_directoryPath, SparseCollectionManifest.Read(_directoryPath).Append(generation));
         _buffered.Clear();
+        _bufferedTerms.Clear();
+        _lastCommitTicks = Environment.TickCount64;
         return generation;
+    }
+
+    private void AddTerms(IReadOnlyList<SparseTerm[]> vectors)
+    {
+        foreach (var vector in vectors)
+            if (vector is not null)
+                foreach (var term in vector)
+                    _bufferedTerms.Add(term.Term);
     }
 
     public void Dispose()

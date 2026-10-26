@@ -13,8 +13,10 @@ namespace Jigen;
 public partial class Store
 {
     private readonly Dictionary<string, SparseCollectionWriter> _sparseWriters = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, SparseCollectionStorage> _sparseReaders = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, long> _sparseReaderGenerations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, SparseReaderLease> _sparseReaders = new(StringComparer.Ordinal);
+    // Generation and tombstone count the cached reader was built from: a delete
+    // adds a tombstone without a new segment and must still invalidate it.
+    private readonly Dictionary<string, (long Generation, int Tombstones)> _sparseReaderStates = new(StringComparer.Ordinal);
     private readonly Lock _sparseLock = new();
     // Keys replayed from the WAL: the segment on disk may already hold them, so
     // the copy is retired before indexing the replayed version.
@@ -40,10 +42,14 @@ public partial class Store
         return builder.ToString();
     }
 
+    private SparseOptions SparsePolicy => Options.Sparse ?? new SparseOptions();
+
     /// <summary>
-    /// Appends the sparse vectors of a persisted entry and publishes the batch.
-    /// Called by the writer thread, so the sparse files follow the same
-    /// single-writer rule as the dense ones.
+    /// Appends the sparse vectors of a persisted entry. Called by the writer
+    /// thread, so the sparse files follow the same single-writer rule as the
+    /// dense ones. A collection is committed as a new segment only once its
+    /// buffer reaches <see cref="SparseOptions.CommitMinTerms"/> or
+    /// <see cref="SparseOptions.CommitMaxDelay"/> has passed since its last commit.
     /// </summary>
     internal void IndexSparseEntries(IReadOnlyList<VectorEntry> entries)
     {
@@ -80,8 +86,61 @@ public partial class Store
             if (touched is null)
                 return;
 
+            var policy = SparsePolicy;
             foreach (var collection in touched)
-                _sparseWriters[collection].Commit();
+            {
+                var writer = _sparseWriters[collection];
+                if (writer.BufferedTerms >= policy.CommitMinTerms || writer.SinceLastCommit >= policy.CommitMaxDelay)
+                    writer.Commit();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Writes every buffered sparse document as a segment, so it becomes
+    /// searchable now instead of at the next threshold.
+    /// </summary>
+    public void FlushSparseIndexes() => CommitSparseBuffers(force: true);
+
+    /// <summary>
+    /// Commits the buffers: all of them when <paramref name="force"/> is true,
+    /// otherwise only those past <see cref="SparseOptions.CommitMaxDelay"/>.
+    /// </summary>
+    internal void CommitSparseBuffers(bool force)
+    {
+        lock (_sparseLock)
+        {
+            var maxDelay = SparsePolicy.CommitMaxDelay;
+            foreach (var writer in _sparseWriters.Values)
+                if (writer.BufferedDocuments > 0 && (force || writer.SinceLastCommit >= maxDelay))
+                    writer.Commit();
+        }
+    }
+
+    /// <summary>
+    /// One pass of the background sparse worker: commits the expired buffers,
+    /// then compacts every collection reading more than
+    /// <see cref="SparseOptions.MaxSegments"/> segments.
+    /// </summary>
+    internal void RunSparseMaintenance()
+    {
+        if (!WritesSparseSection)
+            return;
+
+        CommitSparseBuffers(force: false);
+
+        var maxSegments = SparsePolicy.MaxSegments;
+        if (maxSegments < 1)
+            return;
+
+        lock (_sparseLock)
+        {
+            if (!Directory.Exists(SparsePath))
+                return;
+
+            foreach (var directory in Directory.EnumerateDirectories(SparsePath))
+                if (SparseCollectionManifest.Read(directory).Count > maxSegments)
+                    CompactSparseCollection(directory);
         }
     }
 
@@ -170,19 +229,27 @@ public partial class Store
                 .Sum(file => new FileInfo(file).Length)
         };
 
-        var storage = OpenSparseReader(collection);
-        if (storage is null)
+        var lease = AcquireSparseReader(collection);
+        if (lease is null)
             return info;
 
-        foreach (var segment in storage.Index.Segments)
+        try
         {
-            info.Terms += segment.Index.TermCount;
-            info.Blocks += segment.Index.BlockCount;
-        }
+            var storage = lease.Storage;
+            foreach (var segment in storage.Index.Segments)
+            {
+                info.Terms += segment.Index.TermCount;
+                info.Blocks += segment.Index.BlockCount;
+            }
 
-        info.Segments = storage.Index.Segments.Count;
-        info.Tombstones = storage.Index.TombstoneCount;
-        return info;
+            info.Segments = storage.Index.Segments.Count;
+            info.Tombstones = storage.Index.TombstoneCount;
+            return info;
+        }
+        finally
+        {
+            lease.Release();
+        }
     }
 
     /// <summary>
@@ -217,14 +284,22 @@ public partial class Store
         ArgumentNullException.ThrowIfNull(query);
         ArgumentOutOfRangeException.ThrowIfNegative(k);
 
-        var storage = OpenSparseReader(collection);
-        if (storage is null)
+        var lease = AcquireSparseReader(collection);
+        if (lease is null)
             return Array.Empty<SparseSearchResult>();
-        if (filter is null)
-            return storage.Index.Search(query, k, null, minimumScore, cancellationToken);
 
-        return storage.Index.Search(query, k,
-            documentId => MatchesFilter(collection, documentId, filter), minimumScore, cancellationToken);
+        try
+        {
+            if (filter is null)
+                return lease.Storage.Index.Search(query, k, null, minimumScore, cancellationToken);
+
+            return lease.Storage.Index.Search(query, k,
+                documentId => MatchesFilter(collection, documentId, filter), minimumScore, cancellationToken);
+        }
+        finally
+        {
+            lease.Release();
+        }
     }
 
 
@@ -316,7 +391,11 @@ public partial class Store
                MessagePackSerializedDocumentFilter.Instance.MatchesFilter(content, filter);
     }
 
-    private SparseCollectionStorage OpenSparseReader(string collection)
+    /// <summary>
+    /// Returns an acquired lease on the current reader of the collection, or
+    /// null when it has no sparse index. The caller must release it.
+    /// </summary>
+    private SparseReaderLease AcquireSparseReader(string collection)
     {
         lock (_sparseLock)
         {
@@ -324,24 +403,36 @@ public partial class Store
             if (!Directory.Exists(path))
                 return null!;
 
-            // The writer publishes a new segment per commit; a reader built
-            // before that commit would silently serve stale results.
-            var generation = _sparseWriters.TryGetValue(collection, out var writer) ? writer.LastGeneration : ReadLastGeneration(path);
+            // A reader built before the last commit or delete would silently
+            // serve stale results.
+            var liveWriter = _sparseWriters.GetValueOrDefault(collection);
+            var state = liveWriter is not null
+                ? (liveWriter.LastGeneration, liveWriter.Tombstones.Count)
+                : (ReadLastGeneration(path), -1);
             if (_sparseReaders.TryGetValue(collection, out var cached) &&
-                _sparseReaderGenerations.TryGetValue(collection, out var cachedGeneration) &&
-                cachedGeneration == generation)
-                return cached;
+                _sparseReaderStates.TryGetValue(collection, out var cachedState) &&
+                cachedState == state)
+                return cached.Acquire();
 
             if (cached is not null)
-                cached.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                RetireSparseReader(collection);
 
-            var reopened = _sparseWriters.TryGetValue(collection, out var liveWriter)
+            var reopened = new SparseReaderLease(liveWriter is not null
                 ? SparseCollectionStorage.Open(path, liveWriter.Tombstones)
-                : SparseCollectionStorage.Open(path);
+                : SparseCollectionStorage.Open(path));
             _sparseReaders[collection] = reopened;
-            _sparseReaderGenerations[collection] = generation;
-            return reopened;
+            _sparseReaderStates[collection] = state;
+            return reopened.Acquire();
         }
+    }
+
+    // Called under _sparseLock: no new lease can start, and the searches still
+    // running on the old files finish before they are released.
+    private void RetireSparseReader(string collection)
+    {
+        if (_sparseReaders.Remove(collection, out var reader))
+            reader.DisposeWhenIdle();
+        _sparseReaderStates.Remove(collection);
     }
 
     private static long ReadLastGeneration(string path)
@@ -353,19 +444,23 @@ public partial class Store
         return last;
     }
 
-    /// <summary>Closes every sparse writer and reader; called by <see cref="Close"/>.</summary>
+    /// <summary>
+    /// Commits the buffered documents, then closes every sparse writer and
+    /// reader; called by <see cref="Close"/>.
+    /// </summary>
     private void CloseSparseIndexes()
     {
         lock (_sparseLock)
         {
             foreach (var writer in _sparseWriters.Values)
+            {
+                writer.Commit();
                 writer.Dispose();
+            }
             _sparseWriters.Clear();
 
-            foreach (var reader in _sparseReaders.Values)
-                reader.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            _sparseReaders.Clear();
-            _sparseReaderGenerations.Clear();
+            foreach (var collection in _sparseReaders.Keys.ToArray())
+                RetireSparseReader(collection);
         }
     }
 
@@ -374,18 +469,70 @@ public partial class Store
     {
         lock (_sparseLock)
         {
-            _sparseWriters.Clear();
-            foreach (var reader in _sparseReaders.Values)
-                reader.DisposeAsync().AsTask().GetAwaiter().GetResult();
-            _sparseReaders.Clear();
-            _sparseReaderGenerations.Clear();
+            // Committed first: a buffer would otherwise land in a segment right
+            // after the shrink.
+            foreach (var writer in _sparseWriters.Values)
+                writer.Commit();
 
             if (!Directory.Exists(SparsePath))
                 return;
 
             foreach (var directory in Directory.EnumerateDirectories(SparsePath))
                 if (NeedsSparseCompaction(directory))
-                    new SparseCollectionCompactor(directory).Compact();
+                    CompactSparseCollection(directory);
+        }
+    }
+
+    /// <summary>
+    /// Merges one collection into a single segment. Called under
+    /// <see cref="_sparseLock"/>: the buffer is committed first so nothing is
+    /// lost, and the writer and reader are closed because the compaction
+    /// rewrites the manifest and clears the tombstones they hold in memory.
+    /// </summary>
+    private void CompactSparseCollection(string directory)
+    {
+        foreach (var collection in _sparseWriters.Keys.ToArray())
+        {
+            if (!string.Equals(SparseCollectionPath(collection), directory, StringComparison.Ordinal))
+                continue;
+            var writer = _sparseWriters[collection];
+            writer.Commit();
+            writer.Dispose();
+            _sparseWriters.Remove(collection);
+        }
+
+        foreach (var collection in _sparseReaders.Keys.ToArray())
+            if (string.Equals(SparseCollectionPath(collection), directory, StringComparison.Ordinal))
+                RetireSparseReader(collection);
+
+        new SparseCollectionCompactor(directory).Compact();
+    }
+
+    /// <summary>
+    /// Reader shared by concurrent searches. The cache holds one reference;
+    /// the files are released only once the cache dropped it and every search
+    /// using it has finished.
+    /// </summary>
+    private sealed class SparseReaderLease(SparseCollectionStorage storage)
+    {
+        private int _users;
+
+        public SparseCollectionStorage Storage { get; } = storage;
+
+        public SparseReaderLease Acquire()
+        {
+            Interlocked.Increment(ref _users);
+            return this;
+        }
+
+        public void Release() => Interlocked.Decrement(ref _users);
+
+        public void DisposeWhenIdle()
+        {
+            var wait = new SpinWait();
+            while (Volatile.Read(ref _users) > 0)
+                wait.SpinOnce();
+            Storage.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
     }
 

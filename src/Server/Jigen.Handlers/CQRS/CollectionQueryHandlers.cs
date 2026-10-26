@@ -156,21 +156,57 @@ public class CollectionQueryHandlers(
     }
 
     var top = request.Data.Top <= 0 ? 10 : request.Data.Top;
+    var minDenseScore = request.Data.MinDenseScore ?? double.NegativeInfinity;
+    var minSparseScore = request.Data.MinSparseScore ?? double.NegativeInfinity;
+
+    IReadOnlyDictionary<int, float> sparseQuery = null;
+    if (request.Data.SparseFromSentence && !string.IsNullOrWhiteSpace(request.Data.Sentence))
+    {
+      var sparse = await hikyaku.Send(new Embedding.Core.Commands.CalculateSparseEmbedding
+      {
+        Sentence = request.Data.Sentence
+      }, cancellationToken);
+
+      if (sparse.Terms.Length > 0)
+      {
+        var query = new Dictionary<int, float>(sparse.Terms.Length);
+        for (var i = 0; i < sparse.Terms.Length; i++)
+          query[sparse.Terms[i]] = sparse.Weights[i];
+        sparseQuery = query;
+      }
+    }
+
     var searchTimer = Stopwatch.StartNew();
     var collectionsResults = new CollectionSearchResult[collections.Length];
 
-    Parallel.For(0, collections.Length, (i, ct) =>
+    Parallel.For(0, collections.Length, i =>
     {
       var collection = collections[i];
       var collectionTimer = Stopwatch.StartNew();
-      var resultItems = store.SearchDense(collection, embeddings, top)
-        .Select(r => new CollectionSearchResultItem
-        {
-          Key = r.entry.Id,
-          Content = serializer.ToJsonObject(r.entry.Content),
-          Score = r.score
-        })
-        .ToArray();
+      var resultItems = sparseQuery is null
+        ? store.SearchDense(collection, embeddings, top)
+          .Where(r => r.score >= minDenseScore)
+          .Select(r => new CollectionSearchResultItem
+          {
+            Key = r.entry.Id,
+            Content = serializer.ToJsonObject(r.entry.Content),
+            Score = r.score,
+            DenseScore = r.score
+          })
+          .ToArray()
+        : store.SearchHybrid(collection, embeddings, sparseQuery, top,
+            minDenseScore: minDenseScore,
+            minSparseScore: minSparseScore,
+            cancellationToken: cancellationToken)
+          .Select(hit => new CollectionSearchResultItem
+          {
+            Key = hit.Key,
+            Content = hit.Entry is null ? null : serializer.ToJsonObject(hit.Entry.Content),
+            Score = (float)hit.Score,
+            DenseScore = hit.DenseScore,
+            SparseScore = hit.SparseScore
+          })
+          .ToArray();
       collectionTimer.Stop();
 
       collectionsResults[i] = new CollectionSearchResult

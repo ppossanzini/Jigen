@@ -34,7 +34,7 @@ Service: `jigen.StoreCollectionService` (`csharp_namespace = Jigen.Proto`).
 
 `IngestResult.Accepted` counts the entries accepted into the server's ingestion pipeline; durability follows the server's group-commit policy, exactly like the unary `Set` operations.
 
-A `SearchVectorRequest` with only `SparseQuery` is a sparse-only search; with both `Embeddings` and `SparseQuery` it is hybrid. `SearchDocumentRequest` can fill the sparse half itself from the sentence (`SparseFromSentence`), so a hybrid search needs nothing but text. `SparseTerms` carries term ids and weights: the server stores them as given and never tokenizes text on its own — the embedding module produces them on request. See [Sparse index](../indexes/sparse.md#producing-the-pairs).
+A `SearchVectorRequest` with only `SparseQuery` is a sparse-only search; with both `Embeddings` and `SparseQuery` it is hybrid. `SearchDocumentRequest` can fill the sparse half itself from the sentence (`SparseFromSentence`, absent means `true`), so a hybrid search needs nothing but text; send `false` to keep it dense-only. `SparseTerms` carries term ids and weights: the server stores them as given and never tokenizes text on its own — the embedding module produces them on request. See [Sparse index](../indexes/sparse.md#producing-the-pairs).
 
 `SetDocument`, `SetDocuments` and `SearchDocument` require an embedding module reachable from the server process (in-process on the all-in-one image, or remote over RabbitMQ from a `jigendb` server) — see [embeddings overview](../embeddings/overview.md). The image RPCs additionally require the vision model to be configured (`JigenEmbeddings:ImagesModelPath`); without it the server runs text-only and image RPCs fail with a clear configuration error.
 
@@ -68,7 +68,8 @@ message Document {
   SparseTerms Sparse = 6;   // sparse terms of the document itself
   // Derive the sparse terms from Sentence on the server, with the same tokenizer
   // that produces the dense embedding. Ignored when Sparse is supplied.
-  bool SparseFromSentence = 7;
+  // Absent means true; set it to false to store the document dense-only.
+  optional bool SparseFromSentence = 7;
 }
 
 // One vector of a multi-vector entry, e.g. one embedding per passage.

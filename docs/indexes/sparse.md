@@ -87,7 +87,9 @@ Over the network the same values are available from two places:
   REST embedding endpoints), for callers that want the pairs in hand;
 - the `SparseFromSentence` flag on `SearchDocument` and on document writes: the
   server derives the sparse side from the sentence it is already embedding, so a
-  write fills both slots and a hybrid search starts from a sentence alone.
+  write fills both slots and a hybrid search starts from a sentence alone. The
+  flag defaults to on when the transport does not send it; send `false` to keep
+  the request dense-only.
 
 An explicit `Sparse`/`SparseQuery` always wins over the derived one.
 

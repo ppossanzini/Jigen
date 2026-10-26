@@ -108,7 +108,8 @@ message Document {
   SparseTerms Sparse = 6;
   // Derive the sparse terms from Sentence on the server, with the same tokenizer
   // that produces the dense embedding. Ignored when Sparse is supplied.
-  bool SparseFromSentence = 7;
+  // Absent means true; set it to false to store the document dense-only.
+  optional bool SparseFromSentence = 7;
 }
 
 // One vector of a multi-vector entry, e.g. one embedding per passage.
@@ -185,7 +186,8 @@ message SearchDocumentRequest {
   // Derive that sparse half from Sentence on the server, with the same tokenizer
   // that produced the dense embedding: a hybrid search from a sentence alone.
   // Ignored when SparseQuery is supplied.
-  bool SparseFromSentence = 8;
+  // Absent means true; set it to false to keep the search dense-only.
+  optional bool SparseFromSentence = 8;
 }
 
 message FilterNode {

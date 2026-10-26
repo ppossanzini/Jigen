@@ -14,6 +14,7 @@ public class BulkDocumentItem
   /// Derive the sparse terms from <see cref="Sentence"/> on the server, with the
   /// same tokenizer that produces the dense embedding. Ignored when
   /// <see cref="Sparse"/> is supplied.
+  /// Defaults to true; an explicit false stores the document dense-only.
   /// </summary>
-  public bool SparseFromSentence { get; set; }
+  public bool SparseFromSentence { get; set; } = true;
 }

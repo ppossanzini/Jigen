@@ -109,6 +109,10 @@ public class WalCheckpointer
     _store.EmbeddingFileStream!.Flush(true);
     _store.IndexFileStream!.Flush(true);
 
+    // Buffered sparse documents exist only in memory: once the WAL is gone,
+    // replay could no longer rebuild them after a crash.
+    _store.CommitSparseBuffers(force: true);
+
     // No appends can race us while WalLock is held and all accepted work has
     // drained. The data/index files are durable, so the complete WAL prefix can
     // be discarded instead of retaining a no-op checkpoint marker forever.

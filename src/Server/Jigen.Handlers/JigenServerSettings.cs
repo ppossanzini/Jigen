@@ -29,6 +29,12 @@ public class JigenServerSettings
   public string EmbeddingQueryTask { get; set; } = "search_query";
 
   public JigenIndexSettings Index { get; set; } = new();
+
+  /// <summary>
+  /// Sparse index policy applied to every database: buffering before a segment
+  /// is written and background compaction when the segments pile up.
+  /// </summary>
+  public SparseOptions Sparse { get; set; } = new();
 }
 
 /// <summary>HNSW index parameters applied to every database.</summary>

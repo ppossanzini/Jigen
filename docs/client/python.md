@@ -24,9 +24,7 @@ hits = articles.search("vector database", {1204: 1.0})            # hybrid, serv
 ```
 
 The three names match the in-process engine: `search_dense`, `search_sparse` and
-`search` for the hybrid; `search_hybrid` remains as an alias of `search`. With
-`sparse_from_sentence=True` the server derives the sparse half from the same
-sentence it embeds densely, so a hybrid search needs nothing but text:
+`search` for the hybrid; `search_hybrid` remains as an alias of `search`. `sparse_from_sentence=True` — the default on the server when the field is absent — makes the server derive the sparse half from the same sentence it embeds densely, so a hybrid search needs nothing but text:
 
 ```python
 hits = articles.search("how do I reset my password?", top=10, sparse_from_sentence=True)

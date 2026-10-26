@@ -44,4 +44,7 @@ public class StoreOptions
   /// background writing to the data files, guaranteeing per-record durability.
   /// </summary>
   public WalOptions Wal { get; set; }
+
+  /// <summary>Sparse index buffering and background compaction policy.</summary>
+  public SparseOptions Sparse { get; set; } = new();
 }

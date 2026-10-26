@@ -16,8 +16,9 @@ public class SearchData
   /// Derive the sparse half from <see cref="Sentence"/> on the server, with the
   /// same tokenizer that produces the dense embedding: a hybrid search from a
   /// sentence alone. Ignored when <see cref="SparseQuery"/> is supplied.
+  /// Defaults to true; an explicit false keeps the search dense-only.
   /// </summary>
-  public bool SparseFromSentence { get; set; }
+  public bool SparseFromSentence { get; set; } = true;
 
   /// <summary>Drop dense hits below this similarity before the fusion.</summary>
   public float? MinDenseScore { get; set; }
