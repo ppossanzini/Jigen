@@ -249,6 +249,11 @@ public class CollectionsControllerTests
           c.Sentence == request.Sentence && c.Task == "search_query"),
         It.IsAny<CancellationToken>()))
       .ReturnsAsync([0.1f, 0.2f]);
+    // The sentence also yields the sparse half (SP-05Y): an empty result keeps the search dense.
+    _mediatorMock.Setup(m => m.Send(
+        It.Is<Embedding.Core.Commands.CalculateSparseEmbedding>(c => c.Sentence == request.Sentence),
+        It.IsAny<CancellationToken>()))
+      .ReturnsAsync(new Jigen.Embedding.Core.Dto.SparseEmbeddingDto { Terms = [], Weights = [] });
     _mediatorMock.Setup(m => m.Send(It.IsAny<SearchVector>(), It.IsAny<CancellationToken>()))
       .ReturnsAsync([]);
 

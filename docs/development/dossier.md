@@ -1,5 +1,24 @@
 # Development Dossier
 
+## SP-06C Build e test backend di nuovo verdi
+
+- Ambito: `tests/JigenClientTest`, `tests/Jigen.API.Tests`.
+- Skill: `base-be-base-rules`, `implementation-be-dotnet-dev`.
+- `JigenClientTest` non compilava dopo SP-05Z: tolti `SearchDense(frase)`,
+  gli overload frase+sparso e `sparseFromSentence`. Il test frase+sparso ora
+  verifica che il server derivi lo sparso; rimosso il test duplicato.
+- `SearchCollection_UsesSearchQueryTask_ForSentence` falliva con
+  NullReferenceException: dopo SP-05Y la frase calcola anche lo sparso, ma il
+  test non simulava `CalculateSparseEmbedding`. Aggiunto il mock con risultato
+  vuoto.
+- Nota: `Jigen.API.Tests` e `Jigen.Grpc.Tests` non sono in `Jigen.slnx`; vanno
+  compilati e lanciati per progetto.
+- Verifica: `dotnet build Jigen.slnx` 0 errori. Superati: JigenStoreTests 89,
+  Jigen.Index.Sparse.Tests 127, JigenClientTest 22 (+5 skip), PrimitiveTests 14,
+  Jigen.IdentityTests 3, HnswTest 20, Jigen.SemanticTools.Tests 41,
+  Jigen.API.Tests 55, Jigen.Grpc.Tests 25.
+- Esito: completato.
+
 ## SP-06B Shrink da Insight e segmenti sparsi vincolati per dimensione
 
 Stato: backend completato e verificato; frontend da verificare con typecheck.

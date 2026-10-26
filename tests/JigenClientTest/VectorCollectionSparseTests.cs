@@ -56,7 +56,7 @@ public class VectorCollectionSparseTests
   }
 
   [Fact]
-  public void Add_sends_the_document_sparse_terms()
+  public void Add_with_a_sentence_lets_the_server_derive_the_sparse_terms()
   {
     Document captured = null;
 
@@ -68,11 +68,12 @@ public class VectorCollectionSparseTests
 
     var sut = CreateCollection(invoker);
 
-    sut.Add(1, new Entity1 { Title = "one" }, "a sentence", new Dictionary<int, float> { [7] = 2f });
+    sut.Add(1, new Entity1 { Title = "one" }, "a sentence");
 
     Assert.NotNull(captured);
     Assert.Equal("a sentence", captured.Sentence);
-    Assert.Equal(2f, captured.Sparse.Terms[7]);
+    Assert.True(captured.SparseFromSentence);
+    Assert.Null(captured.Sparse);
   }
 
   [Fact]
@@ -192,31 +193,13 @@ public class VectorCollectionSparseTests
 
     var sut = CreateCollection(invoker);
 
-    var results = sut.Search("hybrid from text", top: 4, sparseFromSentence: true);
+    var results = sut.Search("hybrid from text", top: 4);
 
     Assert.Equal("hybrid from text", captured.Sentence);
     Assert.Equal(4, captured.Top);
     Assert.True(captured.SparseFromSentence);
     Assert.Empty(captured.SparseQuery);
     Assert.Equal(1.2f, results[0].SparseScore);
-  }
-
-  [Fact]
-  public void Add_can_ask_the_server_to_derive_the_sparse_terms_from_the_sentence()
-  {
-    Document captured = null;
-
-    var invoker = new FakeCallInvoker((_, request) =>
-    {
-      captured = (Document)request;
-      return new Result { Success = true };
-    });
-
-    CreateCollection(invoker).Add(1, new Entity1 { Title = "one" }, "a sentence", sparseFromSentence: true);
-
-    Assert.NotNull(captured);
-    Assert.Equal("a sentence", captured.Sentence);
-    Assert.True(captured.SparseFromSentence);
   }
 
   [Fact]

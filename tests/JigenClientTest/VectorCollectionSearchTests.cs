@@ -98,7 +98,7 @@ public class VectorCollectionSearchTests
 
     var sut = new VectorCollection<Entity1>(context);
 
-    var results = sut.SearchDense("Find me", top: 3);
+    var results = sut.Search("Find me", top: 3);
 
     Assert.Single(results);
     Assert.Equal("from sentence", results[0].Content.Title);
@@ -138,7 +138,7 @@ public class VectorCollectionSearchTests
 
     var sut = new VectorCollection<SearchEntity>(context);
 
-    _ = sut.SearchDense("Find me", x => x.Tags.Any(tag => tag == "science") && x.Metadata.Country == "IT", top: 4);
+    _ = sut.Search("Find me", x => x.Tags.Any(tag => tag == "science") && x.Metadata.Country == "IT", top: 4);
 
     Assert.Contains("SearchDocument", invoker.CalledMethods);
   }
