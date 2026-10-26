@@ -493,7 +493,6 @@ public class Server(IHikyaku mediator, IHikyaku hikyaku, IOptions<PassageSplitti
 
     query.EfSearch = tuning.EfSearch;
     query.NoContent = tuning.NoContent;
-    if (tuning.HasMinScore) query.MinScore = tuning.MinScore;
     if (tuning.HasMinDenseScore) query.MinDenseScore = tuning.MinDenseScore;
     if (tuning.HasMinSparseScore) query.MinSparseScore = tuning.MinSparseScore;
     return query;

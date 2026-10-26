@@ -118,11 +118,11 @@ message SearchDocumentRequest {
 
 // Optional per-query tuning; zero values keep the server defaults.
 message SearchTuning {
-  int32 EfSearch = 1;          // HNSW beam width override (recall vs latency)
-  bool NoContent = 2;          // return keys and scores only
-  optional float MinScore = 3; // drop results below this similarity
-  optional float MinDenseScore = 4;  // hybrid: drop weak dense hits before the fusion
-  optional float MinSparseScore = 5; // hybrid: drop weak sparse hits before the fusion
+  int32 EfSearch = 1;                // HNSW beam width override (recall vs latency)
+  bool NoContent = 2;                // return keys and scores only
+  reserved 3;                        // was MinScore: it duplicated MinDenseScore
+  optional float MinDenseScore = 4;  // drop weak dense hits, dense-only or hybrid
+  optional float MinSparseScore = 5; // drop weak sparse hits, sparse-only or hybrid
 }
 
 message SearchVectorResult {

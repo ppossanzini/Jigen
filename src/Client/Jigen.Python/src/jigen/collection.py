@@ -85,8 +85,6 @@ def _tuning(options: SearchOptions | None) -> pb.SearchTuning | None:
     if options is None:
         return None
     result = pb.SearchTuning(EfSearch=options.ef_search, NoContent=options.no_content)
-    if options.min_score is not None:
-        result.MinScore = options.min_score
     if options.min_dense_score is not None:
         result.MinDenseScore = options.min_dense_score
     if options.min_sparse_score is not None:

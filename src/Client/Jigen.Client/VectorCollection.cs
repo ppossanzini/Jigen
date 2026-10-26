@@ -604,8 +604,6 @@ public class VectorCollection<T>(Context store, VectorCollectionOptions<T> optio
       NoContent = options.NoContent
     };
 
-    if (options.MinScore.HasValue)
-      tuning.MinScore = options.MinScore.Value;
     if (options.MinDenseScore.HasValue)
       tuning.MinDenseScore = options.MinDenseScore.Value;
     if (options.MinSparseScore.HasValue)

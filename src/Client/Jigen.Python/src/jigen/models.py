@@ -32,7 +32,6 @@ def encode_key(value: Key) -> bytes:
 class SearchOptions:
     ef_search: int = 0
     no_content: bool = False
-    min_score: float | None = None
     min_dense_score: float | None = None
     min_sparse_score: float | None = None
 

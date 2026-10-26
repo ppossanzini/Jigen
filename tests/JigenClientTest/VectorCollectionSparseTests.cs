@@ -220,6 +220,40 @@ public class VectorCollectionSparseTests
   }
 
   [Fact]
+  public void SearchDense_sends_the_dense_score_cut()
+  {
+    SearchVectorRequest captured = null;
+
+    var invoker = new FakeCallInvoker((_, request) =>
+    {
+      captured = (SearchVectorRequest)request;
+      return new SearchVectorResponse();
+    });
+
+    CreateCollection(invoker).SearchDense([0.1f], top: 3, options: new SearchOptions { MinDenseScore = 0.4f });
+
+    Assert.Equal(0.4f, captured.Tuning.MinDenseScore);
+    Assert.Equal(0f, captured.Tuning.MinSparseScore);
+  }
+
+  [Fact]
+  public void SearchSparse_sends_the_sparse_score_cut()
+  {
+    SearchVectorRequest captured = null;
+
+    var invoker = new FakeCallInvoker((_, request) =>
+    {
+      captured = (SearchVectorRequest)request;
+      return new SearchVectorResponse();
+    });
+
+    CreateCollection(invoker).SearchSparse(new Dictionary<int, float> { [7] = 1f },
+      options: new SearchOptions { MinSparseScore = 0.2f });
+
+    Assert.Equal(0.2f, captured.Tuning.MinSparseScore);
+  }
+
+  [Fact]
   public void Search_without_any_half_is_refused()
   {
     var invoker = new FakeCallInvoker((_, _) => new SearchVectorResponse());

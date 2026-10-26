@@ -64,8 +64,8 @@ Note: the server's Newtonsoft.Json configuration does not add a camelCase contra
 | `SparseQuery` | object | Sparse half of the query: term id (as a JSON key) to weight, e.g. `{"1204": 1.0, "77": 0.4}`. Alone it is a sparse-only search; together with `Sentence` or `Embeddings` it is hybrid. |
 | `SparseFromSentence` | bool | Derive the sparse half from `Sentence` with the same tokenizer that produces the dense embedding: a hybrid search from a sentence alone. Ignored when `SparseQuery` is present. |
 | `Top` | int | Number of results to return (default 10). |
-| `MinDenseScore` | float? | Hybrid only: drop dense hits below this similarity before the fusion. |
-| `MinSparseScore` | float? | Hybrid only: drop sparse hits below this score before the fusion. |
+| `MinDenseScore` | float? | Drop dense hits below this similarity: on a dense-only search and on the dense half of a hybrid one. |
+| `MinSparseScore` | float? | Drop sparse hits below this score: on a sparse-only search and on the sparse half of a hybrid one. |
 
 One of `Sentence`, `Embeddings` or `SparseQuery` is required. Each result carries `Key`, `Content`, `Score` (the fused score for a hybrid search) and, when the server computed them, `DenseScore` and `SparseScore`. The term ids in `SparseQuery` are your vocabulary — the server does not tokenize text; see [Sparse index](../indexes/sparse.md).
 

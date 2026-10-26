@@ -93,8 +93,8 @@ public class CollectionQueryHandlers(
     {
       var results = store.SearchDense(request.Collection, request.Embeddings, top, request.EfSearch, request.Filter);
 
-      if (request.MinScore.HasValue)
-        results = results.Where(i => i.score >= request.MinScore.Value);
+      if (request.MinDenseScore.HasValue)
+        results = results.Where(i => i.score >= request.MinDenseScore.Value);
 
       return Task.FromResult(results
         .Select(i => new SearchVectorResultItem

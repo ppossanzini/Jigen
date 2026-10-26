@@ -1,5 +1,39 @@
 # Development Dossier
 
+## SP-05W Un solo nome per la soglia densa: via MinScore
+
+Stato: completato. Attendono approvazione esplicita del codice.
+
+- Motivo: `MinScore` e `MinDenseScore` significavano la stessa cosa su percorsi
+  diversi (il primo solo sulla ricerca densa, il secondo solo sulla meta densa
+  dell'ibrida). Due nomi per un'unica nozione, e nessuno dei due funzionava dove
+  ci si aspettava l'altro.
+- Contratto: `MinScore` rimosso. `SearchTuning` riserva il campo 3 (nessun
+  riuso: un client vecchio che lo mandava ora riceve un errore di
+  deserializzazione invece di un taglio silenzioso). `MinDenseScore` (4) e
+  `MinSparseScore` (5) restano gli unici due limiti.
+- Semantica unificata: `MinDenseScore` vale sia sulla ricerca densa sia sulla meta
+  densa dell'ibrida; `MinSparseScore` sia sulla sparso-sola sia sulla meta sparsa
+  dell'ibrida. Il ramo denso dell'handler ora legge `MinDenseScore` (prima
+  leggeva `MinScore`), il ramo ibrido era gia corretto.
+- Rimossi: `SearchOptions.MinScore` (client .NET), `SearchVector.MinScore`
+  (Core), `ApplyTuning` per quel campo, `SearchOptions.min_score` (client
+  Python), il mapping nel `_tuning` Python. L'integrazione LangChain mappa
+  `score_threshold` su `min_dense_score`, che e il campo che serve davvero.
+- REST non aveva `MinScore`: `SearchData.MinDenseScore`/`MinSparseScore` ora
+  documentati come validi su entrambi i percorsi.
+- Test: 2 nuovi sul client (la ricerca densa manda `MinDenseScore`, la sparsa
+  manda `MinSparseScore`), 2 nuovi sul servizio gRPC (i tagli arrivano al Core,
+  e restano null quando il tuning non li porta). Aggiornato il test Python che
+  usava `min_score`.
+- Verifica: soluzione 0 errori, API 55, gRPC 25, client 23 piu 5 saltati, Store
+  73, Python 30 con `ruff` pulito, `mkdocs --strict` verde.
+- Differenza residua, non toccata: sul ramo denso il taglio avviene dopo che
+  l'indice ha restituito il top-k, quindi con `top: 10` e una soglia alta si
+  possono ottenere meno di 10 risultati anche se altri documenti sopra soglia
+  esistono piu in basso in classifica. Sul ramo sparso la soglia entra nel
+  motore, pota e riempie k. Allinearla richiede una soglia nell'`IIndexer`
+  (o un over-fetch): decisione dell'utente.
 ## SP-05V Soluzione in formato .slnx
 
 Stato: completato.

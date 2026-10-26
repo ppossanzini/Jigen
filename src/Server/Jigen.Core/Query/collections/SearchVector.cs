@@ -17,16 +17,16 @@ public class SearchVector : IRequest<IEnumerable<SearchVectorResultItem>>
   /// <summary>Return keys and scores only, without the content bytes.</summary>
   public bool NoContent { get; set; }
 
-  /// <summary>Drop results scoring below this similarity.</summary>
-  public float? MinScore { get; set; }
-
   /// <summary>
   /// Sparse half of the query: term identifier to weight. When present the
   /// search becomes hybrid and the two halves are fused by reciprocal rank.
   /// </summary>
   public IReadOnlyDictionary<int, float> SparseQuery { get; set; }
 
-  /// <summary>Drop dense hits below this similarity before the fusion.</summary>
+  /// <summary>
+  /// Drop dense hits below this similarity, on a dense-only search as well as on
+  /// the dense half of a hybrid one.
+  /// </summary>
   public float? MinDenseScore { get; set; }
 
   /// <summary>Drop sparse hits below this score before the fusion.</summary>

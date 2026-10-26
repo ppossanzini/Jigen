@@ -154,6 +154,10 @@ var tuned = articles.Search(myFloatVector, sparseQuery, predicate: a => a.Catego
 
 A document that is weak in one half cannot be lifted into the result by the other: `MinDenseScore` and `MinSparseScore` drop it before the fusion, and the sparse cut also lets that half prune earlier.
 
+`MinDenseScore` and `MinSparseScore` are the only score floors, and each one means the same thing on every path: `MinDenseScore` cuts the dense half of a `SearchDense` as well as of a hybrid `Search`; `MinSparseScore` cuts a `SearchSparse` as well as the sparse half of a hybrid one. (An earlier `MinScore` property applied only to the dense-only path and has been removed.)
+
+One difference remains in *where* the cut happens. On the dense-only path the index returns the top-k first and the cut is applied to those: with `top: 10` and a high `MinDenseScore` you can get fewer than 10 hits even if more documents above the threshold exist further down the ranking. On the sparse side the cut is a real threshold inside the engine, which prunes and still fills k when enough documents pass.
+
 ### Hybrid from a sentence (the server derives both halves)
 
 With `sparseFromSentence` the server embeds the sentence densely *and* derives the sparse terms from the same text with the model's tokenizer, then fuses the two halves: no sparse query is needed on the client.
@@ -205,9 +209,8 @@ var results = await articles.SearchDenseAsync(myFloatVector, top: 10, options: n
 {
   EfSearch = 200,        // HNSW beam width for THIS query (recall vs latency); 0 = server default
   NoContent = true,      // keys and scores only: results come back with Content == null
-  MinScore = 0.35f,      // drop results below this similarity
-  MinDenseScore = 0.30f, // hybrid: drop the weak dense hits before the fusion
-  MinSparseScore = 0.05f // hybrid: drop the weak sparse hits before the fusion
+  MinDenseScore = 0.30f, // drop the weak dense hits: dense-only or hybrid
+  MinSparseScore = 0.05f // drop the weak sparse hits: sparse-only or hybrid
 });
 ```
 

@@ -136,14 +136,14 @@ message Vector {
 // - EfSearch: HNSW beam width override for this query (recall vs latency);
 //   0 = server default. Ignored by exact (brute force) indexes.
 // - NoContent: return keys and scores only, skipping the content bytes.
-// - MinScore: drop results scoring below this similarity.
+// - MinDenseScore: drop dense hits below this similarity. Applied whether the
+//   search is dense-only or hybrid, so one property means one thing.
+// - MinSparseScore: drop sparse hits below this score (sparse-only or hybrid).
 message SearchTuning {
   int32 EfSearch = 1;
   bool NoContent = 2;
-  optional float MinScore = 3;
-  // Drop dense hits below this similarity before the hybrid fusion.
+  reserved 3; // was MinScore: it duplicated MinDenseScore on a different path
   optional float MinDenseScore = 4;
-  // Drop sparse hits below this score before the hybrid fusion.
   optional float MinSparseScore = 5;
 }
 

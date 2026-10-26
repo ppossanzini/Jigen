@@ -94,7 +94,7 @@ class JigenVectorStore(VectorStore):
         if search_options is None and min_score is not None:
             from ..models import SearchOptions
 
-            search_options = SearchOptions(min_score=float(min_score))
+            search_options = SearchOptions(min_dense_score=float(min_score))
         search_query: str | list[float] = (
             query if self._embedding is None else self._embedding.embed_query(query)
         )

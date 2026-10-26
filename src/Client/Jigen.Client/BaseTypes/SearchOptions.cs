@@ -18,12 +18,13 @@ public sealed class SearchOptions
   /// </summary>
   public bool NoContent { get; set; }
 
-  /// <summary>Drop results scoring below this similarity.</summary>
-  public float? MinScore { get; set; }
-
-  /// <summary>Drop dense hits below this similarity before the hybrid fusion.</summary>
+  /// <summary>
+  /// Drop dense hits below this similarity. It applies to a dense-only search and
+  /// to the dense half of a hybrid one, so one property means one thing wherever
+  /// the query runs.
+  /// </summary>
   public float? MinDenseScore { get; set; }
 
-  /// <summary>Drop sparse hits below this score before the hybrid fusion.</summary>
+  /// <summary>Drop sparse hits below this score, on a sparse-only search and on the sparse half of a hybrid one.</summary>
   public float? MinSparseScore { get; set; }
 }

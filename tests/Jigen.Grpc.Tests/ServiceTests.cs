@@ -420,6 +420,54 @@ public class ServiceTests
       It.IsAny<CancellationToken>()), Times.Once);
   }
 
+  // ── Per-query tuning ──
+
+  [Fact]
+  public async Task SearchVector_forwards_the_dense_score_cut()
+  {
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Core.Query.collections.SearchVector>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([]);
+
+    await CreateServer().SearchVector(
+      new SearchVectorRequest
+      {
+        Database = DbName,
+        Collection = Collection,
+        Embeddings = { 0.1f },
+        Tuning = new SearchTuning { EfSearch = 128, MinDenseScore = 0.4f, MinSparseScore = 0.2f }
+      },
+      CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Query.collections.SearchVector>(q =>
+        q.EfSearch == 128 && q.MinDenseScore == 0.4f && q.MinSparseScore == 0.2f),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
+  [Fact]
+  public async Task SearchVector_leaves_the_cuts_unset_when_the_tuning_does_not_carry_them()
+  {
+    _mediatorMock.Setup(m => m.Send(
+        It.IsAny<Core.Query.collections.SearchVector>(), It.IsAny<CancellationToken>()))
+      .ReturnsAsync([]);
+
+    await CreateServer().SearchVector(
+      new SearchVectorRequest
+      {
+        Database = DbName,
+        Collection = Collection,
+        Embeddings = { 0.1f },
+        Tuning = new SearchTuning { EfSearch = 64 }
+      },
+      CreateContext());
+
+    _mediatorMock.Verify(m => m.Send(
+      It.Is<Core.Query.collections.SearchVector>(q =>
+        q.MinDenseScore == null && q.MinSparseScore == null),
+      It.IsAny<CancellationToken>()), Times.Once);
+  }
+
   // ── Management: sparse index metrics ──
 
   [Fact]

@@ -92,11 +92,11 @@ def test_collection_upsert_and_search_request_mapping():
         [0.1, 0.2],
         top=4,
         filter=equals("title", "One"),
-        options=SearchOptions(ef_search=128, min_score=0.4),
+        options=SearchOptions(ef_search=128, min_dense_score=0.4),
     )
     assert stub.request.Top == 4
     assert stub.request.Tuning.EfSearch == 128
-    assert stub.request.Tuning.MinScore == pytest.approx(0.4)
+    assert stub.request.Tuning.MinDenseScore == pytest.approx(0.4)
     assert results[0].content == {"title": "One"}
     assert results[0].score == pytest.approx(0.9)
 

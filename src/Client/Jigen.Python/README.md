@@ -131,8 +131,9 @@ hits = articles.search("how do I reset my password?", top=5, sparse_from_sentenc
 
 Each hit carries the fused `score` plus the partial `dense_score` and
 `sparse_score` that produced it, when the server computed them. Use
-`min_dense_score` and `min_sparse_score` to drop weak candidates before the
-fusion, and `min_score` for a floor on the fused score:
+`min_dense_score` and `min_sparse_score` to drop the weak candidates of each
+half; each one means the same thing on every path — `min_dense_score` cuts a
+dense-only search too, `min_sparse_score` cuts a sparse-only one:
 
 ```python
 from jigen import SearchOptions
@@ -197,7 +198,7 @@ hits = articles.search(
     query_vector,
     top=10,
     filter=where,
-    options=SearchOptions(ef_search=200, min_score=0.35),
+    options=SearchOptions(ef_search=200, min_dense_score=0.35),
 )
 ```
 
